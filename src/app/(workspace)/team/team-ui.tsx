@@ -1,84 +1,155 @@
 "use client";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { addMember, changePassword, removeMember, resetPassword, type TeamState } from "./actions";
 import { CopyButton } from "@/components/copy";
+import { Modal } from "@/components/modal";
 
-function Created({ c, onDone }: { c: NonNullable<TeamState>["created"] & object; onDone?: () => void }) {
+const UserPlus = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M256 136a8 8 0 0 1-8 8h-16v16a8 8 0 0 1-16 0v-16h-16a8 8 0 0 1 0-16h16v-16a8 8 0 0 1 16 0v16h16a8 8 0 0 1 8 8m-57.87 58.85a8 8 0 0 1-12.26 10.3C165.75 181.19 138.09 168 108 168s-57.75 13.19-77.87 37.15a8 8 0 0 1-12.25-10.3c14.94-17.78 33.52-30.41 54.17-37.17a68 68 0 1 1 71.9 0c20.65 6.76 39.23 19.39 54.18 37.17M108 152a52 52 0 1 0-52-52 52.06 52.06 0 0 0 52 52" /></svg>;
+const Key = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M216.57 39.43a80 80 0 0 0-132.66 81.35L28.69 176A15.86 15.86 0 0 0 24 187.31V216a16 16 0 0 0 16 16h32a8 8 0 0 0 8-8v-16h16a8 8 0 0 0 8-8v-16h16a8 8 0 0 0 5.66-2.34l9.56-9.57A79.7 79.7 0 0 0 160 176h.1a80 80 0 0 0 56.47-136.57M224 98.1c-1.09 34.09-29.75 61.86-63.89 61.9H160a63.7 63.7 0 0 1-23.65-4.51 8 8 0 0 0-8.84 1.68L116.69 168H96a8 8 0 0 0-8 8v16H72a8 8 0 0 0-8 8v16H40v-28.69l58.83-58.82a8 8 0 0 0 1.68-8.84A63.7 63.7 0 0 1 96 96v-.11c0-34.14 27.81-62.8 61.9-63.89A64 64 0 0 1 224 98.1M192 76a12 12 0 1 1-12-12 12 12 0 0 1 12 12" /></svg>;
+const Trash = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16M96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0m48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0" /></svg>;
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="col g6"><span className="label">{label}</span>{children}</label>;
+}
+
+function OneTime({ c }: { c: { name: string; email: string; password: string } }) {
   return (
-    <div className="notice green col g8" style={{ alignItems: "stretch" }}>
-      <span><b className="w5">{c.name}</b> can sign in with <b className="w5">{c.email}</b> and this one-time password. It won’t be shown again.</span>
-      <div className="row g8">
-        <div className="input sm fill" style={{ background: "#fff" }}><span className="mono i1">{c.password}</span></div>
-        <CopyButton text={c.password} label="Copy password" />
-        {onDone && <button type="button" className="btn sm quiet" onClick={onDone}>Done</button>}
-      </div>
-      <span className="xs">Share it privately. They can change it on the Team page after signing in.</span>
+    <div className="col g10">
+      <div className="notice green"><span><b className="w5">{c.name}</b> can now sign in with <b className="w5">{c.email}</b>.</span></div>
+      <Field label="One-time password">
+        <div className="row g8"><div className="input fill" style={{ background: "var(--tray)" }}><span className="mono i1">{c.password}</span></div><CopyButton text={c.password} /></div>
+      </Field>
+      <span className="xs i3">It won’t be shown again. Share it privately — they can change it from Team after signing in.</span>
     </div>
   );
 }
 
-export function AddMember() {
+function As({ me }: { me: { initials: string; role: string } }) {
+  return <span className="row g8 xs i3 fill"><span className="av s k">{me.initials}</span>As {me.role === "owner" ? "owner" : "operator"}</span>;
+}
+
+export function InviteTeammate({ me }: { me: { initials: string; role: string } }) {
   const [open, setOpen] = useState(false);
+  const [round, setRound] = useState(0);
+  return (
+    <>
+      <button className="btn dark sm" onClick={() => { setRound(round + 1); setOpen(true); }}>
+        <svg width="14" height="14" viewBox="0 0 256 256" fill="#fff"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8" /></svg>Invite teammate
+      </button>
+      {open && <InviteModal key={round} me={me} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function InviteModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
   const [state, action, pending] = useActionState<TeamState, FormData>(addMember, undefined);
-  if (state?.created && open) return <Created c={state.created} onDone={() => setOpen(false)} />;
-  if (!open) return <button className="btn dark sm" onClick={() => setOpen(true)}>+ Add teammate</button>;
+  const [role, setRole] = useState<"operator" | "owner">("operator");
+  if (state?.created) {
+    return (
+      <Modal icon={<UserPlus />} title="Teammate added" sub="Send them the password below." onClose={onClose}
+        footer={<><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></>}>
+        <OneTime c={state.created} />
+      </Modal>
+    );
+  }
   return (
-    <form action={action} className="card col g12" style={{ padding: 16 }}>
-      <span className="h3">Add a teammate</span>
-      <div className="row g12" style={{ flexWrap: "wrap" }}>
-        <label className="col g6 fill" style={{ minWidth: 180 }}><span className="label">Name</span><div className="input sm"><input name="name" required autoFocus /></div></label>
-        <label className="col g6 fill" style={{ minWidth: 220 }}><span className="label">Email</span><div className="input sm"><input name="email" type="email" required /></div></label>
-        <label className="col g6" style={{ width: 150 }}><span className="label">Role</span>
-          <div className="input sm"><select name="role" defaultValue="operator"><option value="operator">Operator</option><option value="owner">Owner</option></select></div>
-        </label>
-      </div>
-      {state?.error && <div key={state.at} className="notice red">{state.error}</div>}
-      <div className="row g8">
-        <button className="btn dark sm" disabled={pending}>{pending ? "Adding…" : "Add and create password"}</button>
-        <button type="button" className="btn sm quiet" onClick={() => setOpen(false)}>Cancel</button>
-      </div>
-    </form>
+    <Modal icon={<UserPlus />} title="Invite a teammate" sub="They get access to every brand. Kaviar creates a one-time password for them." onClose={onClose}
+      footer={<><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="invite" className="btn dark" disabled={pending}>{pending ? "Inviting…" : "Invite teammate"}</button></>}>
+      <form id="invite" action={action} className="col g14">
+        <input type="hidden" name="role" value={role} />
+        <div className="row g12">
+          <div className="fill"><Field label="Name"><div className="input"><input name="name" placeholder="Jina" required autoFocus /></div></Field></div>
+          <div className="fill"><Field label="Email"><div className="input"><input name="email" type="email" placeholder="jina@kaviar.ai" required /></div></Field></div>
+        </div>
+        <Field label="Role">
+          <div className="col g8">
+            {([["operator", "Operator", "Works on brands: data, signals, ads and stores."], ["owner", "Owner", "Everything operators do, plus managing the team."]] as const).map(([v, t, d]) => (
+              <button key={v} type="button" onClick={() => setRole(v)} className="row g10" style={{ padding: "10px 12px", borderRadius: 10, textAlign: "left", border: `1px solid ${role === v ? "var(--ink)" : "var(--line)"}`, boxShadow: role === v ? "0 0 0 1px var(--ink)" : undefined, background: "#fff" }}>
+                <span className={`radio${role === v ? " on" : ""}`} />
+                <span className="col fill"><span className="sm w5 i1">{t}</span><span className="xs i3">{d}</span></span>
+              </button>
+            ))}
+          </div>
+        </Field>
+        {state?.error && <div key={state.at} className="notice red" role="alert">{state.error}</div>}
+      </form>
+    </Modal>
   );
 }
 
-export function MemberActions({ id, name }: { id: string; name: string }) {
-  const [res, setRes] = useState<TeamState>();
-  const [confirm, setConfirm] = useState(false);
-  const [pending, start] = useTransition();
-  if (res?.created) return <div style={{ position: "absolute", left: 16, right: 16, top: "100%", zIndex: 5 }}><Created c={res.created} onDone={() => setRes(undefined)} /></div>;
+type Dialog = null | "reset" | "remove" | "password";
+
+/** The "⋯" at the end of each row. */
+export function RowMenu({ id, name, email, self, me }: { id: string; name: string; email: string; self: boolean; me: { initials: string; role: string } }) {
+  const [open, setOpen] = useState(false);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const owner = me.role === "owner";
+  if (!self && !owner) return null;
+  const pick = (d: Dialog) => { setOpen(false); setDialog(d); };
   return (
-    <div className="row g6">
-      <button className="btn sm" disabled={pending} onClick={() => start(async () => setRes(await resetPassword(id)))}>Reset password</button>
-      {confirm ? (
-        <>
-          <button className="btn sm" style={{ color: "var(--red)" }} disabled={pending} onClick={() => start(() => removeMember(id))}>Remove {name.split(" ")[0]}</button>
-          <button className="btn sm quiet" onClick={() => setConfirm(false)}>Keep</button>
-        </>
-      ) : (
-        <button className="btn sm quiet" onClick={() => setConfirm(true)}>Remove</button>
+    <div ref={ref} style={{ position: "relative" }}>
+      <button className="btn quiet sm ic" aria-label={`Actions for ${name}`} onClick={() => setOpen(!open)}>⋯</button>
+      {open && (
+        <div className="menu" role="menu">
+          {self ? <button role="menuitem" onClick={() => pick("password")}><Key />Change password</button> : (
+            <>
+              <button role="menuitem" onClick={() => pick("reset")}><Key />Reset password</button>
+              <button role="menuitem" className="danger" onClick={() => pick("remove")}><Trash />Remove from team</button>
+            </>
+          )}
+        </div>
       )}
-      {res?.error && <span className="xs c-amber">{res.error}</span>}
+      {dialog === "reset" && <ResetModal id={id} name={name} email={email} me={me} onClose={() => setDialog(null)} />}
+      {dialog === "remove" && <RemoveModal id={id} name={name} me={me} onClose={() => setDialog(null)} />}
+      {dialog === "password" && <PasswordModal me={me} onClose={() => setDialog(null)} />}
     </div>
   );
 }
 
-export function ChangePassword() {
-  const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<TeamState, FormData>(changePassword, undefined);
-  if (!open) return <button className="btn sm" onClick={() => setOpen(true)}>Change your password</button>;
+function ResetModal({ id, name, email, me, onClose }: { id: string; name: string; email: string; me: { initials: string; role: string }; onClose: () => void }) {
+  const [res, setRes] = useState<TeamState>();
+  const [pending, start] = useTransition();
   return (
-    <form action={action} className="card col g12" style={{ padding: 16 }}>
-      <span className="h3">Change your password</span>
-      <div className="row g12" style={{ flexWrap: "wrap" }}>
-        <label className="col g6 fill" style={{ minWidth: 200 }}><span className="label">Current password</span><div className="input sm"><input name="current" type="password" autoComplete="current-password" required /></div></label>
-        <label className="col g6 fill" style={{ minWidth: 200 }}><span className="label">New password</span><div className="input sm"><input name="next" type="password" autoComplete="new-password" minLength={10} required /></div></label>
-      </div>
-      {state?.error && <div key={state.at} className="notice red">{state.error}</div>}
-      {state?.ok && <div className="notice green">{state.ok}</div>}
-      <div className="row g8">
-        <button className="btn dark sm" disabled={pending}>{pending ? "Saving…" : "Save new password"}</button>
-        <button type="button" className="btn sm quiet" onClick={() => setOpen(false)}>Close</button>
-      </div>
-    </form>
+    <Modal icon={<Key />} title={`Reset ${name.split(" ")[0]}’s password`} sub={res?.created ? "Send them the new password." : `${email} will be signed out everywhere and get a new one-time password.`} onClose={onClose}
+      footer={res?.created ? <><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></> :
+        <><As me={me} /><button className="btn" onClick={onClose}>Cancel</button><button className="btn dark" disabled={pending} onClick={() => start(async () => setRes(await resetPassword(id)))}>{pending ? "Resetting…" : "Reset password"}</button></>}>
+      {res?.created ? <OneTime c={res.created} /> : <span className="sm i2">Their current password stops working right away.</span>}
+      {res?.error && <div className="notice red">{res.error}</div>}
+    </Modal>
+  );
+}
+
+function RemoveModal({ id, name, me, onClose }: { id: string; name: string; me: { initials: string; role: string }; onClose: () => void }) {
+  const [pending, start] = useTransition();
+  return (
+    <Modal icon={<Trash />} title={`Remove ${name} from the team?`} sub="They lose access to every brand immediately." onClose={onClose}
+      footer={<><As me={me} /><button className="btn" onClick={onClose}>Cancel</button><button className="btn" style={{ color: "var(--red)", borderColor: "#F3D3CF" }} disabled={pending} onClick={() => start(async () => { await removeMember(id); onClose(); })}>{pending ? "Removing…" : "Remove"}</button></>}>
+      <span className="sm i2">Brands, data and connections stay as they are. You can invite them again later.</span>
+    </Modal>
+  );
+}
+
+function PasswordModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
+  const [state, action, pending] = useActionState<TeamState, FormData>(changePassword, undefined);
+  return (
+    <Modal icon={<Key />} title="Change your password" sub="Other devices are signed out after the change." onClose={onClose}
+      footer={state?.ok ? <><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></> :
+        <><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="pw" className="btn dark" disabled={pending}>{pending ? "Saving…" : "Save password"}</button></>}>
+      {state?.ok ? <div className="notice green">{state.ok}</div> : (
+        <form id="pw" action={action} className="col g14">
+          <Field label="Current password"><div className="input"><input name="current" type="password" autoComplete="current-password" required autoFocus /></div></Field>
+          <Field label="New password"><div className="input"><input name="next" type="password" autoComplete="new-password" minLength={10} required /></div></Field>
+          <span className="xs i3">At least 10 characters.</span>
+          {state?.error && <div key={state.at} className="notice red" role="alert">{state.error}</div>}
+        </form>
+      )}
+    </Modal>
   );
 }

@@ -291,3 +291,16 @@ details > summary::-webkit-details-marker { display: none; }
 /* tone classes win over the table cell's default ink */
 .td.i1 { color: var(--ink); } .td.i3 { color: var(--ink-3); }
 .td.c-green { color: var(--green); } .td.c-amber { color: var(--amber); } .td.c-red { color: var(--red); }
+/* modal (design board 06b): fixed scrim, centered card, header icon tile, footer actions */
+.scrim.fx { position: fixed; inset: 0; width: auto; height: auto; z-index: 50; background: rgba(18,18,18,0.38); padding: 24px; animation: scrimIn .18s ease both; }
+.scrim.fx .modal { width: 100%; max-height: calc(100dvh - 48px); overflow: auto; animation: modalIn .22s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes scrimIn { from { opacity: 0; } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+.modal-h { display: flex; align-items: flex-start; gap: 12px; padding: 20px 20px 0; }
+.modal-ic { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.modal-b { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.modal-f { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
+.menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 190px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(18,18,18,0.12); display: flex; flex-direction: column; }
+.menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 7px; font-size: 13px; color: var(--ink-2); text-align: left; }
+.menu button:hover { background: var(--tray); color: var(--ink); }
+.menu button.danger { color: var(--red); }
