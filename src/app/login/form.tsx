@@ -31,6 +31,11 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
         <h1 className="h1">{firstRun ? "Set up Kaviar" : "Welcome back"}</h1>
         <p className="t i3">{firstRun ? "Create the owner account. Add the rest of the team after." : "Sign in to the Kaviar console."}</p>
       </div>
+      {firstRun && (
+        <div className="notice auth-in" style={{ ["--i" as string]: 1 }}>
+          <span>This database has no accounts yet, so this one-time setup appears instead of sign in. Once the owner account exists, everyone signs in here.</span>
+        </div>
+      )}
 
       {firstRun && (
         <label className="field auth-in" style={{ ["--i" as string]: 1 }}>
