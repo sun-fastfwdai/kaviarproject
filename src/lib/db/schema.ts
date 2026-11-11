@@ -42,6 +42,7 @@ export const brands = pgTable("brands", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   category: text("category"),
+  website: text("website"),
   currency: text("currency").notNull().default("USD"),
   timezone: text("timezone").notNull().default("UTC"),
   imageUrl: text("image_url"),

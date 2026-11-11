@@ -30,11 +30,11 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function SetupNeeded({ keys }: { keys: string }) {
+function SetupNeeded({ provider }: { provider: "Shopify" | "Meta" }) {
   return (
     <div className="notice amber">
       <Icon name="key" size={14} />
-      <span>App keys aren’t set on this server. Add <span className="code">{keys}</span> to the environment, then reload.</span>
+      <span>{provider} isn’t set up for Kaviar yet. Once an owner adds the Kaviar {provider} app, you can connect here.</span>
     </div>
   );
 }
@@ -66,7 +66,7 @@ function ShopifyCard({ slug, conn }: { slug: string; conn: ConnectionView | null
         {conn?.status === "sample" ? (
           <p className="sm i3">This brand shows sample data. Create a new brand to connect a real store.</p>
         ) : !configured ? (
-          <SetupNeeded keys="SHOPIFY_API_KEY, SHOPIFY_API_SECRET" />
+          <SetupNeeded provider="Shopify" />
         ) : (
           <form action="/api/shopify/install" method="get" className="col g8">
             <input type="hidden" name="brand" value={slug} />
@@ -132,7 +132,7 @@ function MetaCard({ slug, conn }: { slug: string; conn: ConnectionView | null })
           </div>
         )}
         {conn?.status === "sample" ? null : !configured ? (
-          <SetupNeeded keys="META_APP_ID, META_APP_SECRET" />
+          <SetupNeeded provider="Meta" />
         ) : conn?.status !== "choose_account" ? (
           <div className="row g8">
             <a className="btn dark" href={`/api/meta/connect?brand=${slug}`}>{live || conn?.status === "needs_reauth" ? "Reconnect Meta" : "Connect Meta Ads"}</a>

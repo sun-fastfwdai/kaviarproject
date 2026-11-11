@@ -4,7 +4,7 @@ import { ago, money, num } from "@/lib/format";
 import { Bar, BrandThumb } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { MetaLogo, ShopifyLogo } from "@/components/logos";
-import { AddBrand } from "./add-brand";
+import { AgentFace } from "@/components/agent";
 
 export const metadata = { title: "Brands" };
 
@@ -27,7 +27,7 @@ export default async function BrandsPage() {
   return (
     <>
       <Bar crumbs={[{ label: "Brands" }]}>
-        <AddBrand />
+        <Link href="/brands/new" className="btn dark sm"><Icon name="plus" size={14} color="#fff" />Add brand</Link>
       </Bar>
       <div className="scroll">
         <div className="col g24" style={{ padding: "28px 32px" }}>
@@ -44,11 +44,19 @@ export default async function BrandsPage() {
           </div>
 
           {brands.length === 0 ? (
-            <div className="card col g12" style={{ padding: 40, alignItems: "center", textAlign: "center" }}>
-              <Icon name="store" size={28} color="#8B8883" />
-              <span className="h3">Add your first brand</span>
-              <p className="sm i3" style={{ maxWidth: 380 }}>Create a brand, connect its Shopify store and Meta ad account, and Kaviar keeps both in sync.</p>
-              <AddBrand />
+            <div className="col g16" style={{ padding: "56px 24px", alignItems: "center", textAlign: "center", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 14 }}>
+              <div className="row g12" style={{ alignItems: "flex-end" }}>
+                <AgentFace kind="analyst" size={40} /><AgentFace kind="builder" size={48} mood="happy" /><AgentFace kind="catalog" size={44} /><AgentFace kind="qa" size={42} />
+              </div>
+              <div className="col g6" style={{ alignItems: "center" }}>
+                <span className="h2">No brands yet</span>
+                <p className="t i3" style={{ maxWidth: 380 }}>Add a brand by connecting its Shopify store, or set it up now and connect the store later.</p>
+              </div>
+              <div className="row g8">
+                <Link href="/brands/new" className="btn dark"><Icon name="plus" size={14} color="#fff" />Add brand</Link>
+                <Link href="/brands/new" className="btn"><ShopifyLogo size={14} />Connect Shopify store</Link>
+              </div>
+              <span className="xs i3">Remy, Cleo, Otto and Iris are ready when you are.</span>
             </div>
           ) : (
             <div className="card" style={{ overflow: "visible" }}>
