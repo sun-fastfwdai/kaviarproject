@@ -1,11 +1,14 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
-import { getMember } from "@/lib/auth";
 import { count } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { getMember } from "@/lib/auth";
 import { Wordmark } from "@/components/shell/parts";
 import { LoginForm } from "./form";
+import { AuthPanel } from "./panel";
+import "./auth.css";
 
 export const metadata = { title: "Sign in" };
 
@@ -16,18 +19,32 @@ async function Form() {
   return <LoginForm firstRun={n === 0} />;
 }
 
+function FormSkeleton() {
+  return (
+    <div className="col g16">
+      <div className="skel" style={{ width: 220, height: 32 }} /><div className="skel" style={{ width: 260, height: 14 }} />
+      <div className="skel" style={{ height: 64 }} /><div className="skel" style={{ height: 64 }} /><div className="skel" style={{ height: 44 }} />
+    </div>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <div className="col center" style={{ minHeight: "100dvh", alignItems: "center", padding: 24 }}>
-      <div className="col g20" style={{ width: 380 }}>
-        <Wordmark href="/" />
-        <div className="card" style={{ padding: 28, boxShadow: "0 1px 2px rgba(18,18,18,0.04), 0 12px 32px rgba(18,18,18,0.06)" }}>
-          <Suspense fallback={<div className="skel" style={{ height: 260 }} />}>
+    <div className="auth">
+      <div className="auth-left">
+        <div className="row between">
+          <Wordmark href="/" />
+          <Link href="/" className="btn quiet sm">← Back to site</Link>
+        </div>
+        <div className="auth-form">
+          <Suspense fallback={<FormSkeleton />}>
             <Form />
           </Suspense>
+          <p className="xs i3">For the Kaviar team. Brands never need an account — we handle their store for them.</p>
         </div>
-        <p className="xs i3" style={{ textAlign: "center" }}>Shopify and Meta data for every brand, in one place.</p>
+        <span className="xs i4">© 2026 Kaviar</span>
       </div>
+      <AuthPanel />
     </div>
   );
 }

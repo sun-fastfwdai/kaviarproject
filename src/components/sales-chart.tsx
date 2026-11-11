@@ -18,7 +18,7 @@ function niceMax(v: number) {
  * One $ axis. Bars = Shopify sales per day, the blue part = sales proven to come from Meta ads (UTMs).
  * Line = Meta spend. When the blue part clears the line, Meta paid for itself that day.
  */
-export function SalesChart({ data, currency, height = 220 }: { data: Day[]; currency: string; height?: number }) {
+export function SalesChart({ data, currency, height = 220, animate = false }: { data: Day[]; currency: string; height?: number; animate?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 800, H = height, padL = 46, padR = 8, padT = 10, padB = 24;
   const cw = W - padL - padR, ch = H - padT - padB;
@@ -41,7 +41,7 @@ export function SalesChart({ data, currency, height = 220 }: { data: Day[]; curr
 
   return (
     <div style={{ position: "relative" }} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Sales and Meta spend per day">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Sales and Meta spend per day" className={animate ? "lp-chart-anim" : undefined}>
         {ticks.map((t) => (
           <g key={t}>
             <path d={`M${padL} ${y(t)} H${W - padR}`} stroke={t ? "#EEECE8" : "#D9D6D0"} />
@@ -53,13 +53,13 @@ export function SalesChart({ data, currency, height = 220 }: { data: Day[]; curr
           const x = padL + i * bw + bw * 0.18, w = bw * 0.64, on = hover === i;
           return (
             <g key={d.day}>
-              {d.revenue > 0 && <rect x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill="#DEDBD5" />}
-              {d.meta > 0 && <rect x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill="#0866FF" fillOpacity={on ? 0.9 : 0.7} />}
+              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill="#DEDBD5" />}
+              {d.meta > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill="#0866FF" fillOpacity={on ? 0.9 : 0.7} />}
               <rect x={padL + i * bw} y={padT} width={bw} height={ch} fill="transparent" onMouseEnter={() => setHover(i)} />
             </g>
           );
         })}
-        {hasSpend && <path d={line} stroke="#121212" strokeWidth="1.75" fill="none" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />}
+        {hasSpend && <path className="sc-spend" d={line} stroke="#121212" strokeWidth="1.75" fill="none" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />}
         {h && hasSpend && <circle cx={padL + hover! * bw + bw / 2} cy={y(h.spend)} r="3.5" fill="#fff" stroke="#121212" strokeWidth="1.75" />}
         {data.map((d, i) =>
           i % step === 0 || i === data.length - 1 ? (
