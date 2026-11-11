@@ -4,6 +4,8 @@ Operator console for the Kaviar team: every brand's Shopify store and Meta ad ac
 
 Brands never log in. Only the Kaviar team does.
 
+The public landing page lives at `/`. Its **Book a call** form saves enquiries to the `leads` table, which the team works through on **Leads** in the console.
+
 ## Stack
 
 - Next.js 16 (App Router, Cache Components, Partial Prerendering), React 19, TypeScript
@@ -80,7 +82,8 @@ Performance → **Which ad sold what** joins those orders to their line items.
 ## Layout
 
 ```
-src/app/(workspace)       Brands, Team
+src/app/(marketing)       Landing page (/) and the Book a call form
+src/app/(workspace)       Brands, Leads, Team
 src/app/(brand)/brands/[slug]   Overview, Integrations, Ad signals, Performance, Meta Ads, Shopify data, Data sync
 src/app/api               Shopify install/callback/webhooks, Meta connect/callback, cron
 src/lib/shopify           OAuth, GraphQL client with token refresh, bulk operations, mappers, sync

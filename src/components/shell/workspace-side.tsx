@@ -1,12 +1,13 @@
 import { requireMember } from "@/lib/auth";
 import { listBrands } from "@/lib/queries/brands";
+import { newLeadCount } from "@/lib/queries/leads";
 import { Icon } from "../icon";
 import { NavLink } from "./nav-link";
 import { BrandThumb, MemberFoot, Wordmark } from "./parts";
 
 export async function WorkspaceSide() {
   const member = await requireMember();
-  const brands = await listBrands();
+  const [brands, leads] = await Promise.all([listBrands(), newLeadCount()]);
   return (
     <aside className="side">
       <Wordmark />
@@ -30,6 +31,7 @@ export async function WorkspaceSide() {
           />
         ))}
         <div className="nav-h">Workspace</div>
+        <NavLink href="/leads" icon={<Icon name="receipt" />} label="Leads" count={leads || undefined} />
         <NavLink href="/team" icon={<Icon name="users" />} label="Team" />
       </nav>
       <MemberFoot member={member} />

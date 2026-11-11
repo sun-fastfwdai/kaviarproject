@@ -285,3 +285,19 @@ export const metaInsightsDaily = pgTable(
   },
   (t) => [primaryKey({ columns: [t.brandId, t.adId, t.date] }), index("meta_insights_brand_date").on(t.brandId, t.date)],
 );
+
+// ---------------------------------------------------------------- Landing page enquiries
+export const leads = pgTable(
+  "leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    brand: text("brand").notNull(),
+    storeUrl: text("store_url"),
+    message: text("message"),
+    status: text("status").$type<"new" | "contacted" | "closed">().notNull().default("new"),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("leads_created").on(t.createdAt)],
+);

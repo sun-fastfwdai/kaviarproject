@@ -3,9 +3,9 @@ import { Icon } from "../icon";
 import { signOut } from "@/app/login/actions";
 import type { Member } from "@/lib/auth";
 
-export function Wordmark() {
+export function Wordmark({ href = "/brands" }: { href?: string }) {
   return (
-    <Link href="/brands" className="wordmark">
+    <Link href={href} className="wordmark">
       <div className="m">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 4v16M18 4 8 12l10 8" />
