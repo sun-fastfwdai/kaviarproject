@@ -12,7 +12,7 @@
 
 /* type */
 .lp-eyebrow { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 8px; border-radius: 99px; background: #fff; border: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); box-shadow: 0 1px 2px rgba(18,18,18,0.04); }
-.lp-h1 { font-size: 64px; line-height: 66px; font-weight: 500; letter-spacing: -0.045em; max-width: 880px; text-wrap: balance; }
+.lp-h1 { margin-bottom: 10px; font-size: 64px; line-height: 66px; font-weight: 500; letter-spacing: -0.045em; max-width: 880px; text-wrap: balance; }
 .lp-h2 { font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: -0.035em; text-wrap: balance; }
 .lp-lead { font-size: 18px; line-height: 28px; color: var(--ink-2); letter-spacing: -0.012em; max-width: 620px; text-wrap: pretty; }
 .lp-kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
@@ -115,7 +115,7 @@
 .lp-sel .hd { position: absolute; display: block; box-sizing: border-box; padding: 0; min-height: 0; width: 9px; height: 9px; background: #fff; border: 2px solid var(--select); animation: pop .4s 1s var(--spring) both; }
 .lp-sel .sel-tl { left: -.06em; top: -.02em; translate: -50% -50%; } .lp-sel .sel-tr { right: -.06em; top: -.02em; translate: 50% -50%; }
 .lp-sel .sel-bl { left: -.06em; bottom: -.04em; translate: -50% 50%; } .lp-sel .sel-br { right: -.06em; bottom: -.04em; translate: 50% 50%; }
-.lp-sel .tag { position: absolute; left: -.06em; top: -.02em; translate: -2px -100%; height: 22px; padding: 0 8px 0 4px; display: flex; align-items: center; gap: 5px; background: var(--select); color: #fff; font-size: 11.5px; font-weight: 500; letter-spacing: 0; border-radius: 5px 5px 0 0; white-space: nowrap; animation: pop .4s 1.1s var(--spring) both; }
+.lp-sel .tag { position: absolute; left: -.06em; bottom: -.04em; translate: -2px 100%; height: 22px; padding: 0 8px 0 4px; display: flex; align-items: center; gap: 5px; background: var(--select); color: #fff; font-size: 11.5px; font-weight: 500; letter-spacing: 0; line-height: 1; border-radius: 0 0 5px 5px; white-space: nowrap; animation: pop .4s 1.1s var(--spring) both; }
 @keyframes selIn { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 @keyframes pop { from { opacity: 0; scale: .4; } to { opacity: 1; scale: 1; } }
 
