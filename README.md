@@ -31,6 +31,18 @@ The first visit to `/login` creates the owner account. Add teammates with:
 npm run team:add -- --email jina@kaviar.ai --name Jina    # prints a one-time password
 ```
 
+## Supabase
+
+Use the pooler connection string with full certificate verification:
+
+```
+DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=verify-full&sslrootcert=certs/supabase-ca.crt
+```
+
+`certs/supabase-ca.crt` is Supabase's public root CA (Project Settings → Database → SSL Configuration).
+Migration `0002_enable_rls` turns on row-level security with no policies, so Supabase's REST API can't read
+any table; the app connects as the owner and isn't affected.
+
 ## Connect Shopify
 
 1. In the Shopify Dev Dashboard, create an app. Set its redirect URL to `{APP_URL}/api/shopify/callback`

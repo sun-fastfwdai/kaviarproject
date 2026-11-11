@@ -16,7 +16,8 @@ export function Walkthrough({ steps, scenes }: { steps: Step[]; scenes: React.Re
     }, { rootMargin: "-45% 0px -45% 0px" });
     items.forEach((i) => io.observe(i));
     const onScroll = () => {
-      const r = wrap.current!.getBoundingClientRect();
+      if (!wrap.current) return;
+      const r = wrap.current.getBoundingClientRect();
       const p = Math.min(1, Math.max(0, (window.innerHeight * 0.5 - r.top) / r.height));
       rail.current?.style.setProperty("--p", String(p));
     };
