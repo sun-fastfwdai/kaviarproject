@@ -91,7 +91,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
           </div>
 
           <div className="row between"><span className="h3">Top ads</span><span className="xs i3">by spend · last {days} days</span></div>
-          <div className="row top g12" style={{ flexWrap: "wrap" }}>
+          <div className="row g12" style={{ flexWrap: "wrap", alignItems: "stretch" }}>
             {top.map((a) => (
               <div key={a.id} className="card" style={{ width: "calc((100% - 36px) / 4)", overflow: "hidden" }}>
                 <div style={{ height: 112, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--line)" }}>

@@ -7,7 +7,7 @@ import { CHANNEL_COLOR, CHANNEL_LABEL } from "@/lib/sync/attribution";
 import { money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
-import { ShopifyLogo } from "@/components/logos";
+import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { ChartLegend, SalesChart } from "@/components/sales-chart";
 import { IrisHeader, NeedsSource, Note, RangeTabs, roasTone, SidePanel, Stat, StatStrip } from "@/components/ui";
 
@@ -66,7 +66,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
             <SalesChart data={d} currency={cur} />
           </div>
 
-          <div className="row top g16">
+          <div className="row g16" style={{ alignItems: "stretch" }}>
             <div className="card" style={{ width: 290, flexShrink: 0, padding: "16px 16px 8px" }}>
               <div className="row between" style={{ paddingBottom: 10 }}><span className="h3">Revenue by channel</span><span className="row g4 xs i3"><ShopifyLogo size={12} />UTMs</span></div>
               {ch.length === 0 && <span className="sm i3" style={{ padding: "8px 0 12px" }}>No orders in this range.</span>}
@@ -90,7 +90,11 @@ export default async function PerformancePage({ params, searchParams }: PageProp
                 <div className="td fill">Campaign</div><div className="td num" style={{ width: 70 }}>Spend</div>
                 <div className="td num" style={{ width: 76 }}>Meta ROAS</div><div className="td num" style={{ width: 76 }}>Verified</div>
               </div>
-              {metaLinked && !hasMeta && <div className="sm i3" style={{ padding: 16 }}>Meta Ads is connected. No campaign spent anything in this range.</div>}
+              {metaLinked && !hasMeta && (
+                <div className="col g6 fill" style={{ alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
+                  <MetaLogo size={20} /><span className="sm i2">Meta Ads is connected.</span><span className="xs i3">No campaign spent anything in this range.</span>
+                </div>
+              )}
               {!metaLinked && <div className="sm i3" style={{ padding: 16 }}>Connect Meta Ads to compare spend with real Shopify orders. <Link className="lnk w5 i1" href={`/brands/${slug}/integrations`}>Connect</Link></div>}
               {camps.filter((c) => c.spend > 0).slice(0, 6).map((c) => {
                 const v = c.verifiedRevenue / c.spend;
