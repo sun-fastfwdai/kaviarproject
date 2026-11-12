@@ -26,7 +26,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
     summary(brand.id, tz, days), daily(brand.id, tz, days), channels(brand.id, tz, days),
     campaigns(brand.id, tz, days), utmHealth(brand.id, tz, days), adProducts(brand.id, tz, days, 6), products(brand.id, tz, days, 4),
   ]);
-  const hasMeta = Boolean(conns.meta && s.spend > 0);
+  const metaLinked = Boolean(conns.meta && ["connected", "sample"].includes(conns.meta.status));
+  const hasMeta = metaLinked && s.spend > 0;
   const verified = s.spend ? s.metaRevenue / s.spend : null;
   const metaSays = s.spend ? s.metaValue / s.spend : null;
   const delta = s.prevRevenue ? (s.revenue - s.prevRevenue) / s.prevRevenue : null;
@@ -51,9 +52,9 @@ export default async function PerformancePage({ params, searchParams }: PageProp
           <StatStrip>
             <Stat label="Revenue" source="shopify" value={money(s.revenue, cur)} note={delta == null ? `last ${days} days` : `${delta >= 0 ? "+" : ""}${pct(delta)} vs prior ${days}d`} tone={delta != null && delta >= 0 ? "up" : undefined} />
             <Stat label="Orders" source="shopify" value={num(s.orders)} note={`AOV ${money(s.orders ? s.revenue / s.orders : 0, cur, true)}`} />
-            <Stat label="Ad spend" source="meta" value={hasMeta ? money(s.spend, cur) : "—"} note={hasMeta ? `${camps.filter((c) => c.status === "ACTIVE").length} campaigns active` : "Meta not connected"} />
+            <Stat label="Ad spend" source="meta" value={metaLinked ? money(s.spend, cur) : "—"} note={hasMeta ? `${camps.filter((c) => c.status === "ACTIVE").length} campaigns active` : metaLinked ? "no Meta spend in this range" : "Meta not connected"} />
             <Stat label="Blended ROAS" source="both" value={hasMeta ? roas(s.revenue / s.spend) : "—"} note="all revenue ÷ ad spend" />
-            <Stat label="Verified Meta ROAS" source="both" value={hasMeta ? roas(verified) : "—"} note={hasMeta ? `Meta says ${roas(metaSays)}` : "needs Meta"} />
+            <Stat label="Verified Meta ROAS" source="both" value={hasMeta ? roas(verified) : "—"} note={hasMeta ? `Meta says ${roas(metaSays)}` : metaLinked ? "needs Meta spend" : "needs Meta"} />
           </StatStrip>
 
           <div className="card" style={{ padding: "14px 16px 8px", gap: 8 }}>
@@ -89,7 +90,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
                 <div className="td fill">Campaign</div><div className="td num" style={{ width: 70 }}>Spend</div>
                 <div className="td num" style={{ width: 76 }}>Meta ROAS</div><div className="td num" style={{ width: 76 }}>Verified</div>
               </div>
-              {!hasMeta && <div className="sm i3" style={{ padding: 16 }}>Connect Meta Ads to compare spend with real Shopify orders. <Link className="lnk w5 i1" href={`/brands/${slug}/integrations`}>Connect</Link></div>}
+              {metaLinked && !hasMeta && <div className="sm i3" style={{ padding: 16 }}>Meta Ads is connected. No campaign spent anything in this range.</div>}
+              {!metaLinked && <div className="sm i3" style={{ padding: 16 }}>Connect Meta Ads to compare spend with real Shopify orders. <Link className="lnk w5 i1" href={`/brands/${slug}/integrations`}>Connect</Link></div>}
               {camps.filter((c) => c.spend > 0).slice(0, 6).map((c) => {
                 const v = c.verifiedRevenue / c.spend;
                 return (
@@ -155,7 +157,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               Only {pct(tagged)} of Meta orders carry an ad id, so ad-level results are partial.
             </Note>
           )}
-          {!hasMeta && (
+          {!metaLinked && (
             <Note icon="plug" title="Connect Meta Ads" href={`/brands/${slug}/integrations`} link="Connect">
               With spend from Meta, Kaviar can show what each dollar really returned in Shopify sales.
             </Note>

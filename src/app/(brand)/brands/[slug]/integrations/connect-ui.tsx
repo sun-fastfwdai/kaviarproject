@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Icon } from "@/components/icon";
 import { Modal } from "@/components/modal";
 import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { chooseMetaAccount, disconnect } from "../actions";
@@ -24,7 +25,9 @@ export function ConnectAction({ kind, label, slug, dark, shop, scopes, accounts,
   const close = () => setOpen(false);
   return (
     <>
-      <button type="button" className={`btn sm${dark ? " dark" : ""}`} onClick={() => setOpen(true)} style={kind.startsWith("disconnect") ? { color: "var(--ink-3)" } : undefined}>{label}</button>
+      <button type="button" className={`btn sm${dark ? " dark" : ""}`} onClick={() => setOpen(true)} style={kind.startsWith("disconnect") ? { color: "var(--ink-3)" } : undefined}>
+        {/reconnect/i.test(label) && <Icon name="refresh" size={13} color={dark ? "#fff" : undefined} />}{label.replace(/^↻\s*/, "")}
+      </button>
       {open && kind === "shopify" && <ShopifyModal slug={slug} shop={shop} scopes={scopes ?? []} ready={ready} onClose={close} />}
       {open && kind === "meta" && <MetaModal slug={slug} ready={ready} onClose={close} />}
       {open && kind === "choose" && <ChooseModal slug={slug} accounts={accounts ?? []} onClose={close} />}

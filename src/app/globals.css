@@ -304,3 +304,8 @@ details > summary::-webkit-details-marker { display: none; }
 .menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 7px; font-size: 13px; color: var(--ink-2); text-align: left; }
 .menu button:hover { background: var(--tray); color: var(--ink); }
 .menu button.danger { color: var(--red); }
+
+/* Onboarding review: edit affordance appears on hover */
+.rv-row .rv-edit { opacity: 0; transition: opacity .12s ease; }
+.rv-row:hover { background: var(--tray); }
+.rv-row:hover .rv-edit { opacity: 1; }

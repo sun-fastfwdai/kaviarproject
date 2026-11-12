@@ -36,5 +36,6 @@ export const env = {
     backfillDays: Number(read("META_BACKFILL_DAYS") ?? 90),
   }),
   shopifyConfigured: () => Boolean(read("SHOPIFY_API_KEY") && read("SHOPIFY_API_SECRET")),
+  aiConfigured: () => Boolean(read("ANTHROPIC_API_KEY")),
   metaConfigured: () => Boolean(read("META_APP_ID") && read("META_APP_SECRET")),
 };

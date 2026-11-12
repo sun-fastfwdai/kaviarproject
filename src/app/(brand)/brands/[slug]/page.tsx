@@ -123,8 +123,8 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               <div className="row g24" style={{ flexWrap: "wrap" }}>
                 {[
                   [<ShopifyLogo key="s" size={12} />, "Revenue", money(s.revenue, cur), `${num(s.orders)} orders`],
-                  [<MetaLogo key="m" size={12} />, "Ad spend", s.spend ? money(s.spend, cur) : "—", `${camps.filter((c) => c.status === "ACTIVE").length} campaigns active`],
-                  [<span key="b" className="row g2"><ShopifyLogo size={12} /><MetaLogo size={12} /></span>, "Verified ROAS", s.spend ? roas(s.metaRevenue / s.spend) : "—", s.spend ? `blended ${roas(s.revenue / s.spend)}` : "needs Meta"],
+                  [<MetaLogo key="m" size={12} />, "Ad spend", s.spend || live(conns.meta) ? money(s.spend, cur) : "—", `${camps.filter((c) => c.status === "ACTIVE").length} campaigns active`],
+                  [<span key="b" className="row g2"><ShopifyLogo size={12} /><MetaLogo size={12} /></span>, "Verified ROAS", s.spend ? roas(s.metaRevenue / s.spend) : "—", s.spend ? `blended ${roas(s.revenue / s.spend)}` : live(conns.meta) ? "no Meta spend yet" : "needs Meta"],
                 ].map(([logo, k, v, n]) => (
                   <div key={k as string} className="col g2">
                     <span className="row g6 xs i3">{logo}{k}</span>

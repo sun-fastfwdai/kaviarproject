@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { asc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { listBrands, type BrandRow } from "@/lib/queries/brands";
+import { listBrands, listDrafts, type BrandRow } from "@/lib/queries/brands";
 import { requireMember } from "@/lib/auth";
 import { ago, money } from "@/lib/format";
 import { Bar, BrandThumb } from "@/components/shell/parts";
@@ -38,10 +38,12 @@ function attention(b: BrandRow): { title: string; sub: string; cta: string; href
 
 export default async function BrandsPage() {
   const me = await requireMember();
-  const [brands, team] = await Promise.all([
+  const [brands, team, drafts] = await Promise.all([
     listBrands(),
     db.select({ name: schema.members.name }).from(schema.members).orderBy(asc(schema.members.createdAt)),
+    listDrafts(),
   ]);
+  const STEP = ["Source", "Brand basics", "Brand assets", "Analysis", "Review"];
   const shop = brands.filter((b) => b.shopStatus === "connected").length;
   const meta = brands.filter((b) => b.metaStatus === "connected").length;
   const total30 = brands.reduce((a, b) => a + b.revenue30, 0);
@@ -77,6 +79,7 @@ export default async function BrandsPage() {
             </div>
           </div>
 
+          {drafts.length > 0 && <Drafts drafts={drafts} step={STEP} />}
           {brands.length === 0 ? (
             <div className="col g16" style={{ padding: "56px 24px", alignItems: "center", textAlign: "center", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 14 }}>
               <div className="row g12" style={{ alignItems: "flex-end" }}>
@@ -118,5 +121,25 @@ export default async function BrandsPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function Drafts({ drafts, step }: { drafts: Awaited<ReturnType<typeof listDrafts>>; step: string[] }) {
+  return (
+    <div className="col g10">
+      <div className="row g8"><span className="h3">Onboarding in progress</span><span className="pill" style={{ height: 20, fontSize: 11 }}>{drafts.length}</span></div>
+      <div className="row g12" style={{ flexWrap: "wrap" }}>
+        {drafts.map((d) => (
+          <Link key={d.id} href={`/brands/new/${d.id}`} className="card link" style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: "10px 14px", flex: "0 1 320px", minWidth: 0 }}>
+            <BrandThumb name={d.name} imageUrl={null} size={32} />
+            <div className="col fill" style={{ minWidth: 0 }}>
+              <span className="sm w5 i1 ell">{d.name}</span>
+              <span className="xs i3 ell">Step {d.step} of 5 · {step[d.step - 1]}{d.website ? ` · ${d.website.replace(/^https?:\/\//, "")}` : ""}</span>
+            </div>
+            <span className="btn sm">Resume</span>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }

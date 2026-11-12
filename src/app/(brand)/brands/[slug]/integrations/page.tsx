@@ -101,7 +101,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
 
           {rows.filter((r) => live(r.conn)).map((r) => (
             <Summary key={r.provider} provider={r.provider} conn={r.conn!} lastSync={last(r.provider)}
-              action={r.conn!.status === "sample" ? null : <ConnectAction kind={r.provider} label="↻ Reconnect" slug={slug} shop={r.conn!.externalId} scopes={scopes} ready={r.ready} />} />
+              action={r.conn!.status === "sample" ? null : <ConnectAction kind={r.provider} label="Reconnect" slug={slug} shop={r.conn!.externalId} scopes={scopes} ready={r.ready} />} />
           ))}
 
           <div className="card" style={{ overflow: "visible" }}>

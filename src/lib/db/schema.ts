@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
+import type { Onboarding } from "../onboarding/types";
 import {
   bigint,
+  customType,
   boolean,
   date,
   index,
@@ -48,6 +50,9 @@ export const brands = pgTable("brands", {
   imageUrl: text("image_url"),
   isSample: boolean("is_sample").notNull().default(false),
   deletedAt: tz("deleted_at"), // removed by an owner; data is purged in the background
+  // New-brand onboarding: furthest step reached (1–5) while the brand is a draft; null once it's live.
+  onboardingStep: integer("onboarding_step"),
+  onboarding: jsonb("onboarding").$type<Onboarding>().notNull().default({}),
   createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
@@ -320,4 +325,24 @@ export const invites = pgTable(
     createdAt: tz("created_at").notNull().defaultNow(),
   },
   (t) => [index("invites_created").on(t.createdAt)],
+);
+
+// ---------------------------------------------------------------- Brand assets uploaded during onboarding (deck, logos, imagery…)
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+export type AssetKind = "deck" | "logo" | "imagery" | "video" | "guidelines";
+export const brandAssets = pgTable(
+  "brand_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<AssetKind>().notNull(),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number }>().notNull().default({}),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("brand_assets_brand").on(t.brandId, t.kind)],
 );

@@ -58,7 +58,7 @@ export async function listBrands(): Promise<BrandRow[]> {
       where o.brand_id = b.id and not o.test and o.cancelled_at is null
         and o.created_at >= (((now() at time zone b.timezone)::date - 29)::timestamp at time zone b.timezone)
     ) r on true
-    where b.deleted_at is null
+    where b.deleted_at is null and b.onboarding_step is null
     order by b.is_sample, b.created_at desc`);
 }
 
@@ -75,5 +75,13 @@ export const brandIndex = cache(async (): Promise<BrandIndexItem[]> => {
   return rows<BrandIndexItem>(sql`
     select b.slug, b.name, b.category,
       coalesce(b.image_url, (select p.image_url from shop_products p where p.brand_id = b.id and p.image_url is not null order by p.total_inventory desc nulls last limit 1)) as "thumb"
-    from brands b where b.deleted_at is null order by b.name`);
+    from brands b where b.deleted_at is null and b.onboarding_step is null order by b.name`);
+});
+
+export type DraftItem = { id: string; name: string; step: number; website: string | null; createdAt: Date };
+/** Brands still in onboarding, newest first — shown on Brands so anyone can resume them. */
+export const listDrafts = cache(async (): Promise<DraftItem[]> => {
+  await requireMember();
+  return rows<DraftItem>(sql`select id, name, onboarding_step as step, website, created_at as "createdAt" from brands
+    where deleted_at is null and onboarding_step is not null order by created_at desc limit 10`);
 });

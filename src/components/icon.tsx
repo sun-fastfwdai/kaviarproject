@@ -3,11 +3,14 @@ import {
   ChartBar, Check, CheckCircle, Circle, Clock, Copy, Database, DownloadSimple, Eye, Folder, Gear, House, Image, Info, Key,
   Lightning, LinkBreak, Lock, MagnifyingGlass, Megaphone, Package, Plug, Plus, Prohibit, Pulse, Receipt, Repeat, Rows,
   SealCheck, ShoppingBag, SignOut, Sparkle, Stack, Storefront, Tag, Target, TrendDown, TrendUp, User, Users, UsersThree,
-  Warning, WarningCircle, WebhooksLogo, X,
+  Warning, WarningCircle, WebhooksLogo, X, Globe, UploadSimple, FilePdf, VideoCamera, PencilSimple, Paperclip, LinkSimple, ArrowUp,
+  ShieldCheck, Palette, CloudArrowUp, Phone, Swatches, FileText, ArrowElbowDownLeft, SpinnerGap,
 } from "@phosphor-icons/react/ssr";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
 const ICONS = {
+  globe: Globe, upload: UploadSimple, pdf: FilePdf, video: VideoCamera, pencil: PencilSimple, clip: Paperclip, link: LinkSimple, "arrow-up": ArrowUp,
+  shield: ShieldCheck, palette: Palette, cloud: CloudArrowUp, phone: Phone, swatches: Swatches, file: FileText, enter: ArrowElbowDownLeft, spinner: SpinnerGap,
   "arrow-l": ArrowLeft, "arrow-r": ArrowRight, external: ArrowSquareOut, refresh: ArrowsClockwise, brain: Brain,
   calendar: CalendarBlank, "chev-d": CaretDown, "chev-l": CaretLeft, "chev-r": CaretRight, updown: CaretUpDown,
   "chart-bar": ChartBar, check: Check, "check-circle": CheckCircle, circle: Circle, clock: Clock, copy: Copy,

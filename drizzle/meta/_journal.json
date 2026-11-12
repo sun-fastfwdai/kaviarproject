@@ -43,6 +43,13 @@
       "when": 1794513184564,
       "tag": "0005_brand_removal",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794515476762,
+      "tag": "0006_brand_onboarding",
+      "breakpoints": true
     }
   ]
 }

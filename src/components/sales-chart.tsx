@@ -1,5 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+/** Brand colours: Shopify green for store sales, Meta blue for sales Meta ads brought in. */
+const SHOPIFY = "#95BF47";
+const META = "#0866FF";
 
 type Day = { day: string; revenue: number; meta: number; spend: number };
 
@@ -20,7 +24,17 @@ function niceMax(v: number) {
  */
 export function SalesChart({ data, currency, height = 220, animate = false }: { data: Day[]; currency: string; height?: number; animate?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 800, H = height, padL = 46, padR = 8, padT = 10, padB = 24;
+  // Draw at the real pixel width so labels stay 10px instead of scaling with the card.
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(800);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(Math.max(320, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = width, H = height, padL = 46, padR = 8, padT = 10, padB = 24;
   const cw = W - padL - padR, ch = H - padT - padB;
   const top = niceMax(Math.max(...data.map((d) => Math.max(d.revenue, d.spend)), 1));
   const y = (v: number) => padT + ch - (v / top) * ch;
@@ -40,8 +54,8 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
   }
 
   return (
-    <div style={{ position: "relative" }} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Sales and Meta spend per day" className={animate ? "lp-chart-anim" : undefined}>
+    <div ref={box} style={{ position: "relative" }} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }} role="img" aria-label="Sales and Meta spend per day" className={animate ? "lp-chart-anim" : undefined}>
         {ticks.map((t) => (
           <g key={t}>
             <path d={`M${padL} ${y(t)} H${W - padR}`} stroke={t ? "#EEECE8" : "#D9D6D0"} />
@@ -53,8 +67,8 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
           const x = padL + i * bw + bw * 0.18, w = bw * 0.64, on = hover === i;
           return (
             <g key={d.day}>
-              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill="#DEDBD5" />}
-              {d.meta > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill="#0866FF" fillOpacity={on ? 0.9 : 0.7} />}
+              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill={SHOPIFY} fillOpacity={on ? 0.85 : 0.6} />}
+              {d.meta > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill={META} fillOpacity={on ? 0.95 : 0.8} />}
               <rect x={padL + i * bw} y={padT} width={bw} height={ch} fill="transparent" onMouseEnter={() => setHover(i)} />
             </g>
           );
@@ -77,8 +91,8 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
           }}
         >
           <span className="xs w5 i1">{label(h.day, { weekday: "short", month: "short", day: "numeric" })}</span>
-          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: "#DEDBD5" }} />} k="All sales" v={fmt(h.revenue, currency)} />
-          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: "#0866FF", opacity: 0.8 }} />} k="From Meta ads" v={fmt(h.meta, currency)} />
+          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: SHOPIFY, opacity: 0.7 }} />} k="All Shopify sales" v={fmt(h.revenue, currency)} />
+          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: META, opacity: 0.85 }} />} k="From Meta ads" v={fmt(h.meta, currency)} />
           <Row sw={<i style={{ width: 10, height: 2, borderRadius: 2, background: "#121212" }} />} k="Meta spend" v={fmt(h.spend, currency)} />
           {h.spend > 0 && (
             <div className="row between xs" style={{ paddingTop: 5, borderTop: "1px solid var(--line)" }}>
@@ -104,8 +118,8 @@ function Row({ sw, k, v }: { sw: React.ReactNode; k: string; v: string }) {
 export function ChartLegend() {
   return (
     <div className="row g16 xs i3" style={{ whiteSpace: "nowrap" }}>
-      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: "#DEDBD5" }} />All Shopify sales</span>
-      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: "#0866FF", opacity: 0.75 }} />Sales from Meta ads</span>
+      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: SHOPIFY, opacity: 0.7 }} />All Shopify sales</span>
+      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: META, opacity: 0.85 }} />Sales from Meta ads</span>
       <span className="row g6"><i style={{ width: 14, height: 2, borderRadius: 2, background: "#121212" }} />Meta spend</span>
     </div>
   );

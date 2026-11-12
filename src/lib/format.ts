@@ -76,3 +76,8 @@ export function ordinal(n: number): string {
 export function daysUntil(d: Date | string, now = Date.now()): number {
   return Math.round((new Date(d).getTime() - now) / 864e5);
 }
+
+/** Whole years since a date (0 when unknown). */
+export function yearsSince(d: Date | string | null): number {
+  return d ? Math.max(0, (Date.now() - new Date(d).getTime()) / (365 * 86_400_000)) : 0;
+}

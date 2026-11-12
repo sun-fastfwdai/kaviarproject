@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   };
   const fail = async (error: string) => {
     const path = await brandPath(st?.brandId ?? null);
+    if (st?.brandId) {
+      const [d] = await db.select({ step: schema.brands.onboardingStep }).from(schema.brands).where(eq(schema.brands.id, st.brandId));
+      if (d?.step != null) return NextResponse.redirect(new URL(`/brands/new/${st.brandId}/source?pick=shopify&error=${error}`, req.url));
+    }
     return NextResponse.redirect(new URL(path === "/brands" ? `/brands?error=${error}` : `${path}/integrations?error=${error}`, req.url));
   };
 
@@ -89,5 +93,8 @@ export async function GET(req: NextRequest) {
     if (hooks.errors.length) console.warn("webhook registration", hooks.errors);
     await runBrandSync(id, "connect", ["shopify"]);
   });
+  // A brand still in onboarding goes back to its Source step, now showing the connected store.
+  const [draft] = await db.select({ step: schema.brands.onboardingStep }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  if (draft?.step != null) return NextResponse.redirect(new URL(`/brands/new/${brandId}/source?connected=shopify`, req.url));
   return NextResponse.redirect(new URL(`${await brandPath(brandId)}/sync?connected=shopify`, req.url));
 }
