@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-/** Brand colours: Shopify green for store sales, Meta blue for sales Meta ads brought in. */
-const SHOPIFY = "#5E8E3E"; // Shopify's deep bag green — reads clearly on white
+/** Board 15: warm grey for all Shopify sales, Meta blue for the part Meta ads brought in. */
+const SHOPIFY = "#DEDBD5";
 const META = "#0866FF";
 
 type Day = { day: string; revenue: number; meta: number; spend: number };
@@ -67,7 +67,7 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
           const x = padL + i * bw + bw * 0.18, w = bw * 0.64, on = hover === i;
           return (
             <g key={d.day}>
-              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill={SHOPIFY} fillOpacity={on ? 1 : 0.88} />}
+              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill={on ? "#CFCBC3" : SHOPIFY} />}
               {d.meta > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill={META} fillOpacity={on ? 0.95 : 0.8} />}
               <rect x={padL + i * bw} y={padT} width={bw} height={ch} fill="transparent" onMouseEnter={() => setHover(i)} />
             </g>
