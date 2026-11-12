@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Brand colours: Shopify green for store sales, Meta blue for sales Meta ads brought in. */
-const SHOPIFY = "#95BF47";
+const SHOPIFY = "#5E8E3E"; // Shopify's deep bag green — reads clearly on white
 const META = "#0866FF";
 
 type Day = { day: string; revenue: number; meta: number; spend: number };
@@ -67,7 +67,7 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
           const x = padL + i * bw + bw * 0.18, w = bw * 0.64, on = hover === i;
           return (
             <g key={d.day}>
-              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill={SHOPIFY} fillOpacity={on ? 0.85 : 0.6} />}
+              {d.revenue > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.revenue)} width={w} height={Math.max(0, y(d.meta) - y(d.revenue))} rx={Math.min(2, w / 3)} fill={SHOPIFY} fillOpacity={on ? 1 : 0.88} />}
               {d.meta > 0 && <rect className="sc-bar" style={{ "--i": i } as React.CSSProperties} x={x} y={y(d.meta)} width={w} height={y(0) - y(d.meta)} fill={META} fillOpacity={on ? 0.95 : 0.8} />}
               <rect x={padL + i * bw} y={padT} width={bw} height={ch} fill="transparent" onMouseEnter={() => setHover(i)} />
             </g>
@@ -91,7 +91,7 @@ export function SalesChart({ data, currency, height = 220, animate = false }: { 
           }}
         >
           <span className="xs w5 i1">{label(h.day, { weekday: "short", month: "short", day: "numeric" })}</span>
-          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: SHOPIFY, opacity: 0.7 }} />} k="All Shopify sales" v={fmt(h.revenue, currency)} />
+          <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: SHOPIFY }} />} k="All Shopify sales" v={fmt(h.revenue, currency)} />
           <Row sw={<i style={{ width: 8, height: 8, borderRadius: 2, background: META, opacity: 0.85 }} />} k="From Meta ads" v={fmt(h.meta, currency)} />
           <Row sw={<i style={{ width: 10, height: 2, borderRadius: 2, background: "#121212" }} />} k="Meta spend" v={fmt(h.spend, currency)} />
           {h.spend > 0 && (
@@ -118,7 +118,7 @@ function Row({ sw, k, v }: { sw: React.ReactNode; k: string; v: string }) {
 export function ChartLegend() {
   return (
     <div className="row g16 xs i3" style={{ whiteSpace: "nowrap" }}>
-      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: SHOPIFY, opacity: 0.7 }} />All Shopify sales</span>
+      <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: SHOPIFY }} />All Shopify sales</span>
       <span className="row g6"><i style={{ width: 9, height: 9, borderRadius: 2, background: META, opacity: 0.85 }} />Sales from Meta ads</span>
       <span className="row g6"><i style={{ width: 14, height: 2, borderRadius: 2, background: "#121212" }} />Meta spend</span>
     </div>
