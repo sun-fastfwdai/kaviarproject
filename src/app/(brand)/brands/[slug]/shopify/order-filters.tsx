@@ -20,8 +20,8 @@ function Pick({ label, icon, opts, value, onPick }: { label?: string; icon?: Ico
 }
 
 /** Board 13 filter row: search, date range and status (source is picked with the chips below). Every change is a URL, so views can be shared. */
-export function OrderFilters({ base, params, n, ranges, statuses }: {
-  base: string; params: Record<string, string>; n: number; ranges: Opt[]; statuses: Opt[];
+export function OrderFilters({ base, params, n, ranges, statuses, children }: {
+  base: string; params: Record<string, string>; n: number; ranges: Opt[]; statuses: Opt[]; children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [q, setQ] = useState(params.q ?? "");
@@ -33,13 +33,14 @@ export function OrderFilters({ base, params, n, ranges, statuses }: {
   };
   return (
     <div className="row g8" style={{ flexWrap: "wrap" }}>
-      <form className="input" style={{ width: 230, height: 34 }} onSubmit={(e) => { e.preventDefault(); go({ q: q.trim() || null }); }}>
+      <form className="input" style={{ width: 210, height: 34 }} onSubmit={(e) => { e.preventDefault(); go({ q: q.trim() || null }); }}>
         <Icon name="search" size={14} color="#8B8883" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search orders" aria-label="Search orders" style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13 }} />
         {params.q && <button type="button" aria-label="Clear search" onClick={() => { setQ(""); go({ q: null }); }} style={{ display: "flex" }}><Icon name="x" size={12} /></button>}
       </form>
       <Pick icon="calendar" opts={ranges} value={params.days ?? "30"} onPick={(v) => go({ days: v === "30" ? null : v })} />
       <Pick label="Status" opts={statuses} value={params.status ?? ""} onPick={(v) => go({ status: v || null })} />
+      {children}
       <span className="fill" />
       <span className="xs i3">{n.toLocaleString("en-US")} in range</span>
     </div>
