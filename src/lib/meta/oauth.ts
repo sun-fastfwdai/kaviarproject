@@ -5,8 +5,13 @@ import { graphBase, metaGet, metaGetAll } from "./client";
 const redirectUri = () => `${env.appUrl()}/api/meta/callback`;
 
 export function metaAuthorizeUrl(state: string): string {
-  const { appId, apiVersion, scopes } = env.meta();
-  const q = new URLSearchParams({ client_id: appId, redirect_uri: redirectUri(), state, scope: scopes.join(","), response_type: "code" });
+  const { appId, apiVersion, scopes, configId } = env.meta();
+  const q = new URLSearchParams({ client_id: appId, redirect_uri: redirectUri(), state, response_type: "code" });
+  // Business apps sign in through a login configuration; older consumer apps use a scope list.
+  if (configId) {
+    q.set("config_id", configId);
+    q.set("override_default_response_type", "true");
+  } else q.set("scope", scopes.join(","));
   return `https://www.facebook.com/${apiVersion}/dialog/oauth?${q}`;
 }
 

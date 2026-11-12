@@ -31,6 +31,8 @@ export const env = {
     appSecret: need("META_APP_SECRET"),
     apiVersion: read("META_API_VERSION") ?? "v26.0",
     scopes: (read("META_SCOPES") ?? "ads_read,business_management").split(",").map((s) => s.trim()),
+    // Facebook Login for Business: a saved login configuration (permissions picked in the Meta app).
+    configId: read("META_CONFIG_ID"),
     backfillDays: Number(read("META_BACKFILL_DAYS") ?? 90),
   }),
   shopifyConfigured: () => Boolean(read("SHOPIFY_API_KEY") && read("SHOPIFY_API_SECRET")),
