@@ -1,5 +1,5 @@
 import { after, NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 import { env } from "@/lib/env";
@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
     const [b] = await db.insert(schema.brands).values({ slug, name: info.name, currency: info.currencyCode, timezone: info.ianaTimezone, createdBy: st.memberId }).returning();
     brandId = b.id;
   } else {
-    await db.update(schema.brands).set({ currency: info.currencyCode, timezone: info.ianaTimezone }).where(eq(schema.brands.id, brandId));
+    // A draft named "New brand" takes the store's own name.
+    await db.update(schema.brands).set({ currency: info.currencyCode, timezone: info.ianaTimezone, name: sql`case when ${schema.brands.name} = 'New brand' then ${info.name} else ${schema.brands.name} end` }).where(eq(schema.brands.id, brandId));
   }
 
   const values = {

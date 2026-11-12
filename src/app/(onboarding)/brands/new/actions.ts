@@ -47,7 +47,8 @@ export async function startBrand(_: ActionState, form: FormData): Promise<Action
   if (source === "ai" && !p.data.name) return fail("Add the brand’s name so Kaviar AI knows who it’s helping.");
   if (source === "shopify" && p.data.website) website = toUrl(p.data.website)?.origin ?? null;
 
-  const name = p.data.name || (website ? new URL(website).hostname.replace(/^www\./, "").split(".")[0] : shop?.split(".")[0]) || "New brand";
+  // Without a typed name the draft is "New brand" until Iris reads the site or Shopify names the store.
+  const name = p.data.name || "New brand";
   let id = p.data.draft && /^[0-9a-f-]{36}$/i.test(p.data.draft) ? p.data.draft : null;
   if (id) {
     await getDraft(id);
@@ -55,7 +56,7 @@ export async function startBrand(_: ActionState, form: FormData): Promise<Action
     await patchOnboarding(id, { source, ...(shop ? { shop } : {}) });
   } else {
     const [b] = await db.insert(schema.brands).values({
-      slug: `draft-${crypto.randomUUID().slice(0, 8)}`, name: name.charAt(0).toUpperCase() + name.slice(1), website, createdBy: member.id,
+      slug: `draft-${crypto.randomUUID().slice(0, 8)}`, name, website, createdBy: member.id,
       onboardingStep: 1, onboarding: { source, ...(shop ? { shop } : {}) },
     }).returning({ id: schema.brands.id, slug: schema.brands.slug });
     id = b.id;
@@ -125,7 +126,7 @@ export async function scanBasics(id: string): Promise<ActionState> {
   const ob = await readOnboarding(id);
   const url = b.website ?? (ob.shop ? `https://${ob.shop}` : null);
   if (!url) return undefined;
-  const scan = await scanSite(url, { name: b.name.startsWith("draft-") ? undefined : b.name });
+  const scan = await scanSite(url, { name: b.name === "New brand" ? undefined : b.name });
   await patchOnboarding(id, { scan, ...(scan.ok && !ob.pulled ? { pulled: await pullImages(scan.url) } : {}) });
   return scan.ok ? undefined : fail(scan.error ?? "Iris couldn’t read the site.");
 }

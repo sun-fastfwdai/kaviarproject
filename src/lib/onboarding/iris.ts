@@ -238,7 +238,7 @@ export async function runAnalysis(id: string): Promise<void> {
       schema: DeckOut,
     });
     a.deckPages = deckRead?.pages ?? deck.meta.pages;
-    await set("deck", deckRead ? { status: "done", detail: `${a.deckPages ?? "?"} pages` } : { status: "error", detail: "Couldn’t read the deck" });
+    await set("deck", deckRead ? { status: "done", detail: a.deckPages ? `${a.deckPages} page${a.deckPages === 1 ? "" : "s"}` : "read" } : { status: "error", detail: "Couldn’t read the deck" });
   } else {
     await set("deck", { status: "skipped", detail: deck ? "Deck isn’t a PDF" : "No deck uploaded" });
   }
@@ -317,13 +317,16 @@ export async function runAnalysis(id: string): Promise<void> {
   const nav = pages[0]?.links.filter((l) => l.inNav && l.text && new URL(l.href).hostname === pages[0].host).slice(0, 10) ?? [];
   const blogPosts = pages[0]?.links.filter((l) => /\/(blogs?|journal|news|magazine)\//i.test(l.href)).length ?? 0;
   a.pages = [{ label: "Home", meta: "", depth: 0 }];
+  let shopCounted = false;
   for (const l of nav) {
     const p = new URL(l.href).pathname;
     if (p === "/" || a.pages.some((x) => x.label === l.text)) continue;
     const isShop = /\/(collections|shop|products|store)/i.test(p);
     const isBlog = /\/(blogs?|journal|news|magazine)/i.test(p);
-    a.pages.push({ label: l.text, meta: isShop && a.productCount ? `${a.productCount} products` : isBlog && blogPosts ? `${blogPosts} posts` : "", depth: 0 });
-    if (isShop && a.categories.length > 1) a.pages.push({ label: a.categories.slice(0, 3).map((c) => c.name).join(" · "), meta: "", depth: 1 });
+    const count = isShop && !shopCounted && a.productCount ? `${a.productCount} products` : isBlog && blogPosts ? `${blogPosts} posts` : "";
+    a.pages.push({ label: l.text, meta: count, depth: 0 });
+    if (isShop && !shopCounted && a.categories.length > 1) a.pages.push({ label: a.categories.slice(0, 3).map((c) => c.name).join(" · "), meta: "", depth: 1 });
+    if (isShop) shopCounted = true;
   }
   await set("structure", { status: "done", detail: `${a.pages.length} sections` });
 

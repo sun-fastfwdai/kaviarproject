@@ -46,7 +46,7 @@ export function BasicsStep({ id, reached, ob, brand, subs, shopConnected }: {
   });
 
   const pre = (v: string | null | undefined, fallback = "") => v ?? fallback;
-  const [name, setName] = useState(pre(b?.name, brand.name.startsWith("draft-") ? "" : brand.name));
+  const [name, setName] = useState(pre(b?.name, brand.name === "New brand" ? "" : brand.name));
   const [category, setCategory] = useState(pre(b?.category, brand.category ?? ""));
   const [website, setWebsite] = useState(pre(b?.website, brand.website ?? ""));
   const [shopName, setShopName] = useState(pre(b?.shopName));

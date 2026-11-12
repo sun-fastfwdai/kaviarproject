@@ -77,6 +77,7 @@ export function ChatStep({ id, name, reached, ob, slots, aiReady }: { id: string
   const rec = chat?.recommendation ?? null;
   const u = chat?.understands;
   const scroller = useRef<HTMLDivElement>(null);
+  const lastAsk = turns.reduce((n, t, i) => (t.who === "kaviar" ? i : n), -1);
   const opened = useRef(false);
 
   const send = (t: string) => {
@@ -150,11 +151,11 @@ export function ChatStep({ id, name, reached, ob, slots, aiReady }: { id: string
                       </div>
                     ) : <span className="sm i1" style={{ lineHeight: "20px" }}>{t.text}</span>}
                     {t.rec && <Rec turn={t} busy={using} onUse={() => startUse(() => followRecommendation(id))} />}
-                    {!!t.options?.length && (
+                    {!!t.options?.length && (i === lastAsk || t.chosen) && (
                       <div className="row g6" style={{ flexWrap: "wrap" }}>
-                        {t.options.map((o) => {
+                        {t.options.filter((o) => i === lastAsk || o === t.chosen).map((o) => {
                           const on = t.chosen === o;
-                          return <button key={o} type="button" className={`btn sm${on ? " dark" : ""}`} disabled={busy || Boolean(t.chosen)} onClick={() => send(o)}>{on && <Icon name="check" size={12} color="#fff" />}{o}</button>;
+                          return <button key={o} type="button" className={`btn sm${on ? " dark" : ""}`} disabled={busy || Boolean(t.chosen) || i !== lastAsk} onClick={() => send(o)}>{on && <Icon name="check" size={12} color="#fff" />}{o}</button>;
                         })}
                       </div>
                     )}
