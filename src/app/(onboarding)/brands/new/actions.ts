@@ -6,7 +6,7 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { slugify } from "@/lib/format";
-import { normalizeShop } from "@/lib/shopify/oauth";
+import { resolveShopDomain } from "@/lib/shopify/resolve";
 
 export type NewBrandState = { error?: string; at?: number } | undefined;
 const RESERVED = new Set(["new"]);
@@ -25,8 +25,8 @@ export async function createBrand(_: NewBrandState, form: FormData): Promise<New
   const member = await requireMember();
   const p = Brand.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Check the form.", at: Date.now() };
-  const shop = p.data.source === "shopify" ? normalizeShop(p.data.shop) : null;
-  if (p.data.source === "shopify" && !shop) return { error: "Enter the store’s .myshopify.com address.", at: Date.now() };
+  const shop = p.data.source === "shopify" ? await resolveShopDomain(p.data.shop) : null;
+  if (p.data.source === "shopify" && !shop) return { error: "Kaviar couldn’t find a Shopify store there. Use the store’s domain (brand.com) or its .myshopify.com address.", at: Date.now() };
 
   const base = slugify(p.data.name) || "brand";
   let slug = RESERVED.has(base) ? `${base}-brand` : base;

@@ -58,7 +58,11 @@ export function NewBrandFlow({ shopifyReady, scopes }: { shopifyReady: boolean; 
   const tz = useSyncExternalStore(() => () => {}, () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", () => "UTC");
   const [state, action, pending] = useActionState<NewBrandState, FormData>(createBrand, undefined);
 
-  const shopName = shop.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\.myshopify\.com.*$/, "").replace(/[^a-z0-9-]/g, "");
+  // Either the store's own domain (percentscience.com) or its Shopify name (brand-name / brand-name.myshopify.com).
+  const raw = shop.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+  const isDomain = raw.includes(".") && !raw.endsWith(".myshopify.com");
+  const shopName = isDomain ? raw : raw.replace(/\.myshopify\.com$/, "").replace(/[^a-z0-9-]/g, "");
+  const shopValue = !shopName ? "" : isDomain ? shopName : `${shopName}.myshopify.com`;
   const canContinue = source === "later" || shopName.length > 1;
   const iris = step === 1
     ? (source === "shopify" ? "“As soon as the store is connected I’ll start reading orders and products — the first sync takes a few minutes.”" : "“No problem — create the brand now and connect Shopify from Integrations when it’s ready.”")
@@ -67,7 +71,7 @@ export function NewBrandFlow({ shopifyReady, scopes }: { shopifyReady: boolean; 
   return (
     <form action={action} className="sheet" style={{ margin: 0 }}>
       <input type="hidden" name="source" value={source} />
-      <input type="hidden" name="shop" value={shopName ? `${shopName}.myshopify.com` : ""} />
+      <input type="hidden" name="shop" value={shopValue} />
       <input type="hidden" name="timezone" value={tz} />
       <header className="bar">
         <div className="wordmark" style={{ padding: 0 }}><div className="m"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4v16M18 4 8 12l10 8" /></svg></div>Kaviar</div>
@@ -85,7 +89,7 @@ export function NewBrandFlow({ shopifyReady, scopes }: { shopifyReady: boolean; 
             <div className="steps"><span className={`s ${step > 1 ? "done" : "now"}`} /><span className={`s ${step > 1 ? "now" : ""}`} /></div>
           </div>
           <div className="col g4">
-            <Step n={1} title="Source" sub={step > 1 ? (source === "shopify" ? `${shopName}.myshopify.com` : "Connect Shopify later") : "Shopify store, or later"} state={step > 1 ? "done" : "now"} />
+            <Step n={1} title="Source" sub={step > 1 ? (source === "shopify" ? shopValue : "Connect Shopify later") : "Shopify store, or later"} state={step > 1 ? "done" : "now"} />
             <Step n={2} title="Brand basics" sub="Name, category, currency" state={step === 2 ? "now" : "next"} />
           </div>
           <div className="fill" />
@@ -118,11 +122,11 @@ export function NewBrandFlow({ shopifyReady, scopes }: { shopifyReady: boolean; 
                         <span className="label">Store domain</span>
                         <div className="row" style={{ border: "1px solid var(--line-2)", borderRadius: 8, overflow: "hidden", height: 38, background: "#fff" }}>
                           <span className="row g8 fill" style={{ padding: "0 10px" }}><ShopifyLogo size={15} />
-                            <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="brand-name" autoFocus style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13, background: "transparent" }} /></span>
-                          <span className="sm i3" style={{ padding: "0 12px", height: "100%", display: "flex", alignItems: "center", background: "var(--tray)", borderLeft: "1px solid var(--line)" }}>.myshopify.com</span>
+                            <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="brand.com or brand-name" autoFocus style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13, background: "transparent" }} /></span>
+                          {!isDomain && <span className="sm i3" style={{ padding: "0 12px", height: "100%", display: "flex", alignItems: "center", background: "var(--tray)", borderLeft: "1px solid var(--line)" }}>.myshopify.com</span>}
                         </div>
                       </label>
-                      <span className="xs i3">Find it in Shopify admin → Settings → Domains. It’s the address ending in .myshopify.com.</span>
+                      <span className="xs i3">Type the store’s website (brand.com) and Kaviar finds it, or the name before .myshopify.com from Shopify admin → Settings → Domains.</span>
                       {!shopifyReady && <div className="notice amber"><span>Shopify isn’t set up on this server yet, so the brand will be created and you can connect the store from Integrations once it is.</span></div>}
                     </div>
                     <div className="col g8" style={{ width: 300, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: 18, background: "var(--tray)" }}>

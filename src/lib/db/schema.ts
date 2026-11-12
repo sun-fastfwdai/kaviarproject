@@ -47,6 +47,7 @@ export const brands = pgTable("brands", {
   timezone: text("timezone").notNull().default("UTC"),
   imageUrl: text("image_url"),
   isSample: boolean("is_sample").notNull().default(false),
+  deletedAt: tz("deleted_at"), // removed by an owner; data is purged in the background
   createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
   createdAt: tz("created_at").notNull().defaultNow(),
 });

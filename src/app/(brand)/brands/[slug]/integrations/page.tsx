@@ -12,7 +12,8 @@ import { ConnectAction } from "./connect-ui";
 export const metadata = { title: "Integrations" };
 
 const ERRORS: Record<string, string> = {
-  shop: "That doesn’t look like a Shopify store. Use the store’s .myshopify.com address.",
+  shop: "That doesn’t look like a Shopify store. Use the store’s domain or its .myshopify.com address.",
+  shop_lookup: "Kaviar couldn’t find a Shopify store at that domain. Check the spelling, or use the .myshopify.com address from Shopify admin → Settings → Domains.",
   state: "The connection link expired or was opened in another browser. Try again.",
   hmac: "Shopify’s reply couldn’t be verified. Try again.",
   scopes: "The store didn’t grant every permission Kaviar needs. Reconnect and approve all of them.",

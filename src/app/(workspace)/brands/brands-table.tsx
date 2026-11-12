@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RemoveBrandModal } from "./remove-brand";
 
 export type BrandItem = {
   slug: string; name: string; category: string | null; isSample: boolean; thumb: string | null; shopDomain: string | null;
@@ -27,8 +28,9 @@ function Thumb({ b, size }: { b: BrandItem; size: number }) {
   );
 }
 
-function RowMenu({ slug }: { slug: string }) {
+function RowMenu({ slug, name, canRemove }: { slug: string; name: string; canRemove: boolean }) {
   const [open, setOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   useEffect(() => {
@@ -43,15 +45,22 @@ function RowMenu({ slug }: { slug: string }) {
       {open && (
         <div className="menu" role="menu">
           {[["Overview", ""], ["Integrations", "/integrations"], ["Performance", "/performance"], ["Data sync", "/sync"]].map(([l, p]) => (
-            <button key={l} role="menuitem" onClick={(e) => { e.stopPropagation(); router.push(`/brands/${slug}${p}`); }}>{l}</button>
+            <button key={l} role="menuitem" onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/brands/${slug}${p}`); }}>{l}</button>
           ))}
+          {canRemove && (
+            <>
+              <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+              <button role="menuitem" className="danger" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(false); setRemoving(true); }}>Remove brand…</button>
+            </>
+          )}
         </div>
       )}
+      {removing && <RemoveBrandModal slug={slug} name={name} onClose={() => setRemoving(false)} />}
     </div>
   );
 }
 
-export function BrandsTable({ brands }: { brands: BrandItem[] }) {
+export function BrandsTable({ brands, canRemove = false }: { brands: BrandItem[]; canRemove?: boolean }) {
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   const list = useMemo(() => {
@@ -90,7 +99,7 @@ export function BrandsTable({ brands }: { brands: BrandItem[] }) {
             <div className="td num i1" style={{ width: 96 }}>{b.revenue}</div>
             <div className="td" style={{ width: 56 }}>{b.owner ? <span className="av k" title={b.owner}>{initials(b.owner)}</span> : <span className="i4">—</span>}</div>
             <div className="td" style={{ flex: 1.3 }}><div className="col" style={{ minWidth: 0 }}><span className="sm i1 ell">{b.activity}</span><span className="xs i3">{b.activityAt}</span></div></div>
-            <div className="td" style={{ width: 110, justifyContent: "flex-end", gap: 4 }}><span className="btn sm">Open →</span><RowMenu slug={b.slug} /></div>
+            <div className="td" style={{ width: 110, justifyContent: "flex-end", gap: 4 }}><span className="btn sm">Open →</span>{!b.isSample || canRemove ? <RowMenu slug={b.slug} name={b.name} canRemove={canRemove} /> : null}</div>
           </Link>
         ))}
         {list.length === 0 && <div className="sm i3" style={{ padding: 18 }}>No brands match.</div>}

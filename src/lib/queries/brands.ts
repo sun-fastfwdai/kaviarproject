@@ -18,7 +18,7 @@ export type ConnectionView = {
 export const getBrand = cache(async (slug: string): Promise<Brand> => {
   await requireMember();
   const [b] = await db.select().from(schema.brands).where(eq(schema.brands.slug, slug)).limit(1);
-  if (!b) notFound();
+  if (!b || b.deletedAt) notFound();
   return b;
 });
 
@@ -58,6 +58,7 @@ export async function listBrands(): Promise<BrandRow[]> {
       where o.brand_id = b.id and not o.test and o.cancelled_at is null
         and o.created_at >= (((now() at time zone b.timezone)::date - 29)::timestamp at time zone b.timezone)
     ) r on true
+    where b.deleted_at is null
     order by b.is_sample, b.created_at desc`);
 }
 
@@ -74,5 +75,5 @@ export const brandIndex = cache(async (): Promise<BrandIndexItem[]> => {
   return rows<BrandIndexItem>(sql`
     select b.slug, b.name, b.category,
       coalesce(b.image_url, (select p.image_url from shop_products p where p.brand_id = b.id and p.image_url is not null order by p.total_inventory desc nulls last limit 1)) as "thumb"
-    from brands b order by b.name`);
+    from brands b where b.deleted_at is null order by b.name`);
 });

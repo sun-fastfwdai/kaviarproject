@@ -39,22 +39,26 @@ function NotReady({ provider }: { provider: string }) {
 
 function ShopifyModal({ slug, shop, scopes, ready, onClose }: { slug: string; shop?: string | null; scopes: string[]; ready: boolean; onClose: () => void }) {
   const [v, setV] = useState((shop ?? "").replace(/\.myshopify\.com$/, ""));
-  const name = v.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\.myshopify\.com.*$/, "").replace(/[^a-z0-9-]/g, "");
+  // Either the store's own domain (percentscience.com) or its Shopify name (brand-name / brand-name.myshopify.com).
+  const raw = v.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+  const isDomain = raw.includes(".") && !raw.endsWith(".myshopify.com");
+  const name = isDomain ? raw : raw.replace(/\.myshopify\.com$/, "").replace(/[^a-z0-9-]/g, "");
+  const shopValue = !name ? "" : isDomain ? name : `${name}.myshopify.com`;
   return (
     <Modal icon={<ShopifyLogo size={18} />} title={shop ? "Reconnect Shopify" : "Connect Shopify store"} sub="The store owner approves read-only access in Shopify. Takes about 2 minutes." onClose={onClose} width={560}
       footer={<><span className="xs i3 fill">Read-only · Kaviar never edits the store</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
         <button form="shopify-connect" className="btn dark" disabled={!ready || name.length < 2}>Continue to Shopify →</button></>}>
       <form id="shopify-connect" action="/api/shopify/install" method="get" className="col g14">
         <input type="hidden" name="brand" value={slug} />
-        <input type="hidden" name="shop" value={name ? `${name}.myshopify.com` : ""} />
+        <input type="hidden" name="shop" value={shopValue} />
         <label className="col g6">
           <span className="label">Store domain</span>
           <div className="row" style={{ border: "1px solid var(--line-2)", borderRadius: 8, overflow: "hidden", height: 38, background: "#fff" }}>
             <span className="row g8 fill" style={{ padding: "0 10px" }}><ShopifyLogo size={15} />
-              <input value={v} onChange={(e) => setV(e.target.value)} placeholder="brand-name" autoFocus style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13, background: "transparent" }} /></span>
-            <span className="sm i3" style={{ padding: "0 12px", height: "100%", display: "flex", alignItems: "center", background: "var(--tray)", borderLeft: "1px solid var(--line)" }}>.myshopify.com</span>
+              <input value={v} onChange={(e) => setV(e.target.value)} placeholder="brand.com or brand-name" autoFocus style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13, background: "transparent" }} /></span>
+            {!isDomain && <span className="sm i3" style={{ padding: "0 12px", height: "100%", display: "flex", alignItems: "center", background: "var(--tray)", borderLeft: "1px solid var(--line)" }}>.myshopify.com</span>}
           </div>
-          <span className="xs i3">Shopify admin → Settings → Domains shows the address ending in .myshopify.com.</span>
+          <span className="xs i3">Type the store’s website (brand.com) — Kaviar finds its Shopify address — or the name before .myshopify.com.</span>
         </label>
         <div className="col g6" style={{ padding: 12, borderRadius: 10, background: "var(--tray)", border: "1px solid var(--line)" }}>
           <span className="sm w5">Permissions requested</span>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { asc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { listBrands, type BrandRow } from "@/lib/queries/brands";
+import { requireMember } from "@/lib/auth";
 import { ago, money } from "@/lib/format";
 import { Bar, BrandThumb } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
@@ -36,6 +37,7 @@ function attention(b: BrandRow): { title: string; sub: string; cta: string; href
 }
 
 export default async function BrandsPage() {
+  const me = await requireMember();
   const [brands, team] = await Promise.all([
     listBrands(),
     db.select({ name: schema.members.name }).from(schema.members).orderBy(asc(schema.members.createdAt)),
@@ -110,7 +112,7 @@ export default async function BrandsPage() {
                   </div>
                 </div>
               )}
-              <BrandsTable brands={items} />
+              <BrandsTable brands={items} canRemove={me.role === "owner"} />
             </>
           )}
         </div>

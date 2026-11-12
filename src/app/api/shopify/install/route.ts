@@ -4,6 +4,7 @@ import { db, schema } from "@/lib/db";
 import { getMember } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { authorizeUrl, normalizeShop, verifyQueryHmac } from "@/lib/shopify/oauth";
+import { resolveShopDomain } from "@/lib/shopify/resolve";
 import { startOAuth } from "@/lib/oauth-state";
 
 /**
@@ -19,8 +20,9 @@ export async function GET(req: NextRequest) {
 
   const slug = q.get("brand");
   const back = (error: string) => NextResponse.redirect(new URL(slug ? `/brands/${slug}/integrations?error=${error}` : `/brands?error=${error}`, req.url));
-  const shop = normalizeShop(q.get("shop"));
-  if (!shop) return back("shop");
+  // Shopify's own install requests always send x.myshopify.com; people may type the store's real domain.
+  const shop = q.has("hmac") ? normalizeShop(q.get("shop")) : await resolveShopDomain(q.get("shop"));
+  if (!shop) return back(q.get("shop")?.includes(".") && !q.get("shop")?.includes("myshopify") ? "shop_lookup" : "shop");
   if (q.has("hmac") && !verifyQueryHmac(q, env.shopify().apiSecret)) return back("hmac");
 
   let brandId: string | null = null;
