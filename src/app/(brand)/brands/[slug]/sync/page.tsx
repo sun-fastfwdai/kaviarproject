@@ -33,7 +33,7 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
         <div className="col fill" style={{ minWidth: 0 }}><span className="h3">{name}</span><span className="xs i3 ell">{conn?.externalId ?? "Not connected"}</span></div>
         <ConnPill status={conn?.status} />
       </div>
-      <div className="col" style={{ padding: "10px 16px" }}>
+      <div className="col" style={{ padding: "10px 16px", flex: 1 }}>
         {conn ? (
           <>
             <Check ok={conn.status === "connected" || conn.status === "sample"} label={conn.status === "needs_reauth" ? "Reconnect needed" : "Connected through the Kaviar app"} value={conn.connectedAt ? `since ${dateTime(conn.connectedAt).split(" · ")[0]}` : undefined} />
@@ -46,7 +46,13 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
             </div>
           </>
         ) : (
-          <span className="sm i3" style={{ padding: "8px 0" }}>Connect {name} to start syncing.</span>
+          <>
+            <Check ok={null} label="Connected through the Kaviar app" value="not yet" />
+            <Check ok={null} label="Read-only access granted" value="on connect" />
+            {extra}
+            <Check ok={null} label="Last sync" value="never" />
+            <span className="xs i3" style={{ paddingTop: 8 }}>Connect {name} and Cleo runs the first backfill.</span>
+          </>
         )}
       </div>
       <div className="row between" style={{ padding: "10px 16px", borderTop: "1px solid var(--line)" }}>
@@ -97,14 +103,14 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
             <div className="notice green"><Icon name="check-circle" size={14} weight="fill" /><span>{connected === "meta" ? "Meta Ads" : "Shopify"} is connected. The first sync is running — history fills in over the next few minutes.</span></div>
           )}
 
-          <div className="row top g16">
+          <div className="row g16" style={{ alignItems: "stretch" }}>
             <SourceCard slug={slug} provider="shopify" conn={conns.shopify} lastSync={last("shopify")}
               extra={<Check ok={hooks.n > 0 || conns.shopify?.status === "sample" ? true : null} label="Webhooks" value={hooks.n ? `${hooks.n} in 24 h` : "hourly pull covers it"} />} />
             <SourceCard slug={slug} provider="meta" conn={conns.meta} lastSync={last("meta")}
-              extra={<Check ok={conns.meta ? true : null} label="Insights pulled every hour" value="last 7 days restated" />} />
+              extra={<Check ok={conns.meta ? true : null} label="Insights pulled every hour" value={conns.meta ? "last 7 days restated" : "after connect"} />} />
           </div>
 
-          <div className="row top g16">
+          <div className="row g16" style={{ alignItems: "stretch" }}>
             <div className="card fill" style={{ overflow: "hidden" }}>
               <div className="row between" style={{ padding: "14px 16px 10px" }}>
                 <div className="col g2"><span className="h3">In the database</span><span className="xs i3">{tables.length} tables · {num(totalRows)} rows · ready for the agents</span></div>
@@ -157,7 +163,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
                   );
                 })}
               </div>
-              <div className="row top g8" style={{ margin: "0 12px 12px", padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div className="row top g8" style={{ marginTop: "auto", marginInline: 12, marginBottom: 12, padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 10 }}>
                 <AgentFace kind="catalog" size={18} />
                 <span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">Cleo:</b> {history.some((r) => r.status === "error") ? "“One sync hit a problem — I’ll retry on the next hourly run. Details are in the history above.”" : history.length ? "“Both sources are current. I check them every hour and re-read Meta’s last 7 days each time.”" : "“Connect a source and I’ll run the first backfill.”"}</span>
               </div>
