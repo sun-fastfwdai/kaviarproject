@@ -105,6 +105,12 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
               Biggest wins: <b className="w5 i1">lapsed buyers ({num(d.lapsed.lapsed)})</b> for win-back ads{d.reorder.medianDays ? <>, and <b className="w5 i1">reorder timing</b> — replenishment ads around day {Math.round(d.reorder.medianDays)}</> : null}.
             </span>
           </div>
+          <div className="col g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
+            <span className="sm w5">Who uses these</span>
+            {([["analyst", "Iris", "reads every signal and ranks what to use next"], ["builder", "Remy", "turns signals into angles, offers and creatives"], ["catalog", "Cleo", "keeps catalog, product sets and audiences in sync"]] as const).map(([k, n, t]) => (
+              <div key={k} className="row top g8"><AgentFace kind={k} size={18} /><span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">{n}</b> {t}</span></div>
+            ))}
+          </div>
         </SidePanel>
       </div>
     </>

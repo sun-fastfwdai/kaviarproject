@@ -35,6 +35,7 @@ export const getConnections = cache(async (brandId: string) => {
 export type BrandRow = Brand & {
   shopDomain: string | null; shopStatus: string | null; metaStatus: string | null; metaName: string | null;
   revenue30: number; orders30: number; lastSync: Date | null; syncing: boolean; lastError: string | null; thumb: string | null;
+  ownerName: string | null; metaAccounts: number;
 };
 
 export async function listBrands(): Promise<BrandRow[]> {
@@ -46,6 +47,8 @@ export async function listBrands(): Promise<BrandRow[]> {
       (select max(finished_at) from sync_runs x where x.brand_id = b.id and x.status = 'success') as "lastSync",
       exists(select 1 from sync_runs x where x.brand_id = b.id and x.status = 'running') as "syncing",
       coalesce(s.last_error, m.last_error) as "lastError",
+      (select name from members o where o.id = b.created_by) as "ownerName",
+      0 as "metaAccounts",
       coalesce(b.image_url, (select p.image_url from shop_products p where p.brand_id = b.id and p.image_url is not null order by p.total_inventory desc nulls last limit 1)) as "thumb"
     from brands b
     left join connections s on s.brand_id = b.id and s.provider = 'shopify'
@@ -62,3 +65,14 @@ export async function brandThumb(brandId: string): Promise<string | null> {
   const r = await rows<{ u: string }>(sql`select image_url as u from shop_products where brand_id = ${brandId} and image_url is not null order by total_inventory desc nulls last limit 1`);
   return r[0]?.u ?? null;
 }
+
+export type BrandIndexItem = { slug: string; name: string; category: string | null; thumb: string | null };
+
+/** Light list for the brand switcher and ⌘K search. */
+export const brandIndex = cache(async (): Promise<BrandIndexItem[]> => {
+  await requireMember();
+  return rows<BrandIndexItem>(sql`
+    select b.slug, b.name, b.category,
+      coalesce(b.image_url, (select p.image_url from shop_products p where p.brand_id = b.id and p.image_url is not null order by p.total_inventory desc nulls last limit 1)) as "thumb"
+    from brands b order by b.name`);
+});

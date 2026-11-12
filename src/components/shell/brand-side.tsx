@@ -1,27 +1,23 @@
-import Link from "next/link";
 import { requireMember } from "@/lib/auth";
-import { brandThumb, getBrand } from "@/lib/queries/brands";
+import { brandIndex, brandThumb, getBrand } from "@/lib/queries/brands";
+import { BrandSwitcher } from "./brand-switcher";
+import { SearchBox } from "./search";
+import { searchItems } from "./search-items";
 import { Icon } from "../icon";
 import { NavLink } from "./nav-link";
-import { BrandThumb, MemberFoot, Wordmark } from "./parts";
+import { MemberFoot, Wordmark } from "./parts";
 
 export async function BrandSide({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const member = await requireMember();
   const brand = await getBrand(slug);
-  const thumb = brand.imageUrl ?? (await brandThumb(brand.id));
+  const [thumb, all] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex()]);
   const base = `/brands/${slug}`;
   return (
     <aside className="side">
       <Wordmark />
-      <Link href="/brands" className="switcher boxed" title="Switch brand">
-        <BrandThumb name={brand.name} imageUrl={thumb} />
-        <div className="col fill">
-          <span className="nm ell">{brand.name}</span>
-          <span className="sb ell">{brand.category ?? (brand.isSample ? "Sample data" : "Brand")}</span>
-        </div>
-        <Icon name="updown" size={14} color="#8B8883" />
-      </Link>
+      <BrandSwitcher current={{ slug: brand.slug, name: brand.name, category: brand.category ?? (brand.isSample ? "Sample data" : null), thumb }} brands={all} />
+      <SearchBox items={searchItems(all, brand)} />
       <nav className="nav">
         <NavLink href="/brands" exact muted icon={<Icon name="chev-l" />} label="All brands" />
         <div className="nav-h ell">{brand.name}</div>

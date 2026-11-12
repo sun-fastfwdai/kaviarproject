@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getBrand, getConnections } from "@/lib/queries/brands";
 import { adProducts, campaigns, channels, daily, summary, utmHealth } from "@/lib/queries/growth";
 import { parseRange } from "@/lib/queries/common";
+import { products } from "@/lib/queries/shop";
 import { CHANNEL_COLOR, CHANNEL_LABEL } from "@/lib/sync/attribution";
 import { money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
@@ -21,9 +22,9 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="sales next to ad spend" /></div></>);
 
   const tz = brand.timezone, cur = brand.currency;
-  const [s, d, ch, camps, health, sold] = await Promise.all([
+  const [s, d, ch, camps, health, sold, top] = await Promise.all([
     summary(brand.id, tz, days), daily(brand.id, tz, days), channels(brand.id, tz, days),
-    campaigns(brand.id, tz, days), utmHealth(brand.id, tz, days), adProducts(brand.id, tz, days, 6),
+    campaigns(brand.id, tz, days), utmHealth(brand.id, tz, days), adProducts(brand.id, tz, days, 6), products(brand.id, tz, days, 4),
   ]);
   const hasMeta = Boolean(conns.meta && s.spend > 0);
   const verified = s.spend ? s.metaRevenue / s.spend : null;
@@ -158,6 +159,21 @@ export default async function PerformancePage({ params, searchParams }: PageProp
             <Note icon="plug" title="Connect Meta Ads" href={`/brands/${slug}/integrations`} link="Connect">
               With spend from Meta, Kaviar can show what each dollar really returned in Shopify sales.
             </Note>
+          )}
+          {top.some((p) => p.units > 0) && (
+            <div className="col" style={{ padding: "10px 14px 4px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <div className="row between" style={{ paddingBottom: 4 }}><span className="sm w5">Top products</span><Link className="lnk xs i2" href={`/brands/${slug}/shopify?tab=products`}>Shopify data</Link></div>
+              {top.filter((p) => p.units > 0).map((p) => (
+                <div key={p.id} className="row g10" style={{ height: 44 }}>
+                  <div className="thumb" style={{ width: 32, height: 32, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {p.imageUrl ? <img src={p.imageUrl} alt="" /> : <Icon name="box" size={14} color="#B5B2AC" />}
+                  </div>
+                  <div className="col fill" style={{ minWidth: 0 }}><span className="xs w5 i1 ell">{p.title}</span><span className="xs i3">{num(p.units)} sold</span></div>
+                  <span className="xs i1 tnum">{money(p.revenue, cur)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </SidePanel>
       </div>

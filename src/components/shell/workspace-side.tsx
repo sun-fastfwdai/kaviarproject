@@ -1,5 +1,7 @@
 import { requireMember } from "@/lib/auth";
-import { listBrands } from "@/lib/queries/brands";
+import { brandIndex, listBrands } from "@/lib/queries/brands";
+import { SearchBox } from "./search";
+import { searchItems } from "./search-items";
 import { newLeadCount } from "@/lib/queries/leads";
 import { Icon } from "../icon";
 import { NavLink } from "./nav-link";
@@ -7,7 +9,7 @@ import { BrandThumb, MemberFoot, Wordmark } from "./parts";
 
 export async function WorkspaceSide() {
   const member = await requireMember();
-  const [brands, leads] = await Promise.all([listBrands(), newLeadCount()]);
+  const [brands, leads, index] = await Promise.all([listBrands(), newLeadCount(), brandIndex()]);
   return (
     <aside className="side">
       <Wordmark />
@@ -18,6 +20,7 @@ export async function WorkspaceSide() {
           <span className="sb">{brands.length} brand{brands.length === 1 ? "" : "s"}</span>
         </div>
       </div>
+      <SearchBox items={searchItems(index)} />
       <nav className="nav">
         <NavLink href="/brands" exact icon={<Icon name="store" />} label="Brands" count={brands.length} />
         {brands.length > 0 && <div className="nav-h">Brands</div>}

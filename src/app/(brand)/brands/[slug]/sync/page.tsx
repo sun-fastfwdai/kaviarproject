@@ -40,6 +40,10 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
             <Check ok={conn.scopes.length > 0} label="Read-only access granted" value={`${conn.scopes.length} scopes`} />
             {extra}
             <Check ok={lastSync ? true : null} label="Last sync" value={ago(lastSync)} />
+            <div className="row g4" style={{ flexWrap: "wrap", paddingTop: 8 }}>
+              {conn.scopes.slice(0, 3).map((sc) => <span key={sc} className="code" style={{ fontSize: 11 }}>{sc}</span>)}
+              {conn.scopes.length > 3 && <span className="code" style={{ fontSize: 11 }}>+{conn.scopes.length - 3} more</span>}
+            </div>
           </>
         ) : (
           <span className="sm i3" style={{ padding: "8px 0" }}>Connect {name} to start syncing.</span>
@@ -57,7 +61,9 @@ const TRIGGER: Record<string, string> = { connect: "First backfill", manual: "Ma
 
 export default async function SyncPage({ params, searchParams }: PageProps<"/brands/[slug]/sync">) {
   const { slug } = await params;
-  const connected = (await searchParams).connected;
+  const sp = await searchParams;
+  const connected = sp.connected;
+  const src = sp.src === "shopify" || sp.src === "meta" ? sp.src : "all";
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const [tables, history, hooks, health] = await Promise.all([tableStats(brand.id), runs(brand.id, 10), webhookCount(brand.id), utmHealth(brand.id, brand.timezone, 30)]);
@@ -70,7 +76,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
 
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Data" }, { label: "Data sync" }]}>
+      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Data sync" }]}>
         <span className="row g6 xs i3"><AgentFace kind="catalog" size={16} />Cleo keeps both sources in sync, hourly</span>
         <SyncButton slug={slug} running={running} disabled={!canSync} />
         <Link className="btn dark sm" href={`/brands/${slug}/performance`}><Icon name="chart-bar" size={14} color="#fff" />View performance</Link>
@@ -101,13 +107,20 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
           <div className="row top g16">
             <div className="card fill" style={{ overflow: "hidden" }}>
               <div className="row between" style={{ padding: "14px 16px 10px" }}>
-                <div className="col g2"><span className="h3">In the database</span><span className="xs i3">{tables.length} tables · {num(totalRows)} rows</span></div>
+                <div className="col g2"><span className="h3">In the database</span><span className="xs i3">{tables.length} tables · {num(totalRows)} rows · ready for the agents</span></div>
+                <div className="seg">
+                  {([["all", "All"], ["shopify", "Shopify"], ["meta", "Meta"]] as const).map(([k, l]) => (
+                    <Link key={k} href={`/brands/${slug}/sync${k === "all" ? "" : `?src=${k}`}`} scroll={false} className={`o${src === k ? " on" : ""}`}>
+                      {k !== "all" && <SourceLogo provider={k} size={12} />}{l}
+                    </Link>
+                  ))}
+                </div>
               </div>
               <div className="tr hd dense" style={{ padding: "0 16px", borderTop: "1px solid var(--line)" }}>
                 <div className="td fill">Table</div><div className="td" style={{ width: 54 }}>Source</div><div className="td num" style={{ width: 80 }}>Rows</div>
                 <div className="td" style={{ width: 100 }}>Freshness</div><div className="td" style={{ width: 170 }}>How it syncs</div><div className="td" style={{ width: 96 }}>Status</div>
               </div>
-              {tables.map((t) => (
+              {tables.filter((t) => src === "all" || t.source === src).map((t) => (
                 <div key={t.table} className="tr dense" style={{ padding: "0 16px" }}>
                   <div className="td fill"><Icon name={t.icon as IconName} size={14} color="#8B8883" /><span className="mono i1">{t.table}</span></div>
                   <div className="td" style={{ width: 54 }}><SourceLogo provider={t.source} size={13} /></div>
@@ -125,7 +138,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
               <div className="row between" style={{ padding: "14px 16px 6px" }}><span className="h3">Sync history</span>{running && <span className="pill blue">Running</span>}</div>
               <div className="col" style={{ padding: "4px 16px 12px" }}>
                 {history.length === 0 && <span className="sm i3" style={{ padding: "8px 0" }}>Nothing yet. Connect a source and Kaviar runs the first backfill.</span>}
-                {history.map((r) => {
+                {history.slice(0, 8).map((r) => {
                   const tone = r.status === "success" ? "#1F8A5B" : r.status === "running" ? "#2563EB" : "#B7791F";
                   const d = r.detail ?? {};
                   const what = r.provider === "shopify" ? `${num(d.orders ?? 0)} orders · ${num(d.products ?? 0)} products` : `${num(d.insights ?? 0)} insight rows · ${num(d.ads ?? 0)} ads`;
@@ -143,6 +156,10 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
                     </div>
                   );
                 })}
+              </div>
+              <div className="row top g8" style={{ margin: "0 12px 12px", padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 10 }}>
+                <AgentFace kind="catalog" size={18} />
+                <span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">Cleo:</b> {history.some((r) => r.status === "error") ? "“One sync hit a problem — I’ll retry on the next hourly run. Details are in the history above.”" : history.length ? "“Both sources are current. I check them every hour and re-read Meta’s last 7 days each time.”" : "“Connect a source and I’ll run the first backfill.”"}</span>
               </div>
             </div>
           </div>

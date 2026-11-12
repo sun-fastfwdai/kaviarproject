@@ -5,7 +5,7 @@ import { parseRange } from "@/lib/queries/common";
 import { compact, money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
-import { SourceTile } from "@/components/logos";
+import { MetaLogo, SourceTile } from "@/components/logos";
 import { ConnPill, IrisHeader, NeedsSource, Note, RangeTabs, roasTone, SidePanel, Stat, StatStrip } from "@/components/ui";
 
 export const metadata = { title: "Meta Ads" };
@@ -15,7 +15,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
   const days = parseRange((await searchParams).days);
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Data" }, { label: "Meta Ads" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Meta Ads" }];
   const conn = conns.meta;
   if (!conn || conn.status === "choose_account") return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="meta" what="campaigns and spend" /></div></>);
 
@@ -115,6 +115,14 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
           </div>
         </section>
         <SidePanel>
+          <div className="col g10" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
+            <div className="col g2"><span className="row g6 sm w5"><MetaLogo size={14} />Available from Meta</span><span className="xs i3">What the Marketing API gives Kaviar, read-only</span></div>
+            <span className="xs i3">Metrics</span>
+            <div className="row g4" style={{ flexWrap: "wrap" }}>{["spend", "impressions", "link_clicks", "ctr", "cpc", "purchases", "purchase_value", "roas"].map((m) => <span key={m} className="code" style={{ fontSize: 11 }}>{m}</span>)}</div>
+            <div className="col" style={{ borderTop: "1px solid var(--line)", paddingTop: 6 }}>
+              {[["Attribution", "Ad account default"], ["Refresh", "Hourly"], ["Re-read", "Last 7 days"]].map(([k, v]) => <div key={k} className="row between" style={{ height: 24 }}><span className="xs i3">{k}</span><span className="xs i1">{v}</span></div>)}
+            </div>
+          </div>
           <IrisHeader>· compares Meta with Shopify</IrisHeader>
           <Note icon="info" tone="#4C7BD9" title="Two numbers for the same sales" href={`/brands/${slug}/performance?days=${days}`} link="Compare in Performance">
             Meta reports {num(s.metaPurchases)} purchases ({money(s.metaValue, cur)}). Shopify shows {num(s.metaOrders)} orders ({money(s.metaRevenue, cur)}) tagged with Meta UTMs. Meta also counts views within a day and sales that came through other channels.

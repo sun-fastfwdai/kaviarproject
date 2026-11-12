@@ -1,32 +1,63 @@
 import Link from "next/link";
-import { listBrands } from "@/lib/queries/brands";
-import { ago, money, num } from "@/lib/format";
+import { asc } from "drizzle-orm";
+import { db, schema } from "@/lib/db";
+import { listBrands, type BrandRow } from "@/lib/queries/brands";
+import { ago, money } from "@/lib/format";
 import { Bar, BrandThumb } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
-import { MetaLogo, ShopifyLogo } from "@/components/logos";
+import { ShopifyLogo } from "@/components/logos";
 import { AgentFace } from "@/components/agent";
+import { BrandsTable, type BrandItem } from "./brands-table";
 
 export const metadata = { title: "Brands" };
 
-function Source({ status, label, logo }: { status: string | null; label: string | null; logo: React.ReactNode }) {
-  if (!status) return <span className="xs i4">Not connected</span>;
-  const tone = status === "connected" ? "green" : status === "needs_reauth" ? "amber" : status === "sample" ? "blue" : "";
-  return (
-    <span className="row g6 sm i2 ell">
-      {logo}
-      <span className="ell">{label}</span>
-      <span className={`dot ${tone}`} />
-    </span>
-  );
+const initials = (n: string) => n.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+
+function status(b: BrandRow): [BrandItem["status"], string] {
+  if (b.syncing) return ["syncing", "Syncing"];
+  if (b.shopStatus === "needs_reauth" || b.metaStatus === "needs_reauth") return ["attention", "Reconnect needed"];
+  if (b.metaStatus === "choose_account") return ["attention", "Pick ad account"];
+  if (b.lastError) return ["attention", "Sync failed"];
+  if (b.isSample) return ["sample", "Sample data"];
+  if (b.shopStatus === "connected") return ["live", "Live data"];
+  return ["setup", "Setting up"];
+}
+
+/** What needs a person, most urgent first (board 01 “Needs attention”). */
+function attention(b: BrandRow): { title: string; sub: string; cta: string; href: string } | null {
+  const base = `/brands/${b.slug}`;
+  if (b.shopStatus === "needs_reauth") return { title: "Reconnect Shopify", sub: "The store stopped accepting Kaviar’s access", cta: "Reconnect", href: `${base}/integrations` };
+  if (b.metaStatus === "needs_reauth") return { title: "Reconnect Meta Ads", sub: "The Facebook login expired", cta: "Reconnect", href: `${base}/integrations` };
+  if (b.metaStatus === "choose_account") return { title: "Pick the Meta ad account", sub: "Login done — choose which account is theirs", cta: "Choose", href: `${base}/integrations` };
+  if (b.lastError) return { title: "Last sync failed", sub: b.lastError.slice(0, 60), cta: "Open", href: `${base}/sync` };
+  if (!b.shopStatus || b.shopStatus === "disconnected") return { title: "Connect Shopify", sub: "No store data yet", cta: "Connect", href: `${base}/integrations` };
+  if (!b.metaStatus && !b.isSample) return { title: "Connect Meta Ads", sub: "Spend and ROAS need the ad account", cta: "Connect", href: `${base}/integrations` };
+  return null;
 }
 
 export default async function BrandsPage() {
-  const brands = await listBrands();
-  const live = brands.filter((b) => b.shopStatus === "connected").length;
+  const [brands, team] = await Promise.all([
+    listBrands(),
+    db.select({ name: schema.members.name }).from(schema.members).orderBy(asc(schema.members.createdAt)),
+  ]);
+  const shop = brands.filter((b) => b.shopStatus === "connected").length;
+  const meta = brands.filter((b) => b.metaStatus === "connected").length;
   const total30 = brands.reduce((a, b) => a + b.revenue30, 0);
+  const todo = brands.map((b) => ({ b, a: attention(b) })).filter((x) => x.a).slice(0, 3);
+  const items: BrandItem[] = brands.map((b) => {
+    const [st, text] = status(b);
+    return {
+      slug: b.slug, name: b.name, category: b.category, isSample: b.isSample, thumb: b.thumb, shopDomain: b.shopDomain,
+      shopStatus: b.shopStatus, metaStatus: b.metaStatus, metaName: b.metaName, revenue: money(b.revenue30, b.currency), orders: b.orders30,
+      status: st, statusText: text, owner: b.ownerName,
+      activity: b.syncing ? "Syncing now" : b.lastSync ? "Data synced" : "Brand created", activityAt: ago(b.lastSync ?? b.createdAt),
+    };
+  });
+
   return (
     <>
       <Bar crumbs={[{ label: "Brands" }]}>
+        <div className="stack">{team.slice(0, 4).map((m, i) => <div key={i} className={`av ${["k", "j", "u", "d"][i % 4]}`} title={m.name}>{initials(m.name)}</div>)}</div>
         <Link href="/brands/new" className="btn dark sm"><Icon name="plus" size={14} color="#fff" />Add brand</Link>
       </Bar>
       <div className="scroll">
@@ -38,7 +69,8 @@ export default async function BrandsPage() {
             </div>
             <div className="row">
               <div className="kpi"><span className="v">{brands.length}</span><span className="xs i3">Brands</span></div>
-              <div className="kpi"><span className="v">{live}</span><span className="xs i3">Shopify connected</span></div>
+              <div className="kpi"><span className="v">{shop}</span><span className="xs i3">Shopify live</span></div>
+              <div className="kpi"><span className="v">{meta}</span><span className="xs i3">Meta live</span></div>
               <div className="kpi"><span className="v">{money(total30)}</span><span className="xs i3">Sales · 30 days</span></div>
             </div>
           </div>
@@ -59,36 +91,27 @@ export default async function BrandsPage() {
               <span className="xs i3">Remy, Cleo, Otto and Iris are ready when you are.</span>
             </div>
           ) : (
-            <div className="card" style={{ overflow: "visible" }}>
-              <div className="tr hd" style={{ padding: "0 16px" }}>
-                <div className="td" style={{ flex: 2.2 }}>Brand</div>
-                <div className="td" style={{ flex: 2 }}>Shopify</div>
-                <div className="td" style={{ flex: 1.6 }}>Meta Ads</div>
-                <div className="td num" style={{ flex: 1.1 }}>Sales · 30d</div>
-                <div className="td num" style={{ flex: 0.8 }}>Orders</div>
-                <div className="td" style={{ flex: 1.2 }}>Last sync</div>
-                <div className="td" style={{ width: 80 }} />
-              </div>
-              {brands.map((b) => (
-                <Link key={b.id} href={`/brands/${b.slug}`} className="tr" style={{ padding: "0 16px" }}>
-                  <div className="td" style={{ flex: 2.2 }}>
-                    <BrandThumb name={b.name} imageUrl={b.thumb} size={36} />
-                    <div className="col" style={{ minWidth: 0 }}>
-                      <span className="t w5 i1 ell">{b.name}</span>
-                      <span className="xs i3 ell">{b.isSample ? "Sample data" : b.category ?? "—"}</span>
-                    </div>
+            <>
+              {todo.length > 0 && (
+                <div className="col g10">
+                  <div className="row between"><span className="row g8"><span className="h3">Needs attention</span><span className="pill" style={{ height: 20, fontSize: 11 }}>{todo.length}</span></span></div>
+                  <div className="row g12 stretch">
+                    {todo.map(({ b, a }) => (
+                      <Link key={b.slug} href={a!.href} className="card link row" style={{ flexDirection: "row", flex: "1 1 0", minWidth: 0, overflow: "hidden", alignItems: "stretch" }}>
+                        <div style={{ width: 64, flexShrink: 0, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center" }}><BrandThumb name={b.name} imageUrl={b.thumb} size={40} /></div>
+                        <div className="col g2 fill" style={{ padding: "12px 14px", minWidth: 0 }}>
+                          <span className="row g6 xs i3"><span className="dot amber" />{b.name}</span>
+                          <span className="sm w5 i1 ell">{a!.title}</span>
+                          <span className="xs i3 ell">{a!.sub}</span>
+                        </div>
+                        <div className="row" style={{ paddingRight: 14 }}><span className="btn sm">{a!.cta}</span></div>
+                      </Link>
+                    ))}
                   </div>
-                  <div className="td" style={{ flex: 2 }}><Source status={b.shopStatus} label={b.shopDomain} logo={<ShopifyLogo size={14} />} /></div>
-                  <div className="td" style={{ flex: 1.6 }}><Source status={b.metaStatus} label={b.metaName ?? "Ad account"} logo={<MetaLogo size={14} />} /></div>
-                  <div className="td num i1" style={{ flex: 1.1 }}>{money(b.revenue30, b.currency)}</div>
-                  <div className="td num" style={{ flex: 0.8 }}>{num(b.orders30)}</div>
-                  <div className="td" style={{ flex: 1.2 }}>
-                    {b.syncing ? <span className="st"><span className="dot blue" />Syncing</span> : b.lastError ? <span className="st c-amber"><span className="dot amber" />Needs a look</span> : <span className="sm i3">{ago(b.lastSync)}</span>}
-                  </div>
-                  <div className="td" style={{ width: 80, justifyContent: "flex-end" }}><span className="btn sm">Open<Icon name="arrow-r" size={13} /></span></div>
-                </Link>
-              ))}
-            </div>
+                </div>
+              )}
+              <BrandsTable brands={items} />
+            </>
           )}
         </div>
       </div>

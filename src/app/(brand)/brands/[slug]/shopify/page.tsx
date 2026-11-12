@@ -9,12 +9,21 @@ import { Bar } from "@/components/shell/parts";
 import { Icon, type IconName } from "@/components/icon";
 import { MetaLogo } from "@/components/logos";
 import { NeedsSource, Stat, StatStrip } from "@/components/ui";
+import { AgentFace } from "@/components/agent";
 
 export const metadata = { title: "Shopify data" };
 const PAGE = 25;
 const CH: Channel[] = ["meta", "direct", "google", "email", "other"];
 
-function SubNav({ base, tab, counts }: { base: string; tab: string; counts: Awaited<ReturnType<typeof shopCounts>> }) {
+const FIELDS: [string, [string, string][]][] = [
+  ["Order", [["id · name", "#18406"], ["created_at", "time"], ["financial_status", "paid, refunded…"]]],
+  ["Money", [["total · subtotal", "money"], ["discounts · codes", "codes + amount"], ["refunds", "amount"]]],
+  ["Line items", [["product · variant", "ids"], ["quantity · price", "int · money"]]],
+  ["Attribution", [["utm_source / medium", "text"], ["utm_campaign · content", "→ Meta ids"], ["landing page · referrer", "url"]]],
+  ["Customer", [["customer id", "id"], ["orders · spend", "int · money"]]],
+];
+
+function SubNav({ base, tab, counts, top, cur }: { base: string; tab: string; counts: Awaited<ReturnType<typeof shopCounts>>; top: Awaited<ReturnType<typeof products>>; cur: string }) {
   const items: [string, IconName, string, number][] = [["orders", "receipt", "Orders", counts.orders], ["products", "box", "Products", counts.products]];
   return (
     <aside className="col g4" style={{ width: 200, flexShrink: 0, padding: "18px 10px", borderRight: "1px solid var(--line)" }}>
@@ -25,7 +34,20 @@ function SubNav({ base, tab, counts }: { base: string; tab: string; counts: Awai
       <div className="ni" style={{ cursor: "default" }}><Icon name="layers" />Variants<span className="ct">{num(counts.variants)}</span></div>
       <div className="ni" style={{ cursor: "default" }}><Icon name="users" />Customers<span className="ct">{num(counts.customers)}</span></div>
       <div className="ni" style={{ cursor: "default" }}><Icon name="rows" />Order lines<span className="ct">{num(counts.lines)}</span></div>
-      <span className="xs i3" style={{ padding: "12px 8px 0", lineHeight: "16px" }}>Customers are kept as ids, order counts and spend — no names, emails or addresses.</span>
+      {top.some((p) => p.units > 0) && (
+        <>
+          <div className="xs i3" style={{ padding: "16px 8px 6px" }}>Top products · 30 days</div>
+          {top.filter((p) => p.units > 0).slice(0, 3).map((p) => (
+            <div key={p.id} className="row g8" style={{ padding: "4px 8px" }}>
+              <div className="thumb" style={{ width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {p.imageUrl ? <img src={p.imageUrl} alt="" /> : <Icon name="box" size={12} color="#B5B2AC" />}
+              </div>
+              <div className="col" style={{ minWidth: 0 }}><span className="xs w5 i1 ell">{p.title}</span><span className="xs i3">{num(p.units)} sold · {money(p.revenue, cur)}</span></div>
+            </div>
+          ))}
+        </>
+      )}
     </aside>
   );
 }
@@ -43,12 +65,12 @@ export default async function ShopifyPage({ params, searchParams }: PageProps<"/
   const ch = CH.includes(sp.source as Channel) ? (sp.source as Channel) : null;
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Data" }, { label: "Shopify data" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Shopify data" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="orders and products" /></div></>);
 
   const base = `/brands/${slug}/shopify`;
   const tz = brand.timezone, cur = brand.currency;
-  const [counts, s, chs] = await Promise.all([shopCounts(brand.id), summary(brand.id, tz, 30), channels(brand.id, tz, 30)]);
+  const [counts, s, chs, top] = await Promise.all([shopCounts(brand.id), summary(brand.id, tz, 30), channels(brand.id, tz, 30), products(brand.id, tz, 30, 3)]);
   const chTotal = chs.reduce((a, c) => a + c.orders, 0) || 1;
   const metaShare = (chs.find((c) => c.channel === "meta")?.orders ?? 0) / chTotal;
 
@@ -58,7 +80,7 @@ export default async function ShopifyPage({ params, searchParams }: PageProps<"/
         <Link className="btn sm" href={`/brands/${slug}/sync`}><Icon name="database" size={14} />Data sync</Link>
       </Bar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
-        <SubNav base={base} tab={tab} counts={counts} />
+        <SubNav base={base} tab={tab} counts={counts} top={top} cur={cur} />
         <section className="scroll col" style={{ padding: "22px 24px", gap: 14 }}>
           {tab === "orders" ? (
             <OrdersTab brandId={brand.id} cur={cur} tz={tz} base={base} page={page} ch={ch} s={s} chs={chs} chTotal={chTotal} metaShare={metaShare} total={counts.orders} />
@@ -66,6 +88,25 @@ export default async function ShopifyPage({ params, searchParams }: PageProps<"/
             <ProductsTab brandId={brand.id} cur={cur} tz={tz} />
           )}
         </section>
+        <aside className="col g12" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: "18px 16px", overflowY: "auto" }}>
+          <div className="row between"><span className="h3">Available fields</span><span className="pill" style={{ height: 22, fontSize: 11.5 }}>{tab === "orders" ? "Orders" : "Products"}</span></div>
+          <span className="xs i3">What Kaviar syncs for each order</span>
+          {FIELDS.map(([g, fs]) => (
+            <div key={g} className="col" style={{ borderTop: "1px solid var(--line)", paddingTop: 6 }}>
+              <span className="xs i3" style={{ paddingBottom: 2 }}>{g}</span>
+              {fs.map(([k, v]) => <div key={k} className="row between" style={{ height: 22 }}><span className="mono i1" style={{ fontSize: 11 }}>{k}</span><span className="xs i3">{v}</span></div>)}
+            </div>
+          ))}
+          <div className="col" style={{ borderTop: "1px solid var(--line)", paddingTop: 6 }}>
+            <span className="xs i3" style={{ paddingBottom: 4 }}>How it syncs</span>
+            <div className="row g4" style={{ flexWrap: "wrap" }}><span className="code" style={{ fontSize: 11 }}>orders/create</span><span className="code" style={{ fontSize: 11 }}>orders/updated</span><span className="code" style={{ fontSize: 11 }}>hourly</span></div>
+          </div>
+          <div className="fill" />
+          <div className="row top g8" style={{ padding: "12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 12 }}>
+            <AgentFace kind="analyst" size={18} />
+            <span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">Agents see aggregates;</b> customer contact details never leave Shopify. Iris reads totals, products and UTMs — never names.</span>
+          </div>
+        </aside>
       </div>
     </>
   );
@@ -86,7 +127,7 @@ async function OrdersTab({ brandId, cur, tz, base, page, ch, s, chs, chTotal, me
     <>
       <div className="col g4"><h1 className="h1">Orders</h1><p className="sm i3">Every order from Shopify with where it came from. {num(total)} rows.</p></div>
       <StatStrip>
-        <Stat label="Last 30 days · revenue" source="shopify" value={money(s.revenue, cur)} />
+        <Stat label="Revenue · 30d" source="shopify" value={money(s.revenue, cur)} />
         <Stat label="Orders" value={num(s.orders)} />
         <Stat label="Avg order" value={money(s.orders ? s.revenue / s.orders : 0, cur, true)} />
         <Stat label="New customers" value={num(s.newCustomers)} />
@@ -104,17 +145,16 @@ async function OrdersTab({ brandId, cur, tz, base, page, ch, s, chs, chTotal, me
       </div>
       <div className="card" style={{ overflow: "hidden" }}>
         <div className="tr hd dense" style={{ padding: "0 14px" }}>
-          <div className="td" style={{ width: 120 }}>Order</div><div className="td" style={{ width: 140 }}>Customer</div><div className="td fill">Items</div>
-          <div className="td" style={{ width: 200 }}>Source</div><div className="td num" style={{ width: 80 }}>Total</div><div className="td" style={{ width: 100 }}>Status</div>
+          <div className="td" style={{ width: 150 }}>Order · customer</div><div className="td fill">Items</div>
+          <div className="td" style={{ width: 150 }}>Source</div><div className="td num" style={{ width: 70 }}>Total</div><div className="td" style={{ width: 92 }}>Status</div>
         </div>
         {list.map((o) => (
           <div key={o.id} className="tr compact" style={{ padding: "0 14px" }}>
-            <div className="td" style={{ width: 120 }}><div className="col"><span className="sm w5 i1">{o.name}</span><span className="xs i3">{dateTime(o.createdAt, tz)}</span></div></div>
-            <div className="td" style={{ width: 140 }}>{o.priorOrders == null ? <span className="i3">Guest</span> : o.priorOrders === 0 ? "New" : `Returning · ${ordinal(o.priorOrders + 1)} order`}</div>
+            <div className="td" style={{ width: 150 }}><div className="col" style={{ minWidth: 0 }}><span className="sm w5 i1">{o.name} <span className="xs i3" style={{ fontWeight: 400 }}>· {o.priorOrders == null ? "Guest" : o.priorOrders === 0 ? "New" : `${ordinal(o.priorOrders + 1)} order`}</span></span><span className="xs i3">{dateTime(o.createdAt, tz)}</span></div></div>
             <div className="td fill"><span className="sm i1 ell">{o.items ?? "—"}</span></div>
-            <div className="td" style={{ width: 200 }}><SourceCell c={o.channel} campaign={o.campaign ?? o.utmCampaign} /></div>
-            <div className="td num i1" style={{ width: 80 }}>{money(o.total, cur, true)}</div>
-            <div className="td" style={{ width: 100 }}>
+            <div className="td" style={{ width: 150 }}><SourceCell c={o.channel} campaign={o.campaign ?? o.utmCampaign} /></div>
+            <div className="td num i1" style={{ width: 70 }}>{money(o.total, cur, true)}</div>
+            <div className="td" style={{ width: 92 }}>
               {o.refunded > 0 ? <span className="st sm"><span className="dot amber" />Refunded</span> : o.fulfillmentStatus === "FULFILLED" ? <span className="st sm"><span className="dot green" />Fulfilled</span> : <span className="st sm"><span className="dot blue" />Paid</span>}
             </div>
           </div>

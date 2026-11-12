@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getBrand, getConnections, type ConnectionView } from "@/lib/queries/brands";
+import { runs } from "@/lib/queries/sync";
 import { env } from "@/lib/env";
-import { daysUntil, shortDate } from "@/lib/format";
+import { ago, daysUntil, shortDate } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { SourceTile } from "@/components/logos";
-import { ConnPill } from "@/components/ui";
-import { chooseMetaAccount, disconnect } from "../actions";
+import { AgentFace } from "@/components/agent";
+import { ConnectAction } from "./connect-ui";
 
 export const metadata = { title: "Integrations" };
 
@@ -21,130 +22,34 @@ const ERRORS: Record<string, string> = {
   no_accounts: "This Facebook login can’t see any ad accounts. Use a login with access to the brand’s ad account.",
 };
 
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="row between" style={{ padding: "7px 0", borderTop: "1px solid var(--line)" }}>
-      <span className="sm i3">{k}</span>
-      <span className="sm i1 ell" style={{ maxWidth: "62%" }}>{v}</span>
-    </div>
-  );
-}
+const SHOPIFY_SCOPES = ["read_orders", "read_all_orders", "read_products", "read_inventory", "read_customers"];
+const nice = (s: string) => s.replace(/^read_/, "").replace(/_/g, " ").replace(/^all orders$/, "order history");
 
-function SetupNeeded({ provider }: { provider: "Shopify" | "Meta" }) {
+function Summary({ provider, conn, lastSync, action }: { provider: "shopify" | "meta"; conn: ConnectionView; lastSync: Date | null; action: React.ReactNode }) {
+  const daysLeft = provider === "meta" && conn.accessExpiresAt ? daysUntil(conn.accessExpiresAt) : null;
   return (
-    <div className="notice amber">
-      <Icon name="key" size={14} />
-      <span>{provider} isn’t set up for Kaviar yet. Once an owner adds the Kaviar {provider} app, you can connect here.</span>
-    </div>
-  );
-}
-
-function ShopifyCard({ slug, conn }: { slug: string; conn: ConnectionView | null }) {
-  const configured = env.shopifyConfigured();
-  const live = conn && ["connected", "sample"].includes(conn.status);
-  return (
-    <div className="card fill" style={{ minWidth: 0 }}>
-      <div className="card-h">
-        <SourceTile provider="shopify" size={36} />
-        <div className="col fill" style={{ minWidth: 0 }}>
-          <span className="h3">Shopify</span>
-          <span className="xs i3 ell">{conn?.externalId ?? "Orders, products, customers, inventory"}</span>
+    <div className="card row g16" style={{ flexDirection: "row", alignItems: "center", padding: "14px 16px", flexWrap: "wrap" }}>
+      <div className="row g12" style={{ minWidth: 220 }}>
+        <SourceTile provider={provider} size={40} />
+        <div className="col" style={{ minWidth: 0 }}>
+          <span className="t w5 i1 ell">{provider === "shopify" ? conn.externalId : `${conn.displayName ?? "Ad account"}`}</span>
+          <span className="row g6 xs c-green"><span className="dot green" />{conn.status === "sample" ? "Sample data" : provider === "shopify" ? "Connected via Kaviar app" : `Connected · ${conn.externalId}`}</span>
         </div>
-        <ConnPill status={conn?.status} />
       </div>
-      <div className="card-b">
-        {live && conn ? (
-          <div className="col">
-            <Row k="Store" v={conn.displayName ?? conn.externalId} />
-            <Row k="Connected" v={conn.connectedAt ? `${shortDate(conn.connectedAt)}${conn.connectedByName ? ` · ${conn.connectedByName}` : ""}` : "—"} />
-            <Row k="API version" v={String(conn.details.apiVersion ?? "—")} />
-            <Row k="Access" v={<span className="row g4" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>{conn.scopes.map((s) => <span key={s} className="code">{s}</span>)}</span>} />
-            {conn.refreshExpiresAt && <Row k="Token" v="Expiring token · refreshed automatically" />}
-            {conn.lastError && <div className="notice amber" style={{ marginTop: 8 }}><Icon name="warning" size={14} /><span>{conn.lastError}</span></div>}
-          </div>
-        ) : null}
-        {conn?.status === "sample" ? (
-          <p className="sm i3">This brand shows sample data. Create a new brand to connect a real store.</p>
-        ) : !configured ? (
-          <SetupNeeded provider="Shopify" />
-        ) : (
-          <form action="/api/shopify/install" method="get" className="col g8">
-            <input type="hidden" name="brand" value={slug} />
-            <label className="col g6">
-              <span className="label">{live ? "Reconnect store" : "Store address"}</span>
-              <div className="row g8">
-                <div className="input fill"><input name="shop" defaultValue={conn?.externalId ?? ""} placeholder="brand.myshopify.com" required /></div>
-                <button className="btn dark">{live ? "Reconnect" : "Connect Shopify"}</button>
-              </div>
-            </label>
-            <span className="hint">You’ll approve read-only access in Shopify. Kaviar never edits the store from here.</span>
-          </form>
-        )}
-        {conn?.status === "connected" && (
-          <form action={disconnect.bind(null, slug, "shopify")}>
-            <button className="btn quiet sm"><Icon name="unlink" size={13} />Disconnect</button>
-          </form>
-        )}
+      <div className="vr" />
+      <div className="row g24" style={{ flexWrap: "wrap" }}>
+        {[
+          [provider === "shopify" ? "API version" : "Currency", provider === "shopify" ? String(conn.details.apiVersion ?? "2026-10") : String(conn.details.currency ?? "—")],
+          ["Last sync", lastSync ? ago(lastSync) : "waiting"],
+          ["Connected by", `${conn.connectedByName ?? "Kaviar"}${conn.connectedAt ? ` · ${shortDate(conn.connectedAt)}` : ""}`],
+          ...(daysLeft != null ? [["Login expires", `in ${daysLeft} days`]] : []),
+        ].map(([k, v]) => <div key={k} className="col g2"><span className="xs i3">{k}</span><span className={`sm i1 ${k === "Login expires" && Number(v.split(" ")[1]) < 10 ? "c-amber" : ""}`}>{v}</span></div>)}
       </div>
-    </div>
-  );
-}
-
-function MetaCard({ slug, conn }: { slug: string; conn: ConnectionView | null }) {
-  const configured = env.metaConfigured();
-  const live = conn && ["connected", "sample"].includes(conn.status);
-  const accounts = (conn?.details.accounts ?? []) as { id: string; name: string; currency: string; timezone_name: string; account_status: number }[];
-  const daysLeft = conn?.accessExpiresAt ? daysUntil(conn.accessExpiresAt) : null;
-  return (
-    <div className="card fill" style={{ minWidth: 0 }}>
-      <div className="card-h">
-        <SourceTile provider="meta" size={36} />
-        <div className="col fill" style={{ minWidth: 0 }}>
-          <span className="h3">Meta Ads</span>
-          <span className="xs i3 ell">{conn?.displayName ?? "Campaigns, ads, spend, daily insights"}</span>
-        </div>
-        <ConnPill status={conn?.status} />
+      <div className="col g4 fill" style={{ minWidth: 200 }}>
+        <span className="xs i3">Access granted</span>
+        <div className="row g4" style={{ flexWrap: "wrap" }}>{conn.scopes.map((s) => <span key={s} className="pill" style={{ height: 22, fontSize: 11.5 }}>{nice(s)}</span>)}</div>
       </div>
-      <div className="card-b">
-        {conn?.status === "choose_account" && (
-          <form action={chooseMetaAccount.bind(null, slug)} className="col g8">
-            <span className="label">Which ad account is {conn.displayName ?? "this brand"}’s?</span>
-            <div className="col" style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
-              {accounts.map((a, i) => (
-                <label key={a.id} className="row g10" style={{ padding: "10px 12px", borderTop: i ? "1px solid var(--line)" : 0, cursor: "pointer" }}>
-                  <input type="radio" name="account" value={a.id} defaultChecked={i === 0} />
-                  <div className="col fill"><span className="sm w5 i1">{a.name}</span><span className="xs i3">{a.id} · {a.currency} · {a.timezone_name}</span></div>
-                  {a.account_status !== 1 && <span className="pill amber">Not active</span>}
-                </label>
-              ))}
-            </div>
-            <button className="btn dark">Use this account</button>
-          </form>
-        )}
-        {live && conn && (
-          <div className="col">
-            <Row k="Ad account" v={`${conn.displayName} · ${conn.externalId}`} />
-            <Row k="Currency" v={String(conn.details.currency ?? "—")} />
-            <Row k="Connected" v={conn.connectedAt ? `${shortDate(conn.connectedAt)}${conn.connectedByName ? ` · ${conn.connectedByName}` : ""}` : "—"} />
-            <Row k="Access" v={<span className="row g4">{conn.scopes.map((s) => <span key={s} className="code">{s}</span>)}</span>} />
-            {daysLeft != null && <Row k="Login expires" v={<span className={daysLeft < 10 ? "c-amber" : ""}>in {daysLeft} days · reconnect before then</span>} />}
-            {conn.lastError && <div className="notice amber" style={{ marginTop: 8 }}><Icon name="warning" size={14} /><span>{conn.lastError}</span></div>}
-          </div>
-        )}
-        {conn?.status === "sample" ? null : !configured ? (
-          <SetupNeeded provider="Meta" />
-        ) : conn?.status !== "choose_account" ? (
-          <div className="row g8">
-            <a className="btn dark" href={`/api/meta/connect?brand=${slug}`}>{live || conn?.status === "needs_reauth" ? "Reconnect Meta" : "Connect Meta Ads"}</a>
-            <span className="hint">Read-only: ads_read. Log in with someone who can see the brand’s ad account.</span>
-          </div>
-        ) : null}
-        {conn?.status === "connected" && (
-          <form action={disconnect.bind(null, slug, "meta")}>
-            <button className="btn quiet sm"><Icon name="unlink" size={13} />Disconnect</button>
-          </form>
-        )}
-      </div>
+      {action}
     </div>
   );
 }
@@ -154,30 +59,80 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
   const sp = await searchParams;
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
+  const history = await runs(brand.id, 20);
   const err = typeof sp.error === "string" ? ERRORS[sp.error] ?? sp.error : null;
+  const last = (p: string) => history.find((r) => r.provider === p && r.status === "success")?.finishedAt ?? null;
+  const shopifyReady = env.shopifyConfigured(), metaReady = env.metaConfigured();
+  const scopes = shopifyReady ? env.shopify().scopes : SHOPIFY_SCOPES;
+  const live = (c: ConnectionView | null) => Boolean(c && ["connected", "sample"].includes(c.status));
+  const waiting = [conns.shopify, conns.meta].filter((c) => !c || ["needs_reauth", "choose_account", "disconnected"].includes(c.status)).length;
+  const accounts = (conns.meta?.details.accounts ?? []) as { id: string; name: string; currency: string; timezone_name: string; account_status: number }[];
+
+  const rows: { provider: "shopify" | "meta"; name: string; what: string; conn: ConnectionView | null; who: string; ready: boolean }[] = [
+    { provider: "shopify", name: "Shopify", what: "Orders, products, customers, stock", conn: conns.shopify, who: "Store owner approves", ready: shopifyReady },
+    { provider: "meta", name: "Meta Ads", what: "Campaigns, ads, spend, daily insights", conn: conns.meta, who: "Ad account login", ready: metaReady },
+  ];
+  const statusOf = (c: ConnectionView | null): [string, string] =>
+    !c || c.status === "disconnected" ? ["", "Not connected"] :
+    c.status === "needs_reauth" ? ["amber", "Reconnect needed"] :
+    c.status === "choose_account" ? ["amber", "Choose an ad account"] :
+    c.status === "sample" ? ["blue", "Sample data"] : ["green", "Connected"];
+
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Integrations" }]}>
+        <span className="row g6 xs i3"><AgentFace kind="catalog" size={16} />Cleo checks connections every hour</span>
         <Link className="btn sm" href={`/brands/${slug}/sync`}><Icon name="database" size={14} />Data sync</Link>
       </Bar>
       <div className="scroll">
-        <div className="col g20" style={{ padding: "28px 32px", maxWidth: 1180 }}>
-          <div className="col g4">
-            <h1 className="h1">Integrations</h1>
-            <p className="lead">Connect the brand’s Shopify store and Meta ad account. Both are read-only; Kaviar syncs them every hour.</p>
-          </div>
-          {err && <div className="notice red" role="alert"><Icon name="warning-circle" size={14} /><span>{err}</span></div>}
-          <div className="row top g16">
-            <ShopifyCard slug={slug} conn={conns.shopify} />
-            <MetaCard slug={slug} conn={conns.meta} />
-          </div>
-          <div className="card" style={{ padding: "16px 18px" }}>
-            <span className="h3">What Kaviar reads</span>
-            <div className="row top g24" style={{ paddingTop: 10 }}>
-              <p className="sm i2 fill">From <b>Shopify</b>: orders with line items, totals, refunds, discount codes and UTMs; products, variants, stock and cost; customers as ids, order counts and spend. Names, emails and addresses are not copied.</p>
-              <p className="sm i2 fill">From <b>Meta</b>: campaigns, ads with thumbnails, and daily spend, impressions, link clicks and purchases per ad. Kaviar can’t create or change ads with this access.</p>
+        <div className="col g20" style={{ padding: "28px 32px" }}>
+          <div className="row between" style={{ alignItems: "flex-end" }}>
+            <div className="col g4">
+              <h1 className="h1">Integrations</h1>
+              <p className="lead">What the brand connects to Kaviar. Both are read-only — Kaviar never edits the store or the ads.</p>
+            </div>
+            <div className="row">
+              <div className="kpi"><span className="v">{rows.filter((r) => live(r.conn)).length}</span><span className="xs i3">Connected</span></div>
+              <div className="kpi"><span className={`v ${waiting ? "c-amber" : ""}`}>{waiting}</span><span className="xs i3">Waiting on you</span></div>
             </div>
           </div>
+          {err && <div className="notice red" role="alert"><Icon name="warning-circle" size={14} /><span>{err}</span></div>}
+
+          {rows.filter((r) => live(r.conn)).map((r) => (
+            <Summary key={r.provider} provider={r.provider} conn={r.conn!} lastSync={last(r.provider)}
+              action={r.conn!.status === "sample" ? null : <ConnectAction kind={r.provider} label="↻ Reconnect" slug={slug} shop={r.conn!.externalId} scopes={scopes} ready={r.ready} />} />
+          ))}
+
+          <div className="card" style={{ overflow: "visible" }}>
+            <div className="tr hd" style={{ padding: "0 16px" }}>
+              <div className="td" style={{ flex: 1.4 }}>App</div><div className="td" style={{ flex: 2 }}>What Kaviar reads</div>
+              <div className="td" style={{ flex: 1.4 }}>Status</div><div className="td" style={{ flex: 1.2 }}>Who acts</div><div className="td" style={{ width: 230 }} />
+            </div>
+            <div className="row" style={{ height: 30, padding: "0 16px", background: "var(--tray)", borderBottom: "1px solid var(--line)" }}><span className="xs w5 i2">Required for growth</span><span className="xs i3" style={{ marginLeft: 6 }}>2</span></div>
+            {rows.map((r) => {
+              const [tone, text] = statusOf(r.conn);
+              const c = r.conn;
+              return (
+                <div key={r.provider} className="tr compact" style={{ padding: "0 16px" }}>
+                  <div className="td" style={{ flex: 1.4 }}><SourceTile provider={r.provider} size={28} /><span className="sm w5 i1">{r.name}</span></div>
+                  <div className="td sm" style={{ flex: 2 }}>{r.what}</div>
+                  <div className="td" style={{ flex: 1.4 }}><span className={`st sm ${tone === "amber" ? "c-amber" : ""}`}><span className={`dot ${tone}`} />{text}</span></div>
+                  <div className="td sm" style={{ flex: 1.2 }}>{c?.status === "sample" ? "—" : r.who}</div>
+                  <div className="td" style={{ width: 230, justifyContent: "flex-end", gap: 6 }}>
+                    {c?.status === "sample" ? <span className="xs i3">Sample brand</span> :
+                     c?.status === "choose_account" ? <ConnectAction kind="choose" label="Choose account" dark slug={slug} accounts={accounts} ready={r.ready} /> :
+                     !c || c.status === "disconnected" ? <ConnectAction kind={r.provider} label={`Connect ${r.name}`} dark slug={slug} scopes={scopes} ready={r.ready} /> :
+                     c.status === "needs_reauth" ? <ConnectAction kind={r.provider} label="Reconnect" dark slug={slug} shop={c.externalId} scopes={scopes} ready={r.ready} /> :
+                     <ConnectAction kind={r.provider === "shopify" ? "disconnect-shopify" : "disconnect-meta"} label="Disconnect" slug={slug} ready={r.ready} />}
+                  </div>
+                </div>
+              );
+            })}
+            {[conns.shopify, conns.meta].some((c) => c?.lastError) && (
+              <div className="notice amber" style={{ margin: 12 }}><Icon name="warning" size={14} /><span>{conns.shopify?.lastError ?? conns.meta?.lastError}</span></div>
+            )}
+          </div>
+          <p className="xs i3">Kaviar copies orders with their line items, totals, refunds and UTMs; products, stock and cost; customers as ids, order counts and spend — never names, emails or addresses. From Meta it reads campaigns, ads and daily results, and can’t change any ad.</p>
         </div>
       </div>
     </>
