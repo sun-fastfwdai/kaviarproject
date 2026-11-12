@@ -19,9 +19,9 @@ function Pick({ label, icon, opts, value, onPick }: { label?: string; icon?: Ico
   );
 }
 
-/** Board 13 filter row: search, date range, source and status. Every change is a URL, so views can be shared. */
-export function OrderFilters({ base, params, n, ranges, sources, statuses }: {
-  base: string; params: Record<string, string>; n: number; ranges: Opt[]; sources: Opt[]; statuses: Opt[];
+/** Board 13 filter row: search, date range and status (source is picked with the chips below). Every change is a URL, so views can be shared. */
+export function OrderFilters({ base, params, n, ranges, statuses }: {
+  base: string; params: Record<string, string>; n: number; ranges: Opt[]; statuses: Opt[];
 }) {
   const router = useRouter();
   const [q, setQ] = useState(params.q ?? "");
@@ -39,7 +39,6 @@ export function OrderFilters({ base, params, n, ranges, sources, statuses }: {
         {params.q && <button type="button" aria-label="Clear search" onClick={() => { setQ(""); go({ q: null }); }} style={{ display: "flex" }}><Icon name="x" size={12} /></button>}
       </form>
       <Pick icon="calendar" opts={ranges} value={params.days ?? "30"} onPick={(v) => go({ days: v === "30" ? null : v })} />
-      <Pick label="Source" opts={sources} value={params.source ?? ""} onPick={(v) => go({ source: v || null })} />
       <Pick label="Status" opts={statuses} value={params.status ?? ""} onPick={(v) => go({ status: v || null })} />
       <span className="fill" />
       <span className="xs i3">{n.toLocaleString("en-US")} in range</span>

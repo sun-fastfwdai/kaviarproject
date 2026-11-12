@@ -165,7 +165,6 @@ async function OrdersTab({ brandId, cur, tz, base, page, ch, s, chs, chTotal, me
       </StatStrip>
       <OrderFilters base={base} params={params} n={n.n}
         ranges={[["7", "Last 7 days"], ["30", span[0]], ["90", "Last 90 days"], ["365", "Last 12 months"], ["all", "All time"]].map(([v, l]) => [v, v === String(days ?? "all") ? span[0] : l]) as [string, string][]}
-        sources={[["", "All"], ...CH.map((c) => [c, CHANNEL_LABEL[c]] as [string, string])]}
         statuses={[["", "All"], ["paid", "Paid"], ["unfulfilled", "Unfulfilled"], ["fulfilled", "Fulfilled"], ["refunded", "Refunded"], ["cancelled", "Cancelled"]]} />
       <div className="row g8">
         <Link href={qs({ source: null, page: 1 })} className={`chip${ch ? " dash" : ""}`}>All sources</Link>
