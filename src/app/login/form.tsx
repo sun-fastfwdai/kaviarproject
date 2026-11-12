@@ -1,5 +1,6 @@
 "use client";
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { login, setupOwner, type FormState } from "./actions";
 
 /** Tells the mascot panel what the form is doing (typing a password, error, sending). */
@@ -85,6 +86,7 @@ export function LoginForm({ firstRun }: { firstRun: boolean }) {
       <button className="btn dark lg auth-in" style={{ ["--i" as string]: 4 }} disabled={pending}>
         {pending ? <><span className="auth-spin" />{firstRun ? "Creating your account…" : "Signing in…"}</> : <>{firstRun ? "Create account" : "Sign in"}<span className="arr">→</span></>}
       </button>
+      {!firstRun && <p className="sm i3">Have an invite? <Link className="lnk w5 i1" href="/signup">Create an account</Link></p>}
     </form>
   );
 }

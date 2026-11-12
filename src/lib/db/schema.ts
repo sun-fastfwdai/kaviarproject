@@ -302,3 +302,21 @@ export const leads = pgTable(
   },
   (t) => [index("leads_created").on(t.createdAt)],
 );
+
+// ---------------------------------------------------------------- Invite links (owners share; people sign up with them)
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    codeHash: text("code_hash").notNull().unique(), // sha256(code); the code itself only lives in the link
+    hint: text("hint").notNull(), // last 4 chars, so owners can tell links apart
+    role: text("role").notNull().default("operator"),
+    maxUses: integer("max_uses").notNull().default(10),
+    uses: integer("uses").notNull().default(0),
+    expiresAt: tz("expires_at").notNull(),
+    revokedAt: tz("revoked_at"),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("invites_created").on(t.createdAt)],
+);

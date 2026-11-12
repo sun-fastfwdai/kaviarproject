@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
-import { ago } from "@/lib/format";
+import { ago, daysUntil } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { Icon, type IconName } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
-import { InviteTeammate, RowMenu } from "./team-ui";
+import { InviteLinkButton, InviteTeammate, RevokeInvite, RowMenu } from "./team-ui";
 
 export const metadata = { title: "Team" };
 
@@ -27,11 +27,16 @@ export default async function TeamPage() {
     select m.id, m.name, m.email, m.role, (select max(s.created_at) from sessions s where s.member_id = m.id) as "lastActive"
     from members m order by m.created_at`)).rows as Row[];
   const meInfo = { initials: initials(me.name), role: me.role };
+  const links = owner ? ((await db.execute(sql`
+    select i.id, i.hint, i.role, i.uses, i.max_uses as "maxUses", i.expires_at as "expiresAt", m.name as "by"
+    from invites i left join members m on m.id = i.created_by
+    where i.revoked_at is null and i.expires_at > now() and i.uses < i.max_uses order by i.created_at desc`)).rows as { id: string; hint: string; role: string; uses: number; maxUses: number; expiresAt: Date; by: string | null }[]) : [];
 
   return (
     <>
       <Bar crumbs={[{ label: "Operations" }, { label: "Team" }]}>
         <span className="xs i3">{people.length} {people.length === 1 ? "person" : "people"} · 4 agents</span>
+        {owner && <InviteLinkButton me={meInfo} />}
         {owner && <InviteTeammate me={meInfo} />}
       </Bar>
       <div className="scroll">
@@ -72,6 +77,25 @@ export default async function TeamPage() {
               ))}
             </div>
           </div>
+
+          {links.length > 0 && (
+            <div className="col g10">
+              <div className="row between">
+                <span className="row g8"><span className="h3">Invite links</span><span className="pill" style={{ height: 20, fontSize: 11 }}>{links.length}</span></span>
+                <span className="xs i3">Anyone with an active link can create an account</span>
+              </div>
+              <div className="card">
+                {links.map((l, i) => (
+                  <div key={l.id} className="row g12" style={{ padding: "10px 16px", borderTop: i ? "1px solid var(--line)" : 0 }}>
+                    <span className="mono i1">…{l.hint}</span>
+                    <span className="pill" style={{ height: 22, fontSize: 11.5 }}>{l.role === "owner" ? "Owner" : "Operator"}</span>
+                    <span className="sm i2 fill">{l.uses} of {l.maxUses} used · expires in {Math.max(0, daysUntil(l.expiresAt))} days{l.by ? ` · by ${l.by}` : ""}</span>
+                    <RevokeInvite id={l.id} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="col g10">
             <div className="row between">

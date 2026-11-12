@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = [/^\/$/, /^\/login/, /^\/api\/shopify\/webhooks/, /^\/api\/cron\//];
+const PUBLIC = [/^\/$/, /^\/login/, /^\/signup/, /^\/api\/shopify\/webhooks/, /^\/api\/cron\//];
 
 /** Optimistic gate only: real checks happen next to the data (requireMember). */
 export function proxy(req: NextRequest) {

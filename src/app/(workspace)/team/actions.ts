@@ -69,3 +69,28 @@ export async function changePassword(_: TeamState, form: FormData): Promise<Team
   await db.delete(schema.sessions).where(and(eq(schema.sessions.memberId, me.id), ne(schema.sessions.id, token ? sha256(token) : "")));
   return { ok: "Password changed. Other devices were signed out.", at: Date.now() };
 }
+
+// ---------------------------------------------------------------- Invite links
+const INVITE_DAYS = 7;
+const INVITE_USES = 10;
+
+export type InviteState = { error?: string; url?: string; at?: number } | undefined;
+
+export async function createInvite(_: InviteState, form: FormData): Promise<InviteState> {
+  const me = await requireOwner();
+  const role = form.get("role") === "owner" ? "owner" : "operator";
+  const code = randomToken(18);
+  await db.insert(schema.invites).values({
+    codeHash: sha256(code), hint: code.slice(-4), role, maxUses: INVITE_USES,
+    expiresAt: new Date(Date.now() + INVITE_DAYS * 864e5), createdBy: me.id,
+  });
+  revalidatePath("/team");
+  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return { url: `${base}/signup?code=${code}`, at: Date.now() };
+}
+
+export async function revokeInvite(id: string) {
+  await requireOwner();
+  await db.update(schema.invites).set({ revokedAt: new Date() }).where(eq(schema.invites.id, id));
+  revalidatePath("/team");
+}

@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { addMember, changePassword, removeMember, resetPassword, type TeamState } from "./actions";
+import { addMember, changePassword, createInvite, removeMember, resetPassword, revokeInvite, type InviteState, type TeamState } from "./actions";
 import { CopyButton } from "@/components/copy";
 import { Modal } from "@/components/modal";
 
@@ -152,4 +152,53 @@ function PasswordModal({ me, onClose }: { me: { initials: string; role: string }
       )}
     </Modal>
   );
+}
+
+const LinkIcon = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M240 88.23a54.43 54.43 0 0 1-16 37L189.25 160a54.27 54.27 0 0 1-38.63 16h-.05A54.63 54.63 0 0 1 96 119.84a8 8 0 0 1 16 .45A38.62 38.62 0 0 0 150.58 160a38.4 38.4 0 0 0 27.31-11.31l34.75-34.75a38.63 38.63 0 0 0-54.63-54.63l-11 11A8 8 0 0 1 135.7 59l11-11a54.65 54.65 0 0 1 77.3 0 54.86 54.86 0 0 1 16 40.23M109 185.66l-11 11A38.4 38.4 0 0 1 70.6 208a38.63 38.63 0 0 1-27.29-65.94L78 107.31a38.63 38.63 0 0 1 66 28.4 8 8 0 0 0 7.78 8.22h.22a8 8 0 0 0 8-7.78A54.86 54.86 0 0 0 144 96a54.65 54.65 0 0 0-77.27 0L32 130.75A54.62 54.62 0 0 0 70.56 224a54.28 54.28 0 0 0 38.64-16l11-11a8 8 0 0 0-11.2-11.34" /></svg>;
+
+export function InviteLinkButton({ me }: { me: { initials: string; role: string } }) {
+  const [open, setOpen] = useState(false);
+  const [round, setRound] = useState(0);
+  return (
+    <>
+      <button className="btn sm" onClick={() => { setRound(round + 1); setOpen(true); }}><LinkIcon />Invite link</button>
+      {open && <InviteLinkModal key={round} me={me} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function InviteLinkModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
+  const [state, action, pending] = useActionState<InviteState, FormData>(createInvite, undefined);
+  const [role, setRole] = useState<"operator" | "owner">("operator");
+  if (state?.url) {
+    return (
+      <Modal icon={<LinkIcon />} title="Invite link ready" sub="Share it privately. Anyone with the link can create an account." onClose={onClose}
+        footer={<><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></>}>
+        <div className="row g8"><div className="input fill" style={{ background: "var(--tray)" }}><span className="mono i1 ell">{state.url}</span></div><CopyButton text={state.url} label="Copy link" /></div>
+        <span className="xs i3">Works for 7 days and up to 10 sign-ups. You can revoke it any time from Team.</span>
+      </Modal>
+    );
+  }
+  return (
+    <Modal icon={<LinkIcon />} title="Create an invite link" sub="People who open it can create their own account and join the team." onClose={onClose}
+      footer={<><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="invite-link" className="btn dark" disabled={pending}>{pending ? "Creating…" : "Create link"}</button></>}>
+      <form id="invite-link" action={action} className="col g8">
+        <input type="hidden" name="role" value={role} />
+        <span className="label">They join as</span>
+        {([["operator", "Operator", "Works on brands: data, signals, ads and stores."], ["owner", "Owner", "Everything operators do, plus managing the team."]] as const).map(([v, t, d]) => (
+          <button key={v} type="button" onClick={() => setRole(v)} className="row g10" style={{ padding: "10px 12px", borderRadius: 10, textAlign: "left", border: `1px solid ${role === v ? "var(--ink)" : "var(--line)"}`, boxShadow: role === v ? "0 0 0 1px var(--ink)" : undefined, background: "#fff" }}>
+            <span className={`radio${role === v ? " on" : ""}`} />
+            <span className="col fill"><span className="sm w5 i1">{t}</span><span className="xs i3">{d}</span></span>
+          </button>
+        ))}
+        <span className="xs i3">The link lasts 7 days and allows up to 10 sign-ups.</span>
+        {state?.error && <div className="notice red">{state.error}</div>}
+      </form>
+    </Modal>
+  );
+}
+
+export function RevokeInvite({ id }: { id: string }) {
+  const [pending, start] = useTransition();
+  return <button className="btn sm quiet" disabled={pending} onClick={() => start(() => revokeInvite(id))}>{pending ? "Revoking…" : "Revoke"}</button>;
 }
