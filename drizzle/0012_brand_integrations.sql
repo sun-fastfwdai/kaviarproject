@@ -1,0 +1,1 @@
+ALTER TABLE "brands" ADD COLUMN "integrations" jsonb DEFAULT '{}'::jsonb NOT NULL;

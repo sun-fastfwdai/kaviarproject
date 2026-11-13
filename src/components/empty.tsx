@@ -30,7 +30,7 @@ export function EmptyState({ eyebrow, title, body, steps, art, actions, note }: 
             </div>
           ))}
         </div>
-        <div className="row g8" style={{ flexWrap: "wrap" }}>{actions}</div>
+        <div className="row g8 empty-actions" style={{ flexWrap: "wrap", minWidth: 0 }}>{actions}</div>
         {note && <span className="xs i3" style={{ lineHeight: "17px" }}>{note}</span>}
       </div>
       <div className="col" style={{ flex: "1 1 380px", minWidth: 320, background: "var(--tray)", borderLeft: "1px solid var(--line)", padding: 24, alignItems: "center", justifyContent: "center", backgroundImage: "radial-gradient(#E2DFDA 1px, transparent 1px)", backgroundSize: "14px 14px" }}>
@@ -61,7 +61,7 @@ const TONES = ["#B99A7A", "#8D9A86", "#C8B8A6", "#9E8F80", "#7E8B95", "#B8A48C"]
 export function RunTestArt() {
   return (
     <div className="row g8" style={{ alignItems: "center" }}>
-      <Card w={118}>
+      <Card w={164}>
         <span className="xs w5 i2">Approved ads</span>
         <div className="row g4">{["We miss you", "Day 46", "Your ritual"].map((h, i) => <Tile key={h} hook={h} tone={TONES[i]} check play={i === 1} />)}</div>
       </Card>

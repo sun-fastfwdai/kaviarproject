@@ -4,12 +4,8 @@ import { useRouter } from "next/navigation";
 import { saveSetup, startBuild } from "./actions";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
+import { ThemePicker, type ThemeState } from "./themes-ui";
 
-const THEMES = [
-  { key: "kaviar-starter", name: "Kaviar Starter", note: "Reusable · built for these agents", tag: "Best fit", tone: "green" },
-  { key: "dawn", name: "Dawn", note: "Shopify’s free theme · most blocks built from scratch", tag: "Free", tone: "" },
-  { key: "prestige", name: "Prestige", note: "Paid theme · the merchant must buy the licence", tag: "$350", tone: "amber" },
-];
 const PAGES: [string, string, boolean][] = [["home", "Homepage", false], ["products", "Products", false], ["collections", "Collections", false], ["story", "Our story", false], ["journal", "Journal", true], ["contact", "Contact", false], ["faq", "FAQ", true], ["policies", "Policies", false]];
 const APPS: [string, string, string, string][] = [
   ["subscriptions", "Subscriptions", "Recharge", "Merchant must authorize"], ["reviews", "Reviews", "Judge.me", "Paid plan billed to merchant"],
@@ -17,7 +13,7 @@ const APPS: [string, string, string, string][] = [
   ["search", "Search & filter", "Search & Discovery", "Kaviar configures after install"], ["loyalty", "Loyalty", "Smile.io", "Paid plan billed to merchant"],
 ];
 
-export function StoreSetup({ slug, initial, products, profile, hasBuild }: { slug: string; initial: { theme: string; pages: string[]; apps: Record<string, boolean> }; products: number; profile: boolean; hasBuild: boolean }) {
+export function StoreSetup({ slug, initial, products, profile, hasBuild, themes }: { slug: string; initial: { theme: string; pages: string[]; apps: Record<string, boolean> }; products: number; profile: boolean; hasBuild: boolean; themes: ThemeState }) {
   const router = useRouter();
   const [theme, setTheme] = useState(initial.theme);
   const [pages, setPages] = useState<string[]>(initial.pages);
@@ -36,15 +32,7 @@ export function StoreSetup({ slug, initial, products, profile, hasBuild }: { slu
         <div className="col g4"><h1 className="h1">Store setup</h1><p className="sm i3">Choose the base and what goes in. Remy builds from these choices.</p></div>
         <div className="col g10">
           <span className="row between"><span className="h3">Theme</span><span className="xs i3">Chosen by you, never bought by agents</span></span>
-          <div className="row g12 stretch">
-            {THEMES.map((t) => (
-              <button key={t.key} type="button" onClick={() => setTheme(t.key)} className="card col g8 fill" style={{ padding: 12, textAlign: "left", cursor: "pointer", borderColor: theme === t.key ? "var(--ink)" : undefined, boxShadow: theme === t.key ? "0 0 0 1px var(--ink)" : undefined }}>
-                <div style={{ height: 70, borderRadius: 8, background: t.key === "prestige" ? "linear-gradient(135deg,#2B241E,#6E5A45)" : t.key === "dawn" ? "linear-gradient(135deg,#F2EFEA,#D8D2C8)" : "linear-gradient(135deg,#F6F1EA,#C9B49B)" }} />
-                <span className="row between"><span className="row g6 sm w5"><span className={`radio${theme === t.key ? " on" : ""}`} />{t.name}</span><span className={`pill ${t.tone}`} style={{ height: 20, fontSize: 10.5 }}>{t.tag}</span></span>
-                <span className="xs i3">{t.note}</span>
-              </button>
-            ))}
-          </div>
+          <ThemePicker theme={theme} setTheme={setTheme} t={themes} />
         </div>
         <div className="col g8">
           <span className="row between"><span className="h3">Pages</span><span className="xs i3">{pages.length} selected</span></span>
@@ -72,7 +60,7 @@ export function StoreSetup({ slug, initial, products, profile, hasBuild }: { slu
       <aside className="col g10" style={{ width: 300, flexShrink: 0, borderLeft: "1px solid var(--line)", background: "var(--tray)", padding: 16 }}>
         <span className="sm w5">Build plan</span><span className="xs i3">Updates as you change setup</span>
         <div className="card" style={{ padding: "4px 12px" }}>
-          {[["Theme", THEMES.find((t) => t.key === theme)?.name], ["Pages", String(pages.length)], ["Products", String(products)], ["Apps", String(Object.values(apps).filter(Boolean).length)], ["Brand profile", profile ? "From onboarding" : "Store data only"]].map(([k, v]) => (
+          {[["Theme", theme === "kaviar-starter" ? "Kaviar Starter" : themes.themes.find((x) => `shopify:${x.id}` === theme)?.name ?? "From the store"], ["Pages", String(pages.length)], ["Products", String(products)], ["Apps", String(Object.values(apps).filter(Boolean).length)], ["Brand profile", profile ? "From onboarding" : "Store data only"]].map(([k, v]) => (
             <div key={k} className="row between xs" style={{ minHeight: 30, borderTop: k === "Theme" ? 0 : "1px solid var(--line)" }}><span className="i3">{k}</span><span className="i1">{v}</span></div>
           ))}
         </div>

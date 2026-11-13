@@ -9,13 +9,14 @@ import { aiReady, ask } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
 import { runBuild } from "@/lib/store/build";
 import type { StoreContent } from "@/lib/db/schema";
+import { applyHomepage, installStarter, publishTheme, uploadStarter } from "@/lib/store/themes";
 
 const PAGES = ["home", "products", "collections", "story", "journal", "contact", "faq", "policies"];
 
 export async function saveSetup(slug: string, input: { theme: string; pages: string[]; apps: Record<string, boolean> }): Promise<void> {
   await requireMember();
   const brand = await getBrand(slug);
-  const v = { theme: ["kaviar-starter", "dawn", "prestige"].includes(input.theme) ? input.theme : "kaviar-starter", pages: input.pages.filter((p) => PAGES.includes(p)), apps: input.apps, updatedAt: new Date() };
+  const v = { theme: input.theme === "kaviar-starter" || /^shopify:gid:\/\/shopify\/OnlineStoreTheme\/\d+$/.test(input.theme) ? input.theme : "kaviar-starter", pages: input.pages.filter((p) => PAGES.includes(p)), apps: input.apps, updatedAt: new Date() };
   await db.insert(schema.storeBuilds).values({ brandId: brand.id, ...v }).onConflictDoUpdate({ target: schema.storeBuilds.brandId, set: v });
   revalidatePath(`/brands/${slug}/store`);
 }
@@ -60,4 +61,61 @@ export async function reviseStore(slug: string, instruction: string): Promise<{ 
   await db.update(schema.storeBuilds).set({ content: out.content as StoreContent, updatedAt: new Date() }).where(eq(schema.storeBuilds.brandId, brand.id));
   revalidatePath(`/brands/${slug}/store`);
   return {};
+}
+
+async function shopifyConn(slug: string) {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const conn = (await db.select().from(schema.connections).where(eq(schema.connections.brandId, brand.id))).find((x) => x.provider === "shopify" && x.status === "connected");
+  if (!conn) throw new Error("Connect the brand’s Shopify store first.");
+  return { brand, conn };
+}
+const fail = (e: unknown) => ({ error: (e as Error).message.replace(/access denied|ACCESS_DENIED/i, "Shopify refused — the Kaviar app needs permission to manage themes") });
+
+/** Owners upload a new Kaviar Starter zip; it goes to Supabase Storage for every brand. */
+export async function uploadStarterZip(form: FormData): Promise<{ error?: string }> {
+  const me = await requireMember();
+  if (me.role !== "owner") return { error: "Only owners can replace Kaviar Starter." };
+  const f = form.get("zip");
+  if (!(f instanceof File) || !f.name.endsWith(".zip")) return { error: "Pick the theme’s .zip file." };
+  try { await uploadStarter(Buffer.from(await f.arrayBuffer())); } catch (e) { return fail(e); }
+  revalidatePath("/brands");
+  return {};
+}
+
+export async function installKaviarStarter(slug: string): Promise<{ error?: string }> {
+  try {
+    const { brand, conn } = await shopifyConn(slug);
+    const t = await installStarter(conn.id, brand.name);
+    await db.update(schema.storeBuilds).set({ theme: `shopify:${t.id}`, updatedAt: new Date() }).where(eq(schema.storeBuilds.brandId, brand.id));
+    revalidatePath(`/brands/${slug}/store`);
+    return {};
+  } catch (e) { return fail(e); }
+}
+
+export async function applyToTheme(slug: string): Promise<{ error?: string }> {
+  try {
+    const { brand, conn } = await shopifyConn(slug);
+    const [b] = await db.select().from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brand.id));
+    if (!b?.content) return { error: "Build the store first." };
+    if (!b.theme.startsWith("shopify:")) return { error: "Install Kaviar Starter or pick a theme from the store first." };
+    await applyHomepage(conn.id, b.theme.slice(8), b.content);
+    await db.update(schema.storeBuilds).set({ approved: [...new Set([...b.approved, "applied"])], updatedAt: new Date() }).where(eq(schema.storeBuilds.brandId, brand.id));
+    revalidatePath(`/brands/${slug}/store`);
+    return {};
+  } catch (e) { return fail(e); }
+}
+
+/** Board 06b: publish only after typing the brand name; the old theme stays as a backup. */
+export async function publishStore(slug: string, confirm: string): Promise<{ error?: string }> {
+  try {
+    const { brand, conn } = await shopifyConn(slug);
+    if (confirm.trim().toLowerCase() !== brand.name.trim().toLowerCase()) return { error: `Type “${brand.name}” to confirm.` };
+    const [b] = await db.select().from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brand.id));
+    if (!b?.theme.startsWith("shopify:")) return { error: "Nothing installed to publish yet." };
+    await publishTheme(conn.id, b.theme.slice(8));
+    await db.update(schema.storeBuilds).set({ approved: [...new Set([...b.approved, "published"])], updatedAt: new Date() }).where(eq(schema.storeBuilds.brandId, brand.id));
+    revalidatePath(`/brands/${slug}/store`);
+    return {};
+  } catch (e) { return fail(e); }
 }

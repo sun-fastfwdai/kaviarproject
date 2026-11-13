@@ -140,11 +140,11 @@ export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: 
               <Icon name="check" size={13} color="#fff" />{ad.status === "approved" ? "Approved — undo" : "Approve"}</button>
             <button type="button" className="btn fill" disabled={busy} onClick={() => setRejecting(true)}><Icon name="x" size={13} />Reject</button>
           </div>
-          <div className="row g6">
-            <button type="button" className="btn sm fill" disabled={busy} onClick={() => setEditing(true)}><Icon name="pencil" size={12} />Edit text</button>
-            <a className="btn sm fill" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="image" size={12} />Design</a>
-            <button type="button" className="btn sm fill" disabled={busy} onClick={() => run(() => redo(slug, ad.id), "Remy rewrote it.")}><Icon name="refresh" size={12} />Redo</button>
-            <button type="button" className="btn sm fill" disabled={busy} onClick={() => run(() => variations(slug, ad.id), "Remy added 3 variations.")}><Icon name="layers" size={12} />Variations</button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => setEditing(true)}><Icon name="pencil" size={12} />Edit text</button>
+            <a className="btn sm" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="image" size={12} />Design</a>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => redo(slug, ad.id), "Remy rewrote it.")}><Icon name="refresh" size={12} />Redo</button>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => variations(slug, ad.id), "Remy added 3 variations.")}><Icon name="layers" size={12} />Variations</button>
           </div>
           {busy && <span className="row g6 xs i3"><Icon name="spinner" size={12} className="spin" />Working…</span>}
           <span className="xs i3" style={{ textAlign: "center" }}>Reject asks why — Remy learns from every answer</span>

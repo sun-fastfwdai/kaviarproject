@@ -313,3 +313,6 @@ details > summary::-webkit-details-marker { display: none; }
 /* Ad signals: whole row opens the signal */
 .sig-row:hover { background: var(--tray); }
 .sig-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* Long labels in empty-state buttons truncate instead of running off the card */
+.empty-actions .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

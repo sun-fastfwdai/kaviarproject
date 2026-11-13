@@ -90,7 +90,11 @@ export type Onboarding = {
   pulled?: { url: string; w: number | null; h: number | null }[]; // product images Cleo pulled from the site
   analysis?: Analysis;
   profile?: Profile;
+  catalog?: { at: string; source: string; products: CatalogProduct[] };
 };
+
+/** A product Cleo read from the old website, ready to become a row in Shopify's product import CSV. */
+export type CatalogProduct = { handle: string; title: string; body: string; type: string; vendor: string; tags: string; images: string[]; variants: { option: string; price: number | null; compareAt: number | null; sku: string }[] };
 
 export const STEPS: [string, string][] = [
   ["Source", "Shopify, site or Kaviar AI"],

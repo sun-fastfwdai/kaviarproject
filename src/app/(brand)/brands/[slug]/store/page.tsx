@@ -10,6 +10,9 @@ import { NeedsSource } from "@/components/ui";
 import { StoreSetup } from "./setup";
 import { BuildView } from "./build-view";
 import type { Look } from "./preview";
+import type { ThemeState } from "./themes-ui";
+import { requireMember } from "@/lib/auth";
+import { starterInfo, storageReady, storeThemes } from "@/lib/store/themes";
 
 export const metadata = { title: "Store builder" };
 export const maxDuration = 180;
@@ -24,6 +27,15 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="the products the store is built from" /></div></>);
 
   const [build] = await db.select().from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brand.id));
+  const me = await requireMember();
+  const shopConn = conns.shopify?.status === "connected" ? conns.shopify : null;
+  const canRead = Boolean(shopConn?.scopes.some((s) => s === "read_themes" || s === "write_themes"));
+  let themesList: ThemeState["themes"] = [], themesError: string | null = null;
+  if (shopConn && canRead) {
+    try { themesList = await storeThemes(shopConn.id); } catch (e) { themesError = `Couldn’t read the store’s themes: ${(e as Error).message.slice(0, 120)}`; }
+  }
+  const themes: ThemeState = { starter: await starterInfo().catch(() => null), storageReady: storageReady(), canRead, canWrite: Boolean(shopConn?.scopes.includes("write_themes")),
+    themes: themesList, themesError, shop: shopConn?.externalId ?? null, owner: me.role === "owner" };
   const step = sp.step === "review" && build?.content ? "review" : sp.step === "build" && build ? "build" : build?.content && sp.step !== "setup" ? "build" : "setup";
   const products = await storeProducts(brand.id);
   const ob = brand.onboarding ?? {};
@@ -50,9 +62,9 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
         {running && <span className="row g6 xs i3"><AgentFace kind="builder" size={14} />Remy is building</span>}
       </Bar>
       {step === "setup"
-        ? <StoreSetup slug={slug} initial={{ theme: build?.theme ?? "kaviar-starter", pages: build?.pages ?? ["home", "products", "collections", "story", "contact", "policies"], apps: build?.apps ?? {} }} products={products.length} profile={Boolean(ob.profile && Object.keys(ob.profile).length)} hasBuild={Boolean(build?.content)} />
+        ? <StoreSetup slug={slug} initial={{ theme: build?.theme ?? "kaviar-starter", pages: build?.pages ?? ["home", "products", "collections", "story", "contact", "policies"], apps: build?.apps ?? {} }} products={products.length} profile={Boolean(ob.profile && Object.keys(ob.profile).length)} hasBuild={Boolean(build?.content)} themes={themes} />
         : <BuildView slug={slug} step={step} brand={brand.name} currency={brand.currency} tasks={build?.tasks ?? []} content={c ?? null} products={products} look={look}
-            hero={products.find((p) => p.image)?.image ?? null} running={running} approved={build?.approved ?? []} qa={qa} dawn={c ? dawnIndexJson(c) : null} copyText={copyText} />}
+            hero={products.find((p) => p.image)?.image ?? null} running={running} approved={build?.approved ?? []} qa={qa} dawn={c ? dawnIndexJson(c) : null} copyText={copyText} theme={build?.theme ?? "kaviar-starter"} themes={themes} />}
     </>
   );
 }

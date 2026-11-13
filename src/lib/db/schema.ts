@@ -53,6 +53,8 @@ export const brands = pgTable("brands", {
   // New-brand onboarding: furthest step reached (1–5) while the brand is a draft; null once it's live.
   onboardingStep: integer("onboarding_step"),
   onboarding: jsonb("onboarding").$type<Onboarding>().notNull().default({}),
+  // Store apps (Recharge, Judge.me, Klaviyo…): requested of the merchant / connected, set by the team.
+  integrations: jsonb("integrations").$type<Record<string, { status: "requested" | "connected"; at: string; by?: string }>>().notNull().default({}),
   createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
@@ -340,7 +342,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },

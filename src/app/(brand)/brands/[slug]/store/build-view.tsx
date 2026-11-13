@@ -8,11 +8,13 @@ import { AgentFace } from "@/components/agent";
 import { CopyButton } from "@/components/copy";
 import type { BuildTask, StoreContent } from "@/lib/db/schema";
 import type { QA, StoreProduct } from "@/lib/store/build";
+import { PublishPanel, type ThemeState } from "./themes-ui";
 
 const AG = { iris: "analyst", cleo: "catalog", remy: "builder", otto: "qa" } as const;
 const DEVICES = [["Desktop", 1100], ["Tablet", 760], ["Mobile", 390]] as const;
 
-export function BuildView({ slug, step, brand, currency, tasks, content, products, look, hero, running, approved, qa, dawn, copyText }: {
+export function BuildView({ slug, step, brand, currency, tasks, content, products, look, hero, running, approved, qa, dawn, copyText, theme, themes }: {
+  theme: string; themes: ThemeState;
   slug: string; step: "build" | "review"; brand: string; currency: string; tasks: BuildTask[]; content: StoreContent | null; products: StoreProduct[]; look: Look; hero: string | null;
   running: boolean; approved: string[]; qa: QA[]; dawn: string | null; copyText: string | null;
 }) {
@@ -91,12 +93,12 @@ export function BuildView({ slug, step, brand, currency, tasks, content, product
           </div>
           <div className="col g8" style={{ padding: 12, border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="sm w5">Put it on Shopify</span>
-            <span className="xs i3" style={{ lineHeight: "16px" }}>Kaviar’s Shopify access is read-only, so it can’t publish a theme yet. Use the files below in a copy of Dawn: Online Store → Themes → ⋯ → Edit code → templates/index.json.</span>
+            <span className="xs i3" style={{ lineHeight: "16px" }}>Export the homepage and copy, or — with the theme permission — install Kaviar Starter, apply Remy’s homepage and publish from here.</span>
             {dawn && <button type="button" className="btn sm" onClick={() => download("index.json", dawn)}><Icon name="download" size={12} />Homepage for Dawn · index.json</button>}
             {copyText && <button type="button" className="btn sm" onClick={() => download(`${brand.toLowerCase().replace(/\W+/g, "-")}-store-copy.txt`, copyText, "text/plain")}><Icon name="download" size={12} />All store copy · .txt</button>}
             {copyText && <CopyButton text={copyText} label="Copy all copy" />}
-            <button type="button" className="btn dark sm" disabled title="Needs Shopify write_themes access on the Kaviar app"><Icon name="globe" size={12} color="#fff" />Publish to Shopify</button>
-            <span className="xs i3">Publishing from Kaviar needs the theme permission (write_themes) added to the Shopify app.</span>
+            <span style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+            <PublishPanel slug={slug} brand={brand} theme={theme} t={themes} approved={approved} hasContent={Boolean(content)} />
           </div>
           <button type="button" className="btn" onClick={() => router.push(`/brands/${slug}/store?step=build`)}><Icon name="arrow-l" size={13} />Back to build</button>
         </>}

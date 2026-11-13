@@ -85,6 +85,13 @@
       "when": 1794598897476,
       "tag": "0011_store_builder",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794599442930,
+      "tag": "0012_brand_integrations",
+      "breakpoints": true
     }
   ]
 }

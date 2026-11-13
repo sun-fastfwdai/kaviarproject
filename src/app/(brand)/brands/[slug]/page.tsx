@@ -61,7 +61,12 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   const live = (c: typeof conns.shopify) => Boolean(c && ["connected", "sample"].includes(c.status));
   const synced = history.some((r) => r.provider === "shopify" && r.status === "success");
   const tagRate = health.metaOrders ? health.withAd / health.metaOrders : null;
-  const steps = [live(conns.shopify), synced, live(conns.meta), (tagRate ?? 0) >= 0.8];
+  // Brands imported from their website don't have a Shopify store yet — Kaviar creates and fills one.
+  const ob = brand.onboarding ?? {};
+  const moving = !conns.shopify && (ob.source === "website" || (ob.scan?.ok && ob.scan.platform !== "Shopify") || Boolean(ob.catalog));
+  const steps = moving
+    ? [false, Boolean(ob.catalog?.products.length), false, live(conns.meta)]
+    : [live(conns.shopify), synced, live(conns.meta), (tagRate ?? 0) >= 0.8];
   const hasSales = live(conns.shopify);
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
 
@@ -111,10 +116,17 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
           {steps.some((x) => !x) && (
             <div className="card" style={{ padding: "14px 18px 6px" }}>
               <div className="row between" style={{ paddingBottom: 8 }}><span className="h3">Get this brand ready</span><span className="xs i3">{steps.filter(Boolean).length} of {steps.length} done</span></div>
+              {moving ? <>
+                <Step done={steps[0]} label="Create the brand’s Shopify store" hint={`${brand.name} sells on ${ob.scan?.platform ?? "its own website"} today — Kaviar sets up the new store`} href={`${base}/launch`} cta="Launch on Shopify" />
+                <Step done={steps[1]} label="Move the catalog" hint="Cleo reads the old site and builds Shopify’s product import file" href={`${base}/launch`} cta="Open" />
+                <Step done={steps[2]} label="Build the storefront" hint="Remy writes the homepage, story and FAQ; Otto checks it" href={`${base}/store`} cta="Store builder" />
+                <Step done={steps[3]} label="Connect the Meta ad account" hint="Spend, campaigns and ads, read-only" href={`${base}/integrations`} cta="Connect" />
+              </> : <>
               <Step done={steps[0]} label="Connect the Shopify store" hint="Read-only access to orders, products and customers" href={`${base}/integrations`} cta="Connect" />
               <Step done={steps[1]} label="First Shopify sync" hint="Kaviar pulls order history in the background" href={`${base}/sync`} cta="Open Data sync" />
               <Step done={steps[2]} label="Connect the Meta ad account" hint="Spend, campaigns and ads, read-only" href={`${base}/integrations`} cta="Connect" />
               <Step done={steps[3]} label="Tag every Meta ad with Kaviar’s URL parameters" hint="So each order shows the ad that sold it" href={`${base}/sync#tagging`} cta="Show how" />
+              </>}
             </div>
           )}
 

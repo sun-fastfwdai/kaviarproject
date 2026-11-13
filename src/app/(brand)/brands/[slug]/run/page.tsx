@@ -36,9 +36,9 @@ export default async function RunPage({ params }: PageProps<"/brands/[slug]/run"
             ]}
             art={<RunTestArt />}
             actions={toReview[0]
-              ? <><Link className="btn dark" href={`${base}/creative/${toReview[0].id}`}><Icon name="check" size={14} color="#fff" />Review {toReview[0].n} ads in “{toReview[0].title}”</Link><Link className="btn" href={`${base}/creative`}>Creative studio</Link></>
+              ? <><Link className="btn dark" href={`${base}/creative/${toReview[0].id}`} title={toReview[0].title}><Icon name="check" size={14} color="#fff" />Review {toReview[0].n} ads</Link><Link className="btn" href={`${base}/creative`}>Creative studio</Link></>
               : <><Link className="btn dark" href={`${base}/creative`}><Icon name="sparkle" size={14} color="#fff" />Plan a batch with Remy</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Pick a signal</Link></>}
-            note="Kaviar only reads the ad account today, so tests go out as a launch sheet you set up in Ads Manager — paused until you switch them on." />
+            note={toReview[0] ? <>Waiting for review: <b className="w5 i2">{toReview[0].title}</b>. Kaviar only reads the ad account today, so tests go out as a launch sheet you set up in Ads Manager — paused until you switch them on.</> : "Kaviar only reads the ad account today, so tests go out as a launch sheet you set up in Ads Manager — paused until you switch them on."} />
         ) : (
         <div className="card" style={{ overflow: "hidden" }}>
           <div className="tr hd dense" style={{ padding: "0 16px" }}><div className="td fill">Ready to test</div><div className="td" style={{ width: 260 }}>Audience</div><div className="td" style={{ width: 110 }}>Approved</div><div className="td" style={{ width: 140 }} /></div>

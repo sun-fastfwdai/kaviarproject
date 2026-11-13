@@ -8,6 +8,7 @@ import { Icon } from "@/components/icon";
 import { SourceTile } from "@/components/logos";
 import { AgentFace } from "@/components/agent";
 import { ConnectAction } from "./connect-ui";
+import { StoreApps } from "./apps-table";
 
 export const metadata = { title: "Integrations" };
 
@@ -90,13 +91,20 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4">
               <h1 className="h1">Integrations</h1>
-              <p className="lead">What the brand connects to Kaviar. Both are read-only — Kaviar never edits the store or the ads.</p>
+              <p className="lead">What the store connects to, and who has to act. Shopify and Meta are read-only — Kaviar never edits the store or the ads.</p>
             </div>
             <div className="row">
               <div className="kpi"><span className="v">{rows.filter((r) => live(r.conn)).length}</span><span className="xs i3">Connected</span></div>
               <div className="kpi"><span className={`v ${waiting ? "c-amber" : ""}`}>{waiting}</span><span className="xs i3">Waiting on you</span></div>
             </div>
           </div>
+          {!conns.shopify && (brand.onboarding?.source === "website" || brand.onboarding?.catalog) && (
+            <div className="row g10" style={{ padding: "12px 14px", background: "var(--blue-bg)", borderRadius: 12 }}>
+              <Icon name="store" size={16} />
+              <span className="sm i1 fill">{brand.name} isn’t on Shopify yet. Kaviar creates the new store, moves the catalog and builds the storefront — then connects it here.</span>
+              <Link className="btn dark sm" href={`/brands/${slug}/launch`}>Launch on Shopify<Icon name="arrow-r" size={12} color="#fff" /></Link>
+            </div>
+          )}
           {err && <div className="notice red" role="alert"><Icon name="warning-circle" size={14} /><span>{err}</span></div>}
 
           {rows.filter((r) => live(r.conn)).map((r) => (
@@ -133,6 +141,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
               <div className="notice amber" style={{ margin: 12 }}><Icon name="warning" size={14} /><span>{conns.shopify?.lastError ?? conns.meta?.lastError}</span></div>
             )}
           </div>
+          <StoreApps slug={slug} brand={brand.name} shop={conns.shopify?.externalId ?? null} state={brand.integrations ?? {}} />
           <p className="xs i3">Kaviar copies orders with their line items, totals, refunds and UTMs; products, stock and cost; customers as ids, order counts and spend — never names, emails or addresses. From Meta it reads campaigns, ads and daily results, and can’t change any ad.</p>
         </div>
       </div>
