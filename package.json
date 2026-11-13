@@ -13,11 +13,13 @@
     "db:migrate": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/migrate.ts",
     "db:seed": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/seed.ts",
     "team:add": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/team-add.ts",
-    "sync": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sync.ts"
+    "sync": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sync.ts",
+    "notes": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/notes.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "@phosphor-icons/react": "^2.1.10",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.5",
     "pg": "^8.23.1",

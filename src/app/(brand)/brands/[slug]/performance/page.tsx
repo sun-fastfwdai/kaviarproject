@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { getNotes, refreshNotes } from "@/lib/ai/notes";
+import { noteHref, TONE } from "@/lib/ai/note-links";
+import type { IconName } from "@/components/icon";
 import { getBrand, getConnections } from "@/lib/queries/brands";
 import { adProducts, campaigns, channels, daily, summary, utmHealth } from "@/lib/queries/growth";
 import { parseRange } from "@/lib/queries/common";
@@ -35,6 +39,9 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
   const weak = best.filter((c) => c.v < 1 && c.spend >= 100);
   const tagged = health.metaOrders ? health.withAd / health.metaOrders : 0;
+  const notes = await getNotes(brand.id);
+  const ai = notes.performance?.insights;
+  after(() => refreshNotes(brand.id, ["performance"]));
 
   return (
     <>
@@ -141,6 +148,9 @@ export default async function PerformancePage({ params, searchParams }: PageProp
 
         <SidePanel>
           <IrisHeader>· reads orders and Meta insights</IrisHeader>
+          {ai?.length ? ai.map((n) => (
+            <Note key={n.title} icon={TONE[n.tone][0] as IconName} tone={TONE[n.tone][1]} title={n.title} href={noteHref(`/brands/${slug}`, n.link)}>{n.body}</Note>
+          )) : (<>
           {hasMeta && s.metaPurchases > s.metaOrders && (
             <Note icon="info" tone="#4C7BD9" title="Meta counts more sales than Shopify sees" href={`/brands/${slug}/meta?days=${days}`}>
               Meta reports {num(s.metaPurchases)} purchases; Shopify has {num(s.metaOrders)} orders tagged with Meta UTMs. Meta also counts views and sales that came through other channels — decide on the verified number.
@@ -161,6 +171,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               Only {pct(tagged)} of Meta orders carry an ad id, so ad-level results are partial.
             </Note>
           )}
+          </>)}
           {!metaLinked && (
             <Note icon="plug" title="Connect Meta Ads" href={`/brands/${slug}/integrations`} link="Connect">
               With spend from Meta, Kaviar can show what each dollar really returned in Shopify sales.

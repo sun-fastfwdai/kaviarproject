@@ -50,6 +50,13 @@
       "when": 1794515476762,
       "tag": "0006_brand_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794596895269,
+      "tag": "0007_agent_notes",
+      "breakpoints": true
     }
   ]
 }

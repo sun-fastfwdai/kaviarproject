@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { getBrand, getConnections, type ConnectionView } from "@/lib/queries/brands";
 import { runs, tableStats, webhookCount } from "@/lib/queries/sync";
 import { utmHealth } from "@/lib/queries/growth";
@@ -87,6 +89,8 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
   const src = sp.src === "shopify" || sp.src === "meta" ? sp.src : "all";
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
+  const notes = await getNotes(brand.id);
+  after(() => refreshNotes(brand.id, ["sync"]));
   const [tables, history, hooks, health] = await Promise.all([tableStats(brand.id), runs(brand.id, 10), webhookCount(brand.id), utmHealth(brand.id, brand.timezone, 30)]);
   const running = history.some((r) => r.status === "running");
   const last = (p: string) => history.find((r) => r.provider === p && r.status === "success")?.finishedAt ?? null;
@@ -180,7 +184,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
               </div>
               <div className="row top g8" style={{ marginTop: "auto", marginInline: 12, marginBottom: 12, padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 10 }}>
                 <AgentFace kind="catalog" size={18} />
-                <span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">Cleo:</b> {history.some((r) => r.status === "error") ? "“One sync hit a problem — I’ll retry on the next hourly run. Details are in the history above.”" : history.length ? "“Both sources are current. I check them every hour and re-read Meta’s last 7 days each time.”" : "“Connect a source and I’ll run the first backfill.”"}</span>
+                <span className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">Cleo:</b> {notes.sync?.line ? `“${notes.sync.line.replace(/^[“"]|[”"]$/g, "")}”` : history.some((r) => r.status === "error") ? "“One sync hit a problem — I’ll retry on the next hourly run. Details are in the history above.”" : history.length ? "“Both sources are current. I check them every hour and re-read Meta’s last 7 days each time.”" : "“Connect a source and I’ll run the first backfill.”"}</span>
               </div>
             </div>
           </div>

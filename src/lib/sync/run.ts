@@ -5,6 +5,7 @@ import { ShopifyAuthError } from "../shopify/oauth";
 import { MetaAuthError } from "../meta/client";
 import { SHOPIFY_RESOURCES, syncShopifyResource } from "../shopify/sync";
 import { ensureWebhooks, type WebhookState } from "../shopify/webhooks";
+import { refreshNotes } from "../ai/notes";
 import { metaCursorFor, syncMeta } from "../meta/sync";
 import type { Provider, SyncTrigger } from "../db/schema";
 
@@ -108,6 +109,8 @@ export async function runBrandSync(brandId: string, trigger: SyncTrigger, only?:
       out.push({ provider, status: "error", message: msg });
     }
   }
+  // The agents rewrite their notes when the numbers changed.
+  if (out.some((o) => o.status !== "skipped")) await refreshNotes(brandId);
   return out;
 }
 

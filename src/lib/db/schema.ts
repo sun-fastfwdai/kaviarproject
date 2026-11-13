@@ -346,3 +346,17 @@ export const brandAssets = pgTable(
   },
   (t) => [index("brand_assets_brand").on(t.brandId, t.kind)],
 );
+
+// ---------------------------------------------------------------- Notes the agents write from a brand's numbers (cached; rewritten when the numbers change)
+export const agentNotes = pgTable(
+  "agent_notes",
+  {
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // performance | overview | sync | signals
+    factsHash: text("facts_hash").notNull(),
+    body: jsonb("body").$type<Record<string, unknown>>().notNull(),
+    model: text("model"),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.brandId, t.key] })],
+);

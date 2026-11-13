@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { getBrand, getConnections } from "@/lib/queries/brands";
 import { signalData } from "@/lib/queries/signals";
 import { num, pct } from "@/lib/format";
@@ -19,7 +21,8 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
   const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Ad signals" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ad signals" /></div></>);
 
-  const d = await signalData(brand.id, brand.timezone);
+  const [d, notes] = await Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]);
+  after(() => refreshNotes(brand.id, ["signals"]));
   const base = `/brands/${slug}`;
   const shop: [string, string] = ["Shopify data", `${base}/shopify`];
   const products: [string, string] = ["Products", `${base}/shopify?tab=products`];
@@ -100,10 +103,10 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
             <span className="row g6 xs i3" style={{ paddingTop: 6 }}><Icon name="lock" size={12} />Counts only. Contact details stay in Shopify.</span>
           </div>
           <div className="col g6" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
-            <div className="row g8"><AgentFace kind="analyst" size={20} mood="up" /><span className="sm w5">{ready} signals are ready</span></div>
-            <span className="xs i2" style={{ lineHeight: "17px" }}>
+            <div className="row g8"><AgentFace kind="analyst" size={20} mood="up" /><span className="sm w5">{notes.signals?.title ?? `${ready} signals are ready`}</span></div>
+            {notes.signals ? <span className="xs i2" style={{ lineHeight: "17px" }}>{notes.signals.body}</span> : <span className="xs i2" style={{ lineHeight: "17px" }}>
               Biggest wins: <b className="w5 i1">lapsed buyers ({num(d.lapsed.lapsed)})</b> for win-back ads{d.reorder.medianDays ? <>, and <b className="w5 i1">reorder timing</b> — replenishment ads around day {Math.round(d.reorder.medianDays)}</> : null}.
-            </span>
+            </span>}
           </div>
           <div className="col g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="sm w5">Who uses these</span>

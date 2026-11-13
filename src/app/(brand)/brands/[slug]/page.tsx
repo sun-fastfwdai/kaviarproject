@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { brandThumb, getBrand, getConnections } from "@/lib/queries/brands";
@@ -45,6 +47,8 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   const { slug } = await params;
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
+  const notes = await getNotes(brand.id);
+  after(() => refreshNotes(brand.id, ["overview"]));
   const tz = brand.timezone, cur = brand.currency, base = `/brands/${slug}`;
   const [s, d, history, health, camps, sig, hooks, team, thumb, owner] = await Promise.all([
     summary(brand.id, tz, 30), daily(brand.id, tz, 30), runs(brand.id, 6), utmHealth(brand.id, tz, 30), campaigns(brand.id, tz, 30),
@@ -135,10 +139,10 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               </div>
               <div className="row between"><ChartLegend /></div>
               <SalesChart data={d} currency={cur} height={170} />
-              {best[0] && (
+              {(notes.overview?.line || best[0]) && (
                 <div className="row g8" style={{ padding: "10px 0 6px", borderTop: "1px solid var(--line)" }}>
                   <AgentFace kind="analyst" size={18} mood="up" />
-                  <span className="xs i2 fill">Iris: {best[0].name} returns the most ({roas(best[0].v)} verified){best.some((c) => c.v < 1 && c.spend >= 100) ? "; one campaign is below break-even" : ""}.</span>
+                  <span className="xs i2 fill">Iris: {notes.overview?.line ?? `${best[0].name} returns the most (${roas(best[0].v)} verified)${best.some((c) => c.v < 1 && c.spend >= 100) ? "; one campaign is below break-even" : ""}.`}</span>
                   <Link className="lnk xs i2 row g4" href={`${base}/performance`}>Performance<Icon name="arrow-r" size={12} /></Link>
                 </div>
               )}
