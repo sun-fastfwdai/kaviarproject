@@ -11,7 +11,7 @@ const BATCH = 5000;
 const CHILD_TABLES = [
   "shop_order_lines", "shop_orders", "shop_variants", "shop_products", "shop_customers",
   "meta_insights_daily", "meta_ads", "meta_campaigns",
-  "sync_runs", "sync_cursors", "webhook_events", "ads", "ad_batches", "brand_assets", "agent_notes", "connections",
+  "sync_runs", "sync_cursors", "webhook_events", "store_builds", "optimize_changes", "ads", "ad_batches", "brand_assets", "agent_notes", "connections",
 ] as const;
 
 export type Footprint = { orders: number; lines: number; products: number; customers: number; metaRows: number; ads: number };

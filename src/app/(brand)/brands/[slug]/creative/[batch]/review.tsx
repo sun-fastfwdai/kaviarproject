@@ -141,7 +141,8 @@ export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: 
             <button type="button" className="btn fill" disabled={busy} onClick={() => setRejecting(true)}><Icon name="x" size={13} />Reject</button>
           </div>
           <div className="row g6">
-            <button type="button" className="btn sm fill" disabled={busy} onClick={() => setEditing(true)}><Icon name="pencil" size={12} />Edit</button>
+            <button type="button" className="btn sm fill" disabled={busy} onClick={() => setEditing(true)}><Icon name="pencil" size={12} />Edit text</button>
+            <a className="btn sm fill" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="image" size={12} />Design</a>
             <button type="button" className="btn sm fill" disabled={busy} onClick={() => run(() => redo(slug, ad.id), "Remy rewrote it.")}><Icon name="refresh" size={12} />Redo</button>
             <button type="button" className="btn sm fill" disabled={busy} onClick={() => run(() => variations(slug, ad.id), "Remy added 3 variations.")}><Icon name="layers" size={12} />Variations</button>
           </div>

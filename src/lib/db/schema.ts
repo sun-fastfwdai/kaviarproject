@@ -340,7 +340,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -363,6 +363,8 @@ export const agentNotes = pgTable(
 
 // ---------------------------------------------------------------- Creative studio: batches of ads Remy writes from a signal or an idea
 export type AdStatus = "review" | "approved" | "rejected";
+export type Layer = { id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans"; color: string; bg?: string; weight?: number; align?: "left" | "center"; src?: string };
+export type AdDesign = { image: string | null; overlay: number; layers: Layer[] };
 export const adBatches = pgTable(
   "ad_batches",
   {
@@ -397,7 +399,60 @@ export const ads = pgTable(
     status: text("status").$type<AdStatus>().notNull().default("review"),
     note: text("note"), // why it was rejected — Remy reads it on Redo
     edited: boolean("edited").notNull().default(false),
+    design: jsonb("design").$type<AdDesign>(), // the Editor's layers; null until someone opens it
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
   (t) => [index("ads_batch").on(t.batchId, t.position)],
 );
+
+// ---------------------------------------------------------------- Optimize & repeat: weekly changes the agents propose, the team approves, and Kaviar checks a week later
+export type ChangeKind = "hold" | "shift" | "refresh" | "pause" | "scale" | "add";
+export type ChangeStatus = "proposed" | "approved" | "skipped" | "applied";
+export const optimizeChanges = pgTable(
+  "optimize_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    week: date("week").notNull(), // Monday of the week it was proposed (brand time zone)
+    key: text("key").notNull(), // stable per week, so re-proposing never duplicates
+    kind: text("kind").$type<ChangeKind>().notNull(),
+    title: text("title").notNull(),
+    why: text("why").notNull(),
+    before: text("before").notNull(),
+    after: text("after").notNull(),
+    target: jsonb("target").$type<{ campaignId?: string; adId?: string; signal?: string; product?: string; baseline?: number }>().notNull().default({}),
+    status: text("status").$type<ChangeStatus>().notNull().default("proposed"),
+    decidedBy: uuid("decided_by").references(() => members.id, { onDelete: "set null" }),
+    decidedAt: tz("decided_at"),
+    appliedAt: tz("applied_at"),
+    result: jsonb("result").$type<{ verdict: "worked" | "didnt" | "too-early"; detail: string; checkedAt: string }>(),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("optimize_changes_key").on(t.brandId, t.week, t.key)],
+);
+
+// ---------------------------------------------------------------- Store builder: one build per brand — setup choices, Remy's content, progress, decisions and Otto's QA
+export type StoreContent = {
+  announcement: string;
+  heroOptions: string[]; hero: string; subline: string; cta: string;
+  promises: { title: string; body: string }[];
+  bestsellersTitle: string;
+  story: { title: string; body: string };
+  faq: { q: string; a: string }[];
+  newsletter: { title: string; body: string };
+  nav: string[];
+  aboutPage: string;
+};
+export type BuildTask = { key: string; label: string; agent: "iris" | "cleo" | "remy" | "otto"; status: "waiting" | "running" | "done" | "error"; detail: string };
+export const storeBuilds = pgTable("store_builds", {
+  brandId: uuid("brand_id").primaryKey().references(() => brands.id, { onDelete: "cascade" }),
+  theme: text("theme").notNull().default("kaviar-starter"),
+  pages: jsonb("pages").$type<string[]>().notNull().default(["home", "products", "collections", "story", "contact", "policies"]),
+  apps: jsonb("apps").$type<Record<string, boolean>>().notNull().default({}),
+  tasks: jsonb("tasks").$type<BuildTask[]>().notNull().default([]),
+  content: jsonb("content").$type<StoreContent>(),
+  approved: jsonb("approved").$type<string[]>().notNull().default([]),
+  startedAt: tz("started_at"),
+  finishedAt: tz("finished_at"),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});

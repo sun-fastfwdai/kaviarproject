@@ -12,6 +12,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { LoopStrip } from "@/components/loop-strip";
 import { NeedsSource, SidePanel } from "@/components/ui";
+import { BatchArt, EmptyState } from "@/components/empty";
 import { CreativeTabs } from "./tabs";
 import { BuildPlanButton, IdeaForm } from "./forms";
 
@@ -57,7 +58,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   return (
     <>
       <Bar crumbs={crumbs}><LoopStrip base={base} step={2} /></Bar>
-      <CreativeTabs base={base} on={tab} toReview={toReview} />
+      <CreativeTabs base={base} on={tab === "plan" ? "plan" : "batches"} toReview={toReview} />
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px", gap: 16 }}>
           {!aiReady() && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
@@ -75,7 +76,11 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
                   <BuildPlanButton slug={slug} signal={p.key} count={6} dark={i === 0} />
                 </div>
               ))}
-              {plans.length === 0 && <span className="sm i3">No signals are ready yet — Iris plans batches once orders and customers sync.</span>}
+              {plans.length === 0 && (
+                <EmptyState title="Iris needs a little more store data" body="Plans come from ad signals — lapsed buyers, reorder timing, best-sellers. They appear once orders and customers have synced. Meanwhile, brief your own idea below."
+                  steps={[{ agent: "catalog", title: "Cleo syncs orders and customers", body: "Usually minutes after Shopify connects." }, { agent: "analyst", title: "Iris finds signals", body: "Each one becomes a plan card here." }, { agent: "builder", title: "Remy writes the batch", body: "One click per plan." }]}
+                  art={<BatchArt />} actions={<Link className="btn" href={`${base}/sync`}><Icon name="database" size={14} />Check Data sync</Link>} />
+              )}
             </div>
             <IdeaForm slug={slug} placeholder={`e.g. Holiday gift ads for ${brand.name}'s best-seller — warm and cosy, for people who bought last December`} />
           </>) : (<>
@@ -91,7 +96,17 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
                 </Link>
               ))}
             </div>
-            {batches.length === 0 && <span className="sm i3">No ads yet. Build a plan from the Plan tab or from any ad signal.</span>}
+            {batches.length === 0 && (
+              <EmptyState eyebrow="Creative studio · Ads" title="No ads written yet"
+                body="Every batch Remy writes lands here: 3–9 ads from one idea, on the brand’s real product photos, ready for you to approve, edit, redo or reject."
+                steps={[
+                  { agent: "analyst", title: "Pick a plan Iris recommends", body: "Built from the signals that can sell most — lapsed buyers, reorder timing, best-sellers." },
+                  { agent: "builder", title: "Remy writes the batch", body: "Distinct hooks, copy and formats in about 20–40 seconds." },
+                  { agent: "qa", title: "Review with Otto’s checks", body: "Approve the good ones; rejecting asks why, and Remy learns from it." },
+                ]}
+                art={<BatchArt />}
+                actions={<><Link className="btn dark" href={`${base}/creative`}><Icon name="sparkle" size={14} color="#fff" />See Iris’s plans</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Browse signals</Link></>} />
+            )}
           </>)}
         </section>
         <SidePanel>

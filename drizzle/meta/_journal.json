@@ -64,6 +64,27 @@
       "when": 1794597726314,
       "tag": "0008_creative",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794598356779,
+      "tag": "0009_optimize",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794598551449,
+      "tag": "0010_ad_design",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794598897476,
+      "tag": "0011_store_builder",
+      "breakpoints": true
     }
   ]
 }

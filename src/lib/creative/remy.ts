@@ -36,8 +36,11 @@ async function brandContext(brandId: string) {
     from shop_products p where p.brand_id = ${brandId} and coalesce(p.status, 'ACTIVE') = 'ACTIVE' and p.image_url is not null
     order by p.total_inventory desc nulls last limit 40`)).rows as { title: string; imageUrl: string; price: number | null }[];
   const rejected = (await db.execute(sql`select hook, note from ads where brand_id = ${brandId} and status = 'rejected' and note is not null order by updated_at desc limit 8`)).rows as { hook: string; note: string }[];
+  // What Iris learned from live ads and past reviews — Remy follows it in every new batch.
+  const [n] = (await db.execute(sql`select body from agent_notes where brand_id = ${brandId} and key = 'insights'`)).rows as { body: { lessons?: { dimension: string; lesson: string; strength: string }[] } }[];
+  const lessons = (n?.body.lessons ?? []).filter((l) => l.strength !== "Weak").map((l) => `${l.dimension}: ${l.lesson}`);
   const profile = b.onboarding?.profile ? Object.fromEntries(Object.entries(b.onboarding.profile).map(([k, v]) => [k, v.value])) : null;
-  return { brand: { name: b.name, category: b.category, website: b.website, currency: b.currency, profile }, products, rejected };
+  return { brand: { name: b.name, category: b.category, website: b.website, currency: b.currency, profile }, products, rejected, lessons };
 }
 
 const imageFor = (products: { title: string; imageUrl: string }[], title: string, i: number) =>
@@ -55,6 +58,7 @@ export async function createBatch(brandId: string, memberId: string, input: { si
       ...(input.signal ? { signal: input.signal } : { idea: input.idea }),
       write: `${count} ads`,
       lessonsFromRejectedAds: ctx.rejected,
+      whatWinsForThisBrand: ctx.lessons,
     }),
     schema: BatchOut,
     maxTokens: 8000,

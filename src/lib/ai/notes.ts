@@ -21,6 +21,7 @@ export type Notes = {
   overview?: { line: string };
   sync?: { line: string };
   signals?: { title: string; body: string; ranked: { signal: string; why: string }[] };
+  insights?: { lessons: { dimension: string; lesson: string; evidence: string; strength: "Strong" | "Early" | "Weak" }[] };
 };
 export type NoteKey = keyof Notes;
 
@@ -45,6 +46,11 @@ const SPECS: Record<NoteKey, { agent: Agent; system: string; schema: z.ZodType }
     agent: "cleo",
     system: "You are Cleo, Kaviar's data agent who keeps a brand's Shopify and Meta Ads data in sync. Write one short first-person note (under 30 words) about the state of the sync for the team: what's current, any failure and what you'll do, or what's missing. Plain words, no jargon like 'API'.",
     schema: z.object({ line: z.string() }),
+  },
+  insights: {
+    agent: "iris",
+    system: "You are Iris, Kaviar's growth analyst. From this brand's live Meta ads (judged on verified Shopify revenue) and the team's review of Remy's drafts (approved vs rejected, with reasons), write up to 6 lessons about what wins: one per dimension (Hook, Format, Angle, Length, Offer, Audience). Each lesson is a short rule Remy can follow next time, with the evidence in numbers. Mark 'Strong' only with clear evidence, 'Early' when based on little data. If there's too little data, say what to test instead.",
+    schema: z.object({ lessons: z.array(z.object({ dimension: z.enum(["Hook", "Format", "Angle", "Length", "Offer", "Audience"]), lesson: z.string().describe("Under 12 words"), evidence: z.string().describe("Under 18 words, with numbers"), strength: z.enum(["Strong", "Early", "Weak"]) })) }),
   },
   signals: {
     agent: "iris",
@@ -72,6 +78,17 @@ async function factsFor(key: NoteKey, brand: { id: string; name: string; timezon
       lowStock: sig.stock.map((x) => ({ title: x.title, left: x.inventory, days: Math.round(x.daysOfStock) })),
     };
   }
+  if (key === "insights") {
+    const live = (await db.execute(sql`
+      with ins as (select ad_id, sum(spend) s, sum(impressions) i, sum(clicks) c from meta_insights_daily where brand_id = ${id} and date >= current_date - 30 group by 1),
+      v as (select meta_ad_id, sum(total - refunded) r, count(*) n from shop_orders where brand_id = ${id} and not test and cancelled_at is null and created_at >= now() - interval '30 days' and meta_ad_id is not null group by 1)
+      select a.name, c.name as campaign, round(ins.s::numeric, 0)::float8 as spend, round((coalesce(v.r, 0) / nullif(ins.s, 0))::numeric, 2)::float8 as "verifiedRoas",
+        round((ins.c::numeric / nullif(ins.i, 0)) * 100, 2)::float8 as "ctrPct", coalesce(v.n, 0)::int as orders
+      from ins join meta_ads a on a.brand_id = ${id} and a.id = ins.ad_id left join meta_campaigns c on c.brand_id = a.brand_id and c.id = a.campaign_id
+      left join v on v.meta_ad_id = a.id where ins.s > 0 order by ins.s desc limit 25`)).rows;
+    const drafts = (await db.execute(sql`select format, hook, status, note from ads where brand_id = ${id} and status <> 'review' order by updated_at desc limit 40`)).rows;
+    return { ...base, liveAds: live, reviewedDrafts: drafts };
+  }
   if (key === "sync") {
     const runs = (await db.execute(sql`select provider, trigger, status, rows, error, started_at from sync_runs where brand_id = ${id} order by started_at desc limit 6`)).rows as { provider: string; trigger: string; status: string; rows: number | null; error: string | null; started_at: Date }[];
     return {
@@ -98,7 +115,7 @@ export async function getNotes(brandId: string): Promise<Notes> {
 const running = new Set<string>();
 
 /** Rewrite the notes whose facts changed. Safe to call often; does nothing without an API key. */
-export async function refreshNotes(brandId: string, keys: NoteKey[] = ["performance", "overview", "sync", "signals"]): Promise<void> {
+export async function refreshNotes(brandId: string, keys: NoteKey[] = ["performance", "overview", "sync", "signals", "insights"]): Promise<void> {
   if (!aiReady() || running.has(brandId)) return;
   running.add(brandId);
   try {

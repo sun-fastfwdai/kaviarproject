@@ -9,6 +9,7 @@ import { signalData } from "@/lib/queries/signals";
 import { getNotes } from "@/lib/ai/notes";
 import { buildSignals } from "@/lib/signals/build";
 import { createBatch, moreVariations, redoAd } from "@/lib/creative/remy";
+import type { AdDesign } from "@/lib/db/schema";
 
 export type State = { error?: string; at?: number } | undefined;
 const fail = (error: string): State => ({ error, at: Date.now() });
@@ -78,4 +79,15 @@ export async function deleteBatch(slug: string, batchId: string): Promise<void> 
   const brand = await getBrand(slug);
   await db.delete(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brand.id)));
   redirect(`/brands/${slug}/creative`);
+}
+
+/** Save the Editor's layout. The first text layer becomes the ad's hook, and the background its image. */
+export async function saveDesign(slug: string, adId: string, design: AdDesign): Promise<State> {
+  await ownAd(slug, adId);
+  if (!Array.isArray(design.layers) || design.layers.length > 30) return fail("That layout can’t be saved.");
+  const layers = design.layers.map((l) => ({ ...l, text: String(l.text ?? "").slice(0, 300), x: Math.min(1, Math.max(0, Number(l.x))), y: Math.min(1, Math.max(0, Number(l.y))), w: Math.min(1, Math.max(0.05, Number(l.w))), size: Math.min(200, Math.max(0, Number(l.size))) }));
+  const image = design.image && /^(https:\/\/|\/api\/assets\/)/.test(design.image) ? design.image : null;
+  const head = layers.find((l) => l.kind === "text")?.text;
+  await db.update(schema.ads).set({ design: { image, overlay: Math.min(0.9, Math.max(0, Number(design.overlay) || 0)), layers }, imageUrl: image, ...(head ? { hook: head.slice(0, 120) } : {}), edited: true, updatedAt: new Date() }).where(eq(schema.ads.id, adId));
+  return undefined;
 }
