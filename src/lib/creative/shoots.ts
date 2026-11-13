@@ -28,7 +28,7 @@ export type PromptIn = {
   rules: string[]; brandRules: string[]; strict: boolean; lessons: string[]; reference?: { note: string; close: boolean } | null;
   character?: { name: string; description: string } | null;
 };
-export type PromptOut = { segments: { text: string; source: "product" | "data" | "brand" | "wins" | "character" | "none" }[]; rules: string[] };
+export type PromptOut = { segments: { text: string; source: "product" | "data" | "brand" | "wins" | "character" | "none" }[]; rules: string[]; voiceLine: string };
 
 /** Remy writes the photo brief from every input, phrase by phrase, and says which input each phrase came from. */
 export async function writeShotPrompt(brandId: string, input: PromptIn): Promise<PromptOut | null> {
@@ -37,6 +37,7 @@ export async function writeShotPrompt(brandId: string, input: PromptIn): Promise
   const out = await ask("remy", {
     system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
 If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
+When there is a person (a character, or a UGC scene), also write voiceLine: what they say to camera in a short clip — first person, casual, under 16 words, about why they reach for this product; no medical or guaranteed claims, no prices or discounts. Otherwise voiceLine is "".
 Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
     content: JSON.stringify({
       brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
@@ -49,10 +50,11 @@ Split the prompt into consecutive phrases and tag each with the input it came fr
     schema: z.object({
       segments: z.array(z.object({ text: z.string(), source: z.enum(["product", "data", "brand", "wins", "character", "none"]) })),
       rules: z.array(z.string()),
+      voiceLine: z.string(),
     }),
   });
   if (!out) return null;
-  return { segments: out.segments.filter((x) => x.text), rules: (input.rules.length ? input.rules : out.rules).slice(0, 6) };
+  return { segments: out.segments.filter((x) => x.text), rules: (input.rules.length ? input.rules : out.rules).slice(0, 6), voiceLine: out.voiceLine.trim().slice(0, 140) };
 }
 
 /** Remy looks at a reference photo and writes down what to borrow from it: style, pose, composition. */

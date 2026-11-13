@@ -483,7 +483,7 @@ export type ShootNodeCfg = {
   strict?: boolean; brandRules?: string[];                                     // brand kit
   strongOnly?: boolean;                                                        // what wins
   reference?: { id: string; note: string; close: boolean } | null;             // reference
-  prompt?: string; segments?: { text: string; source: ShootSource }[] | null; promptFor?: string | null; length?: "short" | "medium" | "detailed"; scene?: string; // prompt
+  prompt?: string; segments?: { text: string; source: ShootSource }[] | null; promptFor?: string | null; length?: "short" | "medium" | "detailed"; scene?: string; voiceLine?: string; // prompt
   aspect?: "4:5" | "9:16" | "1:1"; n?: number;                                 // photo, video
   move?: string; seconds?: number; from?: string | null;                       // video (from = start-frame asset)
   send?: string | null; picked?: string[] | null;                              // send to (null = brand assets)

@@ -43,7 +43,7 @@ const reason = async (r: Response) => {
 /** Submit, then poll until the job finishes (or `timeoutMs`). Same idempotency key on retries, so a retry never double-charges. */
 export async function hfRun(model: string, input: Record<string, unknown>, timeoutMs = 240_000): Promise<{ out?: Status; error?: string }> {
   const sub = await hfFetch(`/${model}`, { method: "POST", headers: { ...headers(), "Idempotency-Key": randomUUID() }, body: JSON.stringify(input) });
-  if (!sub.ok) return { error: await reason(sub) };
+  if (!sub.ok) { const e = await reason(sub); console.error("higgsfield submit", model, sub.status, e); return { error: e }; }
   const { request_id } = (await sub.json()) as { request_id: string };
   const until = Date.now() + timeoutMs;
   let wait = 2000;
@@ -54,16 +54,17 @@ export async function hfRun(model: string, input: Record<string, unknown>, timeo
     if (!r.ok) { if (r.status === 404) return { error: "Higgsfield lost the request." }; continue; }
     const s = (await r.json()) as Status;
     if (s.status === "completed") return { out: s };
-    if (s.status === "nsfw") return { error: "Higgsfield’s safety filter blocked this one (not charged) — reword the scene." };
-    if (s.status === "failed" || s.status === "canceled") return { error: `Higgsfield couldn’t make it${s.error ? `: ${s.error}` : ""} (not charged).`.slice(0, 180) };
+    if (s.status === "nsfw") { console.error("higgsfield nsfw", model, request_id); return { error: "Higgsfield’s safety filter blocked this one (not charged) — reword the scene." }; }
+    if (s.status === "failed" || s.status === "canceled") { console.error("higgsfield failed", model, request_id, s.error); return { error: `Higgsfield couldn’t make it${s.error ? `: ${s.error}` : ""} (not charged).`.slice(0, 180) }; }
   }
-  return { error: "Higgsfield is taking longer than usual — it’ll show up in the next run." };
+  console.error("higgsfield timeout", model, request_id);
+  return { error: "Higgsfield is taking longer than usual — try again, or pick fewer photos." };
 }
 
 /** Submit without waiting (long renders): the canvas polls `hfStatus` and the finished file is saved then. */
 export async function hfSubmit(model: string, input: Record<string, unknown>): Promise<{ requestId?: string; error?: string }> {
   const sub = await hfFetch(`/${model}`, { method: "POST", headers: { ...headers(), "Idempotency-Key": randomUUID() }, body: JSON.stringify(input) });
-  if (!sub.ok) return { error: await reason(sub) };
+  if (!sub.ok) { const e = await reason(sub); console.error("higgsfield submit", model, sub.status, e); return { error: e }; }
   const { request_id } = (await sub.json()) as { request_id: string };
   return { requestId: request_id };
 }

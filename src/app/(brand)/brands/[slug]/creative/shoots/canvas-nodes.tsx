@@ -36,7 +36,7 @@ export type StudioApi = {
   sendItems: (id: string) => { photos: string[]; clips: string[] }; pickedFor: (id: string) => string[]; nextStep: (id: string) => string | null;
   patch: (id: string, cfg: Partial<ShootNode["cfg"]>) => void; select: (id: string) => void; writePrompt: (id: string) => void; design: (assetId: string) => void;
   rerunOne: (checkId: string, shotId: string) => void; send: (id: string) => void; focus: (assetId: string) => void;
-  characterOf: (id: string | null) => { id: string; name: string; description: string; uploaded: boolean } | null;
+  characterOf: (id: string | null) => { id: string; name: string; description: string; uploaded: boolean } | null; errorFor: (id: string) => string | null;
   statusAt: Record<string, number>; jobState: Record<string, string>; view: (nodeId: string, assetId: string) => void; expanded: (id: string) => boolean; toggleExpand: (id: string) => void;
 };
 export const StudioCtx = createContext<StudioApi | null>(null);
@@ -127,6 +127,7 @@ export function ShootCanvasNode({ id, selected }: NodeProps<CanvasNode>) {
       {st === "running" && <div className="run-bar" />}
       <div className="col g6" style={{ padding: "9px 10px", flex: 1, minHeight: 0 }}>
         <Body n={n} />
+        {st === "error" && s.errorFor(id) && <span className="row top g4 xs c-amber" style={{ lineHeight: "15px", paddingTop: 6, borderTop: "1px solid var(--line)" }} title={s.errorFor(id)!}><Icon name="warning-circle" size={12} color="#B7791F" style={{ flexShrink: 0, marginTop: 1 }} /><span style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.errorFor(id)}</span></span>}
       </div>
     </div>
   );
@@ -157,7 +158,7 @@ function Body({ n }: { n: ShootNode }) {
       </button>
       <span className="xs i2" style={{ lineHeight: "15px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</span>
       <span className="row g4 xs i3" style={{ marginTop: "auto" }}><Icon name="lock" size={11} color={TOK.character} />{p.uploaded ? "real creator · with permission" : "same person in every shot"}</span>
-    </> : <span className="xs i3" style={{ lineHeight: "16px" }}>Pick or cast a person in the panel — wire this into the Prompt and Photo and they hold the product.</span>;
+    </> : <span className="xs i3" style={{ lineHeight: "16px" }}>{s.status[id] === "running" ? "Remy is casting a person and making their character sheet…" : "Pick or cast a person in the panel — or leave it empty and Run flow casts someone from the audience."}</span>;
   }
 
   if (n.type === "data") {

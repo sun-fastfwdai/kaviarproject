@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { deleteShot, designFromShot, pollVideo, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
+import { createCharacter, deleteShot, designFromShot, pollVideo, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
 import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MOVES, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, UGC_MOVES, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
@@ -116,6 +116,10 @@ function Studio(props: Props) {
   const busy = running || navPending;
   const go = (fn: () => Promise<unknown>) => { setRunning(true); fn().catch((e: Error) => setMsg((e?.message ?? "Something went wrong.").slice(0, 160))).finally(() => setRunning(false)); };
   const [statusAt, setStatusAt] = useState<Record<string, number>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [freshChars, setFreshChars] = useState<(Character & { at: string })[]>([]);
+  const freshRef = useRef<(Character & { at: string })[]>([]);
+  const errorsRef = useRef<Record<string, string>>({});
   const [jobState, setJobState] = useState<Record<string, string>>({});
   const [viewer, setViewer] = useState<{ node: string; id: string } | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -186,6 +190,8 @@ function Studio(props: Props) {
   }, [jobsKey, slug]);
 
   // ---- derived from the graph
+  const allChars = [...props.characters, ...freshChars.filter((f) => !props.characters.some((c) => c.id === f.id))];
+  const charById = (id: string | null | undefined) => (id ? allChars.find((x) => x.id === id) ?? freshRef.current.find((x) => x.id === id) ?? null : null);
   const byId = useMemo(() => new Map(shots.map((s) => [s.id, s])), [shots]);
   const checkOf = (id: string) => byId.get(id)?.check ?? fresh[id] ?? null;
   const productOf = (g: ShootFlow, id: string): Product | null => {
@@ -205,7 +211,7 @@ function Studio(props: Props) {
   const promptIn = (g: ShootFlow, P: ShootNode): PromptIn => {
     const ins = inc(g, P.id), c = cfgOf(P);
     const d = ins.find((n) => n.type === "data"), b = ins.find((n) => n.type === "brand"), w = ins.find((n) => n.type === "wins"), r = ins.find((n) => n.type === "reference");
-    const ch = ins.find((n) => n.type === "character"), person = ch ? props.characters.find((x) => x.id === cfgOf(ch).characterId) : null;
+    const ch = ins.find((n) => n.type === "character"), person = ch ? charById(cfgOf(ch).characterId) : null;
     const sig = d ? signals.find((s) => s.key === cfgOf(d).signal) : null;
     const ref = r ? cfgOf(r).reference : null;
     return {
@@ -245,7 +251,7 @@ function Studio(props: Props) {
 
   // ---- running (Run flow follows the wires: prompts → photos → Otto → clips)
   const mark = (id: string, v: RunState) => { setStatus((s) => ({ ...s, [id]: v })); if (v === "running") setStatusAt((t) => ({ ...t, [id]: Date.now() })); };
-  const fail = (id: string, m: string) => { mark(id, "error"); setMsg(m); };
+  const fail = (id: string, m: string) => { mark(id, "error"); errorsRef.current = { ...errorsRef.current, [id]: m }; setErrors(errorsRef.current); setMsg(m); };
 
   const write = async (pid: string): Promise<string | null> => {
     let P = find(flowRef.current, pid);
@@ -259,7 +265,7 @@ function Studio(props: Props) {
     if (d && !cfgOf(d).rules.length && r.out.rules.length) patchNode(d.id, { rules: r.out.rules.map((t) => ({ text: t, on: true })) }, false);
     P = find(flowRef.current, pid)!;
     const text = joinSegs(r.out.segments);
-    patchNode(pid, { prompt: text, segments: r.out.segments, promptFor: keyOf(flowRef.current, P) }, false);
+    patchNode(pid, { prompt: text, segments: r.out.segments, promptFor: keyOf(flowRef.current, P), voiceLine: r.out.voiceLine }, false);
     mark(pid, "done");
     return text;
   };
@@ -303,12 +309,21 @@ function Studio(props: Props) {
     const g = flowRef.current, V = find(g, vid);
     if (!V) return { ids: [] as string[], jobs: 0 };
     const from = frameOf(g, vid, checks);
-    if (!from) { fail(vid, "Wire a Photo node into this Video node and run it — a clip starts from one of its photos."); return { ids: [] as string[], jobs: 0 }; }
+    if (!from) {
+      const ph = inc(g, vid).find((x) => x.type === "photo");
+      fail(vid, ph ? (errorsRef.current[ph.id] ? "No photo to start from — the Photo node didn’t run (see its note)." : "Run the Photo node first — a clip starts from one of its photos.") : "Wire a Photo node into this one (its bottom port to this node’s top).");
+      return { ids: [] as string[], jobs: 0 };
+    }
     const c = cfgOf(V), P = promptOf(g, vid);
     const text = (P && cfgOf(P).prompt) || `${productOf(g, vid)?.title ?? "The product"} in a calm everyday scene.`;
     const move = MOVES.find(([m]) => m === c.move)?.[1] ?? "";
     mark(vid, "running");
-    const snd = inc(g, vid).find((x) => x.type === "sound");
+    let snd = inc(g, vid).find((x) => x.type === "sound");
+    // A person on camera with nothing to say: use the line Remy wrote with the prompt.
+    if (snd && !cfgOf(snd).voice?.trim() && P && cfgOf(P).voiceLine && (up(g, vid, "character") || isUgc(cfgOf(P).scene))) {
+      patchNode(snd.id, { voice: cfgOf(P).voiceLine }, false);
+      snd = find(flowRef.current, snd.id) ?? snd;
+    }
     const sound = props.engines.sound && snd ? soundDirection(cfgOf(snd)) : null;
     const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${move} ${text}`.slice(0, 1200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
     const ids = res.flatMap((o) => (o.id ? [o.id] : [])), jobs = res.flatMap((o) => (o.job ? [o.job] : []));
@@ -331,7 +346,30 @@ function Studio(props: Props) {
     const queue: Record<string, RunState> = {};
     for (const n of [...photos, ...videos]) { queue[n.id] = "queued"; const P = promptOf(g, n.id); if (P) queue[P.id] = "queued"; }
     for (const n of g.nodes.filter((x) => x.type === "check" && inc(g, x.id).some((y) => y.type === "photo"))) queue[n.id] = "queued";
-    setStatus(queue);
+    for (const n of g.nodes.filter((x) => x.type === "character" && !cfgOf(x).characterId && g.edges.some((e) => e.from === x.id))) queue[n.id] = "queued";
+    setStatus(queue); errorsRef.current = {}; setErrors({});
+    // Smart defaults: a Character node nobody filled in gets a person cast from the audience and the product.
+    for (const ch of g.nodes.filter((x) => x.type === "character" && !cfgOf(x).characterId && g.edges.some((e) => e.from === x.id))) {
+      mark(ch.id, "running");
+      const d = g.nodes.find((x) => x.type === "data"), sg = d ? signals.find((y) => y.key === cfgOf(d).signal) : null;
+      const prod = productOf(g, outs(g, ch.id)[0]?.id ?? ch.id) ?? headProduct;
+      const cast = props.characters[0] && !g.nodes.some((x) => x.type === "character" && cfgOf(x).characterId === props.characters[0].id)
+        ? { name: props.characters[0].name, description: props.characters[0].description, id: props.characters[0].id }
+        : await suggestCasting(slug, { signal: sg ? `${sg.data}: ${sg.value ?? ""}` : null, product: prod?.title ?? null }).then((r) => (r.description ? { name: r.name ?? "Character", description: r.description, id: null } : null));
+      if (!cast) { fail(ch.id, "Remy couldn’t cast anyone — pick or describe a person in the panel."); continue; }
+      let id = cast.id;
+      if (!id) {
+        const made = await createCharacter(slug, { name: cast.name, description: cast.description });
+        if (!made.id) { fail(ch.id, made.error ?? "The character sheet didn’t come back."); continue; }
+        id = made.id;
+        const fresh = { id, name: cast.name, description: cast.description, uploaded: false, at: new Date().toISOString() };
+        freshRef.current = [...freshRef.current, fresh];
+        setFreshChars((x) => [...x, fresh]);
+      }
+      patchNode(ch.id, { characterId: id }, false);
+      mark(ch.id, "done");
+      router.refresh();
+    }
     const checks = new Map<string, Check>();
     let p = 0, cl = 0, flagged = 0, spent = 0;
     for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += r.ids.length * perImage; } }
@@ -525,7 +563,7 @@ function Studio(props: Props) {
     productFor: (id) => productOf(flow, id), signalFor: (id) => signalOf(flow, id), sceneFor: (id) => { const P = promptOf(flow, id); return P ? cfgOf(P).scene : "No prompt wired"; },
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
-    characterOf: (id) => { const c = id ? props.characters.find((x) => x.id === id) : null; return c ?? null; },
+    characterOf: (id) => charById(id), errorFor: (id) => errors[id] ?? null,
     statusAt, jobState, view: (node, id) => setViewer({ node, id }), expanded: (id) => expanded.includes(id), toggleExpand: (id) => setExpanded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])),
     patch: (id, cfg) => patchNode(id, cfg), select, writePrompt: (id) => go(async () => { await write(id); }), design, rerunOne, send, focus: (id) => setFocus(id),
   };
