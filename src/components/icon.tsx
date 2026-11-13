@@ -5,6 +5,8 @@ import {
   SealCheck, ShoppingBag, SignOut, Sparkle, Stack, Storefront, Tag, Target, TrendDown, TrendUp, User, Users, UsersThree,
   Warning, WarningCircle, WebhooksLogo, X, Globe, UploadSimple, FilePdf, VideoCamera, PencilSimple, Paperclip, LinkSimple, ArrowUp,
   ShieldCheck, Palette, CloudArrowUp, Phone, Swatches, FileText, ArrowElbowDownLeft, SpinnerGap,
+  Cursor, Hand, ChatCircle, ArrowCounterClockwise, ArrowClockwise, Monitor, DeviceTablet, DeviceMobile, Columns, Play, Pause, Minus,
+  MusicNotes, PenNib, SquaresFour, DotsThree, Star, ArrowUpRight, PaintBrush,
 } from "@phosphor-icons/react/ssr";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
@@ -19,6 +21,8 @@ const ICONS = {
   box: Package, plug: Plug, plus: Plus, blocked: Prohibit, activity: Pulse, receipt: Receipt, repeat: Repeat, rows: Rows,
   "seal-check": SealCheck, bag: ShoppingBag, signout: SignOut, sparkle: Sparkle, layers: Stack, store: Storefront, tag: Tag,
   target: Target, "trend-down": TrendDown, "trend-up": TrendUp, user: User, users: Users, "users-three": UsersThree,
+  pointer: Cursor, hand: Hand, msg: ChatCircle, undo: ArrowCounterClockwise, redo: ArrowClockwise, monitor: Monitor, tablet: DeviceTablet, mobile: DeviceMobile,
+  split: Columns, play: Play, pause: Pause, minus: Minus, music: MusicNotes, pen: PenNib, squares: SquaresFour, more: DotsThree, star: Star, "arrow-ur": ArrowUpRight, brush: PaintBrush,
   warning: Warning, "warning-circle": WarningCircle, webhook: WebhooksLogo, x: X,
 } satisfies Record<string, PhosphorIcon>;
 

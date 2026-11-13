@@ -5,41 +5,105 @@ import { applyToTheme, installKaviarStarter, publishStore, uploadStarterZip } fr
 import { Icon } from "@/components/icon";
 import { Modal } from "@/components/modal";
 
-export type ThemeView = { id: string; name: string; role: string; processing: boolean };
+export type ThemeView = { id: string; name: string; role: string; processing: boolean; fromThemeStore?: boolean; preview?: string | null };
 export type ThemeState = {
   starter: { size: number; updatedAt: string } | null; storageReady: boolean; canRead: boolean; canWrite: boolean;
   themes: ThemeView[]; themesError: string | null; shop: string | null; owner: boolean;
 };
 
-/** Setup: Kaviar Starter from storage, the store's own themes from Shopify, and the Theme Store to buy more. */
+/** A tiny storefront drawn in the brand's style — Kaviar Starter's preview until a build exists. */
+function StarterArt() {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "#FBF9F6", display: "flex", flexDirection: "column" }}>
+      <div style={{ height: 10, background: "#1A1714" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", fontSize: 7, color: "#1A1714" }}><span>Shop · Story</span><b style={{ fontFamily: "Georgia, serif", fontSize: 11 }}>Brand</b><span>Cart</span></div>
+      <div style={{ flex: 1, display: "flex" }}>
+        <div style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
+          <span style={{ fontFamily: "Georgia, serif", fontSize: 17, lineHeight: 1.05, color: "#1A1714" }}>Your hero,<br />by Remy.</span>
+          <span style={{ width: 46, height: 12, borderRadius: 99, background: "#1A1714" }} />
+        </div>
+        <div style={{ flex: 1, background: "linear-gradient(160deg,#E9DCC8,#B79B78)" }} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4, padding: "6px 12px 10px" }}>{["#E6DCCF", "#D8CBB8", "#E9E2D8", "#CFC2AE"].map((c) => <span key={c} style={{ height: 22, borderRadius: 3, background: c }} />)}</div>
+    </div>
+  );
+}
+
+function ThemeCard({ k, on, title, tag, tone, sub, img, art, onPick }: { k: string; on: boolean; title: string; tag: string; tone: string; sub: string; img?: string | null; art?: React.ReactNode; onPick: (k: string) => void }) {
+  return (
+    <button type="button" onClick={() => onPick(k)} className="col" aria-pressed={on}
+      style={{ width: 236, flexShrink: 0, scrollSnapAlign: "start", textAlign: "left", cursor: "pointer", borderRadius: 14, overflow: "hidden", background: "#fff", border: on ? "1.5px solid var(--ink)" : "1px solid var(--line)", boxShadow: on ? "0 0 0 3px rgba(18,18,18,.06)" : "0 2px 8px rgba(18,18,18,.04)" }}>
+      <div style={{ position: "relative", aspectRatio: "4 / 3", background: "var(--tray-2)", overflow: "hidden" }}>
+        {img ? <img src={img} alt={`${title} preview`} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} /> : art}
+        <span className={`pill ${tone}`} style={{ position: "absolute", top: 8, right: 8, height: 20, fontSize: 10.5, boxShadow: "0 1px 4px rgba(0,0,0,.12)" }}>{tag}</span>
+        {on && <span style={{ position: "absolute", top: 8, left: 8, width: 20, height: 20, borderRadius: 99, background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="check" size={11} color="#fff" weight="bold" /></span>}
+      </div>
+      <div className="col g2" style={{ padding: "10px 12px" }}>
+        <span className="sm w5 i1 ell">{title}</span>
+        <span className="xs i3 ell">{sub}</span>
+      </div>
+    </button>
+  );
+}
+
+function Placeholder({ name }: { name: string }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, background: "linear-gradient(160deg,#F2EFEA,#DAD3C8)" }}>
+      <span style={{ fontFamily: "Georgia, serif", fontSize: 30, color: "#8B8883" }}>{name.charAt(0).toUpperCase()}</span>
+      <span className="xs i3">Custom theme · no screenshot</span>
+    </div>
+  );
+}
+
+/** Setup: one scrollable row — Kaviar Starter, the store's live theme, its other themes, then the Theme Store. */
 export function ThemePicker({ theme, setTheme, t }: { theme: string; setTheme: (v: string) => void; t: ThemeState }) {
   const router = useRouter();
   const file = useRef<HTMLInputElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
   const [busy, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const admin = t.shop ? `https://admin.shopify.com/store/${t.shop.replace(/\.myshopify\.com$/, "")}/themes` : null;
-  const card = (key: string, on: boolean, body: React.ReactNode, bg: string) => (
-    <button key={key} type="button" onClick={() => setTheme(key)} className="card col g8" style={{ padding: 12, textAlign: "left", cursor: "pointer", minWidth: 0, borderColor: on ? "var(--ink)" : undefined, boxShadow: on ? "0 0 0 1px var(--ink)" : undefined }}>
-      <div style={{ height: 64, borderRadius: 8, background: bg }} />{body}
-    </button>
-  );
+  const [filter, setFilter] = useState<"all" | "store" | "custom">("all");
+  const shopHandle = t.shop?.replace(/\.myshopify\.com$/, "");
+  const admin = shopHandle ? `https://admin.shopify.com/store/${shopHandle}/themes` : null;
+  const preview = (id: string) => (t.shop ? `https://${t.shop}/?preview_theme_id=${id.split("/").pop()}` : null);
+  const sorted = [...t.themes].sort((a, b) => Number(b.role === "MAIN") - Number(a.role === "MAIN"));
+  const shown = sorted.filter((x) => filter === "all" || (filter === "store" ? x.fromThemeStore : !x.fromThemeStore));
+  const selected = theme === "kaviar-starter" ? null : t.themes.find((x) => `shopify:${x.id}` === theme) ?? null;
+  const scroll = (dir: number) => rail.current?.scrollBy({ left: dir * 600, behavior: "smooth" });
+
   return (
     <div className="col g10">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
-        {card("kaviar-starter", theme === "kaviar-starter", <>
-          <span className="row between"><span className="row g6 sm w5"><span className={`radio${theme === "kaviar-starter" ? " on" : ""}`} />Kaviar Starter</span><span className="pill green" style={{ height: 20, fontSize: 10.5 }}>Best fit</span></span>
-          <span className="xs i3">{t.starter ? `In Kaviar’s theme storage · updated ${new Date(t.starter.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : t.storageReady ? "Not uploaded yet" : "Theme storage not switched on"} · Remy edits it directly</span>
-          {t.owner && t.storageReady && <span className="row g6"><span className="lnk xs i2" onClick={(e) => { e.stopPropagation(); file.current?.click(); }}>{busy ? "Uploading…" : t.starter ? "Replace .zip" : "Upload .zip"}</span></span>}
-        </>, "linear-gradient(135deg,#F6F1EA,#C9B49B)")}
-        {t.themes.map((x) => card(`shopify:${x.id}`, theme === `shopify:${x.id}`, <>
-          <span className="row between"><span className="row g6 sm w5 ell"><span className={`radio${theme === `shopify:${x.id}` ? " on" : ""}`} />{x.name}</span><span className={`pill ${x.role === "MAIN" ? "green" : ""}`} style={{ height: 20, fontSize: 10.5 }}>{x.role === "MAIN" ? "Live" : x.processing ? "Processing" : "In store"}</span></span>
-          <span className="xs i3">From {t.shop} · already installed{x.role === "MAIN" ? " and live" : ""}</span>
-        </>, "linear-gradient(135deg,#F2EFEA,#D8D2C8)"))}
-        <a href="https://themes.shopify.com/themes?sort_by=most_popular" target="_blank" rel="noreferrer" className="card col g8" style={{ padding: 12, minWidth: 0 }}>
-          <div style={{ height: 64, borderRadius: 8, background: "linear-gradient(135deg,#2B241E,#6E5A45)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="external" size={18} color="#fff" /></div>
-          <span className="sm w5">Shopify Theme Store</span>
-          <span className="xs i3">Browse paid and free themes. The merchant buys it{admin ? <> in <span className="lnk" onClick={(e) => { e.preventDefault(); window.open(admin, "_blank"); }}>their admin</span></> : " in their Shopify admin"} — it then shows up here.</span>
-        </a>
+      <div className="row g8">
+        <div className="seg">
+          {([["all", `All · ${t.themes.length + 1}`], ["store", "From Theme Store"], ["custom", "Custom"]] as const).map(([k, l]) => <button key={k} type="button" className={`o${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{l}</button>)}
+        </div>
+        <span className="fill" />
+        <button type="button" className="btn sm ic" onClick={() => scroll(-1)} aria-label="Scroll left"><Icon name="chev-l" size={13} /></button>
+        <button type="button" className="btn sm ic" onClick={() => scroll(1)} aria-label="Scroll right"><Icon name="chev-r" size={13} /></button>
+      </div>
+      <div ref={rail} className="row top g12 theme-rail" style={{ overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6 }}>
+        {filter !== "store" && <ThemeCard onPick={setTheme} k="kaviar-starter" on={theme === "kaviar-starter"} title="Kaviar Starter" tag="Best fit" tone="green" art={<StarterArt />}
+          sub={t.starter ? `Remy edits it directly · updated ${new Date(t.starter.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : t.storageReady ? "Remy edits it directly · not uploaded yet" : "Remy edits it directly"} />}
+        {shown.map((x) => (
+          <ThemeCard onPick={setTheme} key={x.id} k={`shopify:${x.id}`} on={theme === `shopify:${x.id}`} title={x.name} tag={x.role === "MAIN" ? "Live" : x.processing ? "Processing" : "In store"} tone={x.role === "MAIN" ? "green" : ""}
+            sub={x.fromThemeStore ? "Shopify Theme Store · installed" : "Custom · installed"} img={x.preview} art={<Placeholder name={x.name} />} />
+        ))}
+        {filter !== "custom" && (
+          <a href="https://themes.shopify.com/themes?sort_by=most_popular" target="_blank" rel="noreferrer" className="col" style={{ width: 236, flexShrink: 0, scrollSnapAlign: "start", borderRadius: 14, overflow: "hidden", border: "1px dashed var(--line-2)", background: "var(--tray)" }}>
+            <div style={{ aspectRatio: "4 / 3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(160deg,#2B241E,#6E5A45)", color: "#fff" }}>
+              <Icon name="store" size={22} color="#fff" /><span className="sm w5">Shopify Theme Store</span>
+            </div>
+            <div className="col g2" style={{ padding: "10px 12px" }}><span className="sm w5 i1 row g4">Browse more themes<Icon name="external" size={11} /></span><span className="xs i3">The merchant buys it in their admin — it then shows up here.</span></div>
+          </a>
+        )}
+      </div>
+      <div className="row g10" style={{ padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 12, flexWrap: "wrap" }}>
+        <Icon name={selected ? "store" : "sparkle"} size={15} />
+        <span className="sm i1 fill">{selected ? <><b className="w5">{selected.name}</b> — {selected.role === "MAIN" ? "the store’s live theme. Remy writes into a copy, never the live one." : "already in the store. Remy writes the homepage into it."}</> : <><b className="w5">Kaviar Starter</b> — Kaviar’s own theme. It’s installed as a draft and Remy edits every section.</>}</span>
+        {selected && preview(selected.id) && <a className="btn sm" href={preview(selected.id)!} target="_blank" rel="noreferrer"><Icon name="eye" size={12} />Preview in store</a>}
+        {selected?.fromThemeStore && <a className="btn sm" href={`https://themes.shopify.com/themes/${selected.name.toLowerCase().replace(/^copy of\s+/, "").replace(/[^a-z0-9]+/g, "-")}`} target="_blank" rel="noreferrer"><Icon name="external" size={12} />Theme Store page</a>}
+        {!selected && t.owner && t.storageReady && <button type="button" className="btn sm" disabled={busy} onClick={() => file.current?.click()}><Icon name="upload" size={12} />{busy ? "Uploading…" : t.starter ? "Replace .zip" : "Upload .zip"}</button>}
+        {admin && <a className="btn quiet sm" href={admin} target="_blank" rel="noreferrer">Themes in Shopify admin</a>}
       </div>
       <input ref={file} type="file" accept=".zip" hidden onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const fd = new FormData(); fd.append("zip", f); start(async () => { const r = await uploadStarterZip(fd); setMsg(r.error ?? "Kaviar Starter updated."); router.refresh(); }); e.target.value = ""; }} />
       {!t.canRead && t.shop && <span className="xs c-amber">To show this store’s own themes, the Kaviar Shopify app needs permission to manage themes — then reconnect the store in Integrations.</span>}

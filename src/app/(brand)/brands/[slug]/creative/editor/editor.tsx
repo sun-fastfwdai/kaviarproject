@@ -203,6 +203,10 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
         <button type="button" className="btn sm" disabled={exporting} onClick={download}>{exporting ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="download" size={12} />}Download PNGs</button>
         <button type="button" className="btn sm" disabled={busy || !dirty} onClick={() => save(false)}>Save</button>
         <button type="button" className="btn dark sm" disabled={busy} onClick={() => save(true)}><Icon name="check" size={12} color="#fff" />Save & approve</button>
+        {/* Next step in the studio flow: Plan → Shoots → Editor → Ads → Insights */}
+        {idx < ads.length - 1
+          ? <Link className="btn sm" href={`?ad=${ads[idx + 1].id}`}>Next ad<Icon name="arrow-r" size={12} /></Link>
+          : <Link className="btn sm" href={`/brands/${slug}/creative/${ad.batchId}`}>Review in Ads<Icon name="arrow-r" size={12} /></Link>}
       </div>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <aside className="row stretch" style={{ width: 300, flexShrink: 0, borderRight: "1px solid var(--line)" }}>

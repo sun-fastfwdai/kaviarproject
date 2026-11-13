@@ -4,16 +4,23 @@ import { eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import type { BuildTask, StoreContent } from "../db/schema";
+import { commit, note } from "./revise";
+import { STORE_APPS } from "@/app/(brand)/brands/[slug]/integrations/apps";
 
 export type StoreProduct = { title: string; handle: string | null; image: string | null; price: number | null; units: number };
 
+/** Board 05's build plan. The Homepage stage is Remy's copy; the last three wait on people. */
 export const TASKS: Omit<BuildTask, "status" | "detail">[] = [
   { key: "brand", label: "Brand understanding", agent: "iris" },
   { key: "architecture", label: "Store architecture", agent: "iris" },
-  { key: "catalog", label: "Product catalog", agent: "cleo" },
-  { key: "content", label: "Homepage & page copy", agent: "remy" },
+  { key: "mapping", label: "Content mapping", agent: "remy" },
   { key: "theme", label: "Theme configuration", agent: "remy" },
-  { key: "qa", label: "Quality checks", agent: "otto" },
+  { key: "catalog", label: "Product catalog", agent: "cleo" },
+  { key: "content", label: "Homepage", agent: "remy" },
+  { key: "pages", label: "Product pages", agent: "cleo" },
+  { key: "apps", label: "Shopify apps", agent: "cleo" },
+  { key: "qa", label: "Quality assurance", agent: "otto" },
+  { key: "review", label: "Final review", agent: "you" },
 ];
 
 export async function storeProducts(brandId: string): Promise<StoreProduct[]> {
@@ -40,28 +47,51 @@ const ContentOut = z.object({
   aboutPage: z.string().describe("Our story page, 150–220 words, from the profile only"),
 });
 
-/** Run the build: each task writes its progress so the Build screen fills in live. */
-export async function runBuild(brandId: string): Promise<void> {
+/** Run the build: each stage writes its progress so the Build screen fills in live. `resume` keeps stages already done. */
+export async function runBuild(brandId: string, opts: { resume?: boolean } = {}): Promise<void> {
   const [b] = await db.select().from(schema.brands).where(eq(schema.brands.id, brandId));
   const [build] = await db.select().from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brandId));
   if (!b || !build) return;
-  const tasks: BuildTask[] = TASKS.map((t) => ({ ...t, status: "waiting", detail: "" }));
+  const prev = opts.resume ? build.tasks : [];
+  const tasks: BuildTask[] = TASKS.map((t) => prev.find((p) => p.key === t.key && p.status === "done") ?? { ...t, status: "waiting", detail: "" });
   const save = (patch: Partial<typeof schema.storeBuilds.$inferInsert> = {}) => db.update(schema.storeBuilds).set({ tasks, updatedAt: new Date(), ...patch }).where(eq(schema.storeBuilds.brandId, brandId));
-  const step = async (key: string, run: () => Promise<string>) => {
+  const startedAt = new Date();
+  // Pause = someone set finishedAt after this run started; stop before the next stage.
+  const paused = async () => { const [x] = await db.select({ f: schema.storeBuilds.finishedAt }).from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brandId)); return Boolean(x?.f); };
+  let stopped = false;
+  const step = async (key: string, run: () => Promise<string | { needs: string }>) => {
     const t = tasks.find((x) => x.key === key)!;
-    t.status = "running"; await save();
-    try { t.detail = await run(); t.status = "done"; } catch (e) { t.detail = (e as Error).message.slice(0, 120); t.status = "error"; }
+    if (stopped || t.status === "done") return;
+    if (await paused()) { stopped = true; return; }
+    const t0 = Date.now();
+    t.status = "running"; t.at = new Date().toISOString(); await save();
+    try {
+      const r = await run();
+      if (typeof r === "string") { t.detail = r; t.status = "done"; } else { t.detail = r.needs; t.status = "needs"; }
+    } catch (e) { t.detail = (e as Error).message.slice(0, 120); t.status = "error"; }
+    t.ms = Date.now() - t0;
     await save();
   };
-  await save({ startedAt: new Date(), finishedAt: null });
+  await save(opts.resume ? { finishedAt: null } : { startedAt, finishedAt: null });
 
   const profile = b.onboarding?.profile ?? {};
   const products = await storeProducts(brandId);
-  await step("brand", async () => Object.keys(profile).length ? `${Object.keys(profile).length} profile fields` : "No profile — using the store’s own data");
+  const noImg = products.filter((p) => !p.image);
+  await step("brand", async () => Object.keys(profile).length ? `${Object.keys(profile).length} facts from the brand profile` : "No profile — using the store’s own data");
   await step("architecture", async () => `${build.pages.length} pages · ${build.pages.join(", ")}`);
+  await step("mapping", async () => {
+    const facts = Object.keys(profile).length;
+    return `${facts} facts + ${Math.min(8, products.length)} best-sellers → 7 homepage sections`;
+  });
+  await step("theme", async () => {
+    const pal = b.onboarding?.analysis?.palette ?? [];
+    const font = b.onboarding?.analysis?.font?.name;
+    const theme = build.theme === "kaviar-starter" ? "Kaviar Starter" : "the store’s theme";
+    return pal.length ? `${theme} · ${pal.length} brand colours${font ? ` · ${font}` : ""}` : `${theme} · default colours`;
+  });
   await step("catalog", async () => {
-    const noImg = products.filter((p) => !p.image).length;
-    return `${products.length} products${noImg ? ` · ${noImg} without a photo` : ""}`;
+    await note(brandId, { who: "Cleo", agent: "cleo", what: `Checked ${products.length} products for the store, sorted by 90-day sales${noImg.length ? ` — ${noImg.length} need a photo` : ""}`, scope: "bestsellers" });
+    return `${products.length} products · sorted by 90-day sales`;
   });
   let content: StoreContent | null = build.content;
   await step("content", async () => {
@@ -73,19 +103,24 @@ export async function runBuild(brandId: string): Promise<void> {
     });
     if (!out) throw new Error("Remy couldn’t write the copy — try again");
     content = { ...out, heroOptions: out.heroOptions.slice(0, 3), hero: out.heroOptions[0] ?? b.name };
-    await save({ content });
-    return `${out.heroOptions.length} hero options · ${out.faq.length} FAQs · story page`;
+    await commit(brandId, content, { who: "Remy", agent: "remy", what: `Wrote the homepage, story page and ${out.faq.length} FAQs from the brand profile and best-sellers`, scope: null });
+    return `7 sections · ${out.heroOptions.length} hero options · ${out.faq.length} FAQs`;
   });
-  await step("theme", async () => {
-    const pal = b.onboarding?.analysis?.palette ?? [];
-    const font = b.onboarding?.analysis?.font?.name;
-    return pal.length ? `${pal.length} brand colours${font ? ` · ${font}` : ""}` : "Default Kaviar Starter colours";
+  await step("pages", async () => noImg.length
+    ? { needs: `${noImg.length} photo${noImg.length > 1 ? "s" : ""} needed` }
+    : `${products.length} product pages`);
+  await step("apps", async () => {
+    const picked = STORE_APPS.filter((a) => build.apps[a.key]);
+    const waiting = picked.filter((a) => a.who === "Merchant" && b.integrations?.[a.key]?.status !== "connected");
+    return waiting.length ? { needs: "Merchant auth" } : picked.length ? `${picked.length} connected` : "None picked";
   });
   await step("qa", async () => {
     const issues = qaChecks(content, products, b.onboarding?.analysis?.toAdd?.some((t) => t.key === "policy" && !t.done) ?? false).filter((c) => !c.ok).length;
+    await note(brandId, { who: "Otto", agent: "otto", what: issues ? `Found ${issues} thing${issues > 1 ? "s" : ""} to fix before publish` : "All quality checks pass", scope: null });
     return issues ? `${issues} to fix before publish` : "All checks pass";
   });
-  await save({ finishedAt: new Date() });
+  await step("review", async () => ({ needs: "Your turn" }));
+  if (!stopped) await save({ finishedAt: new Date() });
 }
 
 export type QA = { label: string; ok: boolean; detail: string; fix?: string };

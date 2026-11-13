@@ -14,7 +14,7 @@ import type { AdDesign } from "@/lib/db/schema";
 export type State = { error?: string; at?: number } | undefined;
 const fail = (error: string): State => ({ error, at: Date.now() });
 
-/** "Write the ads" from a signal's page — Remy writes a batch, then it opens in Creative studio. */
+/** "Write the ads" from a plan or a signal's page — Remy writes the batch, then the flow moves on to Shoots for its visuals. */
 export async function writeAdsFromSignal(slug: string, key: string, _: State, form: FormData): Promise<State> {
   const me = await requireMember();
   if (!aiReady()) return fail("Remy needs the Claude API key to write ads.");
@@ -25,7 +25,7 @@ export async function writeAdsFromSignal(slug: string, key: string, _: State, fo
   const count = Number(form.get("count")) || 6;
   const id = await createBatch(brand.id, me.id, { signal: { key: row.key, data: row.data, value: row.value, use: row.use, evidence: row.evidence }, count });
   if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
-  redirect(`/brands/${slug}/creative/${id}`);
+  redirect(`/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(row.key)}`);
 }
 
 /** "Start your own batch from an idea" on Creative studio. */
@@ -37,7 +37,7 @@ export async function writeAdsFromIdea(slug: string, _: State, form: FormData): 
   const brand = await getBrand(slug);
   const id = await createBatch(brand.id, me.id, { idea, count: Number(form.get("count")) || 6 });
   if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
-  redirect(`/brands/${slug}/creative/${id}`);
+  redirect(`/brands/${slug}/creative/shoots?batch=${id}`);
 }
 
 async function ownAd(slug: string, adId: string) {

@@ -2,7 +2,7 @@ import "server-only";
 import { experimental_generateVideo as generateVideo, generateImage } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
@@ -14,16 +14,45 @@ export const COST_PER_IMAGE = 0.04;
 export const VIDEO_MODEL = "klingai/kling-v2.6-i2v";
 export const COST_PER_VIDEO_SECOND = 0.042;
 
-/** Remy writes the photo brief from the product, the signal and the brand's look. */
-export async function writeShotPrompt(brandId: string, input: { product: string; angle: string; signal?: { data: string; value: string | null; evidence: [string, string][] } | null; lessons?: string[] }): Promise<string | null> {
+export type PromptIn = {
+  product: string; scene: string; length: "short" | "medium" | "detailed";
+  signal?: { data: string; value: string | null; evidence: [string, string][] } | null;
+  rules: string[]; brandRules: string[]; strict: boolean; lessons: string[]; reference?: { note: string; close: boolean } | null;
+};
+export type PromptOut = { segments: { text: string; source: "product" | "data" | "brand" | "wins" | "none" }[]; rules: string[] };
+
+/** Remy writes the photo brief from every input, phrase by phrase, and says which input each phrase came from. */
+export async function writeShotPrompt(brandId: string, input: PromptIn): Promise<PromptOut | null> {
   const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const words = { short: 30, medium: 55, detailed: 85 }[input.length];
   const out = await ask("remy", {
-    system: "You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it must keep the product exactly as in the reference (shape, label, colour) and place it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in under 60 words. No text, no logos, no watermarks in the image. Match the brand's look if given.",
-    content: JSON.stringify({ brand: b?.name, category: b?.category, look: b?.onboarding?.profile?.palette?.value, tone: b?.onboarding?.profile?.tone?.value, product: input.product, adAngle: input.angle,
-      whoWillSeeIt: input.signal ? { signal: input.signal.data, data: input.signal.value, evidence: input.signal.evidence } : null, whatWinsForThisBrand: input.lessons ?? [] }),
-    schema: z.object({ prompt: z.string() }),
+    system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image. Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
+    content: JSON.stringify({
+      brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
+      brandKit: { look: b?.onboarding?.profile?.palette?.value, tone: b?.onboarding?.profile?.tone?.value, rules: input.brandRules, follow: input.strict ? "strictly" : "loosely" },
+      whoWillSeeIt: input.signal ? { signal: input.signal.data, data: input.signal.value, evidence: input.signal.evidence } : null,
+      teamRules: input.rules, whatWinsForThisBrand: input.lessons,
+      reference: input.reference ? { style: input.reference.note, follow: input.reference.close ? "closely" : "loosely" } : null,
+    }),
+    schema: z.object({
+      segments: z.array(z.object({ text: z.string(), source: z.enum(["product", "data", "brand", "wins", "none"]) })),
+      rules: z.array(z.string()),
+    }),
   });
-  return out?.prompt ?? null;
+  if (!out) return null;
+  return { segments: out.segments.filter((x) => x.text), rules: (input.rules.length ? input.rules : out.rules).slice(0, 6) };
+}
+
+/** Remy looks at a reference photo and writes down what to borrow from it: style, pose, composition. */
+export async function describeReference(brandId: string, assetId: string): Promise<string | null> {
+  const [a] = await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, brandId)));
+  if (!a || !/^image\/(png|jpeg|webp|gif)$/.test(a.mime)) return null;
+  const out = await ask("remy", {
+    system: "You are Remy, Kaviar's creative agent. Describe what a product photographer should borrow from this reference photo: style, light, pose and composition. Under 25 words. Don't describe the product in it.",
+    content: [{ type: "image", source: { type: "base64", media_type: a.mime as "image/png" | "image/jpeg" | "image/webp" | "image/gif", data: Buffer.from(a.data).toString("base64") } }],
+    schema: z.object({ note: z.string() }),
+  });
+  return out?.note ?? null;
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
@@ -52,9 +81,39 @@ export async function shoot(brandId: string, memberId: string, input: { product:
   return { ids, error };
 }
 
-export async function shootsThisMonth(brandId: string): Promise<number> {
-  const [r] = (await db.execute(sql`select count(*)::int as n from brand_assets where brand_id = ${brandId} and (meta->>'ai')::boolean and created_at >= date_trunc('month', now())`)).rows as { n: number }[];
-  return r.n;
+/** What Shoots made and spent this month (photos and edits at the per-image price, clips by the second). */
+export async function shootsThisMonth(brandId: string): Promise<{ photos: number; clips: number; cost: number }> {
+  const [r] = (await db.execute(sql`select count(*) filter (where mime like 'image/%')::int as photos, count(*) filter (where mime like 'video/%')::int as clips,
+      coalesce(sum(case when mime like 'video/%' then coalesce((meta->>'seconds')::int, 5) else 0 end), 0)::int as seconds
+    from brand_assets where brand_id = ${brandId} and (meta->>'ai')::boolean and created_at >= date_trunc('month', now())`)).rows as { photos: number; clips: number; seconds: number }[];
+  return { photos: r.photos, clips: r.clips, cost: r.photos * COST_PER_IMAGE + r.seconds * COST_PER_VIDEO_SECOND };
+}
+
+/** Quick fixes on a photo that already exists — the edit nodes. Each one is a new photo; the original stays. */
+export const EDITS = {
+  "remove-bg": { label: "Remove bg", text: "Remove the background: put the product on a clean, plain off-white studio background with a soft natural shadow." },
+  extend: { label: "Extend", text: "Extend the scene outward to fill a tall 9:16 frame, continuing the same setting and light. Keep everything already in the photo unchanged." },
+  relight: { label: "Relight", text: "Relight the scene with soft, warm morning daylight from one side. Keep the composition unchanged." },
+} as const;
+export type EditKind = keyof typeof EDITS;
+
+export async function editShot(brandId: string, memberId: string, assetId: string, kind: EditKind): Promise<{ id?: string; error?: string }> {
+  const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, brandId)));
+  if (!a || !a.mime.startsWith("image/")) return { error: "Pick a photo first." };
+  const e = EDITS[kind];
+  try {
+    const r = await generateImage({ model: gateway.imageModel(SHOOT_MODEL), prompt: { images: [new Uint8Array(a.data)], text: `${e.text}\nKeep the product exactly as it is — same shape, label, colours and text. Photorealistic, no added text or watermarks.` },
+      ...(kind === "extend" ? { aspectRatio: "9:16" as const } : {}), maxRetries: 1 });
+    const img = r.image;
+    const [row] = await db.insert(schema.brandAssets).values({
+      brandId, kind: "imagery", name: `${(a.meta.product ?? "Product").slice(0, 40)} · ${e.label.toLowerCase()}`, mime: img.mediaType || "image/png", size: img.uint8Array.byteLength,
+      data: Buffer.from(img.uint8Array), meta: { ai: true, prompt: e.text, product: a.meta.product, edit: kind }, createdBy: memberId,
+    }).returning({ id: schema.brandAssets.id });
+    return { id: row.id };
+  } catch (err) {
+    const m = (err as Error).message ?? "";
+    return { error: /credit|billing|payment|insufficient/i.test(m) ? "AI Gateway has no credits on this Vercel team." : /auth|token|unauthor/i.test(m) ? "AI Gateway works on the deployed app (Vercel signs the requests)." : `The image model failed: ${m.slice(0, 120)}` };
+  }
 }
 
 const CheckOut = z.object({
@@ -97,7 +156,7 @@ export async function shootVideo(brandId: string, memberId: string, input: { fro
     const v = r.video;
     const [row] = await db.insert(schema.brandAssets).values({
       brandId, kind: "video", name: `${(a.meta.product ?? "Product").slice(0, 40)} · clip`, mime: v.mediaType || "video/mp4", size: v.uint8Array.byteLength,
-      data: Buffer.from(v.uint8Array), meta: { ai: true, prompt: input.prompt.slice(0, 500), product: a.meta.product }, createdBy: memberId,
+      data: Buffer.from(v.uint8Array), meta: { ai: true, prompt: input.prompt.slice(0, 500), product: a.meta.product, seconds: input.seconds }, createdBy: memberId,
     }).returning({ id: schema.brandAssets.id });
     return { id: row.id };
   } catch (e) {

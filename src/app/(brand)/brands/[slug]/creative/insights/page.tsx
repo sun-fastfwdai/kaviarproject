@@ -6,12 +6,11 @@ import { getBrand, getConnections } from "@/lib/queries/brands";
 import { rows } from "@/lib/queries/common";
 import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { money, pct } from "@/lib/format";
-import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { LoopStrip } from "@/components/loop-strip";
 import { SidePanel } from "@/components/ui";
-import { CreativeTabs } from "../tabs";
+import { StudioBar } from "../tabs";
 import { InsightActions } from "./actions-ui";
 import { EmptyState, InsightsArt } from "@/components/empty";
 
@@ -27,8 +26,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
-  const crumbs = [{ label: brand.name, href: base }, { label: "Creative studio", href: `${base}/creative` }, { label: "Insights" }];
-  if (!conns.meta) return (<><Bar crumbs={crumbs} /><CreativeTabs base={base} on="insights" /><div className="scroll" style={{ padding: "20px 24px" }}>
+  if (!conns.meta) return (<><StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} step={2} /></StudioBar><div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Insights" title="Connect Meta Ads to see which ads really sell"
       body="Insights puts every live ad next to the Shopify orders it brought in, flags creatives that are getting tired, and turns the pattern into rules Remy follows in the next batch."
       steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad." }, { agent: "catalog", title: "Cleo pulls 90 days of results", body: "Spend, clicks and daily results per ad." }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand." }]}
@@ -73,8 +71,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
 
   return (
     <>
-      <Bar crumbs={crumbs}><LoopStrip base={base} step={2} /></Bar>
-      <CreativeTabs base={base} on="insights" />
+      <StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} step={2} /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px", gap: 16 }}>
           <div className="col g4"><h1 className="h1">Why ads win — and when they get tired</h1><p className="sm i3">Every live ad, judged on real Shopify orders. Iris turns the pattern into rules Remy follows in the next batch.</p></div>

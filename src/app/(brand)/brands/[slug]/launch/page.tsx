@@ -2,7 +2,6 @@ import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getBrand, getConnections } from "@/lib/queries/brands";
-import { shopNameFree } from "@/lib/ai/site";
 import { env } from "@/lib/env";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
@@ -36,7 +35,6 @@ export default async function LaunchPage({ params }: PageProps<"/brands/[slug]/l
   const base = `/brands/${slug}`;
   const ob = brand.onboarding ?? {};
   const shopName = ob.basics?.shopName || ob.scan?.shopName || slug.replace(/-\d+$/, "");
-  const free = conns.shopify ? null : await shopNameFree(shopName);
   const connected = conns.shopify?.status === "connected";
   const [{ n: synced }] = (await db.execute(sql`select count(*)::int as n from shop_products where brand_id = ${brand.id}`)).rows as { n: number }[];
   const [build] = (await db.execute(sql`select finished_at from store_builds where brand_id = ${brand.id}`)).rows as { finished_at: Date | null }[];
@@ -60,20 +58,19 @@ export default async function LaunchPage({ params }: PageProps<"/brands/[slug]/l
         <Step n={1} done={connected} title="Create the Shopify store" who={<><Icon name="users" size={12} />Kaviar team · once</>}>
           <div className="row g8" style={{ flexWrap: "wrap" }}>
             <span className="input" style={{ height: 34, width: "auto" }}><ShopifyLogo size={14} /><b className="w5">{shopName}</b><span className="i3">.myshopify.com</span></span>
-            {free === true && <span className="pill green" style={{ height: 22, fontSize: 11 }}>Available</span>}
-            {free === false && !connected && <span className="pill amber" style={{ height: 22, fontSize: 11 }}>Taken — pick another in Shopify</span>}
+            <span className="xs i3">Suggested name</span>
             <CopyButton text={shopName} label="Copy name" />
           </div>
           <ol className="xs i2" style={{ margin: 0, paddingLeft: 18, lineHeight: "19px" }}>
-            <li>Open the <a className="lnk w5 i1" href="https://dev.shopify.com/dashboard" target="_blank" rel="noreferrer">Shopify Dev Dashboard ↗</a> → <b>Stores</b> → <b>Create store</b>, and choose a <b>client transfer store</b> so it can be handed to {brand.name} later.</li>
-            <li>Name it <b>{shopName}</b>. Shopify doesn’t let apps create stores, so this one step is manual.</li>
-            <li>Or the brand creates it on <a className="lnk" href="https://www.shopify.com/free-trial" target="_blank" rel="noreferrer">shopify.com ↗</a> and shares the name.</li>
+            <li>Open the <a className="lnk w5 i1" href="https://dev.shopify.com/dashboard" target="_blank" rel="noreferrer">Shopify Dev Dashboard ↗</a> and switch to <b>the same organization as the Kaviar Shopify app</b> — the app only installs on stores in that organization.</li>
+            <li><b>Stores</b> → <b>Create store</b> → choose a <b>client transfer store</b> (so it can be handed to {brand.name} later) and name it <b>{shopName}</b>. Shopify doesn’t let apps create stores, so this one step is manual.</li>
+            <li>When the store opens, copy the link from the browser — <b>admin.shopify.com/store/…</b>. Shopify sometimes changes the name, and that link has the exact one. Paste it in step 2.</li>
           </ol>
         </Step>
 
         <Step n={2} done={connected} title="Connect it to Kaviar" who={<><AgentFace kind="catalog" size={13} />Cleo</>}>
           {connected ? <span className="row g6 sm c-green"><Icon name="check-circle" size={14} weight="fill" color="#1F8A5B" />Connected to {conns.shopify?.externalId}</span> : (
-            <div className="row g8"><ConnectAction kind="shopify" label="Connect the new store" dark slug={slug} shop={`${shopName}.myshopify.com`} scopes={scopes} ready={env.shopifyConfigured()} /><span className="xs i3">Approve the Kaviar app in the new store’s admin.</span></div>
+            <div className="row g8"><ConnectAction kind="shopify" label="Connect the new store" dark slug={slug} shop={`${shopName}.myshopify.com`} reconnect={false} scopes={scopes} ready={env.shopifyConfigured()} /><span className="xs i3">Paste the admin link from step 1, then approve the Kaviar app in the new store. If Shopify says “This store will be right back”, the name doesn’t match a live store yet.</span></div>
           )}
         </Step>
 

@@ -20,8 +20,8 @@ type Kind = "shopify" | "meta" | "choose" | "disconnect-shopify" | "disconnect-m
 const Check = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2, flexShrink: 0 }}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>;
 
 /** One button that opens the right modal (Connect / Reconnect / Choose account / Disconnect). */
-export function ConnectAction({ kind, label, slug, dark, shop, scopes, accounts, ready }: {
-  kind: Kind; label: string; slug: string; dark?: boolean; shop?: string | null; scopes?: string[]; accounts?: Account[]; ready: boolean;
+export function ConnectAction({ kind, label, slug, dark, shop, scopes, accounts, ready, reconnect }: {
+  kind: Kind; label: string; slug: string; dark?: boolean; shop?: string | null; scopes?: string[]; accounts?: Account[]; ready: boolean; reconnect?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
@@ -30,7 +30,7 @@ export function ConnectAction({ kind, label, slug, dark, shop, scopes, accounts,
       <button type="button" className={`btn sm${dark ? " dark" : ""}`} onClick={() => setOpen(true)} style={kind.startsWith("disconnect") ? { color: "var(--ink-3)" } : undefined}>
         {/reconnect/i.test(label) && <Icon name="refresh" size={13} color={dark ? "#fff" : undefined} />}{label.replace(/^↻\s*/, "")}
       </button>
-      {open && kind === "shopify" && <ShopifyModal slug={slug} shop={shop} scopes={scopes ?? []} ready={ready} onClose={close} />}
+      {open && kind === "shopify" && <ShopifyModal slug={slug} shop={shop} reconnect={reconnect ?? /reconnect/i.test(label)} scopes={scopes ?? []} ready={ready} onClose={close} />}
       {open && kind === "meta" && <MetaModal slug={slug} ready={ready} onClose={close} />}
       {open && kind === "choose" && <ChooseModal slug={slug} accounts={accounts ?? []} onClose={close} />}
       {open && kind.startsWith("disconnect") && <DisconnectModal slug={slug} provider={kind === "disconnect-shopify" ? "shopify" : "meta"} onClose={close} />}
@@ -42,15 +42,17 @@ function NotReady({ provider }: { provider: string }) {
   return <div className="notice amber"><span>{provider} isn’t set up for Kaviar yet. Once an owner adds the Kaviar {provider} app, connecting works from here.</span></div>;
 }
 
-function ShopifyModal({ slug, shop, scopes, ready, onClose }: { slug: string; shop?: string | null; scopes: string[]; ready: boolean; onClose: () => void }) {
+function ShopifyModal({ slug, shop, reconnect, scopes, ready, onClose }: { slug: string; shop?: string | null; reconnect: boolean; scopes: string[]; ready: boolean; onClose: () => void }) {
   const [v, setV] = useState((shop ?? "").replace(/\.myshopify\.com$/, ""));
-  // Either the store's own domain (percentscience.com) or its Shopify name (brand-name / brand-name.myshopify.com).
-  const raw = v.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+  // The store's own domain (percentscience.com), its Shopify name (brand-name / brand-name.myshopify.com),
+  // or the admin link copied from the browser (admin.shopify.com/store/brand-name).
+  const adminHandle = v.match(/admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)/i)?.[1];
+  const raw = adminHandle ? adminHandle.toLowerCase() : v.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
   const isDomain = raw.includes(".") && !raw.endsWith(".myshopify.com");
   const name = isDomain ? raw : raw.replace(/\.myshopify\.com$/, "").replace(/[^a-z0-9-]/g, "");
   const shopValue = !name ? "" : isDomain ? name : `${name}.myshopify.com`;
   return (
-    <Modal icon={<ShopifyLogo size={18} />} title={shop ? "Reconnect Shopify" : "Connect Shopify store"} sub="The store owner approves access in Shopify. Takes about 2 minutes." onClose={onClose} width={560}
+    <Modal icon={<ShopifyLogo size={18} />} title={reconnect ? "Reconnect Shopify" : "Connect Shopify store"} sub="The store owner approves access in Shopify. Takes about 2 minutes." onClose={onClose} width={560}
       footer={<><span className="xs i3 fill">Never edits orders, products or the live theme</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
         <button form="shopify-connect" className="btn dark" disabled={!ready || name.length < 2}>Continue to Shopify →</button></>}>
       <form id="shopify-connect" action="/api/shopify/install" method="get" className="col g14">
@@ -63,7 +65,7 @@ function ShopifyModal({ slug, shop, scopes, ready, onClose }: { slug: string; sh
               <input value={v} onChange={(e) => setV(e.target.value)} placeholder="brand.com or brand-name" autoFocus style={{ border: 0, outline: 0, flex: 1, minWidth: 0, fontSize: 13, background: "transparent" }} /></span>
             {!isDomain && <span className="sm i3" style={{ padding: "0 12px", height: "100%", display: "flex", alignItems: "center", background: "var(--tray)", borderLeft: "1px solid var(--line)" }}>.myshopify.com</span>}
           </div>
-          <span className="xs i3">Type the store’s website (brand.com) — Kaviar finds its Shopify address — or the name before .myshopify.com.</span>
+          <span className="xs i3">Paste the store’s admin link (admin.shopify.com/store/…), its website (brand.com), or the name before .myshopify.com.</span>
         </label>
         <div className="col g6" style={{ padding: 12, borderRadius: 10, background: "var(--tray)", border: "1px solid var(--line)" }}>
           <span className="sm w5">Permissions requested</span>

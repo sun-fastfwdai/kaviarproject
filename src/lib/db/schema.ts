@@ -342,7 +342,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -445,7 +445,8 @@ export type StoreContent = {
   nav: string[];
   aboutPage: string;
 };
-export type BuildTask = { key: string; label: string; agent: "iris" | "cleo" | "remy" | "otto"; status: "waiting" | "running" | "done" | "error"; detail: string };
+// "needs" = waiting on a person (a photo, a merchant approval, the final review); ms = how long the stage took.
+export type BuildTask = { key: string; label: string; agent: "iris" | "cleo" | "remy" | "otto" | "you"; status: "waiting" | "running" | "done" | "error" | "needs"; detail: string; ms?: number; at?: string };
 export const storeBuilds = pgTable("store_builds", {
   brandId: uuid("brand_id").primaryKey().references(() => brands.id, { onDelete: "cascade" }),
   theme: text("theme").notNull().default("kaviar-starter"),
@@ -454,7 +455,42 @@ export const storeBuilds = pgTable("store_builds", {
   tasks: jsonb("tasks").$type<BuildTask[]>().notNull().default([]),
   content: jsonb("content").$type<StoreContent>(),
   approved: jsonb("approved").$type<string[]>().notNull().default([]),
+  // Every revision of the content (for undo and Compare), what changed and who, and comments pinned to sections.
+  history: jsonb("history").$type<{ rev: number; at: string; content: StoreContent }[]>().notNull().default([]),
+  log: jsonb("log").$type<{ rev: number; at: string; who: string; agent: "remy" | "cleo" | "otto" | "iris" | "you"; what: string; scope: string | null }[]>().notNull().default([]),
+  comments: jsonb("comments").$type<{ id: string; at: string; who: string; section: string; text: string; done?: boolean }[]>().notNull().default([]),
   startedAt: tz("started_at"),
   finishedAt: tz("finished_at"),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------- Shoots: the brand's node flow (board 17c), shared by the whole team
+export type ShootSource = "product" | "data" | "brand" | "wins" | "none";
+export type ShootFlow = {
+  template: string | null; // the data signal the shoot is built on (lapsed, reorder, best-sellers…)
+  product: string | null; // the product photo the models keep (its Shopify image URL)
+  off: string[]; // optional nodes taken off the canvas
+  rules: { text: string; on: boolean }[]; // how the signal shapes the scene
+  brandRules: string[];
+  strict: boolean; // brand kit: strict or loose
+  strongOnly: boolean; // what wins: strong lessons only
+  rerun: boolean; // flag the flow when the signal's number changes
+  reference: { id: string; note: string; close: boolean } | null;
+  prompt: string;
+  segments: { text: string; source: ShootSource }[] | null; // Remy's prompt, phrase by phrase, tagged with its input
+  promptFor: string | null; // the inputs the prompt was written from
+  length: "short" | "medium" | "detailed";
+  scene: string;
+  aspect: "4:5" | "9:16" | "1:1";
+  n: number;
+  video: { move: string; seconds: 5 | 10; aspect: "9:16" | "1:1"; n: number; from: string | null };
+  send: string | null; // batch id; null = brand assets
+  picked: string[] | null; // photos picked to send; null = the ones Otto passed
+  last: { at: string; photos: string[]; clips: string[]; flagged: number; cost: number; value: string | null } | null;
+};
+export const shootFlows = pgTable("shoot_flows", {
+  brandId: uuid("brand_id").primaryKey().references(() => brands.id, { onDelete: "cascade" }),
+  flow: jsonb("flow").$type<ShootFlow>().notNull(),
+  updatedBy: uuid("updated_by").references(() => members.id, { onDelete: "set null" }),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });

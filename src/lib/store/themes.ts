@@ -52,11 +52,11 @@ async function starterLink(): Promise<string> {
   return `${storage()!.url}/storage/v1${signedURL}`;
 }
 
-export type StoreTheme = { id: string; name: string; role: string; processing: boolean; updatedAt: string };
+export type StoreTheme = { id: string; name: string; role: string; processing: boolean; updatedAt: string; themeStoreId?: number | null };
 
 /** Themes in the brand's store, straight from Shopify (needs read_themes). */
 export async function storeThemes(connectionId: string): Promise<StoreTheme[]> {
-  const r = await shopifyGraphql<{ themes: { nodes: StoreTheme[] } }>(connectionId, `{ themes(first: 20) { nodes { id name role processing updatedAt } } }`, {});
+  const r = await shopifyGraphql<{ themes: { nodes: StoreTheme[] } }>(connectionId, `{ themes(first: 30) { nodes { id name role processing updatedAt themeStoreId } } }`, {});
   return r.themes.nodes;
 }
 

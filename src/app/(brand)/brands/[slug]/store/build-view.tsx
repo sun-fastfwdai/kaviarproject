@@ -41,7 +41,7 @@ export function BuildView({ slug, step, brand, currency, tasks, content, product
           {tasks.map((t, i) => (
             <div key={t.key} className="row top g8" style={{ padding: "6px 0" }}>
               <span style={{ marginTop: 1 }}>{t.status === "done" ? <Icon name="check-circle" size={15} weight="fill" color="#1F8A5B" /> : t.status === "running" ? <Icon name="spinner" size={15} className="spin" /> : t.status === "error" ? <Icon name="warning-circle" size={15} color="#B7791F" /> : <Icon name="circle" size={15} color="#D9D6D1" />}</span>
-              <div className="col" style={{ minWidth: 0 }}><span className={`sm ${t.status === "waiting" ? "i3" : "i1"}`}>{String(i + 1).padStart(2, "0")} · {t.label}</span><span className="row g4 xs i3"><AgentFace kind={AG[t.agent]} size={11} />{t.detail || "waiting"}</span></div>
+              <div className="col" style={{ minWidth: 0 }}><span className={`sm ${t.status === "waiting" ? "i3" : "i1"}`}>{String(i + 1).padStart(2, "0")} · {t.label}</span><span className="row g4 xs i3">{t.agent !== "you" && <AgentFace kind={AG[t.agent]} size={11} />}{t.detail || "waiting"}</span></div>
             </div>
           ))}
           {tasks.length === 0 && <span className="xs i3">Starting…</span>}

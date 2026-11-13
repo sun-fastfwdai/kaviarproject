@@ -7,13 +7,12 @@ import { getNotes } from "@/lib/ai/notes";
 import { aiReady } from "@/lib/ai/client";
 import { buildSignals, type SignalRow } from "@/lib/signals/build";
 import { ago } from "@/lib/format";
-import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { LoopStrip } from "@/components/loop-strip";
 import { NeedsSource, SidePanel } from "@/components/ui";
 import { BatchArt, EmptyState } from "@/components/empty";
-import { CreativeTabs } from "./tabs";
+import { StudioBar, reviewCount } from "./tabs";
 import { BuildPlanButton, IdeaForm } from "./forms";
 
 export const metadata = { title: "Creative studio" };
@@ -29,8 +28,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
-  const crumbs = [{ label: brand.name, href: base }, { label: "Growth" }, { label: "Creative studio" }];
-  if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ads from the store’s data" /></div></>);
+  if (!conns.shopify) return (<><StudioBar base={base} brand={brand.name} on="plan" /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ads from the store’s data" /></div></>);
 
   const [d, notes, batches] = await Promise.all([
     signalData(brand.id, brand.timezone), getNotes(brand.id),
@@ -49,6 +47,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   };
   const plans = rows.filter((r) => PLAN_ORDER.includes(r.key)).sort((a, b) => score(a) - score(b)).slice(0, 3);
   const toReview = batches.reduce((a, b) => a + b.review, 0);
+  const newPlans = plans.filter((p) => !batches.some((b) => b.signal === p.key)).length;
   const groups: [string, typeof batches][] = [
     ["Needs your review", batches.filter((b) => b.review > 0)],
     ["Ready to test", batches.filter((b) => b.review === 0 && b.approved > 0)],
@@ -57,8 +56,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
 
   return (
     <>
-      <Bar crumbs={crumbs}><LoopStrip base={base} step={2} /></Bar>
-      <CreativeTabs base={base} on={tab === "plan" ? "plan" : "batches"} toReview={toReview} />
+      <StudioBar base={base} brand={brand.name} on={tab === "plan" ? "plan" : "batches"} counts={{ ...reviewCount(toReview), ...(newPlans ? { plan: `${newPlans} new` } : {}) }}><LoopStrip base={base} step={2} /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px", gap: 16 }}>
           {!aiReady() && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}

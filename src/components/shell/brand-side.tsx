@@ -5,7 +5,9 @@ import { SearchBox } from "./search";
 import { searchItems } from "./search-items";
 import { Icon } from "../icon";
 import { NavLink } from "./nav-link";
-import { MemberFoot, Wordmark } from "./parts";
+import { BrandThumb, MemberFoot, Wordmark } from "./parts";
+import { RailLink, SideSwitch } from "./side-switch";
+import Link from "next/link";
 
 export async function BrandSide({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -13,7 +15,29 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const brand = await getBrand(slug);
   const [thumb, all] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex()]);
   const base = `/brands/${slug}`;
-  return (
+  const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
+    [base, "Overview", "home"], [`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`],
+    [`${base}/integrations`, "Integrations", "plug"], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`],
+    [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Performance", "chart-bar", `${base}/performance`],
+  ];
+  const rail = (
+    <aside className="col" style={{ width: 60, flexShrink: 0, alignItems: "center", padding: "14px 0 12px", gap: 12 }} aria-label="Navigation">
+      <Link href="/brands" className="wordmark" style={{ padding: 0 }} title="All brands" aria-label="All brands">
+        <div className="m" style={{ width: 22, height: 22, borderRadius: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4v16M18 4 8 12l10 8" /></svg>
+        </div>
+      </Link>
+      <Link href={base} title={brand.name} style={{ marginTop: 4 }}><BrandThumb name={brand.name} imageUrl={thumb} size={30} /></Link>
+      <div className="hr" style={{ width: 24, alignSelf: "center" }} />
+      <div className="col g4" style={{ alignItems: "center" }}>
+        {railItems.map(([href, label, icon, match], i) => (
+          <RailLink key={i} href={href} label={label} match={match}><Icon name={icon} size={17} /></RailLink>
+        ))}
+      </div>
+      <div style={{ marginTop: "auto" }} className="av l k" title={member.name}>{member.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase()}</div>
+    </aside>
+  );
+  return <SideSwitch rail={rail} full={(
     <aside className="side">
       <Wordmark />
       <BrandSwitcher current={{ slug: brand.slug, name: brand.name, category: brand.category ?? (brand.isSample ? "Sample data" : null), thumb }} brands={all} />
@@ -39,5 +63,5 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
       </nav>
       <MemberFoot member={member} />
     </aside>
-  );
+  )} />;
 }

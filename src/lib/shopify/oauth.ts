@@ -6,6 +6,8 @@ export const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 /** Accepts "jmella", "jmella.myshopify.com" or "https://jmella.myshopify.com/admin". */
 export function normalizeShop(input: string | null | undefined): string | null {
   if (!input) return null;
+  const admin = input.match(/admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)/i);
+  if (admin) return `${admin[1].toLowerCase()}.myshopify.com`;
   let s = input.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
   if (!s.includes(".")) s = `${s}.myshopify.com`;
   return SHOP_RE.test(s) ? s : null;

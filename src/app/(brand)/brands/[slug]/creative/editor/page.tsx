@@ -2,10 +2,9 @@ import Link from "next/link";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
-import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { LoopStrip } from "@/components/loop-strip";
-import { CreativeTabs } from "../tabs";
+import { StudioBar } from "../tabs";
 import { EditorArt, EmptyState } from "@/components/empty";
 import { Editor } from "./editor";
 
@@ -20,7 +19,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/b
   const [ad] = typeof want === "string" && /^[0-9a-f-]{36}$/i.test(want)
     ? await db.select().from(A).where(and(eq(A.id, want), eq(A.brandId, brand.id))).limit(1)
     : await db.select().from(A).where(and(eq(A.brandId, brand.id), sql`${A.status} <> 'rejected'`)).orderBy(desc(A.updatedAt)).limit(1);
-  const head = (<><Bar crumbs={[{ label: brand.name, href: base }, { label: "Creative studio", href: `${base}/creative` }, { label: "Editor" }]}><LoopStrip base={base} step={2} /></Bar><CreativeTabs base={base} on="editor" /></>);
+  const head = <StudioBar base={base} brand={brand.name} on="editor"><LoopStrip base={base} step={2} /></StudioBar>;
   if (!ad) return (<>{head}<div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Editor" title="Design an ad, then download it for Meta"
       body="The Editor opens any ad Remy wrote. Move the headline, swap in a product photo or a Shoots image, add the logo, an offer badge and a button — and download all three Meta sizes as PNGs."

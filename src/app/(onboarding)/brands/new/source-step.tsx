@@ -71,7 +71,8 @@ export function SourceStep({ draft, scopes, shopifyReady, connected, error, init
   const [never, setNever] = useState(false);
   const [state, action, pending] = useActionState<ActionState, FormData>(startBrand, undefined);
 
-  const raw = shop.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+  const adminHandle = shop.match(/admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)/i)?.[1];
+  const raw = adminHandle ? adminHandle.toLowerCase() : shop.trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0];
   const isDomain = raw.includes(".") && !raw.endsWith(".myshopify.com");
   const shopName = isDomain ? raw : raw.replace(/\.myshopify\.com$/, "").replace(/[^a-z0-9-]/g, "");
   const shopValue = !shopName ? "" : isDomain ? shopName : `${shopName}.myshopify.com`;

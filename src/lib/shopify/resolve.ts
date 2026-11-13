@@ -23,7 +23,7 @@ async function get(url: string, redirect: "follow" | "manual") {
 export async function resolveShopDomain(input: string | null | undefined): Promise<string | null> {
   if (!input) return null;
   const direct = normalizeShop(input);
-  if (direct && input.includes(".myshopify.com")) return direct;
+  if (direct && (input.includes(".myshopify.com") || /admin\.shopify\.com\/store\//i.test(input))) return direct;
   if (!input.includes(".")) return direct; // bare store name → name.myshopify.com
   const host = publicHost(input);
   if (!host) return null;

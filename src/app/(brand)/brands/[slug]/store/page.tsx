@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getBrand, getConnections } from "@/lib/queries/brands";
@@ -9,10 +10,13 @@ import { AgentFace } from "@/components/agent";
 import { NeedsSource } from "@/components/ui";
 import { StoreSetup } from "./setup";
 import { BuildView } from "./build-view";
+import { BuildCanvas } from "./build-canvas";
+import { STORE_APPS } from "../integrations/apps";
 import type { Look } from "./preview";
 import type { ThemeState } from "./themes-ui";
 import { requireMember } from "@/lib/auth";
 import { starterInfo, storageReady, storeThemes } from "@/lib/store/themes";
+import { themeStorePreview } from "@/lib/store/theme-previews";
 
 export const metadata = { title: "Store builder" };
 export const maxDuration = 180;
@@ -32,11 +36,17 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
   const canRead = Boolean(shopConn?.scopes.some((s) => s === "read_themes" || s === "write_themes"));
   let themesList: ThemeState["themes"] = [], themesError: string | null = null;
   if (shopConn && canRead) {
-    try { themesList = await storeThemes(shopConn.id); } catch (e) { themesError = `Couldn’t read the store’s themes: ${(e as Error).message.slice(0, 120)}`; }
+    try {
+      const raw = await storeThemes(shopConn.id);
+      const previews = await Promise.all(raw.map((t) => themeStorePreview(t.name)));
+      themesList = raw.map((t, i) => ({ id: t.id, name: t.name, role: t.role, processing: t.processing, fromThemeStore: Boolean(t.themeStoreId) || Boolean(previews[i]), preview: previews[i] }));
+    } catch (e) { themesError = `Couldn’t read the store’s themes: ${(e as Error).message.slice(0, 120)}`; }
   }
   const themes: ThemeState = { starter: await starterInfo().catch(() => null), storageReady: storageReady(), canRead, canWrite: Boolean(shopConn?.scopes.includes("write_themes")),
     themes: themesList, themesError, shop: shopConn?.externalId ?? null, owner: me.role === "owner" };
   const step = sp.step === "review" && build?.content ? "review" : sp.step === "build" && build ? "build" : build?.content && sp.step !== "setup" ? "build" : "setup";
+  // The step lives in the URL so the shell knows to show the icon rail (boards 05/06) instead of the sidebar.
+  if (sp.step !== step) redirect(`${base}/store?step=${step}`);
   const products = await storeProducts(brand.id);
   const ob = brand.onboarding ?? {};
   const pal = ob.analysis?.palette ?? [];
@@ -54,6 +64,15 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
     return can ? <Link key={k} href={`?step=${k}`} className={`o${step === k ? " on" : ""}`}>{doneTab ? <Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" /> : null}{k[0].toUpperCase() + k.slice(1)}</Link>
       : <span key={k} className="o" style={{ opacity: 0.45 }}>{k[0].toUpperCase() + k.slice(1)}</span>;
   });
+
+  if (step === "build" && build) {
+    const appsWaiting = STORE_APPS.filter((a) => build.apps[a.key] && a.who === "Merchant" && brand.integrations?.[a.key]?.status !== "connected").map((a) => a.name);
+    return (
+      <BuildCanvas slug={slug} brand={brand.name} category={brand.category ?? null} currency={brand.currency} tasks={build.tasks} content={c ?? null} products={products} look={look}
+        hero={products.find((p) => p.image)?.image ?? null} running={running} startedAt={build.startedAt?.toISOString() ?? null} finishedAt={build.finishedAt?.toISOString() ?? null}
+        approved={build.approved} log={build.log} comments={build.comments} history={build.history} qa={qa} appsWaiting={appsWaiting} setupDone />
+    );
+  }
 
   return (
     <>

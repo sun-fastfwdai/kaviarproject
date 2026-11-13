@@ -55,7 +55,7 @@ a { color: inherit; text-decoration: none; }
 .top { align-items: flex-start; }
 .stretch { align-items: stretch; }
 .center { justify-content: center; }
-.g2{gap:2px}.g4{gap:4px}.g6{gap:6px}.g8{gap:8px}.g10{gap:10px}.g12{gap:12px}
+.g2{gap:2px}.g4{gap:4px}.g6{gap:6px}.g8{gap:8px}.g10{gap:10px}.g12{gap:12px}.g14{gap:14px}.g18{gap:18px}
 .g16{gap:16px}.g20{gap:20px}.g24{gap:24px}.g32{gap:32px}.g40{gap:40px}.g48{gap:48px}
 
 /* ---------- Artboard + shell ---------- */
@@ -316,3 +316,8 @@ details > summary::-webkit-details-marker { display: none; }
 
 /* Long labels in empty-state buttons truncate instead of running off the card */
 .empty-actions .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Theme carousel: one row, snaps card by card, thin scrollbar */
+.theme-rail { scrollbar-width: thin; }
+.theme-rail::-webkit-scrollbar { height: 6px; }
+.theme-rail::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }

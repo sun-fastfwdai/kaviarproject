@@ -1,23 +1,29 @@
 import Link from "next/link";
 import { Icon } from "./icon";
 
+// The growth loop (Sun's repeating operation): [path, label, what this step does].
 const LOOP: [string, string, string][] = [
-  ["Find what the store data says", "signals", "Ad signals"],
-  ["Turn a signal into ads", "creative", "Creative studio"],
-  ["Launch a small, safe test", "run", "Run ads"],
-  ["See what really sold", "performance", "Performance"],
-  ["Optimize & repeat", "optimize", "Optimize"],
+  ["signals", "Ad signals", "Find what the store data says"],
+  ["creative", "Creative studio", "Turn a signal into ads"],
+  ["run", "Run ads", "Launch a small, safe test"],
+  ["performance", "Performance", "See what really sold"],
+  ["optimize", "Optimize & repeat", "Fix what isn’t working, go again"],
 ];
 
-/** The growth loop strip from boards 15–19: where this screen sits and what comes next. */
+/** Board header chip (lib.step_pill): which loop step this screen is, what it is for, and what comes next. */
 export function LoopStrip({ base, step }: { base: string; step: 1 | 2 | 3 | 4 | 5 }) {
-  const [title] = LOOP[step - 1];
-  const [, nextPath, nextLabel] = step === 5 ? ["", "signals", "Back to Ad signals"] : LOOP[step];
+  const i = step - 1;
+  const [, , doing] = LOOP[i];
+  const again = i === LOOP.length - 1;
+  const [nextPath, nextLabel] = LOOP[(i + 1) % LOOP.length];
   return (
-    <span className="row g8 xs" style={{ padding: "3px 4px 3px 10px", border: "1px solid var(--line)", borderRadius: 99, background: "#fff" }}>
-      <span className="row g2">{LOOP.map((_, i) => <i key={i} style={{ width: i === step - 1 ? 14 : 6, height: 6, borderRadius: 99, background: i < step ? "var(--ink)" : "var(--line-2)" }} />)}</span>
-      <span className="i3">Step {step} of 5</span><b className="w5 i1">{title}</b>
-      <Link href={`${base}/${nextPath}`} className="row g4 i2" style={{ padding: "2px 8px", borderRadius: 99, background: "var(--tray)" }}>Next: {nextLabel}<Icon name="arrow-r" size={11} /></Link>
-    </span>
+    <div className="row g10" style={{ height: 30, padding: "0 6px 0 10px", border: "1px solid var(--line)", borderRadius: 99, background: "var(--tray)", whiteSpace: "nowrap", flexShrink: 0 }}>
+      <span className="row g4">{LOOP.map((_, j) => <i key={j} style={{ width: j === i ? 14 : 6, height: 6, borderRadius: 99, background: j === i ? "#121212" : j < i ? "#1F8A5B" : "#D9D6D1" }} />)}</span>
+      <span className="xs i3">Step {step} of {LOOP.length}</span>
+      <span className="xs w5 i1">{doing}</span>
+      <Link href={`${base}/${nextPath}`} className="row g4" style={{ height: 22, padding: "0 9px", borderRadius: 99, background: "#fff", border: "1px solid var(--line)", fontSize: 11.5, color: "var(--ink-2)" }}>
+        {again ? `Back to ${nextLabel}` : `Next: ${nextLabel}`}<Icon name={again ? "repeat" : "arrow-r"} size={11} color="#55534F" />
+      </Link>
+    </div>
   );
 }

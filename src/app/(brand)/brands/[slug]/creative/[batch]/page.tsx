@@ -3,11 +3,10 @@ import { notFound } from "next/navigation";
 import { getBrand } from "@/lib/queries/brands";
 import { batchWithAds, brandCodes } from "@/lib/creative/remy";
 import { ago } from "@/lib/format";
-import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { LoopStrip } from "@/components/loop-strip";
-import { CreativeTabs } from "../tabs";
+import { StudioBar, reviewCount } from "../tabs";
 import { BatchReview } from "./review";
 
 export const metadata = { title: "Creative studio · Batch" };
@@ -26,10 +25,10 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
 
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: base }, { label: "Creative studio", href: `${base}/creative` }, { label: batch.title }]}>
+      <StudioBar base={base} brand={brand.name} on="batches" counts={reviewCount(ads.filter((a) => a.status === "review").length)}
+        crumbs={[{ label: brand.name, href: base }, { label: "Creative studio", href: `${base}/creative` }, { label: batch.title }]}>
         <LoopStrip base={base} step={2} />
-      </Bar>
-      <CreativeTabs base={base} on="batches" />
+      </StudioBar>
       <div className="col g10" style={{ padding: "16px 24px 0" }}>
         <div className="row between" style={{ alignItems: "flex-end" }}>
           <div className="col g4">
