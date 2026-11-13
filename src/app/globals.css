@@ -325,3 +325,13 @@ details > summary::-webkit-details-marker { display: none; }
 /* Plan chat: Remy's typing dots */
 @keyframes pulse-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
 .pulse-dot { animation: pulse-dot 1s ease-in-out infinite; }
+
+/* Shoots canvas: data flowing along a wire into the node that's working; running node bar; thumbnail hover */
+@keyframes wire-flow { to { stroke-dashoffset: -24; } }
+.wire-flow { stroke-dasharray: 7 7; animation: wire-flow .6s linear infinite; }
+@keyframes run-bar { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+.run-bar { position: relative; height: 2px; overflow: hidden; background: rgba(26,167,200,.14); flex-shrink: 0; }
+.run-bar::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: #1AA7C8; animation: run-bar 1.1s ease-in-out infinite; }
+.thumb-hover .thumb-expand { display: none; }
+.thumb-hover:hover .thumb-expand { display: flex; }
+.thumb-hover:hover .thumb-play { opacity: 0; }

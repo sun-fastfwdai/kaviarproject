@@ -60,6 +60,19 @@ export async function hfRun(model: string, input: Record<string, unknown>, timeo
   return { error: "Higgsfield is taking longer than usual — it’ll show up in the next run." };
 }
 
+/** Submit without waiting (long renders): the canvas polls `hfStatus` and the finished file is saved then. */
+export async function hfSubmit(model: string, input: Record<string, unknown>): Promise<{ requestId?: string; error?: string }> {
+  const sub = await hfFetch(`/${model}`, { method: "POST", headers: { ...headers(), "Idempotency-Key": randomUUID() }, body: JSON.stringify(input) });
+  if (!sub.ok) return { error: await reason(sub) };
+  const { request_id } = (await sub.json()) as { request_id: string };
+  return { requestId: request_id };
+}
+export async function hfStatus(requestId: string): Promise<Status | { error: string }> {
+  const r = await hfFetch(`/requests/${encodeURIComponent(requestId)}/status`, { headers: headers(false) });
+  if (!r.ok) return { error: r.status === 404 ? "Higgsfield lost the request." : await reason(r) };
+  return (await r.json()) as Status;
+}
+
 /** What a job would cost in USD for this account (Higgsfield's /estimate). */
 export async function hfEstimate(model: string, input: Record<string, unknown>): Promise<number | null> {
   try {
@@ -91,17 +104,19 @@ export async function hfDownload(url: string): Promise<{ data: Buffer; mime: str
 }
 
 /** Prices for the canvas (per photo, per video second), from Higgsfield's estimate; cached for a few hours. */
-export async function hfPrices(): Promise<{ photo: number; videoSecond: number; soundSecond: number } | null> {
+export async function hfPrices(): Promise<{ photo: number; videoSecond: number; soundSecond: number; res: Record<"480p" | "720p" | "1080p", number> } | null> {
   "use cache";
   cacheLife("hours");
   if (!hfReady()) return null;
-  const [photo, video, silent] = await Promise.all([
+  const v = (resolution: string, audio: boolean) => hfEstimate(HF_VIDEO, { image_url: "https://example.com/a.jpg", duration: 5, resolution, generate_audio: audio });
+  const [photo, video, silent, low, high] = await Promise.all([
     hfEstimate(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }),
-    hfEstimate(HF_VIDEO, { image_url: "https://example.com/a.jpg", duration: 5, resolution: "720p", generate_audio: true }),
-    hfEstimate(HF_VIDEO, { image_url: "https://example.com/a.jpg", duration: 5, resolution: "720p", generate_audio: false }),
+    v("720p", true), v("720p", false), v("480p", false), v("1080p", false),
   ]);
   if (photo == null || video == null) return null;
-  return { photo, videoSecond: (silent ?? video) / 5, soundSecond: Math.max(0, video - (silent ?? video)) / 5 };
+  const base = silent ?? video;
+  // Price multiplier per quality tier, relative to 720p.
+  return { photo, videoSecond: base / 5, soundSecond: Math.max(0, video - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
 }
 
 /** Width/height of a PNG or JPEG, to keep an edit's framing. */

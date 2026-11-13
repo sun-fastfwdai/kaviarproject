@@ -23,12 +23,12 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const brand = await getBrand(slug);
   const base = `/brands/${slug}`;
   const A = schema.brandAssets;
-  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices] = await Promise.all([
+  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices, characters] = await Promise.all([
     db.execute(sql`select p.title, p.image_url as url, p.total_inventory as stock,
         (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
       from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' order by p.total_inventory desc nulls last limit 40`),
     db.select({ id: A.id, mime: A.mime, meta: A.meta, createdAt: A.createdAt }).from(A)
-      .where(and(eq(A.brandId, brand.id), sql`(${A.meta}->>'ai')::boolean`)).orderBy(desc(A.createdAt)).limit(60),
+      .where(and(eq(A.brandId, brand.id), sql`(${A.meta}->>'ai')::boolean`, sql`${A.kind} <> 'character'`)).orderBy(desc(A.createdAt)).limit(60),
     shootsThisMonth(brand.id),
     db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal,
       n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected')::int`,
@@ -40,6 +40,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
       .orderBy(desc(A.createdAt)).limit(24),
     shootEngines(),
     db.select({ id: A.id, name: A.name, meta: A.meta }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "voice"))).orderBy(desc(A.createdAt)).limit(12),
+    db.select({ id: A.id, name: A.name, meta: A.meta, createdAt: A.createdAt }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "character"))).orderBy(desc(A.createdAt)).limit(24),
   ]);
   const signals = buildSignals(base, brand, d, notes).filter((r) => (r.status === "ready" || r.status === "in-use") && SHOOT_SIGNALS.includes(r.key))
     .sort((a, b) => SHOOT_SIGNALS.indexOf(a.key) - SHOOT_SIGNALS.indexOf(b.key))
@@ -64,12 +65,13 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   return (
     <ShootStudio slug={slug} base={base} brand={brand.name} currency={brand.currency} autoRun={autoRun}
       initial={flow} preset={preset} savedAt={saved?.updatedAt.toISOString() ?? null} savedBy={savedBy}
+      characters={characters.map((c) => ({ id: c.id, name: c.name, description: c.meta.character?.description ?? "", uploaded: Boolean(c.meta.character?.uploaded), at: c.createdAt.toISOString() }))}
       engines={engines} voices={voices.map((v) => ({ id: v.id, name: v.name, seconds: v.meta.seconds ?? null, by: v.meta.consent?.by ?? null }))} perImage={engines.perImage} perVideoSecond={engines.perVideoSecond} month={month} toReview={batches.reduce((a, b) => a + b.review, 0)}
       batches={allBatches.map(({ id, title, n, signal }) => ({ id, title, n, signal }))} signals={signals}
       palette={(ob.analysis?.palette ?? []).map((p) => p.hex)} look={ob.profile?.palette?.value ?? null} tone={ob.profile?.tone?.value ?? null}
       lessons={(notes.insights?.lessons ?? []).map((l) => ({ dimension: l.dimension, lesson: l.lesson, evidence: l.evidence, strength: l.strength }))}
       products={list} refs={refs}
       shots={shots.map((s) => ({ id: s.id, kind: s.mime.startsWith("video/") ? "video" as const : "image" as const, product: s.meta.product ?? null, prompt: s.meta.prompt ?? null,
-        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString() }))} />
+        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound) }))} />
   );
 }

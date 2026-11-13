@@ -331,7 +331,7 @@ export const invites = pgTable(
 
 // ---------------------------------------------------------------- Brand assets uploaded during onboarding (deck, logos, imagery…)
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
-export type AssetKind = "deck" | "logo" | "imagery" | "video" | "guidelines" | "voice";
+export type AssetKind = "deck" | "logo" | "imagery" | "video" | "guidelines" | "voice" | "character";
 export const brandAssets = pgTable(
   "brand_assets",
   {
@@ -342,7 +342,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -465,7 +465,7 @@ export const storeBuilds = pgTable("store_builds", {
 });
 
 // ---------------------------------------------------------------- Shoots: the brand's node flow (board 17c), shared by the whole team
-export type ShootSource = "product" | "data" | "brand" | "wins" | "none";
+export type ShootSource = "product" | "data" | "brand" | "wins" | "character" | "none";
 /** Shoots v1: one of each node at fixed places (converted to the graph on load). */
 export type ShootFlowV1 = {
   template: string | null; product: string | null; off: string[]; rules: { text: string; on: boolean }[]; brandRules: string[]; strict: boolean; strongOnly: boolean; rerun: boolean;
@@ -474,9 +474,10 @@ export type ShootFlowV1 = {
   video: { move: string; seconds: 5 | 10; aspect: "9:16" | "1:1"; n: number; from: string | null }; send: string | null; picked: string[] | null;
   last: { at: string; photos: string[]; clips: string[]; flagged: number; cost: number; value: string | null } | null;
 };
-export type ShootNodeType = "product" | "data" | "brand" | "wins" | "reference" | "prompt" | "photo" | "video" | "sound" | "check" | "send";
+export type ShootNodeType = "product" | "character" | "data" | "brand" | "wins" | "reference" | "prompt" | "photo" | "video" | "sound" | "check" | "send";
 /** One node's settings; each type uses its own fields. `out` = asset ids its last run made. */
 export type ShootNodeCfg = {
+  characterId?: string | null;                                                  // character: the person (a character sheet or a real creator’s photo)
   product?: string | null; item?: { title: string; url: string; price: number | null; stock: number | null }; // product: its Shopify image URL (+ the row, when picked by search)
   signal?: string | null; rules?: { text: string; on: boolean }[]; rerun?: boolean; value?: string | null; // data signal (value = the number at the last run)
   strict?: boolean; brandRules?: string[];                                     // brand kit
@@ -488,6 +489,8 @@ export type ShootNodeCfg = {
   send?: string | null; picked?: string[] | null;                              // send to (null = brand assets)
   music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null; // voice + music (made with the clip; voiceId = a brand voice sample)
   out?: string[]; at?: string | null;
+  res?: "480p" | "720p" | "1080p";                                             // video quality
+  jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null }[]; // clips still rendering
 };
 export type ShootNode = { id: string; type: ShootNodeType; x: number; y: number; cfg: ShootNodeCfg };
 export type ShootEdge = { id: string; from: string; to: string; fh: string; th: string };

@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { HF_PHOTO, HF_VIDEO, HF_VIDEO_REF, hfDownload, hfPrices, hfReady, hfRun, hfUpload, imageSize, nearestRatio } from "./higgsfield";
+import { HF_PHOTO, HF_VIDEO, HF_VIDEO_REF, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, nearestRatio } from "./higgsfield";
 
 /** FLUX Kontext keeps the real product from the reference photo and builds the scene around it. */
 export const SHOOT_MODEL = "bfl/flux-kontext-pro";
@@ -17,33 +17,37 @@ export const COST_PER_VIDEO_SECOND = 0.042;
 
 /** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos, Seedance 2.0 clips with sound), else AI Gateway. */
 export async function shootEngines() {
-  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0 };
+  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: { "480p": 1, "720p": 1, "1080p": 1 } };
   const p = await hfPrices().catch(() => null);
-  return { photo: "Marketing Studio", video: "Seedance 2.0", via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: p?.videoSecond ?? 0.1, perSoundSecond: p?.soundSecond ?? 0 };
+  return { photo: "Marketing Studio", video: "Seedance 2.0", via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: p?.videoSecond ?? 0.1, perSoundSecond: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
 }
 
 export type PromptIn = {
   product: string; scene: string; length: "short" | "medium" | "detailed";
   signal?: { data: string; value: string | null; evidence: [string, string][] } | null;
   rules: string[]; brandRules: string[]; strict: boolean; lessons: string[]; reference?: { note: string; close: boolean } | null;
+  character?: { name: string; description: string } | null;
 };
-export type PromptOut = { segments: { text: string; source: "product" | "data" | "brand" | "wins" | "none" }[]; rules: string[] };
+export type PromptOut = { segments: { text: string; source: "product" | "data" | "brand" | "wins" | "character" | "none" }[]; rules: string[] };
 
 /** Remy writes the photo brief from every input, phrase by phrase, and says which input each phrase came from. */
 export async function writeShotPrompt(brandId: string, input: PromptIn): Promise<PromptOut | null> {
   const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
   const words = { short: 30, medium: 55, detailed: 85 }[input.length];
   const out = await ask("remy", {
-    system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image. Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
+    system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
+If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
+Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
     content: JSON.stringify({
       brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
       brandKit: { look: b?.onboarding?.profile?.palette?.value, tone: b?.onboarding?.profile?.tone?.value, rules: input.brandRules, follow: input.strict ? "strictly" : "loosely" },
       whoWillSeeIt: input.signal ? { signal: input.signal.data, data: input.signal.value, evidence: input.signal.evidence } : null,
       teamRules: input.rules, whatWinsForThisBrand: input.lessons,
       reference: input.reference ? { style: input.reference.note, follow: input.reference.close ? "closely" : "loosely" } : null,
+      character: input.character ?? null,
     }),
     schema: z.object({
-      segments: z.array(z.object({ text: z.string(), source: z.enum(["product", "data", "brand", "wins", "none"]) })),
+      segments: z.array(z.object({ text: z.string(), source: z.enum(["product", "data", "brand", "wins", "character", "none"]) })),
       rules: z.array(z.string()),
     }),
   });
@@ -64,7 +68,7 @@ export async function describeReference(brandId: string, assetId: string): Promi
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
-export async function shoot(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+export async function shoot(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
   if (hfReady()) return shootHiggsfield(brandId, memberId, input);
   const ref = await fetchPublic(input.imageUrl, 15_000, "image/*");
   if (!ref?.ok) return { ids: [], error: "Couldn’t load the product photo." };
@@ -91,13 +95,18 @@ export async function shoot(brandId: string, memberId: string, input: { product:
 }
 
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
-async function shootHiggsfield(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+async function shootHiggsfield(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
   const urls = [input.imageUrl];
+  let person = false;
+  if (input.characterId) {
+    const [c] = await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "character")));
+    if (c) { const u = await hfUpload(c.data, c.mime).catch(() => ""); if (u) { urls.push(u); person = true; } }
+  }
   if (input.referenceId) {
     const [r] = await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.referenceId), eq(schema.brandAssets.brandId, brandId)));
     if (r?.mime.startsWith("image/")) urls.push(await hfUpload(r.data, r.mime).catch(() => "")); 
   }
-  const text = `${input.prompt}\nThe first reference image is the real product: keep it exactly — same shape, label, colours and printed text.${urls.length > 1 ? " The second image is a style reference for light, mood and composition only." : ""} Photorealistic, no added text, logos or watermarks.`;
+  const text = `${input.prompt}\nReference image 1 is the real product: keep it exactly — same shape, label, colours and printed text.${person ? " Reference image 2 is a character sheet: the person in the photo must be that exact person — same face, hair, skin tone and build — shown once, naturally." : ""}${urls.length > (person ? 2 : 1) ? ` The last reference image is a style reference for light, mood and composition only.` : ""} Photorealistic, no added text, logos or watermarks.`;
   const body = { prompt: text.slice(0, 5000), image_urls: urls.filter(Boolean), aspect_ratio: input.aspect === "4:5" ? "3:4" : input.aspect, resolution: "2k", quality: "high", enhance_prompt: false };
   const price = (await hfPrices().catch(() => null))?.photo ?? null;
   const runs = await Promise.all(Array.from({ length: Math.min(4, Math.max(1, input.n)) }, () => hfRun(HF_PHOTO, body, 150_000)));
@@ -204,38 +213,6 @@ export async function checkShot(brandId: string, assetId: string, referenceUrl: 
 export async function shootVideo(brandId: string, memberId: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null }): Promise<{ id?: string; error?: string }> {
   const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.fromAssetId), eq(schema.brandAssets.brandId, brandId)));
   if (!a) return { error: "Pick a photo to start from." };
-  if (hfReady()) {
-    // Seedance 2.0: framing follows the start photo; with a Voice + music node wired in it makes the sound too.
-    try {
-      const url = await hfUpload(a.data, a.mime);
-      const withSound = Boolean(input.sound);
-      // A brand voice: Seedance's reference mode, with the photo as the image reference and the voice sample as the audio reference.
-      const [voice] = input.voiceId && withSound ? await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets)
-        .where(and(eq(schema.brandAssets.id, input.voiceId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "voice"))) : [];
-      const duration = Math.min(15, Math.max(4, input.seconds));
-      let r;
-      if (voice) {
-        const audio = await hfUpload(voice.data, "audio/wav");
-        const size = imageSize(a.data);
-        const ratio = size ? nearestRatio(size.w / size.h) : "9:16";
-        const prompt = `The reference image is the opening frame and the real product — keep the product exactly: same label, shape and colours. ${input.prompt}\nSubtle, natural motion. No added text.\nSound: ${input.sound}. The voice-over must use the speaker’s voice from the reference audio.`;
-        r = await hfRun(HF_VIDEO_REF, { image_urls: [url], audio_urls: [audio], prompt: prompt.slice(0, 4000), duration, resolution: "720p", aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16"].includes(ratio) ? ratio : "9:16", generate_audio: true }, 270_000);
-      } else {
-        const prompt = `${input.prompt}\nSubtle, natural motion. Keep the product exactly as in the first frame — same label and shape. No added text.${withSound ? `\nSound: ${input.sound}` : ""}`;
-        r = await hfRun(HF_VIDEO, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution: "720p", generate_audio: withSound }, 270_000);
-      }
-      const out = r.out?.video?.url;
-      if (!out) return { error: r.error ?? "No clip came back." };
-      const v = await hfDownload(out);
-      const p = await hfPrices().catch(() => null);
-      const cost = p ? input.seconds * (p.videoSecond + (withSound ? p.soundSecond : 0)) : null;
-      const [row] = await db.insert(schema.brandAssets).values({
-        brandId, kind: "video", name: `${(a.meta.product ?? "Product").slice(0, 40)} · clip`, mime: v.mime.startsWith("video/") ? v.mime : "video/mp4", size: v.data.byteLength, data: v.data,
-        meta: { ai: true, prompt: input.prompt.slice(0, 500), product: a.meta.product, seconds: input.seconds, engine: "Higgsfield · Seedance 2.0", sound: withSound, ...(voice ? { voice: input.voiceId! } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
-      }).returning({ id: schema.brandAssets.id });
-      return { id: row.id };
-    } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
-  }
   try {
     const r = await generateVideo({
       model: gateway.videoModel(VIDEO_MODEL),
@@ -265,4 +242,89 @@ export function wavSeconds(b: Buffer): number | null {
     i += 8 + size + (size % 2);
   }
   return null;
+}
+
+export type VideoJob = { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null };
+
+/** Higgsfield Seedance 2.0 clip, started in the background: framing follows the start photo; a wired Voice + music node adds sound; a brand voice uses reference mode. */
+export async function startVideoJob(brandId: string, input: { fromAssetId: string; prompt: string; seconds: number; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null }): Promise<{ job?: VideoJob; error?: string }> {
+  const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.fromAssetId), eq(schema.brandAssets.brandId, brandId)));
+  if (!a) return { error: "Pick a photo to start from." };
+  try {
+    const url = await hfUpload(a.data, a.mime);
+    const withSound = Boolean(input.sound);
+    const resolution = input.res ?? "720p";
+    const duration = Math.min(15, Math.max(4, Math.round(input.seconds)));
+    const [voice] = input.voiceId && withSound ? await db.select({ data: schema.brandAssets.data }).from(schema.brandAssets)
+      .where(and(eq(schema.brandAssets.id, input.voiceId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "voice"))) : [];
+    let r;
+    if (voice) {
+      const audio = await hfUpload(voice.data, "audio/wav");
+      const [ch] = input.characterId ? await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "character"))) : [];
+      const chUrl = ch ? await hfUpload(ch.data, ch.mime).catch(() => "") : "";
+      const size = imageSize(a.data), ratio = size ? nearestRatio(size.w / size.h) : "9:16";
+      const prompt = `The reference image is the opening frame and the real product — keep the product exactly: same label, shape and colours. ${input.prompt}\nSubtle, natural motion. No added text.\nSound: ${input.sound}. The voice-over must use the speaker’s voice from the reference audio.`;
+      r = await hfSubmit(HF_VIDEO_REF, { image_urls: chUrl ? [url, chUrl] : [url], audio_urls: [audio], prompt: prompt.slice(0, 4000), duration, resolution, aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16"].includes(ratio) ? ratio : "9:16", generate_audio: true });
+    } else {
+      const prompt = `${input.prompt}\nSubtle, natural motion. Keep the product exactly as in the first frame — same label and shape. No added text.${withSound ? `\nSound: ${input.sound}` : ""}`;
+      r = await hfSubmit(HF_VIDEO, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution, generate_audio: withSound });
+    }
+    if (!r.requestId) return { error: r.error ?? "Higgsfield didn’t take the job." };
+    return { job: { id: r.requestId, at: new Date().toISOString(), seconds: duration, sound: withSound, res: resolution, product: a.meta.product ?? null, prompt: input.prompt.slice(0, 500), voice: voice ? input.voiceId! : null } };
+  } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
+}
+
+/** Check a clip job; once Higgsfield finishes, save the clip (only once, however many tabs are polling). */
+export async function finishVideoJob(brandId: string, memberId: string, job: VideoJob): Promise<{ id?: string; state?: string; error?: string }> {
+  const A = schema.brandAssets;
+  const [had] = await db.select({ id: A.id }).from(A).where(and(eq(A.brandId, brandId), sql`${A.meta}->>'job' = ${job.id}`)).limit(1);
+  if (had) return { id: had.id };
+  const s = await hfStatus(job.id);
+  if (!("status" in s)) return { error: s.error };
+  if (s.status === "nsfw") return { error: "Higgsfield’s safety filter blocked this clip (not charged) — reword the scene." };
+  if (s.status === "failed" || s.status === "canceled") return { error: `Higgsfield couldn’t make the clip${s.error ? `: ${s.error}` : ""} (not charged).`.slice(0, 180) };
+  if (s.status !== "completed" || !s.video?.url) return { state: s.status };
+  const v = await hfDownload(s.video.url);
+  const p = await hfPrices().catch(() => null);
+  const cost = p ? job.seconds * (p.videoSecond * (p.res[job.res as "720p"] ?? 1) + (job.sound ? p.soundSecond : 0)) : null;
+  const [row] = await db.insert(A).values({
+    brandId, kind: "video", name: `${(job.product ?? "Product").slice(0, 40)} · clip`, mime: v.mime.startsWith("video/") ? v.mime : "video/mp4", size: v.data.byteLength, data: v.data,
+    meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: "Higgsfield · Seedance 2.0", sound: job.sound, job: job.id, ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
+  }).returning({ id: A.id });
+  return { id: row.id };
+}
+
+const CHARACTER_SHEET = (d: string) => `Character reference sheet of ONE real-looking person for social ads. ${d}. Show the same person four times side by side on a plain light-grey background: face close-up from the front, three-quarter close-up, profile, and full body standing in their usual outfit. Consistent face, hair, skin texture and outfit in every view. Natural, photorealistic, everyday look. No text, labels or watermarks.`;
+
+/** Make a character sheet (Higgsfield Marketing Studio, or AI Gateway without the key) and save it as a brand character. */
+export async function makeCharacter(brandId: string, memberId: string, input: { name: string; description: string }): Promise<{ id?: string; error?: string }> {
+  const prompt = CHARACTER_SHEET(input.description.slice(0, 600));
+  let img: { data: Buffer; mime: string } | null = null, cost: number | undefined, engine = "";
+  try {
+    if (hfReady()) {
+      const r = await hfRun(HF_PHOTO, { prompt, aspect_ratio: "16:9", resolution: "2k", quality: "high", enhance_prompt: false }, 150_000);
+      const url = r.out?.images?.[0]?.url;
+      if (!url) return { error: r.error ?? "No sheet came back." };
+      img = await hfDownload(url); engine = "Higgsfield · Marketing Studio";
+      cost = (await hfPrices().catch(() => null))?.photo;
+    } else {
+      const r = await generateImage({ model: gateway.imageModel(SHOOT_MODEL), prompt, aspectRatio: "16:9", maxRetries: 1 });
+      img = { data: Buffer.from(r.image.uint8Array), mime: r.image.mediaType || "image/png" }; engine = "AI Gateway · FLUX"; cost = COST_PER_IMAGE;
+    }
+  } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
+  const [row] = await db.insert(schema.brandAssets).values({
+    brandId, kind: "character", name: input.name.slice(0, 40) || "Character", mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
+    meta: { ai: true, prompt, engine, character: { description: input.description.slice(0, 600) }, ...(cost != null ? { cost } : {}) }, createdBy: memberId,
+  }).returning({ id: schema.brandAssets.id });
+  return { id: row.id };
+}
+
+/** Remy suggests who should be in the ad, from who will see it and what the brand sells. */
+export async function suggestCharacter(brandId: string, input: { signal?: string | null; product?: string | null }): Promise<{ name: string; description: string } | null> {
+  const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  return ask("remy", {
+    system: "You are Remy, Kaviar's creative agent. Suggest ONE believable everyday person to appear in a UGC-style ad, matching the people who will see it. Describe age range, look, hair, skin, style of clothes and vibe in under 45 words, as a casting note for an image model. No celebrities, no real names, no children.",
+    content: JSON.stringify({ brand: b?.name, category: b?.category, tone: b?.onboarding?.profile?.tone?.value, audience: b?.onboarding?.profile?.audience?.value ?? null, whoWillSeeIt: input.signal ?? null, product: input.product ?? null }),
+    schema: z.object({ name: z.string().describe("A short first-name label, e.g. 'Mina'"), description: z.string() }),
+  });
 }

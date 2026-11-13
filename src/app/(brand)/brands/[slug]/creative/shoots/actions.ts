@@ -5,8 +5,9 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
-import { checkShot, describeReference, editShot, EDITS, shoot, shootVideo, wavSeconds, writeShotPrompt, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
+import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
 import type { ShootFlow } from "@/lib/db/schema";
+import { hfReady } from "@/lib/creative/higgsfield";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
 export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ out?: PromptOut; error?: string }> {
@@ -53,7 +54,7 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
   return editShot(brand.id, me.id, assetId, kind);
 }
 
-export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids?: string[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   if (input.prompt.trim().length < 10) return { error: "Describe the scene first." };
@@ -69,10 +70,21 @@ export async function runCheck(slug: string, assetId: string, referenceUrl: stri
   return check ? { check } : { error: "Otto couldn’t check it." };
 }
 
-export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null }): Promise<{ id?: string; error?: string }> {
+/** A clip: on Higgsfield it starts in the background and returns a job the canvas polls; on AI Gateway it waits for the clip. */
+export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null }): Promise<{ id?: string; job?: VideoJob; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  return shootVideo(brand.id, me.id, { ...input, seconds: Math.min(15, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? null });
+  const clean = { ...input, seconds: Math.min(15, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? undefined };
+  if (hfReady()) return startVideoJob(brand.id, clean);
+  return shootVideo(brand.id, me.id, clean);
+}
+
+/** The canvas asks every few seconds how a clip job is doing; the finished clip is saved here. */
+export async function pollVideo(slug: string, job: VideoJob): Promise<{ id?: string; state?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  if (!job?.id || !/^[\w-]{8,64}$/.test(job.id)) return { error: "Unknown job." };
+  return finishVideoJob(brand.id, me.id, job);
 }
 
 /** Send photos to a batch (they become its ads' photos, in order) or keep them in brand assets. */
@@ -152,4 +164,41 @@ export async function searchProducts(slug: string, q: string): Promise<{ title: 
       (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
     from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' and p.title ilike ${term}
     order by p.total_inventory desc nulls last limit 30`)).rows as { title: string; url: string; price: number | null; stock: number | null }[];
+}
+
+/** Character node: make a character sheet from a casting note. */
+export async function createCharacter(slug: string, input: { name: string; description: string }): Promise<{ id?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  if (input.description.trim().length < 12) return { error: "Describe the person in a sentence — age, look, style." };
+  return makeCharacter(brand.id, me.id, { name: input.name.trim(), description: input.description.trim() });
+}
+
+export async function suggestCasting(slug: string, input: { signal?: string | null; product?: string | null }): Promise<{ name?: string; description?: string; error?: string }> {
+  await requireMember();
+  if (!aiReady()) return { error: "Remy needs the Claude API key." };
+  const brand = await getBrand(slug);
+  const r = await suggestCharacter(brand.id, input);
+  return r ?? { error: "Remy couldn’t suggest anyone right now." };
+}
+
+/** A real creator or model: their photo becomes the character — only with their permission, which the team confirms. */
+export async function uploadCharacter(slug: string, form: FormData): Promise<{ id?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const file = form.get("file"), name = String(form.get("name") ?? "").trim().slice(0, 40), note = String(form.get("note") ?? "").trim().slice(0, 300);
+  if (form.get("consent") !== "yes") return { error: "Confirm you have this person’s permission first." };
+  if (!(file instanceof File) || !/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 4_000_000) return { error: "Add a JPG, PNG or WebP photo under 4 MB." };
+  const data = Buffer.from(await file.arrayBuffer());
+  const [row] = await db.insert(schema.brandAssets).values({
+    brandId: brand.id, kind: "character", name: name || "Creator", mime: file.type, size: data.byteLength, data,
+    meta: { character: { description: note || "A real creator (from their photo)", uploaded: true }, consent: { by: me.name, at: new Date().toISOString() } }, createdBy: me.id,
+  }).returning({ id: schema.brandAssets.id });
+  return { id: row.id };
+}
+
+export async function deleteCharacter(slug: string, id: string): Promise<void> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "character")));
 }

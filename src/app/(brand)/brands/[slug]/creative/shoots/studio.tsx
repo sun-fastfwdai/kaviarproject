@@ -5,8 +5,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { deleteShot, designFromShot, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
-import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MOVES, MUSIC, NODES, NODE_W, SCENES, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, newId, runCost, soundDirection, templateName, wireColor, type NodeKey } from "./flow";
+import { deleteShot, designFromShot, pollVideo, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
+import { Combo } from "./combo";
+import { ResultViewer } from "./viewer";
+import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MOVES, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, UGC_MOVES, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
+import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
 import { ProductCombo } from "./product-combo";
 import { StudioCtx, ShootCanvasNode, WireEdge, Tag, Thumb, Tile, agoFrom, asset, flagOf, joinSegs, passes, short, usd,
@@ -66,17 +69,6 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
     </button>
   );
 }
-function Picker({ value, options, onChange, icon, label }: { value: string; options: [string, string][]; onChange: (v: string) => void; icon?: React.ReactNode; label: string }) {
-  const cur = options.find(([v]) => v === value)?.[1] ?? "—";
-  return (
-    <label className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8, position: "relative", flexShrink: 0, cursor: "pointer" }}>
-      {icon}<span className="sm i1 fill ell">{cur}</span><Icon name="chev-d" size={12} color="#8B8883" />
-      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}>
-        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-    </label>
-  );
-}
 function MenuItem({ icon, children, onClick, href }: { icon: Parameters<typeof Icon>[0]["name"]; children: React.ReactNode; onClick?: () => void; href?: string }) {
   const st: React.CSSProperties = { height: 32, padding: "0 8px", borderRadius: 6, textAlign: "left" };
   return href ? <Link className="row g8 sm hv" style={st} href={href}><Icon name={icon} size={13} />{children}</Link>
@@ -86,7 +78,7 @@ function MenuItem({ icon, children, onClick, href }: { icon: Parameters<typeof I
 type Props = {
   slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; savedAt: string | null; savedBy: string | null;
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
-  engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number }; voices: Voice[];
+  engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number> }; voices: Voice[]; characters: (Character & { at: string })[];
   batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
 };
 
@@ -118,7 +110,15 @@ function Studio(props: Props) {
   const [fresh, setFresh] = useState<Record<string, Check>>({});
   const [quick, setQuick] = useState<{ x: number; y: number; at: { x: number; y: number }; from: string; dir: "out" | "in" } | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [busy, start] = useTransition();
+  // Long runs don't use a transition: a transition would hold every refresh (new photos) until the whole run ends.
+  const [running, setRunning] = useState(false);
+  const [navPending, startNav] = useTransition();
+  const busy = running || navPending;
+  const go = (fn: () => Promise<unknown>) => { setRunning(true); fn().catch((e: Error) => setMsg((e?.message ?? "Something went wrong.").slice(0, 160))).finally(() => setRunning(false)); };
+  const [statusAt, setStatusAt] = useState<Record<string, number>>({});
+  const [jobState, setJobState] = useState<Record<string, string>>({});
+  const [viewer, setViewer] = useState<{ node: string; id: string } | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const flowRef = useRef(flow);
   const dirty = useRef(props.preset); // a handoff preset (?batch=…&signal=…) is saved straight away
   const search = useRef<HTMLInputElement>(null);
@@ -148,7 +148,42 @@ function Studio(props: Props) {
     }, 700);
     return () => clearTimeout(t);
   }, [flow, slug]);
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  const jobsKey = flow.nodes.flatMap((n) => (n.cfg.jobs ?? []).map((j) => j.id)).join(",");
+  const live = running || Boolean(jobsKey);
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), live ? 1000 : 30_000); return () => clearInterval(t); }, [live]);
+
+  // ---- clips rendering on Higgsfield: ask every few seconds, save each one when it's done
+  const polling = useRef(false);
+  useEffect(() => {
+    if (!jobsKey) return;
+    let alive = true;
+    const tick = async () => {
+      if (polling.current) return;
+      polling.current = true;
+      try {
+        for (const n of flowRef.current.nodes) for (const j of n.cfg.jobs ?? []) {
+          const r = await pollVideo(slug, j);
+          if (!alive) return;
+          if (r.state) setJobState((x) => ({ ...x, [j.id]: r.state! }));
+          if (!r.id && !r.error) continue;
+          const cur = find(flowRef.current, n.id);
+          if (!cur) continue;
+          const c = cfgOf(cur), left = (c.jobs ?? []).filter((x) => x.id !== j.id);
+          patchNode(n.id, { jobs: left, ...(r.id ? { out: [r.id, ...c.out.filter((x) => x !== r.id)].slice(0, 8), at: new Date().toISOString() } : {}) }, false);
+          if (r.id) {
+            update((f) => (f.last ? { ...f, last: { ...f.last, clips: f.last.clips + 1, cost: f.last.cost + j.seconds * perVideoSecond * (props.engines.res[j.res as "720p"] ?? 1) } } : f), false);
+            router.refresh();
+          }
+          if (r.error) setMsg(r.error);
+          if (!left.length) { setStatus((x) => ({ ...x, [n.id]: r.error ? "error" : "done" })); }
+        }
+      } finally { polling.current = false; }
+    };
+    const t = setInterval(() => { void tick(); }, 5000);
+    const first = setTimeout(() => { void tick(); }, 1500);
+    return () => { alive = false; clearInterval(t); clearTimeout(first); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-poll only when the set of jobs changes
+  }, [jobsKey, slug]);
 
   // ---- derived from the graph
   const byId = useMemo(() => new Map(shots.map((s) => [s.id, s])), [shots]);
@@ -170,12 +205,14 @@ function Studio(props: Props) {
   const promptIn = (g: ShootFlow, P: ShootNode): PromptIn => {
     const ins = inc(g, P.id), c = cfgOf(P);
     const d = ins.find((n) => n.type === "data"), b = ins.find((n) => n.type === "brand"), w = ins.find((n) => n.type === "wins"), r = ins.find((n) => n.type === "reference");
+    const ch = ins.find((n) => n.type === "character"), person = ch ? props.characters.find((x) => x.id === cfgOf(ch).characterId) : null;
     const sig = d ? signals.find((s) => s.key === cfgOf(d).signal) : null;
     const ref = r ? cfgOf(r).reference : null;
     return {
       product: productOf(g, P.id)?.title ?? "", scene: c.scene, length: c.length, signal: sig ? { data: sig.data, value: sig.value, evidence: sig.evidence } : null,
       rules: d ? cfgOf(d).rules.filter((x) => x.on).map((x) => x.text) : [], brandRules: b ? cfgOf(b).brandRules : [], strict: b ? cfgOf(b).strict : false,
       lessons: w ? lessonsOf(w).map((l) => `${l.dimension}: ${l.lesson}`) : [], reference: ref ? { note: ref.note, close: ref.close } : null,
+      character: person ? { name: person.name, description: person.description } : null,
     };
   };
   const keyOf = (g: ShootFlow, P: ShootNode) => JSON.stringify(promptIn(g, P));
@@ -203,11 +240,11 @@ function Studio(props: Props) {
   const firstProduct = flow.nodes.find((n) => n.type === "product");
   const headProduct = firstProduct ? productOf(flow, firstProduct.id) : null;
   const name = `${templateName(flowSignal(flow))}${headProduct ? ` · ${short(headProduct.title)}` : ""}`;
-  const cost = runCost(flow, perImage, perVideoSecond, props.engines.perSoundSecond);
+  const cost = runCost(flow, perImage, perVideoSecond, props.engines.perSoundSecond, props.engines.res);
   const anyChanged = flow.nodes.some((n) => n.type === "data" && changedOf(n.id));
 
   // ---- running (Run flow follows the wires: prompts → photos → Otto → clips)
-  const mark = (id: string, v: RunState) => setStatus((s) => ({ ...s, [id]: v }));
+  const mark = (id: string, v: RunState) => { setStatus((s) => ({ ...s, [id]: v })); if (v === "running") setStatusAt((t) => ({ ...t, [id]: Date.now() })); };
   const fail = (id: string, m: string) => { mark(id, "error"); setMsg(m); };
 
   const write = async (pid: string): Promise<string | null> => {
@@ -240,7 +277,8 @@ function Studio(props: Props) {
     const c = cfgOf(X);
     mark(xid, "running");
     const refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null;
-    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null });
+    const chNode = up(g, xid, "character");
+    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null });
     if (!r.ids?.length) { fail(xid, r.error ?? "No photos came back."); return null; }
     if (r.error) setMsg(r.error);
     const ids = r.ids;
@@ -263,46 +301,55 @@ function Studio(props: Props) {
 
   const videoRun = async (vid: string, checks: Map<string, Check>) => {
     const g = flowRef.current, V = find(g, vid);
-    if (!V) return [];
+    if (!V) return { ids: [] as string[], jobs: 0 };
     const from = frameOf(g, vid, checks);
-    if (!from) { fail(vid, "Wire a Photo node into this Video node and run it — a clip starts from one of its photos."); return []; }
+    if (!from) { fail(vid, "Wire a Photo node into this Video node and run it — a clip starts from one of its photos."); return { ids: [] as string[], jobs: 0 }; }
     const c = cfgOf(V), P = promptOf(g, vid);
     const text = (P && cfgOf(P).prompt) || `${productOf(g, vid)?.title ?? "The product"} in a calm everyday scene.`;
     const move = MOVES.find(([m]) => m === c.move)?.[1] ?? "";
     mark(vid, "running");
     const snd = inc(g, vid).find((x) => x.type === "sound");
     const sound = props.engines.sound && snd ? soundDirection(cfgOf(snd)) : null;
-    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${move} ${text}`.slice(0, 1200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null })));
-    const ids = res.flatMap((o) => (o.id ? [o.id] : []));
-    if (!ids.length) { fail(vid, res[0]?.error ?? "No clip came back."); return []; }
+    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${move} ${text}`.slice(0, 1200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
+    const ids = res.flatMap((o) => (o.id ? [o.id] : [])), jobs = res.flatMap((o) => (o.job ? [o.job] : []));
+    if (!ids.length && !jobs.length) { fail(vid, res[0]?.error ?? "No clip came back."); return { ids, jobs: 0 }; }
     if (res.some((o) => o.error)) setMsg(res.find((o) => o.error)!.error!);
-    patchNode(vid, { out: [...ids, ...cfgOf(find(flowRef.current, vid)!).out].slice(0, 6), at: new Date().toISOString() }, false);
-    mark(vid, "done");
+    const cur = cfgOf(find(flowRef.current, vid)!);
+    // Higgsfield renders in the background: the node shows the jobs and the canvas polls them.
+    patchNode(vid, { ...(jobs.length ? { jobs: [...(cur.jobs ?? []), ...jobs] } : {}), ...(ids.length ? { out: [...ids, ...cur.out].slice(0, 8), at: new Date().toISOString() } : {}) }, false);
+    mark(vid, jobs.length ? "running" : "done");
     router.refresh();
-    return ids;
+    return { ids, jobs: jobs.length };
   };
 
-  const runFlow = () => start(async () => {
-    setMsg(null); setStatus({});
+  const runFlow = () => go(async () => {
+    setMsg(null);
     const g = flowRef.current;
     const photos = g.nodes.filter((n) => n.type === "photo"), videos = g.nodes.filter((n) => n.type === "video");
     if (!photos.length && !videos.length) { setMsg("Add a Photo node — it’s what makes the pictures."); return; }
+    // Everything this run will touch starts as queued, so the canvas shows the order the work moves in.
+    const queue: Record<string, RunState> = {};
+    for (const n of [...photos, ...videos]) { queue[n.id] = "queued"; const P = promptOf(g, n.id); if (P) queue[P.id] = "queued"; }
+    for (const n of g.nodes.filter((x) => x.type === "check" && inc(g, x.id).some((y) => y.type === "photo"))) queue[n.id] = "queued";
+    setStatus(queue);
     const checks = new Map<string, Check>();
     let p = 0, cl = 0, flagged = 0, spent = 0;
     for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += r.ids.length * perImage; } }
-    for (const V of videos) { const ids = await videoRun(V.id, checks); cl += ids.length; spent += ids.length * cfgOf(V).seconds * perVideoSecond; }
+    let rendering = 0;
+    for (const V of videos) { const r = await videoRun(V.id, checks); cl += r.ids.length; rendering += r.jobs; spent += r.ids.length * cfgOf(V).seconds * perVideoSecond; }
+    if (rendering) setMsg(`${rendering} clip${rendering > 1 ? "s are" : " is"} rendering — usually 1–3 minutes. Keep working; ${rendering > 1 ? "they" : "it"} will appear in the Video node.`);
     for (const d of flowRef.current.nodes.filter((n) => n.type === "data")) { const sig = signals.find((s) => s.key === cfgOf(d).signal); if (sig) patchNode(d.id, { value: sig.value }, false); }
     if (p || cl) update((f) => ({ ...f, last: { at: new Date().toISOString(), photos: p, clips: cl, flagged, cost: spent } }), false);
     setNow(Date.now());
   });
-  const runNode = (id: string) => start(async () => {
+  const runNode = (id: string) => go(async () => {
     setMsg(null);
     const n = find(flowRef.current, id);
     if (n?.type === "photo") await photoRun(id, new Map());
-    else if (n?.type === "video") await videoRun(id, new Map());
+    else if (n?.type === "video") { const r = await videoRun(id, new Map()); if (r.jobs) setMsg("The clip is rendering — usually 1–3 minutes. It appears in the Video node."); }
     else if (n?.type === "prompt") await write(id);
   });
-  const rerunOne = (checkId: string, shotId: string) => start(async () => {
+  const rerunOne = (checkId: string, shotId: string) => go(async () => {
     const g = flowRef.current;
     const X = inc(g, checkId).find((n) => n.type === "photo" && cfgOf(n).out.includes(shotId));
     const prod = X ? productOf(g, X.id) : null;
@@ -320,7 +367,7 @@ function Studio(props: Props) {
     mark(checkId, k.check ? "done" : "error");
     router.refresh();
   });
-  const recheck = (shotId: string, nodeId: string) => start(async () => {
+  const recheck = (shotId: string, nodeId: string) => go(async () => {
     const prod = productOf(flowRef.current, nodeId);
     if (!prod) return;
     mark(nodeId, "running");
@@ -330,7 +377,7 @@ function Studio(props: Props) {
     if (r.error) setMsg(r.error);
     router.refresh();
   });
-  const edit = (photoId: string, shotId: string, kind: Edit) => start(async () => {
+  const edit = (photoId: string, shotId: string, kind: Edit) => go(async () => {
     setMsg(null); mark(photoId, "running");
     const r = await runEdit(slug, shotId, kind);
     if (!r.id) { fail(photoId, r.error ?? "The edit failed."); return; }
@@ -338,7 +385,7 @@ function Studio(props: Props) {
     patchNode(photoId, { out: [r.id, ...cfgOf(find(flowRef.current, photoId)!).out].slice(0, 8) }, false);
     setFocus(r.id); router.refresh();
   });
-  const send = (sid: string) => start(async () => {
+  const send = (sid: string) => go(async () => {
     const n = find(flowRef.current, sid);
     if (!n) return;
     const c = cfgOf(n), picked = pickedFor(sid), target = batches.find((b) => b.id === c.send);
@@ -347,8 +394,8 @@ function Studio(props: Props) {
     setMsg(r.error ?? (c.send ? `${r.done} photo${r.done === 1 ? " is" : "s are"} now the ads’ photos in “${target?.title}”.` : `${r.done} photo${r.done === 1 ? "" : "s"} kept in brand assets — they’re in the Editor’s Media panel.`));
     router.refresh();
   });
-  const design = (id: string) => start(() => designFromShot(slug, id));
-  const pickReference = (rid: string, assetId: string) => start(async () => {
+  const design = (id: string) => startNav(() => designFromShot(slug, id));
+  const pickReference = (rid: string, assetId: string) => go(async () => {
     patchNode(rid, { reference: { id: assetId, note: "Remy is reading this photo…", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } });
     const r = await readReference(slug, assetId);
     patchNode(rid, { reference: { id: assetId, note: r.note ?? r.error ?? "", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } }, false);
@@ -386,6 +433,7 @@ function Studio(props: Props) {
   const removeEdge = (id: string) => { update((f) => ({ ...f, edges: f.edges.filter((e) => e.id !== id) })); setSelEdge(null); };
   const connect = (a: string, b: string) => { const g = flowRef.current; if (!valid(g, a, b)) return; update((f) => ({ ...f, edges: [...f.edges, edgeOf(find(g, a)!, find(g, b)!)] })); };
   const setTemplate = (key: string) => {
+    if (key === "__ugc") { update(() => ugcFlow(flowSignal(flowRef.current), headProduct?.url ?? products[0]?.url ?? null, props.characters[0]?.id ?? null)); select("character"); setTimeout(() => rf.fitView({ padding: 0.12, maxZoom: 1, duration: 200 }), 50); return; }
     if (key === "__reset") { update(() => defaultFlow(flowSignal(flowRef.current), headProduct?.url ?? products[0]?.url ?? null)); select(null); setTimeout(() => rf.fitView({ padding: 0.12, maxZoom: 1, duration: 200 }), 50); return; }
     if (key) update((f) => applyPreset(f, { template: key }));
     else { const d = flowRef.current.nodes.find((n) => n.type === "data"); if (d) patchNode(d.id, { signal: null, rules: [] }); }
@@ -453,13 +501,22 @@ function Studio(props: Props) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const rfNodes: CanvasNode[] = useMemo(() => flow.nodes.map((n) => ({ id: n.id, type: "shoot" as const, position: { x: n.x, y: n.y }, data: {}, selected: sel === n.id, ...(dims[n.id] ? { measured: dims[n.id] } : {}) })), [flow.nodes, sel, dims]);
+  const rfNodes: CanvasNode[] = useMemo(() => flow.nodes.map((n) => ({ id: n.id, type: "shoot" as const, position: { x: n.x, y: n.y }, data: {}, selected: sel === n.id, ...(expanded.includes(n.id) ? { zIndex: 10 } : {}), ...(dims[n.id] ? { measured: dims[n.id] } : {}) })), [flow.nodes, sel, dims, expanded]);
   const rfEdges: Wire[] = useMemo(() => flow.edges.map((e) => {
     const a = find(flow, e.from), b = find(flow, e.to);
     return { id: e.id, source: e.from, target: e.to, sourceHandle: e.fh, targetHandle: e.th, type: "wire" as const, selected: selEdge === e.id,
-      data: { color: a ? wireColor(a.type) : "#C9C5BF", dashed: a?.type === "product" && b?.type === "photo", hot: sel != null && (sel === e.from || sel === e.to) } };
-  }), [flow, sel, selEdge]);
+      data: { color: a ? wireColor(a.type) : "#C9C5BF", dashed: a?.type === "product" && b?.type === "photo", hot: sel != null && (sel === e.from || sel === e.to),
+        flow: status[e.to] === "running" || Boolean(b?.cfg.jobs?.length && (a?.type === "photo" || a?.type === "prompt" || a?.type === "sound")) } };
+  }), [flow, sel, selEdge, status]);
 
+  // The viewer shows what the clicked node made (or everything, for a Check node).
+  const viewerNode = viewer ? find(flow, viewer.node) : null;
+  const viewerItems: Shot[] = viewerNode?.type === "character" ? props.characters.filter((c) => c.id === viewer?.id).map((c) => ({ id: c.id, kind: "image" as const, product: null, prompt: c.description, check: null, edit: null, seconds: null, at: c.at, engine: c.uploaded ? "Real creator · photo" : "Character sheet", cost: null, sound: false }))
+    : !viewerNode ? [] : (viewerNode.type === "photo" || viewerNode.type === "video" ? cfgOf(viewerNode).out : viewerNode.type === "check" ? checkedFor(viewerNode.id).map((x) => x.id) : shots.map((x) => x.id))
+    .map((x) => byId.get(x)).filter((x): x is Shot => Boolean(x));
+  const viewerChecks = viewerNode ? outs(flow, viewerNode.id).filter((x) => x.type === "check") : [];
+  const viewerVideos = viewerNode ? outs(flow, viewerNode.id).filter((x) => x.type === "video") : [];
+  const viewerSend = viewerNode ? outs(flow, viewerNode.id).find((x) => x.type === "send") ?? viewerChecks.flatMap((k) => outs(flow, k.id)).find((x) => x.type === "send") ?? null : null;
   const sortedBatches = [...batches].sort((a, b) => Number(b.signal === flowSignal(flow)) - Number(a.signal === flowSignal(flow)));
   const nextStepOf = (id: string) => { const x = find(flow, id), s = sent[id]; return x && s && s.batch === cfgOf(x).send && s.ad ? `${base}/creative/editor?ad=${s.ad}` : null; };
   const api: StudioApi = {
@@ -468,7 +525,9 @@ function Studio(props: Props) {
     productFor: (id) => productOf(flow, id), signalFor: (id) => signalOf(flow, id), sceneFor: (id) => { const P = promptOf(flow, id); return P ? cfgOf(P).scene : "No prompt wired"; },
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
-    patch: (id, cfg) => patchNode(id, cfg), select, writePrompt: (id) => start(async () => { await write(id); }), design, rerunOne, send, focus: (id) => setFocus(id),
+    characterOf: (id) => { const c = id ? props.characters.find((x) => x.id === id) : null; return c ?? null; },
+    statusAt, jobState, view: (node, id) => setViewer({ node, id }), expanded: (id) => expanded.includes(id), toggleExpand: (id) => setExpanded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])),
+    patch: (id, cfg) => patchNode(id, cfg), select, writePrompt: (id) => go(async () => { await write(id); }), design, rerunOne, send, focus: (id) => setFocus(id),
   };
 
   // ---------------------------------------------------------------- left: node library (click to add, or drag onto the canvas)
@@ -539,14 +598,8 @@ function Studio(props: Props) {
           })}
         </div>
         <button type="button" className="hv" title="Undo (⌘Z)" aria-label="Undo" disabled={!past.length} onClick={undo} style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", opacity: past.length ? 1 : 0.4 }}><Icon name="undo" size={14} color="#55534F" /></button>
-        <label className="chip" style={{ height: 28, fontSize: 12, position: "relative" }}>
-          <Icon name="layers" size={13} />Template<span className="v">{templateName(flowSignal(flow))}</span><Icon name="chev-d" size={11} color="#8B8883" />
-          <select aria-label="Template" value={flowSignal(flow) ?? ""} onChange={(e) => setTemplate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}>
-            {signals.filter((s) => TEMPLATES[s.key]).map((s) => <option key={s.key} value={s.key}>{TEMPLATES[s.key]} — {s.data}</option>)}
-            <option value="">Product shoot — no data signal</option>
-            <option value="__reset">↺ Reset the canvas to this template</option>
-          </select>
-        </label>
+        <Combo chip label="Template" prefix="Template" icon={<Icon name="layers" size={13} />} value={flowSignal(flow) ?? ""} onChange={setTemplate}
+          options={[...signals.filter((x) => TEMPLATES[x.key]).map((x) => ({ value: x.key, label: TEMPLATES[x.key], sub: x.data })), { value: "", label: "Product shoot", sub: "no data signal" }, { value: "__ugc", label: "UGC video layout", sub: "a person holds the product and talks to camera" }, { value: "__reset", label: "Reset the canvas", sub: "back to this template’s layout", tone: "muted" as const }]} />
         <span className="row g6 xs i3" style={{ whiteSpace: "nowrap" }} title={saved.by ? `Last saved by ${saved.by}` : undefined}>
           {saved.saving ? <><Icon name="spinner" size={12} className="spin" />Saving…</> : <><Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" />Saved · {flow.last ? `ran ${agoFrom(flow.last.at, now)}` : "not run yet"}</>}
         </span>
@@ -686,6 +739,9 @@ function Studio(props: Props) {
         </div>
         <span className="xs i2" style={{ lineHeight: "17px", flexShrink: 0, padding: "8px 10px", borderRadius: 8, background: "var(--tray)" }}>{NODES[n.type].does}</span>
 
+        {n.type === "character" && <CharacterPicker slug={slug} characters={props.characters} value={c.characterId} onChange={(id) => patchNode(n.id, { characterId: id })} price={perImage}
+          signal={(() => { const d = flow.nodes.find((x) => x.type === "data"); const sg = d ? signals.find((y) => y.key === cfgOf(d).signal) : null; return sg ? `${sg.data}: ${sg.value ?? ""}` : null; })()} product={headProduct?.title ?? null} onView={(id) => setViewer({ node: n.id, id })} />}
+
         {n.type === "product" && <>
           <Field label="Product" sub="Search the whole catalog — products with a Shopify photo">
             <ProductCombo slug={slug} value={nP} products={products} currency={props.currency} onPick={(p) => patchNode(n.id, { product: p.url, item: p })} />
@@ -700,8 +756,8 @@ function Studio(props: Props) {
 
         {n.type === "data" && <>
           <Field label="Signal" sub={nSig ? `Shopify ${nSig.group.toLowerCase()} · from the latest sync` : "No signal — a general product shoot"}>
-            <Picker label="Signal" value={c.signal ?? ""} onChange={(v) => patchNode(n.id, { signal: v || null, rules: [] })} icon={<Icon name="lightning" size={13} color={CAT.in} />}
-              options={[...signals.map((s) => [s.key, s.data] as [string, string]), ["", "No signal"]]} />
+            <Combo label="Signal" value={c.signal ?? ""} onChange={(v) => patchNode(n.id, { signal: v || null, rules: [] })} icon={<Icon name="lightning" size={13} color={CAT.in} />}
+              options={[...signals.map((x) => ({ value: x.key, label: x.data, sub: x.value ?? undefined })), { value: "", label: "No signal", sub: "a general product shoot", tone: "muted" as const }]} />
           </Field>
           {nSig && <div className="col" style={{ flexShrink: 0 }}>
             <span className="xs w5 i3" style={{ paddingBottom: 4 }}>What the data says</span>
@@ -769,7 +825,9 @@ function Studio(props: Props) {
             <textarea value={c.prompt} rows={8} onChange={(e) => patchNode(n.id, { prompt: e.target.value, promptFor: keyOf(flow, n) }, false)} placeholder="Describe the scene, or let Remy write it from the inputs wired in."
               style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
           </Field>
-          <Field label="Scene"><Pills label="Scene" value={c.scene} options={SCENES.map((s) => [s, s])} onChange={(v) => patchNode(n.id, { scene: v })} /></Field>
+          <Field label="Scene" sub={isUgc(c.scene) && !inc(flow, n.id).some((x) => x.type === "character") ? "UGC scene — wire a Character in to keep the same person in every shot" : undefined}>
+            {SCENE_GROUPS.map(([g, list]) => <div key={g} className="col g4" style={{ paddingBottom: 4 }}><span className="xs i3">{g}</span><Pills label={`Scene · ${g}`} value={c.scene} options={list.map((x) => [x, x])} onChange={(v) => patchNode(n.id, { scene: v })} /></div>)}
+          </Field>
           <Field label="Length"><Pills label="Length" value={c.length} options={[["short", "Short"], ["medium", "Medium"], ["detailed", "Detailed"]]} onChange={(v) => patchNode(n.id, { length: v })} /></Field>
           {c.segments && c.prompt === joinSegs(c.segments) && <div className="col" style={{ flexShrink: 0 }}>
             <span className="xs w5 i3" style={{ paddingBottom: 4 }}>Where each phrase came from</span>
@@ -782,7 +840,7 @@ function Studio(props: Props) {
 
         {n.type === "photo" && <>
             <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
-            <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <Pills label="Scene" value={cfgOf(nPrompt).scene} options={SCENES.map((s) => [s, s])} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>
+            <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? SCENE_GROUPS.map(([g, list]) => <div key={g} className="col g4" style={{ paddingBottom: 4 }}><span className="xs i3">{g}</span><Pills label={`Scene · ${g}`} value={cfgOf(nPrompt).scene} options={list.map((x) => [x, x])} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /></div>) : <span className="xs i3">—</span>}</Field>
             <div className="row g6" style={{ flexShrink: 0 }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [4, "× 4"]]} onChange={(v) => patchNode(n.id, { n: v })} /></div>
             {(nMine.length > 0 || nEarlier.length > 0) && <Field label={focusShot ? "Selected photo" : "Pick a photo to edit or design"}>
               {focusShot && focusShot.kind === "image" && <div className="col g6">
@@ -796,7 +854,7 @@ function Studio(props: Props) {
                 <div className="row g4" style={{ flexWrap: "wrap" }}>
                   {([["remove-bg", "Remove bg"], ["extend", "Extend to 9:16"], ["relight", "Relight"]] as const).map(([k, l]) => <button key={k} type="button" className="btn sm" disabled={busy} onClick={() => edit(n.id, focusShot.id, k)}><Icon name="brush" size={12} />{l}</button>)}
                 </div>
-                <span className="row g10 xs"><a className="lnk i2" href={asset(focusShot.id)} download>Download</a><button type="button" className="lnk i3" onClick={() => start(async () => { await deleteShot(slug, focusShot.id); setFocus(null); patchNode(n.id, { out: cfgOf(find(flowRef.current, n.id)!).out.filter((x) => x !== focusShot.id) }, false); router.refresh(); })}>Delete</button></span>
+                <span className="row g10 xs"><a className="lnk i2" href={asset(focusShot.id)} download>Download</a><button type="button" className="lnk i3" onClick={() => go(async () => { await deleteShot(slug, focusShot.id); setFocus(null); patchNode(n.id, { out: cfgOf(find(flowRef.current, n.id)!).out.filter((x) => x !== focusShot.id) }, false); router.refresh(); })}>Delete</button></span>
               </div>}
               <div className="row g4" style={{ flexWrap: "wrap" }}>{[...nMine, ...nEarlier.map((s) => s.id)].slice(0, 24).map((x) => <Thumb key={x} id={x} w={56} h={56} ring={focus === x} flag={flagOf(checkOf(x))} onClick={() => setFocus(x)} />)}</div>
               {nEarlier.length > 0 && <span className="xs i3">{nEarlier.length} nEarlier · all are in the Editor’s Media panel too</span>}
@@ -818,13 +876,15 @@ function Studio(props: Props) {
               <div className="row top" style={{ flexWrap: "wrap", gap: 8 }}>{MOVES.map(([m], i) => (
                 <button key={m} type="button" onClick={() => patchNode(n.id, { move: m })} className="col g2" style={{ width: 76, textAlign: "left" }}>
                   <div style={{ position: "relative", width: 76, height: 50, borderRadius: 7, overflow: "hidden", background: "var(--tray)", boxShadow: c.move === m ? "0 0 0 2px #1AA7C8" : "0 0 0 1px var(--line)" }}>
-                    {(nFrame || headProduct) && <img src={nFrame ? asset(nFrame) : headProduct!.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: ["50% 50%", "20% 50%", "80% 30%", "50% 80%", "50% 40%", "50% 60%"][i], transform: `scale(${[1.15, 1, 1.6, 1.05, 1.3, 1][i]})` }} />}
+                    {(nFrame || headProduct) && <img src={nFrame ? asset(nFrame) : headProduct!.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: ["50% 50%", "20% 50%", "80% 30%", "50% 80%", "50% 40%", "50% 60%"][i] ?? "50% 35%", transform: `scale(${[1.15, 1, 1.6, 1.05, 1.3, 1][i] ?? 1.1})` }} />}
+                    {UGC_MOVES.includes(m) && <span style={{ position: "absolute", left: 3, top: 3, height: 14, padding: "0 4px", borderRadius: 4, background: "rgba(255,255,255,.92)", fontSize: 9, fontWeight: 600, color: "#C2577D", display: "flex", alignItems: "center" }}>UGC</span>}
                   </div>
                   <span style={{ fontSize: 10.5, ...(c.move === m ? { color: "var(--ink)", fontWeight: 500 } : { color: "var(--ink-2)" }) }}>{m}</span>
                 </button>))}</div>
             </div>
             <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}>
               <Pills label="Length" value={c.seconds} options={props.engines.via === "Higgsfield" ? [[5, "5s"], [10, "10s"], [15, "15s"]] : [[5, "5s"], [10, "10s"]]} onChange={(v) => patchNode(n.id, { seconds: v })} />
+              {props.engines.via === "Higgsfield" && <Pills label="Quality" value={c.res ?? "720p"} options={[["480p", "Draft"], ["720p", "Standard"], ["1080p", "High"]]} onChange={(v) => patchNode(n.id, { res: v })} />}
               {props.engines.via !== "Higgsfield" && <Pills label="Size" value={c.aspect === "1:1" ? "1:1" : "9:16"} options={[["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} />}
               <span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [3, "× 3"]]} onChange={(v) => patchNode(n.id, { n: v })} />
             </div>
@@ -834,8 +894,8 @@ function Studio(props: Props) {
               : <span className="xs i2">Silent — wire a Voice + music node into this one for sound.</span>}</Field>
             {nClips.length > 0 && <Field label="Clips">{nClips.map((x) => <video key={x} src={asset(x)} controls muted playsInline style={{ width: "100%", maxHeight: 260, borderRadius: 8, background: "#000", outline: focus === x ? "2px solid #1AA7C8" : undefined }} />)}</Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
-              <button type="button" className="btn dark" disabled={busy || !nFrame} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * c.seconds * perVideoSecond)}</button>
-              <span className="xs i3" style={{ textAlign: "center" }}>about 2 minutes · product stays locked</span>
+              <button type="button" className="btn dark" disabled={busy || !nFrame} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * c.seconds * perVideoSecond * (props.engines.res[c.res ?? "720p"] ?? 1))}</button>
+              <span className="xs i3" style={{ textAlign: "center" }}>{c.res === "480p" ? "Draft is the quickest — " : ""}usually 1–3 minutes · renders in the background</span>
             </div>
           </>}
 
@@ -867,8 +927,8 @@ function Studio(props: Props) {
 
         {n.type === "send" && <>
             <Field label="Destination" sub={c.send ? "They become the batch’s ad photos, in order" : "Kept for the Editor’s Media panel"}>
-              <Picker label="Destination" value={c.send ?? ""} onChange={(v) => patchNode(n.id, { send: v || null })} icon={<Icon name="squares" size={13} color={CAT.fin} />}
-                options={[...sortedBatches.map((b) => [b.id, `${b.title} · ${b.n} ads`] as [string, string]), ["", "Brand assets"]]} />
+              <Combo label="Destination" value={c.send ?? ""} onChange={(v) => patchNode(n.id, { send: v || null })} icon={<Icon name="squares" size={13} color={CAT.fin} />}
+                options={[...sortedBatches.map((b) => ({ value: b.id, label: b.title, sub: `${b.n} ads${b.signal ? ` · from ${b.signal.replace(/-/g, " ")}` : ""}` })), { value: "", label: "Brand assets", sub: "kept for the Editor’s Media panel" }]} />
             </Field>
             <Field label={`Photos to send · ${sPicked.length}`} sub="Otto pre-picks the ones that pass. Click to change.">
               {sPool.length ? <div className="row g4" style={{ flexWrap: "wrap" }}>{sPool.map((x) => <Thumb key={x} id={x} w={56} h={56} ring={sPicked.includes(x)} flag={flagOf(checkOf(x))} onClick={() => toggleSend(x)} />)}</div>
@@ -894,6 +954,20 @@ function Studio(props: Props) {
           {busy ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="play" size={12} weight="fill" color="#fff" />}{busy ? "Running…" : `Run flow · ≈ ${usd(cost)}`}</button>
       </ShootBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>{library}{canvas}{inspector}</div>
+      {viewer && viewerItems.length > 0 && (
+        <ResultViewer key={`${viewer.node}-${viewer.id}`} items={viewerItems} start={Math.max(0, viewerItems.findIndex((x) => x.id === viewer.id))} now={now} busy={busy}
+          title={`${NODES[find(flow, viewer.node)?.type ?? "photo"].name} · ${name}`} checkOf={checkOf} onClose={() => setViewer(null)}
+          actions={{
+            design: (id) => { setViewer(null); design(id); },
+            ...(viewerNode?.type === "photo" ? {
+              edit: (id, k) => edit(viewerNode.id, id, k), recheck: (id) => recheck(id, viewerNode.id),
+              ...(viewerChecks[0] ? { rerun: (id: string) => rerunOne(viewerChecks[0].id, id) } : {}),
+              ...(viewerVideos.length ? { startClip: (id: string) => { viewerVideos.forEach((v) => patchNode(v.id, { from: id })); setMsg(`The clip${viewerVideos.length > 1 ? "s" : ""} will start from this photo.`); } } : {}),
+            } : {}),
+            ...(viewerSend ? { pick: { on: (id: string) => pickedFor(viewerSend.id).includes(id), toggle: (id: string) => { const cur = pickedFor(viewerSend.id); patchNode(viewerSend.id, { picked: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }); } } } : {}),
+            remove: (id) => go(async () => { await deleteShot(slug, id); if (viewerNode) patchNode(viewerNode.id, { out: cfgOf(find(flowRef.current, viewerNode.id)!).out.filter((x) => x !== id) }, false); router.refresh(); }),
+          }} />
+      )}
     </>
   );
 }

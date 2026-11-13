@@ -10,16 +10,17 @@ import { ShopifyLogo } from "@/components/logos";
 import type { ShootFlow, ShootNode, ShootSource } from "@/lib/db/schema";
 
 export type Check = { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string };
-export type Shot = { id: string; kind: "image" | "video"; product: string | null; prompt: string | null; check: Check | null; edit: string | null; seconds: number | null; at: string };
+export type Shot = { id: string; kind: "image" | "video"; product: string | null; prompt: string | null; check: Check | null; edit: string | null; seconds: number | null; at: string; engine: string | null; cost: number | null; sound: boolean };
 export type Product = { title: string; url: string; price: number | null; stock: number | null };
 export type Signal = { key: string; data: string; value: string | null; group: string; evidence: [string, string][] };
 export type Lesson = { dimension: string; lesson: string; evidence: string; strength: "Strong" | "Early" | "Weak" };
 export type Batch = { id: string; title: string; n: number; signal: string | null };
-export type RunState = "running" | "done" | "error";
+export type RunState = "queued" | "running" | "done" | "error";
 
 export const passes = (c: Check | null) => Boolean(c && c.labelMatches && c.shapeExact && c.coloursOnBrand && c.noTextOrWatermark);
 export const flagOf = (c: Check | null) => (!c ? null : !c.labelMatches ? "label off" : !c.shapeExact ? "shape off" : !c.coloursOnBrand ? "colours off" : !c.noTextOrWatermark ? "added text" : null);
 export const usd = (n: number) => `$${n.toFixed(2)}`;
+export const clock = (ms: number) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 export const agoFrom = (iso: string, now: number) => { const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 export const short = (t: string) => t.split(/[·(|,-]/)[0].trim().split(/\s+/).slice(0, 3).join(" ");
 export const joinSegs = (segs: { text: string }[]) => segs.reduce((acc, s) => acc + (acc && !/\s$/.test(acc) && !/^[\s,.;:!?)]/.test(s.text) ? " " : "") + s.text, "");
@@ -35,6 +36,8 @@ export type StudioApi = {
   sendItems: (id: string) => { photos: string[]; clips: string[] }; pickedFor: (id: string) => string[]; nextStep: (id: string) => string | null;
   patch: (id: string, cfg: Partial<ShootNode["cfg"]>) => void; select: (id: string) => void; writePrompt: (id: string) => void; design: (assetId: string) => void;
   rerunOne: (checkId: string, shotId: string) => void; send: (id: string) => void; focus: (assetId: string) => void;
+  characterOf: (id: string | null) => { id: string; name: string; description: string; uploaded: boolean } | null;
+  statusAt: Record<string, number>; jobState: Record<string, string>; view: (nodeId: string, assetId: string) => void; expanded: (id: string) => boolean; toggleExpand: (id: string) => void;
 };
 export const StudioCtx = createContext<StudioApi | null>(null);
 const useStudio = () => useContext(StudioCtx)!;
@@ -47,14 +50,18 @@ export function Tile({ k, size = 18, icon }: { k: NodeKey; size?: number; icon?:
 export function Tag({ t, color = "#8B8883" }: { t: string; color?: string }) {
   return <span className="row" style={{ height: 18, padding: "0 6px", borderRadius: 5, background: "var(--tray)", border: "1px solid var(--line)", fontSize: 10, color: "var(--ink-2)", whiteSpace: "nowrap", gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: 99, background: color }} />{t}</span>;
 }
-export function Thumb({ id, w, h, kind = "image", flag, star, onClick, ring, title }: { id: string; w: number; h: number; kind?: "image" | "video"; flag?: string | null; star?: boolean; onClick?: () => void; ring?: boolean; title?: string }) {
+export function Thumb({ id, w, h, kind = "image", flag, star, onClick, ring, title, sound }: { id: string; w: number; h: number; kind?: "image" | "video"; flag?: string | null; star?: boolean; onClick?: () => void; ring?: boolean; title?: string; sound?: boolean }) {
   return (
-    <button type="button" title={title} className="nodrag" onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+    <button type="button" title={title} className="nodrag thumb-hover" onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      onMouseEnter={(e) => { const v = e.currentTarget.querySelector("video"); if (v) void v.play().catch(() => undefined); }}
+      onMouseLeave={(e) => { const v = e.currentTarget.querySelector("video"); if (v) { v.pause(); v.currentTime = 0; } }}
       style={{ position: "relative", width: w, height: h, borderRadius: 6, overflow: "hidden", flexShrink: 0, padding: 0, background: "var(--tray)", boxShadow: ring ? `0 0 0 2px ${SEL}` : "0 0 0 1px var(--line)", cursor: onClick ? "pointer" : "default" }}>
       {kind === "video"
-        ? <video src={asset(id)} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ? <video src={asset(id)} muted loop playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <img src={asset(id)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-      {kind === "video" && <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 20, height: 20, borderRadius: 99, background: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="play" size={9} weight="fill" color="#121212" /></span>}
+      {kind === "video" && <span className="thumb-play" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: 99, background: "rgba(255,255,255,0.92)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="play" size={9} weight="fill" color="#121212" /></span>}
+      {kind === "video" && sound && <span style={{ position: "absolute", right: 3, bottom: 3, width: 16, height: 16, borderRadius: 99, background: "rgba(18,18,18,.6)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Has sound"><Icon name="music" size={9} color="#fff" /></span>}
+      <span className="thumb-expand" style={{ position: "absolute", right: 3, top: 3, width: 18, height: 18, borderRadius: 5, background: "rgba(255,255,255,.92)", alignItems: "center", justifyContent: "center" }}><Icon name="arrow-ur" size={10} color="#121212" /></span>
       {flag && <span style={{ position: "absolute", left: 3, top: 3, height: 14, padding: "0 4px", borderRadius: 4, background: "#fff", color: "#B7791F", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center" }}>{flag}</span>}
       {star && <span style={{ position: "absolute", right: 3, top: 3, width: 16, height: 16, borderRadius: 99, background: "rgba(255,255,255,0.92)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="star" size={9} weight="fill" color="#B7791F" /></span>}
     </button>
@@ -75,8 +82,8 @@ function Empty({ icon, text, w, h }: { icon: "image" | "video"; text: string; w:
 
 // ---------------------------------------------------------------- ports
 const portColor = (k: NodeKey, port: string, out: boolean) => {
-  if (out) return k === "product" ? TOK.product : k === "data" ? TOK.data : k === "brand" || k === "reference" ? TOK.brand : k === "wins" ? TOK.wins : "#B5B2AC";
-  if (k === "prompt") return port === "product" ? TOK.product : port === "data" ? TOK.data : port === "brand" || port === "ref" ? TOK.brand : TOK.wins;
+  if (out) return k === "character" ? TOK.character : k === "product" ? TOK.product : k === "data" ? TOK.data : k === "brand" || k === "reference" ? TOK.brand : k === "wins" ? TOK.wins : "#B5B2AC";
+  if (k === "prompt") return port === "char" ? TOK.character : port === "product" ? TOK.product : port === "data" ? TOK.data : port === "brand" || port === "ref" ? TOK.brand : TOK.wins;
   return "#B5B2AC";
 };
 const SIDE = { left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom } as const;
@@ -98,19 +105,26 @@ export function ShootCanvasNode({ id, selected }: NodeProps<CanvasNode>) {
   const k = n.type, d = NODES[k], c = cfgOf(n), st = s.status[id];
   const product = s.productFor(id);
   const signal = k === "data" ? s.signalFor(id) : null;
-  const title = k === "product" ? (product ? short(product.title) : "Pick a product") : k === "data" ? signal?.data ?? "No signal" : k === "brand" ? `${s.brand} kit`
+  const person = k === "character" ? s.characterOf(c.characterId) : null;
+  const title = k === "character" ? person?.name ?? "Pick a person" : k === "product" ? (product ? short(product.title) : "Pick a product") : k === "data" ? signal?.data ?? "No signal" : k === "brand" ? `${s.brand} kit`
     : k === "wins" ? "From Insights" : k === "reference" ? (c.reference ? "Brand photo" : "Pick a photo") : k === "prompt" ? "by Remy" : k === "photo" ? s.engines.photo
     : k === "video" ? s.engines.video : k === "sound" ? "Voice + music" : k === "check" ? "Otto" : "Where results go";
   return (
-    <div className="col" style={{ width: NODE_W[k], minHeight: NODE_H[k], background: "#fff", borderRadius: 12, cursor: "grab",
-      boxShadow: selected ? `0 0 0 2px ${SEL}, 0 10px 28px rgba(18,18,18,0.10)` : "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,0.05)" }}>
+    <div className="col" style={{ width: s.expanded(id) ? 372 : NODE_W[k], minHeight: NODE_H[k], background: "#fff", borderRadius: 12, cursor: "grab", transition: "width .15s",
+      boxShadow: selected ? `0 0 0 2px ${SEL}, 0 10px 28px rgba(18,18,18,0.10)` : st === "running" ? `0 0 0 1.5px ${SEL}, 0 8px 24px rgba(26,167,200,.18)` : "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,0.05)",
+      ...(st === "queued" ? { outline: "1.5px dashed #C9C5BF", outlineOffset: 2 } : {}) }}>
       <Ports k={k} hot={selected} />
       <div className="row g6" style={{ height: 30, padding: "0 10px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
         <Tile k={k} icon={k === "product" ? <ShopifyLogo size={11} /> : undefined} />
         <span className="mono" style={{ fontSize: 9.5, color: "var(--ink-4)", letterSpacing: "0.04em" }}>{d.kind}</span>
         <span className="xs w5 i1 fill ell">{title}</span>
-        {st === "running" ? <Icon name="spinner" size={13} className="spin" color={SEL} /> : st === "error" ? <Icon name="warning-circle" size={13} color="#B7791F" /> : d.agent ? <AgentFace kind={d.agent} size={16} /> : null}
+        {st === "queued" ? <span className="xs i3">queued</span>
+          : st === "running" ? <span className="row g4 xs tnum" style={{ color: SEL }}><Icon name="spinner" size={12} className="spin" color={SEL} />{clock(s.now - (s.statusAt[id] ?? s.now))}</span>
+          : st === "error" ? <Icon name="warning-circle" size={13} color="#B7791F" /> : st === "done" ? <Icon name="check-circle" size={13} weight="fill" color="#1F8A5B" /> : d.agent ? <AgentFace kind={d.agent} size={16} /> : null}
+        {(k === "photo" || k === "video") && <button type="button" className="nodrag hv" title={s.expanded(id) ? "Collapse" : "Expand to see every result"} aria-label="Expand" onClick={(e) => { e.stopPropagation(); s.toggleExpand(id); }}
+          style={{ width: 20, height: 20, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: 2 }}><Icon name={s.expanded(id) ? "minus" : "arrow-ur"} size={11} color="#55534F" /></button>}
       </div>
+      {st === "running" && <div className="run-bar" />}
       <div className="col g6" style={{ padding: "9px 10px", flex: 1, minHeight: 0 }}>
         <Body n={n} />
       </div>
@@ -133,6 +147,17 @@ function Body({ n }: { n: ShootNode }) {
       <div className="row g4" style={{ flexWrap: "wrap" }}><Tag t="Shopify photo" color={TOK.product} /><Tag t="price" color={TOK.product} /><Tag t="stock" color={TOK.product} /></div>
       <span className="row g4 xs i3"><Icon name="lock" size={11} color="#1F8A5B" />label + shape locked</span>
     </> : <span className="xs i3" style={{ lineHeight: "16px" }}>No product photos yet — they come from Shopify on the next sync.</span>;
+  }
+
+  if (n.type === "character") {
+    const p = s.characterOf(c.characterId);
+    return p ? <>
+      <button type="button" className="nodrag" onClick={(e) => { e.stopPropagation(); s.view(id, p.id); }} title="Open" style={{ borderRadius: 7, overflow: "hidden", boxShadow: "0 0 0 1px var(--line)", padding: 0, background: "var(--tray)" }}>
+        <img src={asset(p.id)} alt="" style={{ width: "100%", height: 86, objectFit: "cover", display: "block" }} />
+      </button>
+      <span className="xs i2" style={{ lineHeight: "15px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</span>
+      <span className="row g4 xs i3" style={{ marginTop: "auto" }}><Icon name="lock" size={11} color={TOK.character} />{p.uploaded ? "real creator · with permission" : "same person in every shot"}</span>
+    </> : <span className="xs i3" style={{ lineHeight: "16px" }}>Pick or cast a person in the panel — wire this into the Prompt and Photo and they hold the product.</span>;
   }
 
   if (n.type === "data") {
@@ -177,7 +202,7 @@ function Body({ n }: { n: ShootNode }) {
         {c.segments && c.prompt === joinSegs(c.segments) ? <Segments segs={c.segments} /> : c.prompt || <span className="i3">Wire inputs in, then Run flow — Remy writes this from them. Or write the scene yourself in the panel.</span>}
       </span>
       {s.stale(id) && <span className="xs c-amber">Inputs changed — Remy rewrites it on the next run.</span>}
-      <div className="row g8" style={{ flexWrap: "wrap" }}>{(["product", "data", "brand", "wins"] as const).map((k) => <span key={k} className="row g4" style={{ fontSize: 10, color: "var(--ink-3)" }}><span style={{ width: 8, height: 2, background: TOK[k] }} />{k === "wins" ? "Wins" : k[0].toUpperCase() + k.slice(1)}</span>)}</div>
+      <div className="row g8" style={{ flexWrap: "wrap" }}>{(["product", "character", "data", "brand", "wins"] as const).map((k) => <span key={k} className="row g4" style={{ fontSize: 10, color: "var(--ink-3)" }}><span style={{ width: 8, height: 2, background: TOK[k] }} />{k === "wins" ? "Wins" : k === "character" ? "Person" : k[0].toUpperCase() + k.slice(1)}</span>)}</div>
       <button type="button" className="row g4 xs i2 nodrag" disabled={s.busy} onClick={(e) => { e.stopPropagation(); s.select(id); s.writePrompt(id); }} style={{ paddingTop: 6, borderTop: "1px solid var(--line)", textAlign: "left" }}>
         {st === "running" ? <Icon name="spinner" size={11} className="spin" /> : <Icon name="refresh" size={11} color="#55534F" />}{c.prompt ? "Rewrite" : "Write"} · edit by hand</button>
     </>;
@@ -200,13 +225,14 @@ function Body({ n }: { n: ShootNode }) {
     const out = c.out ?? [];
     const checks = out.map((x) => s.byId.get(x)?.check ?? null);
     const firstPass = out.find((x, i) => passes(checks[i]));
+    const big = s.expanded(id), tw = big ? 168 : 82, th = big ? 168 : 74;
     return <>
-      <span className="xs i3">{s.sceneFor(id)} · {c.aspect} · × {c.n}</span>
+      <span className="xs i3">{s.sceneFor(id)} · {c.aspect} · × {c.n}{big && out.length ? ` · ${out.length} made` : ""}</span>
       <div className="row top" style={{ flexWrap: "wrap", gap: 6 }}>
-        {st === "running" ? Array.from({ length: Math.min(4, c.n) }, (_, i) => <Pending key={i} w={82} h={74} label="making" />)
-          : out.length ? out.slice(0, 4).map((x) => s.byId.has(x)
-            ? <Thumb key={x} id={x} w={82} h={74} star={x === firstPass} flag={flagOf(s.byId.get(x)!.check)} onClick={() => s.design(x)} title="Open in the Editor" />
-            : <Pending key={x} w={82} h={74} label="loading" />)
+        {st === "running" ? Array.from({ length: Math.min(4, c.n) }, (_, i) => <Pending key={i} w={tw} h={th} label="making" />)
+          : out.length ? out.slice(0, big ? 12 : 4).map((x) => s.byId.has(x)
+            ? <Thumb key={x} id={x} w={tw} h={th} star={x === firstPass} flag={flagOf(s.byId.get(x)!.check)} onClick={() => s.view(id, x)} title="Open" />
+            : <Pending key={x} w={tw} h={th} label="saving" />)
           : <Empty icon="image" text="Photos land here. Each keeps the real product." w={170} h={150} />}
       </div>
       <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * s.perImage)}</span>
@@ -215,17 +241,25 @@ function Body({ n }: { n: ShootNode }) {
   }
 
   if (n.type === "video") {
-    const out = c.out ?? [];
+    const out = c.out ?? [], jobs = c.jobs ?? [];
     const frame = s.frameFor(id);
+    const big = s.expanded(id), tw = big ? 108 : 56, th = big ? 192 : 104;
     return <>
-      <span className="xs i3">{c.move} · {c.seconds}s · {c.aspect} · × {c.n}</span>
+      <span className="xs i3">{c.move} · {c.seconds}s · {s.engines.via === "Higgsfield" ? (c.res === "480p" ? "draft" : c.res === "1080p" ? "high" : "standard") : c.aspect} · × {c.n}</span>
       <div className="row g4 xs i2"><Icon name="arrow-r" size={11} color="#8B8883" />start frame: {frame ? "a photo from the Photo node" : "wire a Photo node in"}</div>
-      <div className="row g6">
-        {st === "running" && <Pending w={56} h={104} label="rendering" />}
-        {out.slice(0, st === "running" ? 2 : 3).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={56} h={104} kind="video" onClick={() => { s.select(id); s.focus(x); }} /> : <Pending key={x} w={56} h={104} label="loading" />)}
-        {!out.length && st !== "running" && <Empty icon="video" text="A 5–10 s clip from a photo." w={172} h={104} />}
+      <div className="row g6" style={{ flexWrap: "wrap" }}>
+        {jobs.map((j) => (
+          <div key={j.id} className="col" style={{ width: tw, height: th, borderRadius: 6, background: "rgba(247,246,244,0.85)", boxShadow: `0 0 0 1px ${SEL}`, alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, textAlign: "center", padding: 4 }}>
+            <AgentFace kind="builder" size={16} mood="focus" />
+            <span style={{ fontSize: 9.5, color: "var(--ink-2)", lineHeight: "12px" }}>{s.jobState[j.id] === "queued" ? "in the queue" : "rendering"}</span>
+            <span className="tnum" style={{ fontSize: 9.5, color: SEL }}>{clock(s.now - Date.parse(j.at))}</span>
+          </div>
+        ))}
+        {st === "running" && !jobs.length && <Pending w={tw} h={th} label="starting" />}
+        {out.slice(0, big ? 8 : Math.max(0, 3 - jobs.length)).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={tw} h={th} kind="video" sound={s.byId.get(x)!.sound} onClick={() => s.view(id, x)} title="Play" /> : <Pending key={x} w={tw} h={th} label="saving" />)}
+        {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text="A 5–15 s clip from a photo." w={172} h={104} />}
       </div>
-      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * c.seconds * s.perVideoSecond)}</span>{st === "running" ? <span style={{ color: "#1A8FAB" }}>{c.n} rendering</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>1–3 min each</span>}</span>
+      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * c.seconds * s.perVideoSecond)}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · 1–3 min</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>1–3 min each</span>}</span>
     </>;
   }
 
@@ -258,7 +292,7 @@ function Body({ n }: { n: ShootNode }) {
 }
 
 // ---------------------------------------------------------------- wires
-export type Wire = Edge<{ color: string; dashed?: boolean; hot?: boolean }, "wire">;
+export type Wire = Edge<{ color: string; dashed?: boolean; hot?: boolean; flow?: boolean }, "wire">;
 
 export function WireEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data }: EdgeProps<Wire>) {
   const { deleteElements } = useReactFlow();
@@ -266,7 +300,11 @@ export function WireEdge({ id, sourceX, sourceY, targetX, targetY, sourcePositio
   const on = selected || data?.hot;
   return <>
     <BaseEdge id={id} path={path} interactionWidth={20}
-      style={{ stroke: selected ? SEL : data?.hot ? SEL : data?.color ?? "#C9C5BF", strokeWidth: selected ? 2.6 : on ? 2.2 : 1.5, strokeDasharray: data?.dashed ? "4 4" : undefined, strokeLinecap: "round" }} />
+      style={{ stroke: selected || data?.hot || data?.flow ? SEL : data?.color ?? "#C9C5BF", strokeWidth: selected ? 2.6 : on || data?.flow ? 2.2 : 1.5, strokeDasharray: data?.dashed ? "4 4" : undefined, strokeLinecap: "round", opacity: data?.flow ? 0.35 : 1 }} />
+    {data?.flow && <>
+      <path d={path} fill="none" stroke={SEL} strokeWidth={2.4} strokeLinecap="round" className="wire-flow" style={{ pointerEvents: "none" }} />
+      <circle r={4} fill={SEL} style={{ pointerEvents: "none" }}><animateMotion dur="1.3s" repeatCount="indefinite" path={path} /></circle>
+    </>}
     <EdgeLabelRenderer>
       {selected ? (
         <button type="button" className="nodrag nopan" title="Remove this wire (Delete)" aria-label="Remove this wire" onClick={() => deleteElements({ edges: [{ id }] })}

@@ -4,7 +4,7 @@ import type { ShootEdge, ShootFlow, ShootFlowV1, ShootNode, ShootNodeCfg, ShootS
 /** Board 17c colours: node categories (Cleo · Remy · Otto) and the four inputs a prompt phrase can come from. */
 export const SEL = "#1AA7C8";
 export const CAT = { in: "#22A46E", make: "#1AA7C8", edit: "#8B8883", fin: "#EB7A3C" } as const;
-export const TOK: Record<Exclude<ShootSource, "none">, string> = { product: "#22A46E", data: "#6A8FD6", brand: "#B7791F", wins: "#1AA7C8" };
+export const TOK: Record<Exclude<ShootSource, "none">, string> = { product: "#22A46E", data: "#6A8FD6", brand: "#B7791F", wins: "#1AA7C8", character: "#C2577D" };
 
 export type NodeKey = ShootNode["type"];
 type Agent = "builder" | "catalog" | "qa" | "analyst";
@@ -15,6 +15,8 @@ export type NodeDef = { cat: keyof typeof CAT; icon: IconName; kind: string; nam
 export const NODES: Record<NodeKey, NodeDef> = {
   product: { cat: "in", icon: "bag", kind: "PRODUCT", name: "Product", sub: "Input · Cleo brings it from Shopify", lib: "Shopify photo, price, stock", agent: "catalog",
     does: "Brings a Shopify product into the shoot and keeps its label and shape exact.", ins: "—", outs: "photo · price · stock", settings: "product · lock (always on)", example: "Best-seller · its Shopify photo", cost: "free" },
+  character: { cat: "in", icon: "user", kind: "CHARACTER", name: "Character", sub: "Input · the person in the ad", lib: "a person for UGC and lifestyle", agent: "builder", optional: true,
+    does: "A consistent person for the ads: a character sheet Kaviar makes, or photos of a real creator. Wire it in and they hold or use the product.", ins: "—", outs: "the same face, hair and look", settings: "who they are · sheet or real photos", example: "Woman, early 30s, natural makeup → holds the serum to camera", cost: "one photo per sheet" },
   data: { cat: "in", icon: "lightning", kind: "DATA", name: "Data signal", sub: "Input · Iris reads it", lib: "a Shopify or Meta number", agent: "analyst",
     does: "Brings a Shopify or Meta number into the shoot, so the scene fits the people who will see the ad.", ins: "—", outs: "who it’s for · rules for the scene", settings: "signal · rules · flag when it changes", example: "Lapsed buyers → “already at home”", cost: "free" },
   brand: { cat: "in", icon: "palette", kind: "BRAND", name: "Brand kit", sub: "Input · from the brand profile", lib: "look, tone, rules", agent: null,
@@ -38,7 +40,7 @@ export const NODES: Record<NodeKey, NodeDef> = {
 };
 
 export const LIBRARY: [string, keyof typeof CAT, NodeKey[]][] = [
-  ["Inputs", "in", ["product", "data", "brand", "wins", "reference"]],
+  ["Inputs", "in", ["product", "character", "data", "brand", "wins", "reference"]],
   ["Make", "make", ["prompt", "photo", "video", "sound"]],
   ["Finish", "fin", ["check", "send"]],
 ];
@@ -61,21 +63,32 @@ export const FIELDS: Record<string, string[]> = {
   consented: ["Customers · email consent"],
 };
 
-export const SCENES = ["In hand", "On a vanity", "Bathroom shelf", "Flat lay", "Morning window light", "Studio"];
+/** Scenes: product-only shots, and UGC scenes with a person (wire a Character in to keep the same person). */
+export const SCENE_GROUPS: [string, string[]][] = [
+  ["Product", ["In hand", "On a vanity", "Bathroom shelf", "Flat lay", "Morning window light", "Studio"]],
+  ["UGC · with a person", ["Selfie talking to camera", "Holding it up to camera", "Unboxing at home", "Get ready with me", "Applying it in the mirror", "Couch testimonial", "Car review", "Morning routine"]],
+];
+export const SCENES = SCENE_GROUPS.flatMap(([, x]) => x);
+export const isUgc = (scene: string) => SCENE_GROUPS[1][1].includes(scene);
 export const MOVES: [string, string][] = [["Dolly in", "Slow dolly in towards the product."], ["Orbit", "Slow orbit around the product."], ["Macro", "Macro close-up drifting across the label."],
-  ["Hand reveal", "A hand reaches in and lifts the product."], ["Slow push", "Very slow push in, almost still."], ["Still", "Locked-off camera, only light and small details move."]];
+  ["Hand reveal", "A hand reaches in and lifts the product."], ["Slow push", "Very slow push in, almost still."], ["Still", "Locked-off camera, only light and small details move."],
+  ["Handheld selfie", "Vertical phone selfie footage, handheld with natural small shakes; the person talks to camera and shows the product."],
+  ["Show to camera", "The person lifts the product toward the camera, turns it so the label faces the lens, and smiles."],
+  ["Apply it", "Close-up of the person applying the product, then a satisfied look at the camera."],
+  ["Unbox", "Hands open the package on a table and pull the product out, real-phone handheld footage."]];
+export const UGC_MOVES = ["Handheld selfie", "Show to camera", "Apply it", "Unbox"];
 
 // ---------------------------------------------------------------- the graph
 /** What each node can feed. Inputs → Prompt → Photo → Video / Check → Send, so a flow can never loop. */
 export const ALLOWED: Record<NodeKey, NodeKey[]> = {
-  product: ["prompt", "photo"], data: ["prompt"], brand: ["prompt"], wins: ["prompt"], reference: ["prompt"],
+  product: ["prompt", "photo"], character: ["prompt", "photo", "video"], data: ["prompt"], brand: ["prompt"], wins: ["prompt"], reference: ["prompt"],
   prompt: ["photo", "video"], sound: ["video"], photo: ["video", "check", "send"], video: ["check", "send"], check: ["send"], send: [],
 };
 /** Ports: [id, side, offset from the top (px) or null = middle]. Prompt has one typed port per input, as on the board. */
 export const PORTS: Record<NodeKey, { ins: [string, "left" | "top", number | null][]; outs: [string, "right" | "bottom"][] }> = {
-  product: { ins: [], outs: [["out", "right"]] }, data: { ins: [], outs: [["out", "right"]] }, brand: { ins: [], outs: [["out", "right"]] },
+  product: { ins: [], outs: [["out", "right"]] }, character: { ins: [], outs: [["out", "right"]] }, data: { ins: [], outs: [["out", "right"]] }, brand: { ins: [], outs: [["out", "right"]] },
   wins: { ins: [], outs: [["out", "right"]] }, reference: { ins: [], outs: [["out", "right"]] }, sound: { ins: [], outs: [["out", "right"]] },
-  prompt: { ins: [["product", "left", 70], ["data", "left", 125], ["brand", "left", 180], ["wins", "left", 235], ["ref", "left", 270]], outs: [["out", "right"]] },
+  prompt: { ins: [["product", "left", 60], ["char", "left", 100], ["data", "left", 140], ["brand", "left", 180], ["wins", "left", 220], ["ref", "left", 260]], outs: [["out", "right"]] },
   photo: { ins: [["in", "left", null]], outs: [["out", "right"], ["frame", "bottom"]] },
   video: { ins: [["in", "left", null], ["frame", "top", null]], outs: [["out", "right"]] },
   check: { ins: [["in", "left", null]], outs: [["out", "bottom"]] },
@@ -83,23 +96,23 @@ export const PORTS: Record<NodeKey, { ins: [string, "left" | "top", number | nul
 };
 /** Which ports a wire between two node types uses (whatever port it was dropped on). */
 export function handlesFor(a: NodeKey, b: NodeKey): [string, string] {
-  if (b === "prompt") return ["out", a === "reference" ? "ref" : a];
+  if (b === "prompt") return ["out", a === "reference" ? "ref" : a === "character" ? "char" : a];
   if (a === "photo" && b === "video") return ["frame", "frame"];
   if (a === "check" && b === "send") return ["out", "in"];
   if (b === "send") return ["out", "side"];
   return ["out", "in"];
 }
 /** Wire colour: the input it carries (board 17c), grey for make → finish. */
-export const wireColor = (a: NodeKey): string => (a === "product" ? TOK.product : a === "data" ? TOK.data : a === "brand" || a === "reference" ? TOK.brand : a === "wins" ? TOK.wins : "#C9C5BF");
-export const NODE_W: Record<NodeKey, number> = { product: 186, data: 186, brand: 186, wins: 186, reference: 186, prompt: 186, sound: 186, photo: 192, video: 192, check: 196, send: 196 };
-export const NODE_H: Record<NodeKey, number> = { product: 176, data: 136, brand: 114, wins: 140, reference: 120, prompt: 300, sound: 116, photo: 246, video: 266, check: 186, send: 146 };
+export const wireColor = (a: NodeKey): string => (a === "character" ? TOK.character : a === "product" ? TOK.product : a === "data" ? TOK.data : a === "brand" || a === "reference" ? TOK.brand : a === "wins" ? TOK.wins : "#C9C5BF");
+export const NODE_W: Record<NodeKey, number> = { character: 186, product: 186, data: 186, brand: 186, wins: 186, reference: 186, prompt: 186, sound: 186, photo: 192, video: 192, check: 196, send: 196 };
+export const NODE_H: Record<NodeKey, number> = { character: 176, product: 176, data: 136, brand: 114, wins: 140, reference: 120, prompt: 300, sound: 116, photo: 246, video: 266, check: 186, send: 146 };
 
 export const DEFAULTS: Record<NodeKey, ShootNodeCfg> = {
-  product: { product: null }, data: { signal: null, rules: [], rerun: true, value: null }, brand: { strict: true, brandRules: ["no claims", "no before/after"] },
+  product: { product: null }, character: { characterId: null }, data: { signal: null, rules: [], rerun: true, value: null }, brand: { strict: true, brandRules: ["no claims", "no before/after"] },
   wins: { strongOnly: false }, reference: { reference: null }, sound: { music: "Calm morning", voice: "", voiceStyle: "warm, natural", voiceId: null },
   prompt: { prompt: "", segments: null, promptFor: null, length: "medium", scene: "In hand" },
   photo: { aspect: "4:5", n: 4, out: [], at: null },
-  video: { move: "Dolly in", seconds: 5, aspect: "9:16", n: 1, from: null, out: [], at: null },
+  video: { move: "Dolly in", seconds: 5, aspect: "9:16", n: 1, from: null, out: [], at: null, res: "720p", jobs: [] },
   check: {}, send: { send: null, picked: null },
 };
 export const cfgOf = (n: ShootNode) => ({ ...DEFAULTS[n.type], ...n.cfg }) as Required<ShootNodeCfg>;
@@ -109,7 +122,7 @@ export const edgeOf = (from: ShootNode, to: ShootNode): ShootEdge => { const [fh
 // The board's starting layout (canvas pixels).
 const C1 = 18, C2 = 232, C3 = 446, C4 = 664;
 const AT: Record<NodeKey, [number, number]> = {
-  product: [C1, 18], data: [C1, 210], brand: [C1, 362], wins: [C1, 492], reference: [C1, 648], prompt: [C2, 150], sound: [C2, 486],
+  character: [C1, 800], product: [C1, 18], data: [C1, 210], brand: [C1, 362], wins: [C1, 492], reference: [C1, 648], prompt: [C2, 150], sound: [C2, 486],
   photo: [C3, 18], video: [C3, 296], check: [C4, 120], send: [C4, 346],
 };
 const BOARD_WIRES: [NodeKey, NodeKey][] = [
@@ -122,7 +135,19 @@ function boardGraph(cfg: Partial<Record<NodeKey, ShootNodeCfg>>, off: string[] =
   const edges = BOARD_WIRES.filter(([a, b]) => by.has(a) && by.has(b)).map(([a, b]) => edgeOf(by.get(a)!, by.get(b)!));
   return { v: 2, nodes, edges, last: null };
 }
-export const defaultFlow = (template: string | null, product: string | null): ShootFlow => boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product } });
+export const defaultFlow = (template: string | null, product: string | null): ShootFlow => boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product } }, ["reference", "character"]);
+
+/** UGC video: a person (Character) holds the product in a vertical selfie photo, then talks to camera in a clip with a voice line. */
+export function ugcFlow(template: string | null, product: string | null, characterId: string | null = null): ShootFlow {
+  const g = boardGraph({
+    data: { ...DEFAULTS.data, signal: template }, product: { product }, character: { characterId },
+    prompt: { ...DEFAULTS.prompt, scene: "Holding it up to camera" }, photo: { ...DEFAULTS.photo, aspect: "9:16", n: 2 },
+    video: { ...DEFAULTS.video, move: "Handheld selfie", seconds: 10 }, sound: { ...DEFAULTS.sound, music: "No music", voice: "" },
+  }, ["reference"]);
+  const nodes = g.nodes.map((n) => (n.type === "character" ? { ...n, x: C1, y: 18 } : n.type === "product" ? { ...n, y: 210 } : n.type === "data" ? { ...n, y: 402 } : n.type === "brand" ? { ...n, y: 554 } : n.type === "wins" ? { ...n, y: 684 } : n));
+  const by = new Map(nodes.map((n) => [n.id, n]));
+  return { ...g, nodes, edges: [...g.edges, edgeOf(by.get("character")!, by.get("prompt")!), edgeOf(by.get("character")!, by.get("photo")!)] };
+}
 
 /** Flows saved before the canvas was a real graph. */
 function fromV1(o: ShootFlowV1): ShootFlow {
@@ -133,7 +158,7 @@ function fromV1(o: ShootFlowV1): ShootFlow {
     photo: { aspect: o.aspect, n: o.n, out: o.last?.photos ?? [], at: o.last?.at ?? null },
     video: { move: o.video.move, seconds: o.video.seconds, aspect: o.video.aspect, n: o.video.n, from: o.video.from, out: o.last?.clips ?? [], at: o.last?.at ?? null },
     send: { send: o.send, picked: o.picked },
-  }, o.off);
+  }, [...o.off, "character"]);
 }
 export const asFlow = (f: ShootFlow | ShootFlowV1): ShootFlow => ("v" in f && f.v === 2 ? f : fromV1(f as ShootFlowV1));
 
@@ -160,11 +185,11 @@ export function applyPreset(f: ShootFlow, p: { template?: string | null; batch?:
 }
 
 /** What one Run flow costs: every Photo node's photos and every Video node's clips. */
-export const runCost = (f: ShootFlow, perImage: number, perVideoSecond: number, perSoundSecond = 0) =>
+export const runCost = (f: ShootFlow, perImage: number, perVideoSecond: number, perSoundSecond = 0, res: Partial<Record<string, number>> = {}) =>
   f.nodes.reduce((a, n) => {
     const c = cfgOf(n);
     const sound = n.type === "video" && f.edges.some((e) => e.to === n.id && f.nodes.find((x) => x.id === e.from)?.type === "sound");
-    return a + (n.type === "photo" ? c.n * perImage : n.type === "video" ? c.n * c.seconds * (perVideoSecond + (sound ? perSoundSecond : 0)) : 0);
+    return a + (n.type === "photo" ? c.n * perImage : n.type === "video" ? c.n * c.seconds * (perVideoSecond * (res[c.res ?? "720p"] ?? 1) + (sound ? perSoundSecond : 0)) : 0);
   }, 0);
 export const MUSIC = ["Calm morning", "Upbeat", "Luxurious", "Playful", "No music"];
 /** What the Voice + music node asks the video model for. */
