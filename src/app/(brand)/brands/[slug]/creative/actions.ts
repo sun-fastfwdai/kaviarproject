@@ -28,6 +28,13 @@ export async function writeAdsFromSignal(slug: string, key: string, _: State, fo
   redirect(`/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(row.key)}`);
 }
 
+/** The Plan chat: one form — a plan card's button sends `signal`, the composer sends `idea`. */
+export async function startBatch(slug: string, prev: State, form: FormData): Promise<State> {
+  const signal = form.get("signal");
+  if (typeof signal === "string" && signal) return writeAdsFromSignal(slug, signal, prev, form);
+  return writeAdsFromIdea(slug, prev, form);
+}
+
 /** "Start your own batch from an idea" on Creative studio. */
 export async function writeAdsFromIdea(slug: string, _: State, form: FormData): Promise<State> {
   const me = await requireMember();

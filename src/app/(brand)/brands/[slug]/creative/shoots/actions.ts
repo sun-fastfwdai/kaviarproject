@@ -5,7 +5,7 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
-import { checkShot, describeReference, editShot, EDITS, shoot, shootVideo, writeShotPrompt, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
+import { checkShot, describeReference, editShot, EDITS, shoot, shootVideo, wavSeconds, writeShotPrompt, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
 import type { ShootFlow } from "@/lib/db/schema";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
@@ -21,8 +21,15 @@ export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ ou
 export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  const clean: ShootFlow = { ...flow, prompt: flow.prompt.slice(0, 2000), rules: flow.rules.slice(0, 8), brandRules: flow.brandRules.slice(0, 8), n: Math.min(4, Math.max(1, flow.n)),
-    video: { ...flow.video, n: Math.min(3, Math.max(1, flow.video.n)) } };
+  const TYPES = ["product", "data", "brand", "wins", "reference", "prompt", "photo", "video", "sound", "check", "send"];
+  const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []).filter((n) => n && TYPES.includes(n.type) && typeof n.id === "string").slice(0, 40).map((n) => ({
+    id: n.id.slice(0, 40), type: n.type, x: Math.round(Number(n.x) || 0), y: Math.round(Number(n.y) || 0),
+    cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
+      ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 4, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}) },
+  }));
+  const ids = new Set(nodes.map((n) => n.id));
+  const edges = (Array.isArray(flow.edges) ? flow.edges : []).filter((e) => e && ids.has(e.from) && ids.has(e.to)).slice(0, 80);
+  const clean: ShootFlow = { v: 2, nodes, edges, last: flow.last ?? null };
   const at = new Date();
   await db.insert(schema.shootFlows).values({ brandId: brand.id, flow: clean, updatedBy: me.id, updatedAt: at })
     .onConflictDoUpdate({ target: schema.shootFlows.brandId, set: { flow: clean, updatedBy: me.id, updatedAt: at } });
@@ -46,7 +53,7 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
   return editShot(brand.id, me.id, assetId, kind);
 }
 
-export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number }): Promise<{ ids?: string[]; error?: string }> {
+export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null }): Promise<{ ids?: string[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   if (input.prompt.trim().length < 10) return { error: "Describe the scene first." };
@@ -62,10 +69,10 @@ export async function runCheck(slug: string, assetId: string, referenceUrl: stri
   return check ? { check } : { error: "Otto couldn’t check it." };
 }
 
-export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5" }): Promise<{ id?: string; error?: string }> {
+export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null }): Promise<{ id?: string; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  return shootVideo(brand.id, me.id, { ...input, seconds: Math.min(10, Math.max(5, input.seconds)) });
+  return shootVideo(brand.id, me.id, { ...input, seconds: Math.min(15, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? null });
 }
 
 /** Send photos to a batch (they become its ads' photos, in order) or keep them in brand assets. */
@@ -110,4 +117,39 @@ export async function designFromShot(slug: string, assetId: string): Promise<voi
     cta: "Shop now", offer: "No offer", product, imageUrl: `/api/assets/${a.id}`, why: "Designed by hand from a Shoots photo.",
   }).returning({ id: schema.ads.id });
   redirect(`/brands/${slug}/creative/editor?ad=${ad.id}`);
+}
+
+/** Save a brand voice (a 2–15 s WAV the canvas recorded or converted). Only with the speaker's permission — the team confirms it. */
+export async function saveVoice(slug: string, form: FormData): Promise<{ id?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const file = form.get("file"), name = String(form.get("name") ?? "").trim().slice(0, 40);
+  if (form.get("consent") !== "yes") return { error: "Confirm you have the speaker’s permission first." };
+  if (!(file instanceof File) || file.size > 4_000_000) return { error: "Add a voice sample under 4 MB." };
+  const data = Buffer.from(await file.arrayBuffer());
+  const secs = wavSeconds(data);
+  if (secs == null) return { error: "That isn’t a WAV recording." };
+  if (secs < 2 || secs > 15.5) return { error: "Keep the sample between 2 and 15 seconds." };
+  const [row] = await db.insert(schema.brandAssets).values({
+    brandId: brand.id, kind: "voice", name: name || "Brand voice", mime: "audio/wav", size: data.byteLength, data,
+    meta: { seconds: Math.round(secs * 10) / 10, consent: { by: me.name, at: new Date().toISOString() } }, createdBy: me.id,
+  }).returning({ id: schema.brandAssets.id });
+  return { id: row.id };
+}
+
+export async function deleteVoice(slug: string, id: string): Promise<void> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "voice")));
+}
+
+/** Product search for the Product node: any active product with a Shopify photo, by title. */
+export async function searchProducts(slug: string, q: string): Promise<{ title: string; url: string; price: number | null; stock: number | null }[]> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const term = `%${q.trim().slice(0, 80).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return (await db.execute(sql`select p.title, p.image_url as url, p.total_inventory as stock,
+      (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
+    from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' and p.title ilike ${term}
+    order by p.total_inventory desc nulls last limit 30`)).rows as { title: string; url: string; price: number | null; stock: number | null }[];
 }

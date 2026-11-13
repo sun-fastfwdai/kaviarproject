@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "^1.8.0",
     "@phosphor-icons/react": "^2.1.10",
     "@vercel/analytics": "^2.0.1",
+    "@xyflow/react": "12.12.0",
     "ai": "^7.0.172",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.5",

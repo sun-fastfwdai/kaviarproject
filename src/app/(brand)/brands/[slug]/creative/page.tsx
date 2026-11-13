@@ -13,7 +13,7 @@ import { LoopStrip } from "@/components/loop-strip";
 import { NeedsSource, SidePanel } from "@/components/ui";
 import { BatchArt, EmptyState } from "@/components/empty";
 import { StudioBar, reviewCount } from "./tabs";
-import { BuildPlanButton, IdeaForm } from "./forms";
+import { PlanChat } from "./plan-chat";
 
 export const metadata = { title: "Creative studio" };
 export const maxDuration = 120;
@@ -58,30 +58,12 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
     <>
       <StudioBar base={base} brand={brand.name} on={tab === "plan" ? "plan" : "batches"} counts={{ ...reviewCount(toReview), ...(newPlans ? { plan: `${newPlans} new` } : {}) }}><LoopStrip base={base} step={2} /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
-        <section className="scroll col" style={{ padding: "20px 24px", gap: 16 }}>
-          {!aiReady() && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
-          {tab === "plan" ? (<>
-            <div className="col g4"><h1 className="h1">What to make next</h1><p className="sm i3">Iris planned these from {brand.name}’s Shopify orders{conns.meta ? " and Meta results" : ""}. Build one, or brief your own idea.</p></div>
-            <div className="row between"><span className="row g6 sm w5"><AgentFace kind="analyst" size={16} />Recommended by Iris</span><span className="xs i3">from today’s store data</span></div>
-            <div className="row g12 stretch">
-              {plans.map((p, i) => (
-                <div key={p.key} className="card col g10 fill" style={{ padding: 14, minWidth: 0, ...(i === 0 ? { borderColor: "var(--ink)", boxShadow: "0 0 0 1px var(--ink)" } : {}) }}>
-                  <div className="col g2"><span className="eyebrow">Plan {i + 1}</span><Link href={`${base}/signals/${p.key}`} className="h3">{p.data}</Link></div>
-                  <span className="xs i2" style={{ lineHeight: "17px" }}><AgentFace kind="analyst" size={12} /> <b className="w5 i1">Why:</b> {p.why ?? p.value} — {p.use.toLowerCase()}.</span>
-                  <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5 }}>{k}: {v}</span>)}</span>
-                  <div className="fill" />
-                  <div className="row between xs" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><span className="i3">Will make</span><span className="i1">6 ads · static, video & UGC</span></div>
-                  <BuildPlanButton slug={slug} signal={p.key} count={6} dark={i === 0} />
-                </div>
-              ))}
-              {plans.length === 0 && (
-                <EmptyState title="Iris needs a little more store data" body="Plans come from ad signals — lapsed buyers, reorder timing, best-sellers. They appear once orders and customers have synced. Meanwhile, brief your own idea below."
-                  steps={[{ agent: "catalog", title: "Cleo syncs orders and customers", body: "Usually minutes after Shopify connects." }, { agent: "analyst", title: "Iris finds signals", body: "Each one becomes a plan card here." }, { agent: "builder", title: "Remy writes the batch", body: "One click per plan." }]}
-                  art={<BatchArt />} actions={<Link className="btn" href={`${base}/sync`}><Icon name="database" size={14} />Check Data sync</Link>} />
-              )}
-            </div>
-            <IdeaForm slug={slug} placeholder={`e.g. Holiday gift ads for ${brand.name}'s best-seller — warm and cosy, for people who bought last December`} />
-          </>) : (<>
+        <section className="scroll col" style={{ padding: tab === "plan" ? 0 : "20px 24px", gap: 16 }}>
+          {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
+          {tab === "plan" ? (
+            <PlanChat slug={slug} base={base} brand={brand.name} hasMeta={Boolean(conns.meta)} aiOk={aiReady()}
+              plans={plans.map((p) => ({ key: p.key, title: p.data, why: `${p.why ?? p.value} — ${p.use.toLowerCase()}.`, evidence: p.evidence, href: `${base}/signals/${p.key}` }))} />
+          ) : (<>
             <div className="col g4"><h1 className="h1">Ads</h1><p className="sm i3">Every batch Remy wrote for {brand.name}. Open one to review, edit, approve and set up a test.</p></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
               {batches.map((b) => (

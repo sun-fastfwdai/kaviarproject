@@ -321,3 +321,7 @@ details > summary::-webkit-details-marker { display: none; }
 .theme-rail { scrollbar-width: thin; }
 .theme-rail::-webkit-scrollbar { height: 6px; }
 .theme-rail::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+
+/* Plan chat: Remy's typing dots */
+@keyframes pulse-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+.pulse-dot { animation: pulse-dot 1s ease-in-out infinite; }

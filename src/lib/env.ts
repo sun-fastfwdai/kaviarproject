@@ -37,5 +37,7 @@ export const env = {
   }),
   shopifyConfigured: () => Boolean(read("SHOPIFY_API_KEY") && read("SHOPIFY_API_SECRET")),
   aiConfigured: () => Boolean(read("ANTHROPIC_API_KEY")),
+  // Higgsfield Cloud API key: "<key id>:<key secret>" (or the two halves in HIGGSFIELD_API_KEY_ID / _SECRET).
+  higgsfield: () => read("HIGGSFIELD_API") ?? (read("HIGGSFIELD_API_KEY_ID") && read("HIGGSFIELD_API_KEY_SECRET") ? `${read("HIGGSFIELD_API_KEY_ID")}:${read("HIGGSFIELD_API_KEY_SECRET")}` : null),
   metaConfigured: () => Boolean(read("META_APP_ID") && read("META_APP_SECRET")),
 };

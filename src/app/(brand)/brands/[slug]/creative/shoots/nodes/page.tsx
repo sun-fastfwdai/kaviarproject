@@ -2,12 +2,12 @@ import Link from "next/link";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
-import { COST_PER_IMAGE, COST_PER_VIDEO_SECOND, shootsThisMonth } from "@/lib/creative/shoots";
+import { shootEngines, shootsThisMonth } from "@/lib/creative/shoots";
 import { Icon } from "@/components/icon";
 import { AgentFace, AGENT_NAME } from "@/components/agent";
 import { ShootBar } from "../bar";
 import { reviewCount } from "../../tabs";
-import { CAT, NODES, defaultFlow, templateName, type NodeKey } from "../flow";
+import { CAT, NODES, asFlow, defaultFlow, flowSignal, runCost, templateName, type NodeKey } from "../flow";
 
 export const metadata = { title: "Shoots · Every node" };
 
@@ -54,16 +54,17 @@ export default async function NodesPage({ params }: PageProps<"/brands/[slug]/cr
     db.select({ flow: schema.shootFlows.flow }).from(schema.shootFlows).where(eq(schema.shootFlows.brandId, brand.id)),
     db.execute(sql`select count(*)::int as n from ads where brand_id = ${brand.id} and status = 'review'`).then((r) => r.rows as { n: number }[]),
   ]);
-  const flow = saved?.flow ?? defaultFlow(null, null);
-  const cost = flow.n * COST_PER_IMAGE + (flow.off.includes("video") ? 0 : flow.video.seconds * COST_PER_VIDEO_SECOND * flow.video.n);
-  const costs: Partial<Record<NodeKey, string>> = { photo: `$${COST_PER_IMAGE.toFixed(2)} each`, video: `$${COST_PER_VIDEO_SECOND.toFixed(3)} / second` };
-  const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost })), { ...EDIT, cost: `$${COST_PER_IMAGE.toFixed(2)} each` }];
+  const flow = saved ? asFlow(saved.flow) : defaultFlow(null, null);
+  const eng = await shootEngines();
+  const cost = runCost(flow, eng.perImage, eng.perVideoSecond, eng.perSoundSecond);
+  const costs: Partial<Record<NodeKey, string>> = { photo: `$${eng.perImage.toFixed(2)} each`, video: `$${eng.perVideoSecond.toFixed(3)} / second`, ...(eng.sound ? { sound: `+$${eng.perSoundSecond.toFixed(3)} / second` } : {}) };
+  const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost, ...(k === "photo" ? { example: `${eng.photo} · In hand · 4:5 × 4` } : k === "video" ? { example: `${eng.video} · Dolly in · 5s` } : {}) })), { ...EDIT, cost: `$${eng.perImage.toFixed(2)} each` }];
   // Board order: inputs, then make, edit, finish.
   const sorted = [...cards.filter((c) => c.cat === "in"), ...cards.filter((c) => c.cat === "make"), ...cards.filter((c) => c.cat === "edit"), ...cards.filter((c) => c.cat === "fin")];
 
   return (
     <>
-      <ShootBar base={base} name={saved ? `${templateName(flow.template)} · every node` : "Every node"} spend={month.cost} counts={reviewCount(rev?.n ?? 0)}>
+      <ShootBar base={base} name={saved ? `${templateName(flowSignal(flow))} · every node` : "Every node"} spend={month.cost} counts={reviewCount(rev?.n ?? 0)}>
         <Link className="btn dark sm" href={`${base}/creative/shoots?run=1`}><Icon name="play" size={12} weight="fill" color="#fff" />Run flow · ≈ ${cost.toFixed(2)}</Link>
       </ShootBar>
       <section className="col fill scroll" style={{ minHeight: 0, padding: "16px 22px", gap: 14, background: "var(--tray)" }}>
