@@ -309,3 +309,7 @@ details > summary::-webkit-details-marker { display: none; }
 .rv-row .rv-edit { opacity: 0; transition: opacity .12s ease; }
 .rv-row:hover { background: var(--tray); }
 .rv-row:hover .rv-edit { opacity: 1; }
+
+/* Ad signals: whole row opens the signal */
+.sig-row:hover { background: var(--tray); }
+.sig-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }

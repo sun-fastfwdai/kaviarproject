@@ -5,7 +5,7 @@ import { one, rows, SALE, since } from "./common";
 /** Everything the store data says, as numbers an ad can use. One round-trip per group. */
 export async function signalData(brandId: string, tz: string) {
   const days = 30;
-  const [catalog, best, pair, stock, orders, codes, customers, reorder, lapsed, refunds] = await Promise.all([
+  const [catalog, best, pair, stock, orders, codes, customers, reorder, lapsed, refunds, types] = await Promise.all([
     one<{ products: number; variants: number; withImage: number; withCost: number; avgMargin: number | null }>(sql`
       select (select count(*) from shop_products where brand_id = ${brandId} and coalesce(status, 'ACTIVE') = 'ACTIVE')::int as "products",
         (select count(*) from shop_variants where brand_id = ${brandId})::int as "variants",
@@ -65,6 +65,9 @@ export async function signalData(brandId: string, tz: string) {
     one<{ refunded: number; orders: number }>(sql`
       select (count(*) filter (where refunded > 0))::int as "refunded", count(*)::int as "orders"
       from shop_orders o where o.brand_id = ${brandId} and ${SALE} and o.created_at >= ${since(tz, days)}`),
+    rows<{ name: string; n: number }>(sql`
+      select coalesce(nullif(product_type, ''), 'Other') as "name", count(*)::int as "n" from shop_products
+      where brand_id = ${brandId} and coalesce(status, 'ACTIVE') = 'ACTIVE' group by 1 order by 2 desc`),
   ]);
-  return { catalog, best, pair: pair ?? null, stock, orders, code: codes[0] ?? null, customers, reorder, lapsed, refunds };
+  return { catalog, best, pair: pair ?? null, stock, orders, code: codes[0] ?? null, customers, reorder, lapsed, refunds, types: types.filter((t) => t.name !== "Other" || types.length === 1) };
 }

@@ -10,11 +10,13 @@ import { env } from "../env";
  * - Iris (reads sites and decks, writes the brand profile): Opus 5.5 — the deepest reading and synthesis.
  * - Otto (checks what's missing before launch): Sonnet 5.5 — rule-following review.
  * - Cleo (catalog and sync status notes): Haiku 5.5 — short, frequent, cheap.
+ * - Remy (turns signals into ad angles and copy): Sonnet 5.5 — strong writing at speed.
  */
 export const AGENTS = {
   kaviar: { model: "claude-sonnet-5-5", effort: "low" },
   iris: { model: "claude-opus-5-5", effort: "medium" },
   otto: { model: "claude-sonnet-5-5", effort: "low" },
+  remy: { model: "claude-sonnet-5-5", effort: "low" },
   cleo: { model: "claude-haiku-5-5", effort: "low" },
 } as const;
 export type Agent = keyof typeof AGENTS;
