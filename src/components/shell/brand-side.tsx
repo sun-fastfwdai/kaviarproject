@@ -25,6 +25,8 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>
         <NavLink href={`${base}/signals`} icon={<Icon name="lightning" />} label="Ad signals" />
+        <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" />
+        <NavLink href={`${base}/run`} icon={<Icon name="target" />} label="Run ads" />
         <NavLink href={`${base}/performance`} icon={<Icon name="chart-bar" />} label="Performance" />
         <div style={{ height: 1, background: "var(--line)", margin: "6px 8px" }} />
         <NavLink href={`${base}/meta`} icon={<Icon name="megaphone" />} label="Meta Ads" />

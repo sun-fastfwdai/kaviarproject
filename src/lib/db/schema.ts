@@ -360,3 +360,44 @@ export const agentNotes = pgTable(
   },
   (t) => [primaryKey({ columns: [t.brandId, t.key] })],
 );
+
+// ---------------------------------------------------------------- Creative studio: batches of ads Remy writes from a signal or an idea
+export type AdStatus = "review" | "approved" | "rejected";
+export const adBatches = pgTable(
+  "ad_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    signal: text("signal"), // signal key it came from, or null for a free idea
+    title: text("title").notNull(),
+    brief: text("brief").notNull(),
+    audience: text("audience").notNull(),
+    evidence: jsonb("evidence").$type<[string, string][]>().notNull().default([]),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("ad_batches_brand").on(t.brandId, t.createdAt)],
+);
+export const ads = pgTable(
+  "ads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id").notNull().references(() => adBatches.id, { onDelete: "cascade" }),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    format: text("format").$type<"static" | "video" | "ugc" | "carousel">().notNull(),
+    hook: text("hook").notNull(),
+    primaryText: text("primary_text").notNull(),
+    headline: text("headline").notNull(),
+    cta: text("cta").notNull(),
+    offer: text("offer").notNull(),
+    product: text("product"),
+    imageUrl: text("image_url"),
+    why: text("why").notNull(),
+    status: text("status").$type<AdStatus>().notNull().default("review"),
+    note: text("note"), // why it was rejected — Remy reads it on Redo
+    edited: boolean("edited").notNull().default(false),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("ads_batch").on(t.batchId, t.position)],
+);
