@@ -14,6 +14,8 @@ const SCOPE_TEXT: Record<string, [string, string]> = {
   read_products: ["Read products & collections", "Catalog, prices and images for the store and ads."],
   read_inventory: ["Read inventory", "Stock levels, so ads pause before a sell-out."],
   read_customers: ["Read customers", "Order counts and spend only — no names, emails or addresses."],
+  read_themes: ["See the store’s themes", "So you can pick which theme Kaviar builds on."],
+  write_themes: ["Install and edit a theme", "Kaviar adds its theme as an unpublished draft. Nothing goes live until a person publishes it."],
 };
 
 export type Connected = { name: string; shop: string; host: string | null; products: number; currency: string | null; at: string | null } | null;
@@ -47,10 +49,10 @@ const tag = (t: string) => <span key={t} className="pill" style={{ height: 22, f
 
 function NeverModal({ onClose }: { onClose: () => void }) {
   return (
-    <Modal icon={<Icon name="shield" size={18} />} title="What Kaviar never does" sub="Read-only, and the store owner stays in control." onClose={onClose}
+    <Modal icon={<Icon name="shield" size={18} />} title="What Kaviar never does" sub="The store owner stays in control." onClose={onClose}
       footer={<button className="btn dark" type="button" onClick={onClose}>Got it</button>}>
       <div className="col g10">
-        {["Edit, cancel or refund orders", "Change products, prices or stock", "Read customer names, emails or addresses", "Touch the live theme or checkout", "Keep access after the owner removes the app"].map((t) => (
+        {["Edit, cancel or refund orders", "Change products, prices or stock", "Read customer names, emails or addresses", "Change the live theme or checkout without a person publishing", "Keep access after the owner removes the app"].map((t) => (
           <span key={t} className="row g8 sm i2"><Icon name="x" size={14} color="#C8423B" />{t}</span>
         ))}
       </div>

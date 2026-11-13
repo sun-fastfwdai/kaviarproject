@@ -25,7 +25,7 @@ const ERRORS: Record<string, string> = {
 };
 
 const SHOPIFY_SCOPES = ["read_orders", "read_all_orders", "read_products", "read_inventory", "read_customers"];
-const nice = (s: string) => s.replace(/^read_/, "").replace(/_/g, " ").replace(/^all orders$/, "order history");
+const nice = (s: string) => s === "write_themes" ? "edit themes" : s.replace(/^read_/, "").replace(/_/g, " ").replace(/^all orders$/, "order history");
 
 function Summary({ provider, conn, lastSync, action }: { provider: "shopify" | "meta"; conn: ConnectionView; lastSync: Date | null; action: React.ReactNode }) {
   const daysLeft = provider === "meta" && conn.accessExpiresAt ? daysUntil(conn.accessExpiresAt) : null;
@@ -91,7 +91,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4">
               <h1 className="h1">Integrations</h1>
-              <p className="lead">What the store connects to, and who has to act. Shopify and Meta are read-only — Kaviar never edits the store or the ads.</p>
+              <p className="lead">What the store connects to, and who has to act. Kaviar never edits orders, products or ads; themes it installs stay drafts until a person publishes.</p>
             </div>
             <div className="row">
               <div className="kpi"><span className="v">{rows.filter((r) => live(r.conn)).length}</span><span className="xs i3">Connected</span></div>

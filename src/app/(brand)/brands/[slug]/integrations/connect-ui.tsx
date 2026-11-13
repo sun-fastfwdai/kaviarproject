@@ -11,6 +11,8 @@ const SCOPE_TEXT: Record<string, [string, string]> = {
   read_products: ["Read products & collections", "Catalog, prices and images."],
   read_inventory: ["Read inventory", "Stock levels, so ads pause before a sell-out."],
   read_customers: ["Read customers", "Order counts and spend only — no names, emails or addresses."],
+  read_themes: ["See the store’s themes", "So you can pick which theme Kaviar builds on."],
+  write_themes: ["Install and edit a theme", "Kaviar adds its theme as an unpublished draft. Nothing goes live until a person publishes it."],
 };
 type Account = { id: string; name: string; currency: string; timezone_name: string; account_status: number };
 type Kind = "shopify" | "meta" | "choose" | "disconnect-shopify" | "disconnect-meta";
@@ -48,8 +50,8 @@ function ShopifyModal({ slug, shop, scopes, ready, onClose }: { slug: string; sh
   const name = isDomain ? raw : raw.replace(/\.myshopify\.com$/, "").replace(/[^a-z0-9-]/g, "");
   const shopValue = !name ? "" : isDomain ? name : `${name}.myshopify.com`;
   return (
-    <Modal icon={<ShopifyLogo size={18} />} title={shop ? "Reconnect Shopify" : "Connect Shopify store"} sub="The store owner approves read-only access in Shopify. Takes about 2 minutes." onClose={onClose} width={560}
-      footer={<><span className="xs i3 fill">Read-only · Kaviar never edits the store</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
+    <Modal icon={<ShopifyLogo size={18} />} title={shop ? "Reconnect Shopify" : "Connect Shopify store"} sub="The store owner approves access in Shopify. Takes about 2 minutes." onClose={onClose} width={560}
+      footer={<><span className="xs i3 fill">Never edits orders, products or the live theme</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
         <button form="shopify-connect" className="btn dark" disabled={!ready || name.length < 2}>Continue to Shopify →</button></>}>
       <form id="shopify-connect" action="/api/shopify/install" method="get" className="col g14">
         <input type="hidden" name="brand" value={slug} />
