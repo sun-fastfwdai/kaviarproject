@@ -21,7 +21,11 @@ export const storageReady = () => Boolean(storage());
 async function sb(path: string, init: RequestInit = {}) {
   const s = storage();
   if (!s) throw new Error("Kaviar’s theme storage isn’t switched on yet.");
-  return fetch(`${s.url}/storage/v1/${path}`, { ...init, headers: { Authorization: `Bearer ${s.key}`, apikey: s.key, ...(init.headers ?? {}) }, cache: "no-store" });
+  // New-style secret keys (sb_secret_…) go in the apikey header only; legacy service_role JWTs also as a Bearer token.
+  const headers = new Headers(init.headers);
+  headers.set("apikey", s.key);
+  if (!s.key.startsWith("sb_")) headers.set("Authorization", `Bearer ${s.key}`);
+  return fetch(`${s.url}/storage/v1/${path}`, { ...init, headers, cache: "no-store" });
 }
 
 /** The current Kaviar Starter in storage: size and when it was uploaded, or null. */
