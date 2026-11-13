@@ -63,6 +63,21 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
   );
 }
 
+type WebhookState = { registered: string[]; missing: string[]; errors: string[]; checkedAt: string };
+
+/** Real webhook state from Shopify (checked after syncs), not just whether one arrived today. */
+function WebhookCheck({ conn, received }: { conn: ConnectionView | null; received: number }) {
+  if (!conn) return <Check ok={null} label="Webhooks" value="after connect" />;
+  if (conn.status === "sample") return <Check ok label="Webhooks" value="sample data" />;
+  const w = (conn.details as { webhooks?: WebhookState }).webhooks;
+  if (!w) return <Check ok={received > 0 ? true : null} label="Webhooks" value={received ? `${received} in 24 h` : "checked on the next sync"} />;
+  if (!w.missing.length) return <Check ok label="Webhooks" value={received ? `${w.registered.length} topics · ${received} in 24 h` : `${w.registered.length} topics registered`} />;
+  const err = w.errors.join(" ");
+  const why = /protected customer data|not approved/i.test(err) ? "orders need Shopify’s customer-data approval"
+    : /https/i.test(err) ? "needs a public https address" : `${w.missing.length} not registered`;
+  return <span title={err || undefined}><Check ok={false} label={`Webhooks · ${w.registered.length} of ${w.registered.length + w.missing.length}`} value={why} /></span>;
+}
+
 const TRIGGER: Record<string, string> = { connect: "First backfill", manual: "Manual sync", schedule: "Hourly sync", webhook: "Webhook" };
 
 export default async function SyncPage({ params, searchParams }: PageProps<"/brands/[slug]/sync">) {
@@ -105,7 +120,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
 
           <div className="row g16" style={{ alignItems: "stretch" }}>
             <SourceCard slug={slug} provider="shopify" conn={conns.shopify} lastSync={last("shopify")}
-              extra={<Check ok={hooks.n > 0 || conns.shopify?.status === "sample" ? true : null} label="Webhooks" value={hooks.n ? `${hooks.n} in 24 h` : "hourly pull covers it"} />} />
+              extra={<WebhookCheck conn={conns.shopify} received={hooks.n} />} />
             <SourceCard slug={slug} provider="meta" conn={conns.meta} lastSync={last("meta")}
               extra={<Check ok={conns.meta ? true : null} label="Insights pulled every hour" value={conns.meta ? "last 7 days restated" : "after connect"} />} />
           </div>

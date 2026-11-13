@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { ShopifyAuthError } from "../shopify/oauth";
 import { MetaAuthError } from "../meta/client";
 import { SHOPIFY_RESOURCES, syncShopifyResource } from "../shopify/sync";
+import { ensureWebhooks, type WebhookState } from "../shopify/webhooks";
 import { metaCursorFor, syncMeta } from "../meta/sync";
 import type { Provider, SyncTrigger } from "../db/schema";
 
@@ -93,6 +94,7 @@ export async function runBrandSync(brandId: string, trigger: SyncTrigger, only?:
       }
       const rows = Object.values(detail).reduce((a, b) => a + b, 0);
       await finishRun(run.id, { status: "success", rows, detail });
+      if (provider === "shopify") await checkWebhooks(conn);
       await db.update(T.connections).set({ lastError: null, updatedAt: new Date() }).where(eq(T.connections.id, conn.id));
       out.push({ provider, status: "success", rows });
     } catch (e) {
@@ -107,6 +109,21 @@ export async function runBrandSync(brandId: string, trigger: SyncTrigger, only?:
     }
   }
   return out;
+}
+
+/** Make sure the store's webhooks exist (once a day, or sooner if some are missing) and record what Shopify says. */
+async function checkWebhooks(conn: typeof T.connections.$inferSelect) {
+  const prev = (conn.details as { webhooks?: WebhookState }).webhooks;
+  const fresh = prev && !prev.missing.length && Date.now() - Date.parse(prev.checkedAt) < 24 * 3600_000;
+  const recentFail = prev && prev.missing.length && Date.now() - Date.parse(prev.checkedAt) < 3600_000;
+  if (fresh || recentFail) return;
+  try {
+    const webhooks = await ensureWebhooks(conn.id);
+    await db.update(T.connections).set({ details: sql`${T.connections.details} || ${JSON.stringify({ webhooks })}::jsonb` }).where(eq(T.connections.id, conn.id));
+    if (webhooks.errors.length) console.warn("shopify webhooks", conn.externalId, webhooks.errors);
+  } catch (e) {
+    console.warn("shopify webhooks check failed", conn.externalId, (e as Error).message);
+  }
 }
 
 /** Hourly cron: every brand with at least one live connection. */
