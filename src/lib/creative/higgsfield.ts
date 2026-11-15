@@ -74,17 +74,24 @@ export async function hfStatus(requestId: string): Promise<Status | { error: str
   return (await r.json()) as Status;
 }
 
-/** What a job would cost in USD for this account (Higgsfield's /estimate). */
-export async function hfEstimate(model: string, input: Record<string, unknown>): Promise<number | null> {
+/** What a job would cost for this account (Higgsfield's /estimate): a flat USD amount, or — for per-second and token-priced models — the rate card as text. */
+type Quote = { usd: number | null; note: string | null };
+async function hfQuote(model: string, input: Record<string, unknown>): Promise<Quote | null> {
   try {
     const r = await hfFetch(`/estimate/${model}`, { method: "POST", headers: headers(), body: JSON.stringify(input) });
     if (!r.ok) { console.error("higgsfield estimate", model, r.status, await reason(r)); return null; }
-    const body = (await r.json()) as { usd?: string | number; type?: string; pricing_description?: unknown };
+    const body = (await r.json()) as { usd?: string | number; pricing_description?: unknown };
     const v = Number(body.usd);
-    if (!Number.isFinite(v)) console.error("higgsfield estimate", model, "type:", body.type, "pricing:", JSON.stringify(body.pricing_description ?? null).slice(0, 600));
-    return Number.isFinite(v) ? v : null;
+    return { usd: body.usd != null && Number.isFinite(v) ? v : null, note: typeof body.pricing_description === "string" ? body.pricing_description : null };
   } catch (e) { console.error("higgsfield estimate", model, (e as Error).message); return null; }
 }
+export async function hfEstimate(model: string, input: Record<string, unknown>): Promise<number | null> {
+  return (await hfQuote(model, input))?.usd ?? null;
+}
+/** "480p: $0.0804; 720p: $0.1735; …" → per-second rates. */
+const perSecond = (note: string | null) => Object.fromEntries([...(note ?? "").matchAll(/(\d{3,4}p|4K)\s*:\s*\$\s*(\d+(?:\.\d+)?)/gi)].map((m) => [m[1].toLowerCase(), Number(m[2])]).filter(([, v]) => Number.isFinite(v as number))) as Record<string, number>;
+/** Marketing Studio bills by tokens; Higgsfield's docs budget about $0.084 per image. */
+const PHOTO_APPROX = 0.084;
 
 /** Higgsfield needs public URLs: our assets are private, so a start frame or reference goes up through a presigned upload. */
 export async function hfUpload(data: Buffer | Uint8Array, contentType: string): Promise<string> {
@@ -105,21 +112,27 @@ export async function hfDownload(url: string): Promise<{ data: Buffer; mime: str
   return { data: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type")?.split(";")[0] ?? "application/octet-stream" };
 }
 
-/** Prices for the canvas (per photo, per video second), from Higgsfield's estimate; cached for a few hours. */
+/** Prices for the canvas (per photo, per video second, quality multipliers), from Higgsfield's estimates; cached for a few hours. */
 export async function hfPrices(): Promise<{ photo: number; videoSecond: number; soundSecond: number; res: Record<"480p" | "720p" | "1080p", number> } | null> {
   "use cache";
   cacheLife("hours");
   if (!hfReady()) return null;
-  const v = (resolution: string, audio: boolean) => hfEstimate(HF_VIDEO, { image_url: "https://example.com/a.jpg", duration: 5, resolution, generate_audio: audio });
-  const [photo, video, silent, low, high] = await Promise.all([
-    hfEstimate(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }),
-    v("720p", true), v("720p", false), v("480p", false), v("1080p", false),
-  ]);
+  const clip = (resolution: string, audio: boolean) => ({ image_url: "https://example.com/a.jpg", duration: 5, resolution, generate_audio: audio });
+  const [p, v] = await Promise.all([hfQuote(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }), hfQuote(HF_VIDEO, clip("720p", true))]);
   // A failed estimate is thrown, not returned, so it isn't cached for hours — the next request asks again.
-  if (photo == null || video == null) throw new Error("Higgsfield prices unavailable");
-  const base = silent ?? video;
-  // Price multiplier per quality tier, relative to 720p.
-  return { photo, videoSecond: base / 5, soundSecond: Math.max(0, video - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
+  if (!p || !v) throw new Error("Higgsfield prices unavailable");
+  const photo = p.usd ?? PHOTO_APPROX;
+  const rates = perSecond(v.note);
+  if (rates["720p"]) {
+    // Per-second rate card (Seedance): sound is included in the rate.
+    const base = rates["720p"];
+    return { photo, videoSecond: base, soundSecond: 0, res: { "480p": rates["480p"] ? rates["480p"] / base : 0.46, "720p": 1, "1080p": rates["1080p"] ? rates["1080p"] / base : 2.47 } };
+  }
+  if (v.usd == null) { console.error("higgsfield estimate: no price for", HF_VIDEO, (v.note ?? "").slice(0, 200)); throw new Error("Higgsfield video price unknown"); }
+  // Flat quotes: price the silent clip and each quality separately.
+  const [silent, low, high] = await Promise.all([hfEstimate(HF_VIDEO, clip("720p", false)), hfEstimate(HF_VIDEO, clip("480p", false)), hfEstimate(HF_VIDEO, clip("1080p", false))]);
+  const base = silent ?? v.usd;
+  return { photo, videoSecond: base / 5, soundSecond: Math.max(0, v.usd - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
 }
 
 /** Width/height of a PNG or JPEG, to keep an edit's framing. */

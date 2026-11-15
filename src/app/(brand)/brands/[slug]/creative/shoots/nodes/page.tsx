@@ -58,7 +58,7 @@ export default async function NodesPage({ params }: PageProps<"/brands/[slug]/cr
   const eng = await shootEngines();
   const cost = runCost(flow, eng.perImage, eng.perVideoSecond, eng.perSoundSecond);
   const costs: Partial<Record<NodeKey, string>> = { photo: `$${eng.perImage.toFixed(2)} each`, video: `$${eng.perVideoSecond.toFixed(3)} / second`, ...(eng.sound ? { sound: `+$${eng.perSoundSecond.toFixed(3)} / second` } : {}) };
-  const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost, ...(k === "photo" ? { example: `${eng.photo} · In hand · 4:5 × 4` } : k === "video" ? { example: `${eng.video} · Dolly in · 5s` } : {}) })), { ...EDIT, cost: `$${eng.perImage.toFixed(2)} each` }];
+  const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost, ...(k === "photo" ? { example: `${eng.photo} · In hand · 4:5 × 4` } : k === "video" ? { example: `${eng.video} · Selfie talk · 4 shots · 10s` } : {}) })), { ...EDIT, cost: `$${eng.perImage.toFixed(2)} each` }];
   // Board order: inputs, then make, edit, finish.
   const sorted = [...cards.filter((c) => c.cat === "in"), ...cards.filter((c) => c.cat === "make"), ...cards.filter((c) => c.cat === "edit"), ...cards.filter((c) => c.cat === "fin")];
 
