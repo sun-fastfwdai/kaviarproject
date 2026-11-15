@@ -1,5 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- product photos and generated media */
+import { SIZE_SHORT } from "@/lib/creative/director";
 import { createContext, useContext } from "react";
 import Link from "next/link";
 import { BaseEdge, EdgeLabelRenderer, Handle, Position, getBezierPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
@@ -37,7 +38,7 @@ export type StudioApi = {
   patch: (id: string, cfg: Partial<ShootNode["cfg"]>) => void; select: (id: string) => void; writePrompt: (id: string) => void; design: (assetId: string) => void;
   rerunOne: (checkId: string, shotId: string) => void; send: (id: string) => void; focus: (assetId: string) => void;
   characterOf: (id: string | null) => { id: string; name: string; description: string; uploaded: boolean } | null; errorFor: (id: string) => string | null;
-  statusAt: Record<string, number>; jobState: Record<string, string>; view: (nodeId: string, assetId: string) => void; expanded: (id: string) => boolean; toggleExpand: (id: string) => void;
+  statusAt: Record<string, number>; jobState: Record<string, string>; planning: (id: string) => boolean; styleFor: (id: string) => { name: string; auto: boolean }; view: (nodeId: string, assetId: string) => void; expanded: (id: string) => boolean; toggleExpand: (id: string) => void;
 };
 export const StudioCtx = createContext<StudioApi | null>(null);
 const useStudio = () => useContext(StudioCtx)!;
@@ -246,7 +247,12 @@ function Body({ n }: { n: ShootNode }) {
     const frame = s.frameFor(id);
     const big = s.expanded(id), tw = big ? 108 : 56, th = big ? 192 : 104;
     return <>
-      <span className="xs i3">{c.move} · {c.seconds}s · {s.engines.via === "Higgsfield" ? (c.res === "480p" ? "draft" : c.res === "1080p" ? "high" : "standard") : c.aspect} · × {c.n}</span>
+      <span className="xs i3 ell">{s.styleFor(id).name}{c.plan ? ` · ${c.plan.shots.length} shots` : ""} · {c.seconds}s · {s.engines.via === "Higgsfield" ? (c.res === "480p" ? "draft" : c.res === "1080p" ? "high" : "standard") : c.aspect} · × {c.n}</span>
+      {c.plan && (
+        <div className="row" title="Shot list" style={{ height: 14, borderRadius: 4, overflow: "hidden", gap: 1, flexShrink: 0 }}>
+          {c.plan.shots.map((x, i) => <span key={i} style={{ flex: Math.max(1, x.to - x.from), minWidth: 0, background: i % 2 ? "#D7EFF5" : "#EAF7FA", color: "#1A8FAB", fontSize: 8.5, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>{SIZE_SHORT[x.size] ?? ""}</span>)}
+        </div>
+      )}
       <div className="row g4 xs i2"><Icon name="arrow-r" size={11} color="#8B8883" />start frame: {frame ? "a photo from the Photo node" : "wire a Photo node in"}</div>
       <div className="row g6" style={{ flexWrap: "wrap" }}>
         {jobs.map((j) => (
@@ -256,7 +262,7 @@ function Body({ n }: { n: ShootNode }) {
             <span className="tnum" style={{ fontSize: 9.5, color: SEL }}>{clock(s.now - Date.parse(j.at))}</span>
           </div>
         ))}
-        {st === "running" && !jobs.length && <Pending w={tw} h={th} label="starting" />}
+        {st === "running" && !jobs.length && <Pending w={tw} h={th} label={s.planning(id) ? "planning shots" : "starting"} />}
         {out.slice(0, big ? 8 : Math.max(0, 3 - jobs.length)).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={tw} h={th} kind="video" sound={s.byId.get(x)!.sound} onClick={() => s.view(id, x)} title="Play" /> : <Pending key={x} w={tw} h={th} label="saving" />)}
         {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text="A 5–15 s clip from a photo." w={172} h={104} />}
       </div>

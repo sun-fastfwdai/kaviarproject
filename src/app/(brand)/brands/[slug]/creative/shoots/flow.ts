@@ -30,7 +30,7 @@ export const NODES: Record<NodeKey, NodeDef> = {
   photo: { cat: "make", icon: "image", kind: "PHOTO", name: "Photo", sub: "Make · Remy runs it", lib: "product photo locked", agent: "builder",
     does: "Makes product photos from the prompt with the real product as reference.", ins: "prompt · product", outs: "photos", settings: "scene · size · count", example: "In hand · 4:5 × 4", cost: "" },
   video: { cat: "make", icon: "video", kind: "VIDEO", name: "Video", sub: "Make · Remy runs it", lib: "a clip from a photo", agent: "builder", optional: true,
-    does: "Turns a start frame into a short clip with a camera move. The product’s label and shape stay exact.", ins: "start frame · prompt", outs: "clips", settings: "move · length · size · count", example: "Dolly in · 5s · 9:16", cost: "" },
+    does: "Turns a start frame into a short clip, shot by shot like a professional shooter would film it. The product’s label and shape stay exact.", ins: "start frame · prompt · sound", outs: "clips", settings: "shooting style · shots · length · quality · count", example: "Selfie talk · 4 shots · 10s", cost: "" },
   sound: { cat: "make", icon: "music", kind: "SOUND", name: "Voice + music", sub: "Make · made with the clip", lib: "sound for clips", agent: null, optional: true,
     does: "Gives a wired Video node its sound: a music mood and an optional voice line, made together with the clip.", ins: "—", outs: "voice · music", settings: "music mood · voice line", example: "Calm morning music · “Back for your next bottle?”", cost: "a little extra per clip" },
   check: { cat: "fin", icon: "seal-check", kind: "CHECK", name: "Check", sub: "Finish · Otto checks every result", lib: "Otto: label, shape, brand", agent: "qa",
@@ -70,13 +70,6 @@ export const SCENE_GROUPS: [string, string[]][] = [
 ];
 export const SCENES = SCENE_GROUPS.flatMap(([, x]) => x);
 export const isUgc = (scene: string) => SCENE_GROUPS[1][1].includes(scene);
-export const MOVES: [string, string][] = [["Dolly in", "Slow dolly in towards the product."], ["Orbit", "Slow orbit around the product."], ["Macro", "Macro close-up drifting across the label."],
-  ["Hand reveal", "A hand reaches in and lifts the product."], ["Slow push", "Very slow push in, almost still."], ["Still", "Locked-off camera, only light and small details move."],
-  ["Handheld selfie", "Vertical phone selfie footage, handheld with natural small shakes; the person talks to camera and shows the product."],
-  ["Show to camera", "The person lifts the product toward the camera, turns it so the label faces the lens, and smiles."],
-  ["Apply it", "Close-up of the person applying the product, then a satisfied look at the camera."],
-  ["Unbox", "Hands open the package on a table and pull the product out, real-phone handheld footage."]];
-export const UGC_MOVES = ["Handheld selfie", "Show to camera", "Apply it", "Unbox"];
 
 // ---------------------------------------------------------------- the graph
 /** What each node can feed. Inputs → Prompt → Photo → Video / Check → Send, so a flow can never loop. */
@@ -112,7 +105,7 @@ export const DEFAULTS: Record<NodeKey, ShootNodeCfg> = {
   wins: { strongOnly: false }, reference: { reference: null }, sound: { music: "Calm morning", voice: "", voiceStyle: "warm, natural", voiceId: null },
   prompt: { prompt: "", segments: null, promptFor: null, length: "medium", scene: "In hand" },
   photo: { aspect: "4:5", n: 4, out: [], at: null },
-  video: { move: "Dolly in", seconds: 5, aspect: "9:16", n: 1, from: null, out: [], at: null, res: "720p", jobs: [] },
+  video: { style: "auto", shotCount: null, plan: null, seconds: 5, aspect: "9:16", n: 1, from: null, out: [], at: null, res: "720p", jobs: [] },
   check: {}, send: { send: null, picked: null },
 };
 export const cfgOf = (n: ShootNode) => ({ ...DEFAULTS[n.type], ...n.cfg }) as Required<ShootNodeCfg>;
@@ -142,7 +135,7 @@ export function ugcFlow(template: string | null, product: string | null, charact
   const g = boardGraph({
     data: { ...DEFAULTS.data, signal: template }, product: { product }, character: { characterId },
     prompt: { ...DEFAULTS.prompt, scene: "Holding it up to camera" }, photo: { ...DEFAULTS.photo, aspect: "9:16", n: 2 },
-    video: { ...DEFAULTS.video, move: "Handheld selfie", seconds: 10 }, sound: { ...DEFAULTS.sound, music: "No music", voice: "" },
+    video: { ...DEFAULTS.video, style: "selfie", seconds: 10 }, sound: { ...DEFAULTS.sound, music: "No music", voice: "" },
   }, ["reference"]);
   const nodes = g.nodes.map((n) => (n.type === "character" ? { ...n, x: C1, y: 18 } : n.type === "product" ? { ...n, y: 210 } : n.type === "data" ? { ...n, y: 402 } : n.type === "brand" ? { ...n, y: 554 } : n.type === "wins" ? { ...n, y: 684 } : n));
   const by = new Map(nodes.map((n) => [n.id, n]));
@@ -193,9 +186,11 @@ export const runCost = (f: ShootFlow, perImage: number, perVideoSecond: number, 
   }, 0);
 export const MUSIC = ["Calm morning", "Upbeat", "Luxurious", "Playful", "No music"];
 /** What the Voice + music node asks the video model for. */
-export const soundDirection = (c: { music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null }) => {
+export const soundDirection = (c: { music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null }, linesInShots = false) => {
   const music = c.music && c.music !== "No music" ? `${c.music.toLowerCase()} music bed` : "natural ambient sound, no music";
   if (!c.voice?.trim()) return music;
-  const who = c.voiceId ? "the reference voice" : `a ${c.voiceStyle?.trim() || "warm, natural"} voice-over`;
+  const who = c.voiceId ? "the reference voice" : `a ${c.voiceStyle?.trim() || "warm, natural"} voice`;
+  // With a shot list, each line sits in the shot where it's said — lip-synced to the person on camera.
+  if (linesInShots) return `${music}; ${who} speaks the lines written in the shots, lip-synced`;
   return `${music}; ${who} says: "${c.voice.trim().slice(0, 140)}"`;
 };

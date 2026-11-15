@@ -5,13 +5,15 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, deleteShot, designFromShot, pollVideo, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
+import { createCharacter, deleteShot, designFromShot, planShots, pollVideo, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
-import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MOVES, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, UGC_MOVES, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
+import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
 import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
 import { ProductCombo } from "./product-combo";
+import { ShotList } from "./shot-list";
+import { STYLE, STYLES, autoShots, autoStyle, directionText, fitTimes, planLines, sameWords } from "@/lib/creative/director";
 import { StudioCtx, ShootCanvasNode, WireEdge, Tag, Thumb, Tile, agoFrom, asset, flagOf, joinSegs, passes, short, usd,
   type Batch, type CanvasNode, type Check, type Lesson, type Product, type RunState, type Shot, type Signal, type StudioApi, type Wire } from "./canvas-nodes";
 import { ShootBar } from "./bar";
@@ -20,7 +22,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
 import type { PromptIn } from "@/lib/creative/shoots";
-import type { ShootFlow, ShootNode, ShootNodeCfg } from "@/lib/db/schema";
+import type { ShootFlow, ShootNode, ShootNodeCfg, ShotPlan } from "@/lib/db/schema";
 
 export type { Shot } from "./canvas-nodes";
 type Edit = "remove-bg" | "extend" | "relight";
@@ -123,6 +125,7 @@ function Studio(props: Props) {
   const [jobState, setJobState] = useState<Record<string, string>>({});
   const [viewer, setViewer] = useState<{ node: string; id: string } | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
+  const [planning, setPlanning] = useState<string[]>([]); // Video nodes Remy is planning shots for
   const flowRef = useRef(flow);
   const dirty = useRef(props.preset); // a handoff preset (?batch=…&signal=…) is saved straight away
   const search = useRef<HTMLInputElement>(null);
@@ -305,6 +308,36 @@ function Studio(props: Props) {
     return { ids, flagged };
   };
 
+  // ---- video direction: the shooting style (auto = from the scene and who's in it) and Remy's shot list
+  const directionOf = (g: ShootFlow, vid: string, who: (id: string | null) => Character | null = (id) => allChars.find((x) => x.id === id) ?? null) => {
+    const V = find(g, vid), c = V ? cfgOf(V) : cfgOf({ id: vid, type: "video", x: 0, y: 0, cfg: {} });
+    const P = promptOf(g, vid), ch = up(g, vid, "character"), scene = P ? cfgOf(P).scene : "";
+    const auto = !c.style || c.style === "auto" || !STYLE[c.style], withPerson = Boolean(ch) || isUgc(scene), autoKey = autoStyle(scene, withPerson);
+    const key = auto ? autoKey : c.style;
+    const snd = inc(g, vid).find((x) => x.type === "sound");
+    // The words said on camera: the Voice + music node's line, or the one Remy wrote with the prompt for a person on camera.
+    const voice = snd ? (cfgOf(snd).voice?.trim() || (P && (ch || isUgc(scene)) ? cfgOf(P).voiceLine?.trim() ?? "" : "")) : "";
+    const person = ch ? who(cfgOf(ch).characterId) : null;
+    return { key, auto, autoKey, withPerson, scene, person, voice, snd, frame: (P && cfgOf(P).prompt) || "", product: productOf(g, vid)?.title ?? "the product", seconds: c.seconds, count: c.shotCount ?? null };
+  };
+  const planFits = (p: ShotPlan | null | undefined, d: ReturnType<typeof directionOf>): p is ShotPlan =>
+    Boolean(p && p.style === d.key && p.seconds === d.seconds && (!d.count || p.shots.length === d.count));
+  const planFor = async (vid: string): Promise<{ plan?: ShotPlan; error?: string }> => {
+    const d = directionOf(flowRef.current, vid, charById);
+    setPlanning((x) => [...x, vid]);
+    try {
+      const r = await planShots(slug, { style: d.key, seconds: d.seconds, count: d.count, frame: d.frame, product: d.product, scene: d.scene, character: d.person ? { name: d.person.name, description: d.person.description } : null, voice: d.voice });
+      if (r.plan) patchNode(vid, { plan: r.plan }, false);
+      return r;
+    } finally { setPlanning((x) => x.filter((y) => y !== vid)); }
+  };
+  // Editing a shot's line rewrites the voice line, so the shot list and the Voice + music node never disagree.
+  const editPlan = (vid: string, p: ShotPlan, save: boolean) => {
+    patchNode(vid, { plan: p }, save);
+    const d = directionOf(flowRef.current, vid), said = planLines(p);
+    if (d.snd && said && !sameWords(said, d.voice)) patchNode(d.snd.id, { voice: said.slice(0, 140) }, false);
+  };
+
   const videoRun = async (vid: string, checks: Map<string, Check>) => {
     const g = flowRef.current, V = find(g, vid);
     if (!V) return { ids: [] as string[], jobs: 0 };
@@ -316,7 +349,6 @@ function Studio(props: Props) {
     }
     const c = cfgOf(V), P = promptOf(g, vid);
     const text = (P && cfgOf(P).prompt) || `${productOf(g, vid)?.title ?? "The product"} in a calm everyday scene.`;
-    const move = MOVES.find(([m]) => m === c.move)?.[1] ?? "";
     mark(vid, "running");
     let snd = inc(g, vid).find((x) => x.type === "sound");
     // A person on camera with nothing to say: use the line Remy wrote with the prompt.
@@ -324,8 +356,15 @@ function Studio(props: Props) {
       patchNode(snd.id, { voice: cfgOf(P).voiceLine }, false);
       snd = find(flowRef.current, snd.id) ?? snd;
     }
-    const sound = props.engines.sound && snd ? soundDirection(cfgOf(snd)) : null;
-    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${move} ${text}`.slice(0, 1200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
+    // Direction: Remy's shot list for this style and length (planned now if there isn't one yet).
+    const d = directionOf(flowRef.current, vid, charById);
+    let plan = cfgOf(find(flowRef.current, vid)!).plan;
+    if (!planFits(plan, d)) plan = (await planFor(vid)).plan ?? null;
+    const lines = Boolean(plan && d.voice && sameWords(planLines(plan), d.voice));
+    const st = STYLE[d.key];
+    const direction = plan ? directionText(plan, { lines }) : `${st.look}. Camera: ${st.camera}. Light: ${st.light}. Edit: ${st.edit}.`;
+    const sound = props.engines.sound && snd ? soundDirection(cfgOf(snd), lines) : null;
+    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${direction}\nThe start photo: ${text}`.slice(0, 3200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
     const ids = res.flatMap((o) => (o.id ? [o.id] : [])), jobs = res.flatMap((o) => (o.job ? [o.job] : []));
     if (!ids.length && !jobs.length) { fail(vid, res[0]?.error ?? "No clip came back."); return { ids, jobs: 0 }; }
     if (res.some((o) => o.error)) setMsg(res.find((o) => o.error)!.error!);
@@ -564,7 +603,8 @@ function Studio(props: Props) {
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
     characterOf: (id) => charById(id), errorFor: (id) => errors[id] ?? null,
-    statusAt, jobState, view: (node, id) => setViewer({ node, id }), expanded: (id) => expanded.includes(id), toggleExpand: (id) => setExpanded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])),
+    statusAt, jobState, planning: (id) => planning.includes(id), styleFor: (id) => { const d = directionOf(flow, id); return { name: STYLE[d.key].name, auto: d.auto }; },
+    view: (node, id) => setViewer({ node, id }), expanded: (id) => expanded.includes(id), toggleExpand: (id) => setExpanded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])),
     patch: (id, cfg) => patchNode(id, cfg), select, writePrompt: (id) => go(async () => { await write(id); }), design, rerunOne, send, focus: (id) => setFocus(id),
   };
 
@@ -716,6 +756,9 @@ function Studio(props: Props) {
   const nFrames = nPh ? cfgOf(nPh).out.filter((x) => byId.has(x)) : [];
   const nFrame = n?.type === "video" ? frameOf(flow, n.id) : null;
   const nClips = n?.type === "video" && c ? c.out.filter((x) => byId.has(x)) : [];
+  const vDir = n?.type === "video" ? directionOf(flow, n.id) : null, vStyle = vDir ? STYLE[vDir.key] : null;
+  const vPlan = n?.type === "video" && c ? c.plan ?? null : null, vFits = vDir ? planFits(vPlan, vDir) : false, vPlanning = n ? planning.includes(n.id) : false;
+  const vStale = Boolean(vDir && vPlan && vDir.voice && vPlan.shots.some((x) => x.line) && !sameWords(planLines(vPlan), vDir.voice));
   const nChecked = n?.type === "check" ? checkedFor(n.id) : [];
   const nOk = nChecked.filter((s) => passes(checkOf(s.id))).length;
   const sItems = n?.type === "send" ? sendItems(n.id) : { photos: [], clips: [] };
@@ -905,27 +948,47 @@ function Studio(props: Props) {
 
         {n.type === "video" && <>
             <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
-            <Field label="Start nFrame" sub={nFrames.length > 1 ? "Click another photo to start from it" : undefined}>
+            <Field label="Start frame" sub={nFrames.length > 1 ? "Click another photo to start from it" : undefined}>
               {nFrame ? <div className="col g6"><div className="row g8"><Thumb id={nFrame} w={40} h={50} /><div className="col"><span className="xs w5 i1">From the Photo node</span><span className="xs i3">{c.from ? "picked by hand" : "Otto’s best pass"}</span></div></div>
                 {nFrames.length > 1 && <div className="row g4" style={{ flexWrap: "wrap" }}>{nFrames.map((x) => <Thumb key={x} id={x} w={34} h={34} ring={x === nFrame} onClick={() => patchNode(n.id, { from: x })} />)}</div>}</div>
                 : <span className="xs i3">{nPh ? "Run the Photo node first — the clip starts from one of its photos." : "Wire a Photo node into this one (its bottom port to this node’s top)."}</span>}
             </Field>
-            <div className="col g6" style={{ flexShrink: 0 }}><span className="xs w5 i3">Camera move</span>
-              <div className="row top" style={{ flexWrap: "wrap", gap: 8 }}>{MOVES.map(([m], i) => (
-                <button key={m} type="button" onClick={() => patchNode(n.id, { move: m })} className="col g2" style={{ width: 76, textAlign: "left" }}>
-                  <div style={{ position: "relative", width: 76, height: 50, borderRadius: 7, overflow: "hidden", background: "var(--tray)", boxShadow: c.move === m ? "0 0 0 2px #1AA7C8" : "0 0 0 1px var(--line)" }}>
-                    {(nFrame || headProduct) && <img src={nFrame ? asset(nFrame) : headProduct!.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: ["50% 50%", "20% 50%", "80% 30%", "50% 80%", "50% 40%", "50% 60%"][i] ?? "50% 35%", transform: `scale(${[1.15, 1, 1.6, 1.05, 1.3, 1][i] ?? 1.1})` }} />}
-                    {UGC_MOVES.includes(m) && <span style={{ position: "absolute", left: 3, top: 3, height: 14, padding: "0 4px", borderRadius: 4, background: "rgba(255,255,255,.92)", fontSize: 9, fontWeight: 600, color: "#C2577D", display: "flex", alignItems: "center" }}>UGC</span>}
-                  </div>
-                  <span style={{ fontSize: 10.5, ...(c.move === m ? { color: "var(--ink)", fontWeight: 500 } : { color: "var(--ink-2)" }) }}>{m}</span>
-                </button>))}</div>
-            </div>
+            {vDir && vStyle && <>
+              <Field label="Shooting style" sub={vDir.auto ? `Picked for ${vDir.scene ? `“${vDir.scene}”` : "this scene"}${vDir.withPerson ? " with a person on camera" : ""} — choose one to direct it yourself.` : undefined}>
+                <Combo label="Shooting style" value={vDir.auto ? "auto" : vDir.key} onChange={(v) => patchNode(n.id, { style: v, plan: null })}
+                  options={[{ value: "auto", label: `Auto · ${STYLE[vDir.autoKey].name}`, sub: "Remy picks from the scene and who’s in it" }, ...STYLES.map((x) => ({ value: x.key, label: x.name, sub: `${x.group} · ${x.look}` }))]} />
+              </Field>
+              <div className="col g6" style={{ padding: "10px 12px", borderRadius: 10, background: "var(--tray)", flexShrink: 0 }}>
+                <span className="row g6 xs w5 i1"><Icon name="video" size={12} color={CAT.make} />How a pro films it</span>
+                {([["Camera", vStyle.camera], ["Light", vStyle.light], ["Edit", vStyle.edit]] as const).map(([a, b]) => (
+                  <div key={a} className="row top g8"><span className="xs i3" style={{ width: 44, flexShrink: 0 }}>{a}</span><span className="xs i2" style={{ lineHeight: "16px" }}>{b}</span></div>))}
+              </div>
+            </>}
             <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}>
-              <Pills label="Length" value={c.seconds} options={props.engines.via === "Higgsfield" ? [[5, "5s"], [10, "10s"], [15, "15s"]] : [[5, "5s"], [10, "10s"]]} onChange={(v) => patchNode(n.id, { seconds: v })} />
+              <Pills label="Length" value={c.seconds} options={props.engines.via === "Higgsfield" ? [[5, "5s"], [10, "10s"], [15, "15s"]] : [[5, "5s"], [10, "10s"]]}
+                onChange={(v) => patchNode(n.id, { seconds: v, plan: c.plan && c.plan.shots.length * 1.5 <= v ? { ...c.plan, seconds: v, shots: fitTimes(c.plan.shots, v) } : null })} />
               {props.engines.via === "Higgsfield" && <Pills label="Quality" value={c.res ?? "720p"} options={[["480p", "Draft"], ["720p", "Standard"], ["1080p", "High"]]} onChange={(v) => patchNode(n.id, { res: v })} />}
               {props.engines.via !== "Higgsfield" && <Pills label="Size" value={c.aspect === "1:1" ? "1:1" : "9:16"} options={[["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} />}
               <span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [3, "× 3"]]} onChange={(v) => patchNode(n.id, { n: v })} />
             </div>
+            {vDir && <Field label="Shots in the clip">
+              <Pills label="Shots" value={c.shotCount ?? 0} options={[[0, `Auto · ${autoShots(vDir.key, c.seconds)}`], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"]]}
+                onChange={(v) => patchNode(n.id, { shotCount: v || null, ...(v && c.plan && c.plan.shots.length !== v ? { plan: null } : {}) })} />
+            </Field>}
+            {vDir && <Field label="Shot list">
+              {vPlan ? <div className="col g8">
+                  {!vFits && <span className="xs c-amber" style={{ lineHeight: "16px" }}>Planned for {STYLE[vPlan.style]?.name ?? "another style"}{vPlan.seconds !== c.seconds ? ` · ${vPlan.seconds}s` : ""} — Remy re-plans it on the next run.</span>}
+                  {vStale && <span className="xs c-amber" style={{ lineHeight: "16px" }}>The voice line changed — re-plan to place the new words in the shots.</span>}
+                  <ShotList plan={vPlan} talk={Boolean(vDir.snd && (vDir.voice || vDir.withPerson))} onChange={(p, save) => editPlan(n.id, p, save)} />
+                  <button type="button" className="btn quiet sm" style={{ alignSelf: "flex-start" }} disabled={busy || vPlanning} onClick={() => go(async () => { const r = await planFor(n.id); if (r.error) setMsg(r.error); })}>
+                    {vPlanning ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Re-plan the shots</button>
+                </div>
+                : <div className="col g8" style={{ padding: 12, borderRadius: 10, border: "1px dashed var(--line-2)" }}>
+                  <span className="xs i2" style={{ lineHeight: "16px" }}>Remy plans the clip like a director: framing, angle, camera move and action{vDir.snd ? ", and who says what," : ""} for every cut. It happens when you run — or plan now to edit the shots first.</span>
+                  <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} disabled={busy || vPlanning} onClick={() => go(async () => { const r = await planFor(n.id); if (r.error) setMsg(r.error); })}>
+                    {vPlanning ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}{vPlanning ? "Planning…" : "Plan the shots"}</button>
+                </div>}
+            </Field>}
             {props.engines.via === "Higgsfield" && <span className="xs i3">The clip’s shape follows its start photo — make the photo 9:16 for Reels and Stories.</span>}
             <Field label="Sound">{nSound
               ? <button type="button" className="xs i1" style={{ textAlign: "left", lineHeight: "16px" }} onClick={() => select(nSound.id)}>{props.engines.sound ? soundDirection(cfgOf(nSound)) : "Needs Higgsfield — silent for now"} <span className="i3">· edit</span></button>
@@ -954,7 +1017,7 @@ function Studio(props: Props) {
             <div key={s.id} className="row top g8" style={{ padding: "8px 0", borderTop: "1px solid var(--line)", flexShrink: 0 }}>
               <Thumb id={s.id} w={40} h={48} onClick={() => setFocus(s.id)} />
               <div className="col g2 fill" style={{ minWidth: 0 }}>
-                <span className="xs w5 i1">Photo {i + 1} {k ? (passes(k) ? <span className="c-green">· passed</span> : <span className="c-amber">· {flagOf(k)}</span>) : <span className="i3">· not nChecked</span>}</span>
+                <span className="xs w5 i1">Photo {i + 1} {k ? (passes(k) ? <span className="c-green">· passed</span> : <span className="c-amber">· {flagOf(k)}</span>) : <span className="i3">· not checked</span>}</span>
                 <span className="xs i3" style={{ lineHeight: "15px" }}>{k?.note ?? "Otto hasn’t looked at this one yet."}</span>
                 <span className="row g8 xs">{k && !passes(k) && <button type="button" className="lnk i2" disabled={busy} onClick={() => rerunOne(n.id, s.id)}>Re-run · {usd(perImage)}</button>}<button type="button" className="lnk i3" disabled={busy} onClick={() => recheck(s.id, n.id)}>Check {k ? "again" : "now"}</button></span>
               </div>

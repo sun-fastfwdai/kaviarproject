@@ -5,10 +5,12 @@ import { Icon } from "@/components/icon";
 export type ComboOption = { value: string; label: string; sub?: string; icon?: React.ReactNode; tone?: "muted" };
 
 /** One picker for the canvas: a list you click, with search once it's long (more than 6 options). */
-export function Combo({ value, options, onChange, label, icon, prefix, chip = false, searchable }: {
+export function Combo({ value, options, onChange, label, icon, prefix, chip = false, searchable, menuWidth = 300, small = false }: {
   value: string; options: ComboOption[]; onChange: (v: string) => void; label: string; icon?: React.ReactNode; prefix?: string; chip?: boolean; searchable?: boolean;
+  menuWidth?: number; small?: boolean; // small: a compact chip inside a panel (shot lists)
 }) {
   const [open, setOpen] = useState(false);
+  const [right, setRight] = useState(false); // open leftwards when the menu would run past the panel's edge
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
@@ -27,6 +29,8 @@ export function Combo({ value, options, onChange, label, icon, prefix, chip = fa
   }, [open]);
 
   const show = () => {
+    const r = box.current?.getBoundingClientRect(), edge = box.current?.closest("aside, [role=dialog]")?.getBoundingClientRect().right ?? window.innerWidth;
+    setRight(Boolean(r && chip && r.left + menuWidth > edge - 8));
     setOpen(true); setQ("");
     setActive(Math.max(0, options.findIndex((o) => o.value === value)));
     setTimeout(() => (search ? input.current : list.current)?.focus(), 0);
@@ -44,13 +48,13 @@ export function Combo({ value, options, onChange, label, icon, prefix, chip = fa
       <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={label} onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={(e) => { if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) { e.preventDefault(); show(); } }}
         className={chip ? "chip" : "row g8"}
-        style={chip ? { height: 28, fontSize: 12, maxWidth: 280 } : { width: "100%", height: 34, padding: "0 10px", border: `1px solid ${open ? "var(--ink)" : "var(--line-2)"}`, borderRadius: 8, background: "#fff", textAlign: "left" }}>
+        style={chip ? (small ? { height: 24, fontSize: 11, maxWidth: 240, padding: "0 7px", gap: 4 } : { height: 28, fontSize: 12, maxWidth: 280 }) : { width: "100%", height: 34, padding: "0 10px", border: `1px solid ${open ? "var(--ink)" : "var(--line-2)"}`, borderRadius: 8, background: "#fff", textAlign: "left" }}>
         {icon}{prefix && <span>{prefix}</span>}
         <span className={chip ? "v ell" : "sm i1 fill ell"}>{cur?.label ?? "—"}</span>
-        <Icon name="chev-d" size={chip ? 11 : 12} color="#8B8883" />
+        <Icon name="chev-d" size={small ? 9 : chip ? 11 : 12} color="#8B8883" />
       </button>
       {open && (
-        <div className="col" style={{ position: "absolute", left: 0, top: chip ? 32 : 38, zIndex: 40, minWidth: chip ? 300 : "100%", maxWidth: 380, background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line), 0 10px 28px rgba(18,18,18,.14)", overflow: "hidden" }}>
+        <div className="col" style={{ position: "absolute", ...(right ? { right: 0 } : { left: 0 }), top: small ? 28 : chip ? 32 : 38, zIndex: 40, minWidth: chip ? menuWidth : "100%", maxWidth: 380, background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line), 0 10px 28px rgba(18,18,18,.14)", overflow: "hidden" }}>
           {search && (
             <label className="row g6" style={{ height: 34, padding: "0 10px", borderBottom: "1px solid var(--line)" }}>
               <Icon name="search" size={13} color="#8B8883" />

@@ -5,8 +5,9 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
-import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
-import type { ShootFlow } from "@/lib/db/schema";
+import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotList, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
+import type { ShootFlow, ShotPlan } from "@/lib/db/schema";
+import { STYLE } from "@/lib/creative/director";
 import { hfReady } from "@/lib/creative/higgsfield";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
@@ -22,11 +23,12 @@ export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ ou
 export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  const TYPES = ["product", "data", "brand", "wins", "reference", "prompt", "photo", "video", "sound", "check", "send"];
+  const TYPES = ["product", "character", "data", "brand", "wins", "reference", "prompt", "photo", "video", "sound", "check", "send"];
   const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []).filter((n) => n && TYPES.includes(n.type) && typeof n.id === "string").slice(0, 40).map((n) => ({
     id: n.id.slice(0, 40), type: n.type, x: Math.round(Number(n.x) || 0), y: Math.round(Number(n.y) || 0),
     cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
-      ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 4, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}) },
+      ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 4, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
+      ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 6).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
   }));
   const ids = new Set(nodes.map((n) => n.id));
   const edges = (Array.isArray(flow.edges) ? flow.edges : []).filter((e) => e && ids.has(e.from) && ids.has(e.to)).slice(0, 80);
@@ -77,6 +79,20 @@ export async function runVideo(slug: string, input: { fromAssetId: string; promp
   const clean = { ...input, seconds: Math.min(15, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? undefined };
   if (hfReady()) return startVideoJob(brand.id, clean);
   return shootVideo(brand.id, me.id, clean);
+}
+
+/** Remy plans the clip like a director: one shot list (size, angle, camera move, action, lines) for the Video node. */
+export async function planShots(slug: string, input: { style: string; seconds: number; count: number | null; frame: string; product: string; scene: string; character: { name: string; description: string } | null; voice: string }): Promise<{ plan?: ShotPlan; error?: string }> {
+  await requireMember();
+  if (!aiReady()) return { error: "Remy needs the Claude API key." };
+  if (!STYLE[input.style]) return { error: "Pick a shooting style." };
+  const brand = await getBrand(slug);
+  const plan = await writeShotList(brand.id, {
+    style: input.style, seconds: Math.min(15, Math.max(4, Math.round(Number(input.seconds) || 5))), count: input.count ? Math.min(6, Math.max(1, Math.round(input.count))) : null,
+    frame: String(input.frame ?? "").slice(0, 900), product: String(input.product ?? "").slice(0, 120), scene: String(input.scene ?? "").slice(0, 60),
+    character: input.character ? { name: String(input.character.name).slice(0, 40), description: String(input.character.description).slice(0, 600) } : null, voice: String(input.voice ?? "").slice(0, 140),
+  });
+  return plan ? { plan } : { error: "Remy couldn’t plan the shots — try again." };
 }
 
 /** The canvas asks every few seconds how a clip job is doing; the finished clip is saved here. */

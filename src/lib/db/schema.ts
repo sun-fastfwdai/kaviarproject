@@ -491,7 +491,11 @@ export type ShootNodeCfg = {
   out?: string[]; at?: string | null;
   res?: "480p" | "720p" | "1080p";                                             // video quality
   jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null }[]; // clips still rendering
+  style?: string; shotCount?: number | null; plan?: ShotPlan | null;            // video direction: shooting style ("auto" = from the scene), shots per clip (null = auto), Remy's shot list
 };
+/** One shot in a clip's shot list (seconds from the clip start). */
+export type DirShot = { from: number; to: number; size: string; angle: string; move: string; action: string; line?: string };
+export type ShotPlan = { style: string; seconds: number; shots: DirShot[]; why: string; at: string };
 export type ShootNode = { id: string; type: ShootNodeType; x: number; y: number; cfg: ShootNodeCfg };
 export type ShootEdge = { id: string; from: string; to: string; fh: string; th: string };
 /** Shoots v2: a real graph — nodes anywhere, wires the team draws; Run flow follows the wires. */

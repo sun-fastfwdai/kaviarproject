@@ -7,6 +7,8 @@ import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
 import { HF_PHOTO, HF_VIDEO, HF_VIDEO_REF, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, nearestRatio } from "./higgsfield";
+import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
+import type { ShotPlan } from "../db/schema";
 
 /** FLUX Kontext keeps the real product from the reference photo and builds the scene around it. */
 export const SHOOT_MODEL = "bfl/flux-kontext-pro";
@@ -218,7 +220,7 @@ export async function shootVideo(brandId: string, memberId: string, input: { fro
   try {
     const r = await generateVideo({
       model: gateway.videoModel(VIDEO_MODEL),
-      prompt: { image: new Uint8Array(a.data), text: `${input.prompt}\nSubtle, natural motion. Keep the product exactly as in the first frame — same label and shape. No added text.` },
+      prompt: { image: new Uint8Array(a.data), text: `${input.prompt.slice(0, 2200)}\nNatural, believable motion. Keep the product exactly as in the first frame — same label and shape. No added text.` },
       duration: input.seconds > 7 ? 10 : 5, aspectRatio: input.aspect === "4:5" ? "9:16" : input.aspect, maxRetries: 1,
     });
     const v = r.video;
@@ -265,10 +267,10 @@ export async function startVideoJob(brandId: string, input: { fromAssetId: strin
       const [ch] = input.characterId ? await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "character"))) : [];
       const chUrl = ch ? await hfUpload(ch.data, ch.mime).catch(() => "") : "";
       const size = imageSize(a.data), ratio = size ? nearestRatio(size.w / size.h) : "9:16";
-      const prompt = `The reference image is the opening frame and the real product — keep the product exactly: same label, shape and colours. ${input.prompt}\nSubtle, natural motion. No added text.\nSound: ${input.sound}. The voice-over must use the speaker’s voice from the reference audio.`;
+      const prompt = `The first reference image is the opening frame and the real product — keep the product exactly: same label, shape and colours${chUrl ? "; the second is the person's character sheet — keep them identical" : ""}. ${input.prompt}\nNatural, believable motion. No added text.\nSound: ${input.sound}. The speaker’s voice comes from the reference audio.`;
       r = await hfSubmit(HF_VIDEO_REF, { image_urls: chUrl ? [url, chUrl] : [url], audio_urls: [audio], prompt: prompt.slice(0, 4000), duration, resolution, aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16"].includes(ratio) ? ratio : "9:16", generate_audio: true });
     } else {
-      const prompt = `${input.prompt}\nSubtle, natural motion. Keep the product exactly as in the first frame — same label and shape. No added text.${withSound ? `\nSound: ${input.sound}` : ""}`;
+      const prompt = `${input.prompt}\nNatural, believable motion. Keep the product exactly as in the first frame — same label and shape — in every shot. No added text.${withSound ? `\nSound: ${input.sound}` : ""}`;
       r = await hfSubmit(HF_VIDEO, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution, generate_audio: withSound });
     }
     if (!r.requestId) return { error: r.error ?? "Higgsfield didn’t take the job." };
@@ -329,4 +331,32 @@ export async function suggestCharacter(brandId: string, input: { signal?: string
     content: JSON.stringify({ brand: b?.name, category: b?.category, tone: b?.onboarding?.profile?.tone?.value, audience: b?.onboarding?.profile?.audience?.value ?? null, whoWillSeeIt: input.signal ?? null, product: input.product ?? null }),
     schema: z.object({ name: z.string().describe("A short first-name label, e.g. 'Mina'"), description: z.string() }),
   });
+}
+
+/** Remy as the director: a shot list for one clip — size, angle and camera move per shot, what happens, who says what, timed to the second. */
+export async function writeShotList(brandId: string, input: {
+  style: string; seconds: number; count: number | null; frame: string; product: string; scene: string; character: { name: string; description: string } | null; voice: string;
+}): Promise<ShotPlan | null> {
+  const st = STYLE[input.style];
+  if (!st) return null;
+  const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const n = input.count ?? autoShots(st.key, input.seconds);
+  const out = await ask("remy", {
+    system: `You are Remy, Kaviar's creative agent, working as a professional ${st.group === "UGC" ? "UGC creator and social-video director" : "commercial product director and camera operator"}. Plan the shot list for ONE ${input.seconds}-second vertical 9:16 clip for a Meta ad. An image-to-video model renders the whole clip in one take, with hard cuts between your shots, starting from the start photo.
+Style — ${st.name}: ${st.look}. Camera: ${st.camera}. Light: ${st.light}. Edit: ${st.edit}. Typical beats: ${st.beats.join("; ")}.
+Rules a professional follows:
+${PRO_RULES.map((r) => `- ${r}`).join("\n")}
+Write ${input.count ? "exactly" : "about"} ${n} shots. Times are whole seconds, back to back from 0 to ${input.seconds}. For each shot pick the size, angle and camera move from the allowed values, and write the action in under 24 words: what the person does (expression, hands, where they look), where the product is and which way its label faces. Concrete and filmable — no camera jargon in the action, no on-screen text, no logos added.
+${input.voice ? `The person says this voice line, word for word: "${input.voice}". Split it across the shots where they talk to the camera, in order, without changing or adding words; shots where they don't speak have an empty line.` : "Nobody speaks: every line is empty."}
+${input.character ? `The person is ${input.character.name}: ${input.character.description}. Keep them identical in every shot.` : st.group === "UGC" ? "The person is the one in the start photo; keep them identical in every shot." : "No people, except a hand where the style calls for it."}
+Then write "why": one sentence, under 25 words, on how this plan hooks and sells — as a director would brief the team.`,
+    content: JSON.stringify({ brand: b?.name, category: b?.category, tone: b?.onboarding?.profile?.tone?.value ?? null, product: input.product, scene: input.scene, startPhoto: input.frame.slice(0, 900) }),
+    schema: z.object({
+      shots: z.array(z.object({ from: z.number(), to: z.number(), size: z.enum(SIZES), angle: z.enum(ANGLES), move: z.enum(CAMERA), action: z.string(), line: z.string() })),
+      why: z.string(),
+    }),
+  });
+  if (!out?.shots.length) return null;
+  const shots = fitTimes(out.shots.map((x) => ({ ...x, action: x.action.trim().slice(0, 300), line: input.voice ? x.line.trim().slice(0, 140) : "" })), input.seconds);
+  return { style: st.key, seconds: input.seconds, shots, why: out.why.trim().slice(0, 240), at: new Date().toISOString() };
 }
