@@ -79,9 +79,9 @@ export async function hfEstimate(model: string, input: Record<string, unknown>):
   try {
     const r = await hfFetch(`/estimate/${model}`, { method: "POST", headers: headers(), body: JSON.stringify(input) });
     if (!r.ok) { console.error("higgsfield estimate", model, r.status, await reason(r)); return null; }
-    const body = (await r.json()) as { usd?: string | number };
+    const body = (await r.json()) as { usd?: string | number; type?: string; pricing_description?: unknown };
     const v = Number(body.usd);
-    if (!Number.isFinite(v)) console.error("higgsfield estimate", model, "no price in", Object.keys(body ?? {}).join(","));
+    if (!Number.isFinite(v)) console.error("higgsfield estimate", model, "type:", body.type, "pricing:", JSON.stringify(body.pricing_description ?? null).slice(0, 600));
     return Number.isFinite(v) ? v : null;
   } catch (e) { console.error("higgsfield estimate", model, (e as Error).message); return null; }
 }
