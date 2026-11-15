@@ -78,11 +78,12 @@ export async function hfStatus(requestId: string): Promise<Status | { error: str
 export async function hfEstimate(model: string, input: Record<string, unknown>): Promise<number | null> {
   try {
     const r = await hfFetch(`/estimate/${model}`, { method: "POST", headers: headers(), body: JSON.stringify(input) });
-    if (!r.ok) return null;
-    const { usd } = (await r.json()) as { usd?: string | number };
-    const v = Number(usd);
+    if (!r.ok) { console.error("higgsfield estimate", model, r.status, await reason(r)); return null; }
+    const body = (await r.json()) as { usd?: string | number };
+    const v = Number(body.usd);
+    if (!Number.isFinite(v)) console.error("higgsfield estimate", model, "no price in", Object.keys(body ?? {}).join(","));
     return Number.isFinite(v) ? v : null;
-  } catch { return null; }
+  } catch (e) { console.error("higgsfield estimate", model, (e as Error).message); return null; }
 }
 
 /** Higgsfield needs public URLs: our assets are private, so a start frame or reference goes up through a presigned upload. */
@@ -114,7 +115,8 @@ export async function hfPrices(): Promise<{ photo: number; videoSecond: number; 
     hfEstimate(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }),
     v("720p", true), v("720p", false), v("480p", false), v("1080p", false),
   ]);
-  if (photo == null || video == null) return null;
+  // A failed estimate is thrown, not returned, so it isn't cached for hours — the next request asks again.
+  if (photo == null || video == null) throw new Error("Higgsfield prices unavailable");
   const base = silent ?? video;
   // Price multiplier per quality tier, relative to 720p.
   return { photo, videoSecond: base / 5, soundSecond: Math.max(0, video - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
