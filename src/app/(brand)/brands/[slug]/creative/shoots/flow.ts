@@ -184,6 +184,8 @@ export const runCost = (f: ShootFlow, perImage: number, perVideoSecond: number, 
     const sound = n.type === "video" && f.edges.some((e) => e.to === n.id && f.nodes.find((x) => x.id === e.from)?.type === "sound");
     return a + (n.type === "photo" ? c.n * perImage : n.type === "video" ? c.n * c.seconds * (perVideoSecond * (res[c.res ?? "720p"] ?? 1) + (sound ? perSoundSecond : 0)) : 0);
   }, 0);
+/** How long a clip takes on Higgsfield: roughly in step with its length (sound and shots included). */
+export const renderTime = (seconds: number) => (seconds <= 5 ? "1–3 min" : "3–6 min");
 export const MUSIC = ["Calm morning", "Upbeat", "Luxurious", "Playful", "No music"];
 /** What the Voice + music node asks the video model for. */
 export const soundDirection = (c: { music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null }, linesInShots = false) => {

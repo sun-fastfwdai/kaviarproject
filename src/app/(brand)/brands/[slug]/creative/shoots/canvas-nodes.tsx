@@ -4,7 +4,7 @@ import { SIZE_SHORT } from "@/lib/creative/director";
 import { createContext, useContext } from "react";
 import Link from "next/link";
 import { BaseEdge, EdgeLabelRenderer, Handle, Position, getBezierPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
-import { CAT, NODES, NODE_H, NODE_W, PORTS, SEL, TOK, cfgOf, type NodeKey } from "./flow";
+import { CAT, NODES, NODE_H, NODE_W, PORTS, SEL, TOK, cfgOf, renderTime, type NodeKey } from "./flow";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
@@ -31,7 +31,7 @@ export const asset = (id: string) => `/api/assets/${id}`;
 export type StudioApi = {
   flow: ShootFlow; status: Record<string, RunState>; busy: boolean; now: number; currency: string; brand: string;
   byId: Map<string, Shot>; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; batches: Batch[];
-  perImage: number; perVideoSecond: number; perSoundSecond: number; engines: { photo: string; video: string; via: string; sound: boolean }; voiceName: (id: string | null) => string | null;
+  perImage: number; perVideoSecond: number; perSoundSecond: number; engines: { photo: string; video: string; via: string; sound: boolean; res?: Partial<Record<string, number>> }; voiceName: (id: string | null) => string | null;
   productFor: (id: string) => Product | null; signalFor: (id: string) => Signal | null; sceneFor: (id: string) => string;
   stale: (id: string) => boolean; changed: (id: string) => boolean; checkedFor: (id: string) => Shot[]; frameFor: (id: string) => string | null;
   sendItems: (id: string) => { photos: string[]; clips: string[] }; pickedFor: (id: string) => string[]; nextStep: (id: string) => string | null;
@@ -266,7 +266,7 @@ function Body({ n }: { n: ShootNode }) {
         {out.slice(0, big ? 8 : Math.max(0, 3 - jobs.length)).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={tw} h={th} kind="video" sound={s.byId.get(x)!.sound} onClick={() => s.view(id, x)} title="Play" /> : <Pending key={x} w={tw} h={th} label="saving" />)}
         {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text="A 5–15 s clip from a photo." w={172} h={104} />}
       </div>
-      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * c.seconds * s.perVideoSecond)}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · 1–3 min</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>1–3 min each</span>}</span>
+      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * c.seconds * s.perVideoSecond * (s.engines.res?.[c.res ?? "720p"] ?? 1))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · {renderTime(c.seconds)}</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>{renderTime(c.seconds)} each</span>}</span>
     </>;
   }
 

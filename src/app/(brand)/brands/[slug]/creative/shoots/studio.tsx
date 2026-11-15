@@ -8,7 +8,7 @@ import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, use
 import { createCharacter, deleteShot, designFromShot, planShots, pollVideo, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
-import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
+import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
 import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
 import { ProductCombo } from "./product-combo";
@@ -414,7 +414,7 @@ function Studio(props: Props) {
     for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += r.ids.length * perImage; } }
     let rendering = 0;
     for (const V of videos) { const r = await videoRun(V.id, checks); cl += r.ids.length; rendering += r.jobs; spent += r.ids.length * cfgOf(V).seconds * perVideoSecond; }
-    if (rendering) setMsg(`${rendering} clip${rendering > 1 ? "s are" : " is"} rendering — usually 1–3 minutes. Keep working; ${rendering > 1 ? "they" : "it"} will appear in the Video node.`);
+    if (rendering) setMsg(`${rendering} clip${rendering > 1 ? "s are" : " is"} rendering — usually ${renderTime(Math.max(...videos.map((V) => cfgOf(V).seconds)))}. Keep working; ${rendering > 1 ? "they" : "it"} will appear in the Video node.`);
     for (const d of flowRef.current.nodes.filter((n) => n.type === "data")) { const sig = signals.find((s) => s.key === cfgOf(d).signal); if (sig) patchNode(d.id, { value: sig.value }, false); }
     if (p || cl) update((f) => ({ ...f, last: { at: new Date().toISOString(), photos: p, clips: cl, flagged, cost: spent } }), false);
     setNow(Date.now());
@@ -423,7 +423,7 @@ function Studio(props: Props) {
     setMsg(null);
     const n = find(flowRef.current, id);
     if (n?.type === "photo") await photoRun(id, new Map());
-    else if (n?.type === "video") { const r = await videoRun(id, new Map()); if (r.jobs) setMsg("The clip is rendering — usually 1–3 minutes. It appears in the Video node."); }
+    else if (n?.type === "video") { const r = await videoRun(id, new Map()); if (r.jobs) setMsg(`The clip is rendering — usually ${renderTime(cfgOf(n).seconds)}. It appears in the Video node.`); }
     else if (n?.type === "prompt") await write(id);
   });
   const rerunOne = (checkId: string, shotId: string) => go(async () => {
@@ -996,7 +996,7 @@ function Studio(props: Props) {
             {nClips.length > 0 && <Field label="Clips">{nClips.map((x) => <video key={x} src={asset(x)} controls muted playsInline style={{ width: "100%", maxHeight: 260, borderRadius: 8, background: "#000", outline: focus === x ? "2px solid #1AA7C8" : undefined }} />)}</Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
               <button type="button" className="btn dark" disabled={busy || !nFrame} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * c.seconds * perVideoSecond * (props.engines.res[c.res ?? "720p"] ?? 1))}</button>
-              <span className="xs i3" style={{ textAlign: "center" }}>{c.res === "480p" ? "Draft is the quickest — " : ""}usually 1–3 minutes · renders in the background</span>
+              <span className="xs i3" style={{ textAlign: "center" }}>{c.res === "480p" ? "Draft is the quickest — " : ""}usually {renderTime(c.seconds)} · renders in the background</span>
             </div>
           </>}
 

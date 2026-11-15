@@ -72,7 +72,7 @@ export function CharacterPicker({ slug, characters, value, onChange, price, sign
             style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
           <button type="button" className="btn quiet sm" style={{ alignSelf: "flex-start" }} disabled={busy != null} onClick={suggest}>{busy === "suggest" ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}Suggest from the audience</button>
           <button type="button" className="btn dark sm" style={{ justifyContent: "center" }} disabled={busy != null || desc.trim().length < 12} onClick={make}>{busy === "make" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="sparkle" size={12} color="#fff" />}Make character sheet · ${price.toFixed(2)}</button>
-          {busy === "make" && <span className="xs i3">Usually 20–40 seconds.</span>}
+          {busy === "make" && <span className="xs i3">Usually under a minute.</span>}
         </div>
       )}
 
