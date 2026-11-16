@@ -198,16 +198,25 @@ export function applyPreset(f: ShootFlow, p: { template?: string | null; batch?:
   return g;
 }
 
-/** What one Run flow costs: every Photo node's photos and every Video node's clips. */
-export const runCost = (f: ShootFlow, perImage: number, perVideoSecond: number, perSoundSecond = 0, res: Partial<Record<string, number>> = {}) =>
+/** A clip model's price: per second (720p), extra per second of sound, and quality multipliers. */
+export type Rate = { second: number; sound: number; res: Partial<Record<string, number>> };
+export type ClipModel = { key: string; name: string; note: string; rate: Rate };
+type Engines = { model?: string; models?: ClipModel[]; perSoundSecond: number; res?: Partial<Record<string, number>>; video: string };
+/** The model a Video node uses (the default when it has none) and its price. */
+export const clipModel = (e: Engines, perVideoSecond: number, key?: string | null): ClipModel =>
+  e.models?.find((m) => m.key === (key || e.model)) ?? { key: e.model ?? "", name: e.video, note: "", rate: { second: perVideoSecond, sound: e.perSoundSecond, res: e.res ?? {} } };
+export const clipCost = (r: Rate, seconds: number, res?: string, sound = false) => seconds * (r.second * (r.res[res ?? "720p"] ?? 1) + (sound ? r.sound : 0));
+
+/** What one Run flow costs: every Photo node's photos and every Video node's clips, at each node's model price. */
+export const runCost = (f: ShootFlow, perImage: number, rateOf: (model?: string) => Rate) =>
   f.nodes.reduce((a, n) => {
     const c = cfgOf(n);
     const from = (t: NodeKey) => f.edges.filter((e) => e.to === n.id).map((e) => f.nodes.find((x) => x.id === e.from)).find((x) => x?.type === t);
     const sound = n.type === "video" && Boolean(from("sound"));
     const story = n.type === "video" ? from("story") : undefined;
     if (n.type === "story") { const sc = c.storyboard?.scenes ?? []; return a + (sc.length ? sc.filter((x) => !x.frame).length : Math.round((c.adLength ?? 30) / 6)) * perImage; }
-    if (story) { const sb = cfgOf(story).storyboard; const secs = sb ? sb.scenes.reduce((t, x) => t + x.seconds, 0) : (cfgOf(story).adLength ?? 30) - 3; return a + secs * (perVideoSecond * (res[c.res ?? "720p"] ?? 1) + (sound ? perSoundSecond : 0)); }
-    return a + (n.type === "photo" ? c.n * perImage : n.type === "video" ? c.n * c.seconds * (perVideoSecond * (res[c.res ?? "720p"] ?? 1) + (sound ? perSoundSecond : 0)) : 0);
+    if (story) { const sb = cfgOf(story).storyboard; const secs = sb ? sb.scenes.reduce((t, x) => t + x.seconds, 0) : (cfgOf(story).adLength ?? 30) - 3; return a + clipCost(rateOf(c.model), secs, c.res, sound); }
+    return a + (n.type === "photo" ? c.n * perImage : n.type === "video" ? c.n * clipCost(rateOf(c.model), c.seconds, c.res, sound) : 0);
   }, 0);
 /** How long a clip takes on Higgsfield: roughly in step with its length (sound and shots included). */
 export const renderTime = (seconds: number) => (seconds <= 5 ? "1–3 min" : seconds <= 15 ? "3–6 min" : "5–10 min");

@@ -8,7 +8,7 @@ import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, use
 import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
-import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
+import { ALLOWED, CAT, DEFAULTS, clipCost, clipModel, type ClipModel, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
 import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
 import { ProductCombo } from "./product-combo";
@@ -70,7 +70,7 @@ function MenuItem({ icon, children, onClick, href }: { icon: Parameters<typeof I
 type Props = {
   slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; savedAt: string | null; savedBy: string | null;
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
-  engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number> }; voices: Voice[]; characters: (Character & { at: string })[];
+  engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
   batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
 };
 
@@ -170,7 +170,7 @@ function Studio(props: Props) {
           const c = cfgOf(cur), left = (c.jobs ?? []).filter((x) => x.id !== j.id);
           patchNode(n.id, { jobs: left, ...(r.id ? { out: [r.id, ...c.out.filter((x) => x !== r.id)].slice(0, 12), at: new Date().toISOString(), ...(j.scene ? { sceneOut: { ...(c.sceneOut ?? {}), [j.scene]: r.id } } : {}) } : {}) }, false);
           if (r.id) {
-            update((f) => (f.last ? { ...f, last: { ...f.last, clips: f.last.clips + 1, cost: f.last.cost + j.seconds * perVideoSecond * (props.engines.res[j.res as "720p"] ?? 1) } } : f), false);
+            update((f) => (f.last ? { ...f, last: { ...f.last, clips: f.last.clips + 1, cost: f.last.cost + clipCost(clipModel(props.engines, perVideoSecond, j.model).rate, j.seconds, j.res, j.sound) } } : f), false);
             router.refresh();
           }
           if (r.error) setMsg(r.error);
@@ -256,7 +256,7 @@ function Studio(props: Props) {
   const firstProduct = flow.nodes.find((n) => n.type === "product");
   const headProduct = firstProduct ? productOf(flow, firstProduct.id) : null;
   const name = `${templateName(flowSignal(flow))}${headProduct ? ` · ${short(headProduct.title)}` : ""}`;
-  const cost = runCost(flow, perImage, perVideoSecond, props.engines.perSoundSecond, props.engines.res);
+  const cost = runCost(flow, perImage, (m) => clipModel(props.engines, perVideoSecond, m).rate);
   const anyChanged = flow.nodes.some((n) => n.type === "data" && changedOf(n.id));
 
   // ---- running (Run flow follows the wires: prompts → photos → Otto → clips)
@@ -371,7 +371,7 @@ function Studio(props: Props) {
     const st = STYLE[d.key];
     const direction = plan ? directionText(plan, { lines }) : `${st.look}. Camera: ${st.camera}. Light: ${st.light}. Edit: ${st.edit}.`;
     const sound = props.engines.sound && snd ? soundDirection(cfgOf(snd), lines) : null;
-    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { fromAssetId: from, prompt: `${direction}\nThe start photo: ${text}`.slice(0, 3200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
+    const res = await Promise.all(Array.from({ length: c.n }, () => runVideo(slug, { model: c.model ?? null, fromAssetId: from, prompt: `${direction}\nThe start photo: ${text}`.slice(0, 3200), seconds: c.seconds, aspect: c.aspect === "1:1" ? "1:1" : "9:16", sound, voiceId: snd ? cfgOf(snd).voiceId : null, res: c.res, characterId: (() => { const ch = up(g, vid, "character"); return ch ? cfgOf(ch).characterId : null; })() })));
     const ids = res.flatMap((o) => (o.id ? [o.id] : [])), jobs = res.flatMap((o) => (o.job ? [o.job] : []));
     if (!ids.length && !jobs.length) { fail(vid, res[0]?.error ?? "No clip came back."); return { ids, jobs: 0 }; }
     if (res.some((o) => o.error)) setMsg(res.find((o) => o.error)!.error!);
@@ -428,7 +428,7 @@ function Studio(props: Props) {
     if (!todo.length) { fail(vid, "No keyframes to start from — see the Storyboard node."); return { jobs: 0, ids: [] }; }
     const snd = inc(g, vid).find((x) => x.type === "sound"), voiceId = snd ? cfgOf(snd).voiceId : null;
     const ch = up(g, S.id, "character") ?? inc(g, vid).find((x) => x.type === "character"), characterId = ch ? cfgOf(ch).characterId : null;
-    const res = await Promise.all(todo.map((x) => runVideo(slug, {
+    const res = await Promise.all(todo.map((x) => runVideo(slug, { model: c.model ?? null,
       fromAssetId: x.frame!, prompt: scenePrompt(sb, x).slice(0, 3200), seconds: x.seconds, aspect: "9:16",
       sound: props.engines.sound ? sceneSound(sb, x, Boolean(voiceId && x.line)) : null, voiceId: x.line ? voiceId : null, res: c.res, characterId: x.person ? characterId : null, scene: x.id,
     })));
@@ -708,7 +708,7 @@ function Studio(props: Props) {
   const nextStepOf = (id: string) => { const x = find(flow, id), s = sent[id]; return x && s && s.batch === cfgOf(x).send && s.ad ? `${base}/creative/editor?ad=${s.ad}` : null; };
   const api: StudioApi = {
     flow, status, busy, now, currency: props.currency, brand: props.brand, byId, palette: props.palette, look: props.look, tone: props.tone, lessons: props.lessons, batches: sortedBatches,
-    perImage, perVideoSecond, perSoundSecond: props.engines.perSoundSecond, engines: props.engines, voiceName: (id) => (id ? props.voices.find((v) => v.id === id)?.name ?? "Brand voice" : null),
+    perImage, perVideoSecond, perSoundSecond: props.engines.perSoundSecond, engines: props.engines, clip: (m) => clipModel(props.engines, perVideoSecond, m), voiceName: (id) => (id ? props.voices.find((v) => v.id === id)?.name ?? "Brand voice" : null),
     productFor: (id) => productOf(flow, id), signalFor: (id) => signalOf(flow, id), sceneFor: (id) => { const P = promptOf(flow, id); return P ? cfgOf(P).scene : "No prompt wired"; },
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
@@ -788,7 +788,7 @@ function Studio(props: Props) {
         </div>
         <button type="button" className="hv" title="Undo (⌘Z)" aria-label="Undo" disabled={!past.length} onClick={undo} style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", opacity: past.length ? 1 : 0.4 }}><Icon name="undo" size={14} color="#55534F" /></button>
         <Combo chip label="Template" prefix="Template" icon={<Icon name="layers" size={13} />} value={flowSignal(flow) ?? ""} onChange={setTemplate}
-          options={[...signals.filter((x) => TEMPLATES[x.key]).map((x) => ({ value: x.key, label: TEMPLATES[x.key], sub: x.data })), { value: "", label: "Product shoot", sub: "no data signal" }, { value: "__fullad", label: "Full ad layout", sub: "storyboard → scenes → final cut with captions and end card, 15–60 s" }, { value: "__ugc", label: "UGC video layout", sub: "a person holds the product and talks to camera" }, { value: "__reset", label: "Reset the canvas", sub: "back to this template’s layout", tone: "muted" as const }]} />
+          options={[...signals.filter((x) => TEMPLATES[x.key]).map((x) => ({ value: x.key, label: TEMPLATES[x.key], sub: x.data })), { value: "", label: "Product shoot", sub: "no data signal" }, { value: "__fullad", label: "Full ad layout", sub: "storyboard → scenes → final cut with captions and end card, 15–30 s" }, { value: "__ugc", label: "UGC video layout", sub: "a person holds the product and talks to camera" }, { value: "__reset", label: "Reset the canvas", sub: "back to this template’s layout", tone: "muted" as const }]} />
         <span className="row g6 xs i3" style={{ whiteSpace: "nowrap" }} title={saved.by ? `Last saved by ${saved.by}` : undefined}>
           {saved.saving ? <><Icon name="spinner" size={12} className="spin" />Saving…</> : <><Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" />Saved · {flow.last ? `ran ${agoFrom(flow.last.at, now)}` : "not run yet"}</>}
         </span>
@@ -1067,8 +1067,13 @@ function Studio(props: Props) {
         )}
 
         {n.type === "video" && nStoryNode && c && <>
-            <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
-            <SceneRenderPanel story={nStory} sceneOut={c.sceneOut ?? {}} jobs={c.jobs ?? []} jobState={jobState} busy={busy} res={c.res ?? "720p"} via={props.engines.via} perVideoSecond={perVideoSecond} resMul={props.engines.res}
+            {props.engines.models.length > 1
+              ? <Field label="Model" sub={clipModel(props.engines, perVideoSecond, c.model).note}>
+                  <Combo label="Model" value={clipModel(props.engines, perVideoSecond, c.model).key} onChange={(v) => patchNode(n.id, { model: v })}
+                    options={props.engines.models.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.rate.second * (x.rate.res[c.res ?? "720p"] ?? 1))} a second at this quality` }))} />
+                </Field>
+              : <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>}
+            <SceneRenderPanel story={nStory} sceneOut={c.sceneOut ?? {}} jobs={c.jobs ?? []} jobState={jobState} busy={busy} res={c.res ?? "720p"} via={props.engines.via} perVideoSecond={clipModel(props.engines, perVideoSecond, c.model).rate.second} resMul={clipModel(props.engines, perVideoSecond, c.model).rate.res}
               voice={nVoiceNode && cfgOf(nVoiceNode).voiceId ? props.voices.find((v) => v.id === cfgOf(nVoiceNode).voiceId)?.name ?? "Brand voice" : null} byId={byId}
               onRes={(r) => patchNode(n.id, { res: r })} onRender={(ids) => go(async () => { const r = await scenesRun(n.id, ids); if (r.jobs) setMsg(`${r.jobs} scene${r.jobs > 1 ? "s are" : " is"} rendering — usually 3–6 minutes.`); })} onView={(x) => setViewer({ node: n.id, id: x })} />
           </>}
@@ -1078,7 +1083,12 @@ function Studio(props: Props) {
         )}
 
         {n.type === "video" && !nStoryNode && <>
-            <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
+            {props.engines.models.length > 1
+              ? <Field label="Model" sub={clipModel(props.engines, perVideoSecond, c.model).note}>
+                  <Combo label="Model" value={clipModel(props.engines, perVideoSecond, c.model).key} onChange={(v) => patchNode(n.id, { model: v })}
+                    options={props.engines.models.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.rate.second * (x.rate.res[c.res ?? "720p"] ?? 1))} a second at this quality` }))} />
+                </Field>
+              : <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>}
             <Field label="Start frame" sub={nFrames.length > 1 ? "Click another photo to start from it" : undefined}>
               {nFrame ? <div className="col g6"><div className="row g8"><Thumb id={nFrame} w={40} h={50} /><div className="col"><span className="xs w5 i1">From the Photo node</span><span className="xs i3">{c.from ? "picked by hand" : "Otto’s best pass"}</span></div></div>
                 {nFrames.length > 1 && <div className="row g4" style={{ flexWrap: "wrap" }}>{nFrames.map((x) => <Thumb key={x} id={x} w={34} h={34} ring={x === nFrame} onClick={() => patchNode(n.id, { from: x })} />)}</div>}</div>
@@ -1126,7 +1136,7 @@ function Studio(props: Props) {
               : <span className="xs i2">Silent — wire a Voice + music node into this one for sound.</span>}</Field>
             {nClips.length > 0 && <Field label="Clips">{nClips.map((x) => <video key={x} src={asset(x)} controls muted playsInline style={{ width: "100%", maxHeight: 260, borderRadius: 8, background: "#000", outline: focus === x ? "2px solid #1AA7C8" : undefined }} />)}</Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
-              <button type="button" className="btn dark" disabled={busy || !nFrame} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * c.seconds * perVideoSecond * (props.engines.res[c.res ?? "720p"] ?? 1))}</button>
+              <button type="button" className="btn dark" disabled={busy || !nFrame} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * clipCost(clipModel(props.engines, perVideoSecond, c.model).rate, c.seconds, c.res))}</button>
               <span className="xs i3" style={{ textAlign: "center" }}>{c.res === "480p" ? "Draft is the quickest — " : ""}usually {renderTime(c.seconds)} · renders in the background</span>
             </div>
           </>}

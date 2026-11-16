@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace, AGENT_NAME } from "@/components/agent";
 import { ShootBar } from "../bar";
 import { reviewCount } from "../../tabs";
-import { CAT, NODES, asFlow, defaultFlow, flowSignal, runCost, templateName, type NodeKey } from "../flow";
+import { CAT, NODES, asFlow, clipModel, defaultFlow, flowSignal, runCost, templateName, type NodeKey } from "../flow";
 
 export const metadata = { title: "Shoots · Every node" };
 
@@ -56,7 +56,7 @@ export default async function NodesPage({ params }: PageProps<"/brands/[slug]/cr
   ]);
   const flow = saved ? asFlow(saved.flow) : defaultFlow(null, null);
   const eng = await shootEngines();
-  const cost = runCost(flow, eng.perImage, eng.perVideoSecond, eng.perSoundSecond);
+  const cost = runCost(flow, eng.perImage, (m) => clipModel(eng, eng.perVideoSecond, m).rate);
   const costs: Partial<Record<NodeKey, string>> = { story: `$${eng.perImage.toFixed(2)} per keyframe`, character: `$${eng.perImage.toFixed(2)} per sheet`, photo:`$${eng.perImage.toFixed(2)} each`, video: `$${eng.perVideoSecond.toFixed(3)} / second`, ...(eng.sound ? { sound: `+$${eng.perSoundSecond.toFixed(3)} / second` } : {}) };
   const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost, ...(k === "photo" ? { example: `${eng.photo} · In hand · 4:5 × 4` } : k === "video" ? { example: `${eng.video} · Selfie talk · 4 shots · 10s` } : {}) })), { ...EDIT, cost: `$${eng.perImage.toFixed(2)} each` }];
   // Board order: inputs, then make, edit, finish.

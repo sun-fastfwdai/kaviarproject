@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { HF_PHOTO, HF_VIDEO, HF_VIDEO_REF, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, nearestRatio } from "./higgsfield";
+import { DEFAULT_VIDEO, HF_PHOTO, VIDEO_MODELS, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { ShotPlan } from "../db/schema";
 import { marketContext } from "../research/context";
@@ -18,11 +18,15 @@ export const COST_PER_IMAGE = 0.04;
 export const VIDEO_MODEL = "klingai/kling-v2.6-i2v";
 export const COST_PER_VIDEO_SECOND = 0.042;
 
-/** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos, Seedance 2.5 clips with sound), else AI Gateway. */
+export type ClipModel = { key: string; name: string; note: string; rate: Rate };
+/** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos; Wan 3.0 Prime or Seedance 2.5 clips with sound), else AI Gateway. */
 export async function shootEngines() {
-  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: { "480p": 1, "720p": 1, "1080p": 1 } };
+  const flat = { "480p": 1, "720p": 1, "1080p": 1 };
+  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: flat, model: "kling", models: [] as ClipModel[] };
   const p = await hfPrices().catch(() => null);
-  return { photo: "Marketing Studio", video: "Seedance 2.5", via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: p?.videoSecond ?? 0.1, perSoundSecond: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
+  const fallback: Rate = { second: p?.videoSecond ?? 0.1, sound: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
+  const models: ClipModel[] = (Object.keys(VIDEO_MODELS) as VideoModel[]).map((k) => ({ key: k, name: VIDEO_MODELS[k].name, note: VIDEO_MODELS[k].note, rate: p?.video[k] ?? fallback }));
+  return { photo: "Marketing Studio", video: VIDEO_MODELS[DEFAULT_VIDEO].name, via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: fallback.second, perSoundSecond: fallback.sound, res: fallback.res, model: DEFAULT_VIDEO as string, models };
 }
 
 export type PromptIn = {
@@ -241,7 +245,7 @@ export async function shootVideo(brandId: string, memberId: string, input: { fro
   }
 }
 
-/** A brand voice sample must be a WAV of 2–15 seconds (what Seedance accepts as a voice reference). Returns its length. */
+/** A brand voice sample must be a WAV of 2–15 seconds (what both clip models accept as a voice reference). Returns its length. */
 export function wavSeconds(b: Buffer): number | null {
   if (b.length < 44 || b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WAVE") return null;
   let i = 12, byteRate = 0;
@@ -254,10 +258,10 @@ export function wavSeconds(b: Buffer): number | null {
   return null;
 }
 
-export type VideoJob = { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string };
+export type VideoJob = { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string; model?: string };
 
-/** Higgsfield Seedance 2.5 clip, started in the background: framing follows the start photo; a wired Voice + music node adds sound; a brand voice uses reference mode. */
-export async function startVideoJob(brandId: string, input: { fromAssetId: string; prompt: string; seconds: number; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null }): Promise<{ job?: VideoJob; error?: string }> {
+/** A Higgsfield clip (Wan 3.0 Prime by default, or Seedance 2.5), started in the background: framing follows the start photo; a wired Voice + music node adds sound; a brand voice uses reference mode. */
+export async function startVideoJob(brandId: string, input: { fromAssetId: string; prompt: string; seconds: number; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null; model?: string | null }): Promise<{ job?: VideoJob; error?: string }> {
   const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.fromAssetId), eq(schema.brandAssets.brandId, brandId)));
   if (!a) return { error: "Pick a photo to start from." };
   try {
@@ -265,6 +269,9 @@ export async function startVideoJob(brandId: string, input: { fromAssetId: strin
     const withSound = Boolean(input.sound);
     const resolution = input.res ?? "720p";
     const duration = Math.min(30, Math.max(4, Math.round(input.seconds)));
+    const model: VideoModel = isVideoModel(input.model) ? input.model : DEFAULT_VIDEO, M = VIDEO_MODELS[model];
+    // Wan reasons over the shot list before rendering (better at following several shots and lines); its framing follows the start photo.
+    const extra = model === "wan" ? { enable_thinking: true } : {};
     const [voice] = input.voiceId && withSound ? await db.select({ data: schema.brandAssets.data }).from(schema.brandAssets)
       .where(and(eq(schema.brandAssets.id, input.voiceId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "voice"))) : [];
     let r;
@@ -274,13 +281,13 @@ export async function startVideoJob(brandId: string, input: { fromAssetId: strin
       const chUrl = ch ? await hfUpload(ch.data, ch.mime).catch(() => "") : "";
       const size = imageSize(a.data), ratio = size ? nearestRatio(size.w / size.h) : "9:16";
       const prompt = `The first reference image is the opening frame and the real product — keep the product exactly: same label, shape and colours${chUrl ? "; the second is the person's character sheet — keep them identical" : ""}. ${input.prompt}\nNatural, believable motion. No added text.\nSound: ${input.sound}. The speaker’s voice comes from the reference audio.`;
-      r = await hfSubmit(HF_VIDEO_REF, { image_urls: chUrl ? [url, chUrl] : [url], audio_urls: [audio], prompt: prompt.slice(0, 4000), duration, resolution, aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16"].includes(ratio) ? ratio : "9:16", generate_audio: true });
+      r = await hfSubmit(M.ref, { image_urls: chUrl ? [url, chUrl] : [url], audio_urls: [audio], prompt: prompt.slice(0, 4000), duration, resolution, aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16"].includes(ratio) ? ratio : "9:16", generate_audio: true, ...extra });
     } else {
       const prompt = `${input.prompt}\nNatural, believable motion. Keep the product exactly as in the first frame — same label and shape — in every shot. No added text.${withSound ? `\nSound: ${input.sound}` : ""}`;
-      r = await hfSubmit(HF_VIDEO, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution, generate_audio: withSound });
+      r = await hfSubmit(M.i2v, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution, generate_audio: withSound, ...(model === "wan" ? { aspect_ratio: "adaptive" } : {}), ...extra });
     }
     if (!r.requestId) return { error: r.error ?? "Higgsfield didn’t take the job." };
-    return { job: { id: r.requestId, at: new Date().toISOString(), seconds: duration, sound: withSound, res: resolution, product: a.meta.product ?? null, prompt: input.prompt.slice(0, 500), voice: voice ? input.voiceId! : null, ...(input.scene ? { scene: input.scene.slice(0, 40) } : {}) } };
+    return { job: { id: r.requestId, at: new Date().toISOString(), seconds: duration, sound: withSound, res: resolution, product: a.meta.product ?? null, prompt: input.prompt.slice(0, 500), voice: voice ? input.voiceId! : null, model, ...(input.scene ? { scene: input.scene.slice(0, 40) } : {}) } };
   } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
 }
 
@@ -296,10 +303,12 @@ export async function finishVideoJob(brandId: string, memberId: string, job: Vid
   if (s.status !== "completed" || !s.video?.url) return { state: s.status };
   const v = await hfDownload(s.video.url);
   const p = await hfPrices().catch(() => null);
-  const cost = p ? job.seconds * (p.videoSecond * (p.res[job.res as "720p"] ?? 1) + (job.sound ? p.soundSecond : 0)) : null;
+  const model: VideoModel = isVideoModel(job.model) ? job.model : "seedance"; // jobs started before the model choice were Seedance
+  const rate = p?.video[model] ?? (p ? { second: p.videoSecond, sound: p.soundSecond, res: p.res } : null);
+  const cost = rate ? job.seconds * (rate.second * (rate.res[job.res as "720p"] ?? 1) + (job.sound ? rate.sound : 0)) : null;
   const [row] = await db.insert(A).values({
     brandId, kind: "video", name: `${(job.product ?? "Product").slice(0, 40)} · clip`, mime: v.mime.startsWith("video/") ? v.mime : "video/mp4", size: v.data.byteLength, data: v.data,
-    meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: "Higgsfield · Seedance 2.5", sound: job.sound, job: job.id, ...(job.scene ? { scene: job.scene } : {}), ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
+    meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: `Higgsfield · ${VIDEO_MODELS[model].name}`, sound: job.sound, job: job.id, ...(job.scene ? { scene: job.scene } : {}), ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
   }).returning({ id: A.id });
   return { id: row.id };
 }

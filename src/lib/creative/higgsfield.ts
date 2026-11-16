@@ -11,6 +11,19 @@ const API = "https://api.higgsfield.ai";
 export const HF_PHOTO = "marketing-studio/image/flare"; // product-ad images; the product photo goes in first
 export const HF_VIDEO = "bytedance/seedance-2.5/image-to-video"; // 4–30 s, generates sound with the clip; starts from our frame
 export const HF_VIDEO_REF = "bytedance/seedance-2.5/reference-to-video"; // same model, with a brand voice sample (and the character sheet) as references
+
+/**
+ * The clip models Shoots offers, best first. Both make up to 30 s in one take from our start frame, with sound, and take a brand voice as a reference.
+ * Wan 3.0 Prime (Alibaba's top tier) renders 1080p and can reason over the shot list before rendering; Seedance 2.5 is the faster fallback.
+ */
+export type VideoModel = "wan" | "seedance";
+export const VIDEO_MODELS: Record<VideoModel, { name: string; i2v: string; ref: string; note: string }> = {
+  wan: { name: "Wan 3.0 Prime", i2v: "alibaba/wan-3.0-prime/image-to-video", ref: "alibaba/wan-3.0-prime/reference-to-video", note: "Sharpest detail and motion · up to 1080p · 30 s" },
+  seedance: { name: "Seedance 2.5", i2v: HF_VIDEO, ref: HF_VIDEO_REF, note: "Faster renders · up to 1080p · 30 s" },
+};
+export const DEFAULT_VIDEO: VideoModel = "wan";
+export const isVideoModel = (m: unknown): m is VideoModel => typeof m === "string" && m in VIDEO_MODELS;
+export type Rate = { second: number; sound: number; res: Record<"480p" | "720p" | "1080p", number> };
 export const hfReady = () => Boolean(env.higgsfield());
 
 type Status = { status: "queued" | "in_progress" | "completed" | "failed" | "nsfw" | "canceled"; request_id: string; error?: string | null;
@@ -112,27 +125,36 @@ export async function hfDownload(url: string): Promise<{ data: Buffer; mime: str
   return { data: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type")?.split(";")[0] ?? "application/octet-stream" };
 }
 
-/** Prices for the canvas (per photo, per video second, quality multipliers), from Higgsfield's estimates; cached for a few hours. */
-export async function hfPrices(): Promise<{ photo: number; videoSecond: number; soundSecond: number; res: Record<"480p" | "720p" | "1080p", number> } | null> {
+/** One clip model's price: per second at 720p, extra per second of sound, and the 480p / 1080p multipliers — from Higgsfield's own estimates. */
+async function videoRate(model: string): Promise<Rate | null> {
+  const clip = (resolution: string, audio: boolean) => ({ image_url: "https://example.com/a.jpg", prompt: "A product on a table", duration: 5, resolution, generate_audio: audio });
+  const v = await hfQuote(model, clip("720p", true));
+  if (!v) return null;
+  const rates = perSecond(v.note);
+  if (rates["720p"]) {
+    // Per-second rate card: sound is included in the rate.
+    const base = rates["720p"];
+    return { second: base, sound: 0, res: { "480p": rates["480p"] ? rates["480p"] / base : 0.46, "720p": 1, "1080p": rates["1080p"] ? rates["1080p"] / base : 2.47 } };
+  }
+  if (v.usd == null) { console.error("higgsfield estimate: no price for", model, (v.note ?? "").slice(0, 200)); return null; }
+  // Flat quotes: price the silent clip and each quality separately.
+  const [silent, low, high] = await Promise.all([hfEstimate(model, clip("720p", false)), hfEstimate(model, clip("480p", false)), hfEstimate(model, clip("1080p", false))]);
+  const base = silent ?? v.usd;
+  return { second: base / 5, sound: Math.max(0, v.usd - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
+}
+
+/** Prices for the canvas (per photo; per clip model: per second, sound, quality multipliers), from Higgsfield's estimates; cached for a few hours. */
+export async function hfPrices(): Promise<{ photo: number; video: Partial<Record<VideoModel, Rate>>; videoSecond: number; soundSecond: number; res: Rate["res"] } | null> {
   "use cache";
   cacheLife("hours");
   if (!hfReady()) return null;
-  const clip = (resolution: string, audio: boolean) => ({ image_url: "https://example.com/a.jpg", duration: 5, resolution, generate_audio: audio });
-  const [p, v] = await Promise.all([hfQuote(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }), hfQuote(HF_VIDEO, clip("720p", true))]);
+  const keys = Object.keys(VIDEO_MODELS) as VideoModel[];
+  const [p, ...rates] = await Promise.all([hfQuote(HF_PHOTO, { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" }), ...keys.map((k) => videoRate(VIDEO_MODELS[k].i2v).catch(() => null))]);
+  const video = Object.fromEntries(keys.flatMap((k, i) => (rates[i] ? [[k, rates[i]]] : []))) as Partial<Record<VideoModel, Rate>>;
+  const main = video[DEFAULT_VIDEO] ?? video.seedance;
   // A failed estimate is thrown, not returned, so it isn't cached for hours — the next request asks again.
-  if (!p || !v) throw new Error("Higgsfield prices unavailable");
-  const photo = p.usd ?? PHOTO_APPROX;
-  const rates = perSecond(v.note);
-  if (rates["720p"]) {
-    // Per-second rate card (Seedance): sound is included in the rate.
-    const base = rates["720p"];
-    return { photo, videoSecond: base, soundSecond: 0, res: { "480p": rates["480p"] ? rates["480p"] / base : 0.46, "720p": 1, "1080p": rates["1080p"] ? rates["1080p"] / base : 2.47 } };
-  }
-  if (v.usd == null) { console.error("higgsfield estimate: no price for", HF_VIDEO, (v.note ?? "").slice(0, 200)); throw new Error("Higgsfield video price unknown"); }
-  // Flat quotes: price the silent clip and each quality separately.
-  const [silent, low, high] = await Promise.all([hfEstimate(HF_VIDEO, clip("720p", false)), hfEstimate(HF_VIDEO, clip("480p", false)), hfEstimate(HF_VIDEO, clip("1080p", false))]);
-  const base = silent ?? v.usd;
-  return { photo, videoSecond: base / 5, soundSecond: Math.max(0, v.usd - base) / 5, res: { "480p": low != null && base ? low / base : 0.6, "720p": 1, "1080p": high != null && base ? high / base : 1.8 } };
+  if (!p || !main) throw new Error("Higgsfield prices unavailable");
+  return { photo: p.usd ?? PHOTO_APPROX, video, videoSecond: main.second, soundSecond: main.sound, res: main.res };
 }
 
 /** Width/height of a PNG or JPEG, to keep an edit's framing. */

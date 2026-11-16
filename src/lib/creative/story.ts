@@ -5,7 +5,7 @@ import type { Story, StoryScene } from "../db/schema";
  * a keyframe per scene (the product and person locked in a still), each scene animated on its own, then one cut with captions
  * and an end card that uses the real product photo. Shared by Remy (server), the Storyboard node and the Final cut (client + server).
  */
-export const LENGTHS = [15, 30, 45, 60] as const;
+export const LENGTHS = [15, 20, 30] as const; // a full ad runs 30 s at most
 export const END_SECONDS = 3;
 export const SCENE_MIN = 4; // the video model's shortest clip
 export const SCENE_MAX = 10;
@@ -32,7 +32,7 @@ export const frameworkName = (k: string) => FRAMEWORKS.find(([x]) => x === k)?.[
 export const lookName = (k: string) => LOOKS.find(([x]) => x === k)?.[1] ?? "UGC + product shots";
 export const storySeconds = (s: Story) => s.scenes.reduce((a, x) => a + x.seconds, 0) + END_SECONDS;
 /** How many scenes a pro would cut this length into (each 4–10 s, plus the end card). */
-export const sceneCount = (length: number) => (length <= 15 ? 3 : length <= 30 ? 5 : length <= 45 ? 7 : 9);
+export const sceneCount = (length: number) => (length <= 15 ? 3 : length <= 20 ? 4 : length <= 30 ? 5 : length <= 45 ? 7 : 9);
 /** Scenes where the person speaks on camera — the rest carry the story in captions (most people watch muted). */
 export const talkingScenes = (length: number) => (length <= 15 ? 1 : length <= 30 ? 2 : 3);
 

@@ -77,7 +77,7 @@ export async function runCheck(slug: string, assetId: string, referenceUrl: stri
 }
 
 /** A clip: on Higgsfield it starts in the background and returns a job the canvas polls; on AI Gateway it waits for the clip. */
-export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null }): Promise<{ id?: string; job?: VideoJob; error?: string }> {
+export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null; model?: string | null }): Promise<{ id?: string; job?: VideoJob; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   const clean = { ...input, seconds: Math.min(hfReady() ? 30 : 10, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? undefined };

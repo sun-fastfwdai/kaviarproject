@@ -5,7 +5,7 @@ import { END_SECONDS, frameworkName, lookName, storySeconds } from "@/lib/creati
 import { createContext, useContext } from "react";
 import Link from "next/link";
 import { BaseEdge, EdgeLabelRenderer, Handle, Position, getBezierPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
-import { CAT, NODES, NODE_H, NODE_W, PORTS, SEL, TOK, cfgOf, renderTime, type NodeKey } from "./flow";
+import { CAT, NODES, NODE_H, NODE_W, PORTS, SEL, TOK, cfgOf, clipCost, renderTime, type ClipModel, type NodeKey } from "./flow";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
@@ -33,6 +33,7 @@ export type StudioApi = {
   flow: ShootFlow; status: Record<string, RunState>; busy: boolean; now: number; currency: string; brand: string;
   byId: Map<string, Shot>; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; batches: Batch[];
   perImage: number; perVideoSecond: number; perSoundSecond: number; engines: { photo: string; video: string; via: string; sound: boolean; res?: Partial<Record<string, number>> }; voiceName: (id: string | null) => string | null;
+  clip: (model?: string | null) => ClipModel;
   productFor: (id: string) => Product | null; signalFor: (id: string) => Signal | null; sceneFor: (id: string) => string;
   stale: (id: string) => boolean; changed: (id: string) => boolean; checkedFor: (id: string) => Shot[]; frameFor: (id: string) => string | null;
   sendItems: (id: string) => { photos: string[]; clips: string[] }; pickedFor: (id: string) => string[]; nextStep: (id: string) => string | null;
@@ -111,7 +112,7 @@ export function ShootCanvasNode({ id, selected }: NodeProps<CanvasNode>) {
   const person = k === "character" ? s.characterOf(c.characterId) : null;
   const title = k === "character" ? person?.name ?? "Pick a person" : k === "product" ? (product ? short(product.title) : "Pick a product") : k === "data" ? signal?.data ?? "No signal" : k === "brand" ? `${s.brand} kit`
     : k === "wins" ? "From Insights" : k === "reference" ? (c.reference ? "Brand photo" : "Pick a photo") : k === "prompt" ? "by Remy" : k === "photo" ? s.engines.photo
-    : k === "video" ? s.engines.video : k === "sound" ? "Voice + music" : k === "check" ? "Otto" : k === "story" ? (c.storyboard ? short(c.storyboard.title) : "by Remy") : k === "cut" ? `${c.out?.length ? "Ready" : "Kaviar"}` : "Where results go";
+    : k === "video" ? s.clip(c.model).name : k === "sound" ? "Voice + music" : k === "check" ? "Otto" : k === "story" ? (c.storyboard ? short(c.storyboard.title) : "by Remy") : k === "cut" ? `${c.out?.length ? "Ready" : "Kaviar"}` : "Where results go";
   return (
     <div className="col" style={{ width: s.expanded(id) ? 372 : NODE_W[k], minHeight: NODE_H[k], background: "#fff", borderRadius: 12, cursor: "grab", transition: "width .15s",
       boxShadow: selected ? `0 0 0 2px ${SEL}, 0 10px 28px rgba(18,18,18,0.10)` : st === "running" ? `0 0 0 1.5px ${SEL}, 0 8px 24px rgba(26,167,200,.18)` : "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,0.05)",
@@ -289,7 +290,7 @@ function Body({ n }: { n: ShootNode }) {
             : <span key={x.id} style={{ width: tw, height: th, borderRadius: 6, background: "var(--tray)", border: "1px dashed var(--line-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--ink-3)" }}>{i + 1}</span>;
         })}
       </div>
-      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(secs * s.perVideoSecond * (s.engines.res?.[c.res ?? "720p"] ?? 1))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering</span> : <span className={done === sb.scenes.length ? "c-green" : ""}>{done}/{sb.scenes.length} scenes</span>}</span>
+      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(clipCost(s.clip(c.model).rate, secs, c.res))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering</span> : <span className={done === sb.scenes.length ? "c-green" : ""}>{done}/{sb.scenes.length} scenes</span>}</span>
     </>;
   }
 
@@ -317,7 +318,7 @@ function Body({ n }: { n: ShootNode }) {
         {out.slice(0, big ? 8 : Math.max(0, 3 - jobs.length)).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={tw} h={th} kind="video" sound={s.byId.get(x)!.sound} onClick={() => s.view(id, x)} title="Play" /> : <Pending key={x} w={tw} h={th} label="saving" />)}
         {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text="A 5–15 s clip from a photo." w={172} h={104} />}
       </div>
-      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * c.seconds * s.perVideoSecond * (s.engines.res?.[c.res ?? "720p"] ?? 1))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · {renderTime(c.seconds)}</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>{renderTime(c.seconds)} each</span>}</span>
+      <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * clipCost(s.clip(c.model).rate, c.seconds, c.res))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · {renderTime(c.seconds)}</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>{renderTime(c.seconds)} each</span>}</span>
     </>;
   }
 

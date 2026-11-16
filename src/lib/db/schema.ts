@@ -491,8 +491,8 @@ export type ShootNodeCfg = {
   send?: string | null; picked?: string[] | null;                              // send to (null = brand assets)
   music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null; // voice + music (made with the clip; voiceId = a brand voice sample)
   out?: string[]; at?: string | null;
-  res?: "480p" | "720p" | "1080p";                                             // video quality
-  jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string }[]; // clips still rendering (scene = a storyboard scene)
+  res?: "480p" | "720p" | "1080p"; model?: string;                             // video quality; clip model (Wan 3.0 Prime when unset)
+  jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string; model?: string }[]; // clips still rendering (scene = a storyboard scene)
   style?: string; shotCount?: number | null; plan?: ShotPlan | null;            // video direction: shooting style ("auto" = from the scene), shots per clip (null = auto), Remy's shot list
   adLength?: number; framework?: string; look?: string; hookCount?: number; storyboard?: Story | null; // storyboard: a full ad's script and scenes
   captions?: boolean; endCard?: boolean; keepSound?: boolean;                 // final cut
