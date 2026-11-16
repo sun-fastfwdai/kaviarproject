@@ -27,7 +27,7 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
     <>
       <StudioBar base={base} brand={brand.name} on="batches" counts={reviewCount(ads.filter((a) => a.status === "review").length)}
         crumbs={[{ label: brand.name, href: base }, { label: "Creative studio", href: `${base}/creative` }, { label: batch.title }]}>
-        <LoopStrip base={base} step={2} />
+        <LoopStrip base={base} brandId={brand.id} step="creative" />
       </StudioBar>
       <div className="col g10" style={{ padding: "16px 24px 0" }}>
         <div className="row between" style={{ alignItems: "flex-end" }}>

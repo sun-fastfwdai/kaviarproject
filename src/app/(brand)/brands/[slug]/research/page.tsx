@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
 import { productsFor, researchList } from "@/lib/research/run";
 import { Bar } from "@/components/shell/parts";
+import { LoopStrip } from "@/components/loop-strip";
 import { ResearchView, type ResearchRow } from "./view";
 
 export const metadata = { title: "Market research" };
@@ -32,7 +33,7 @@ export default async function ResearchPage({ params, searchParams }: PageProps<"
   const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Market research" }];
   return (
     <>
-      <Bar crumbs={crumbs} />
+      <Bar crumbs={crumbs}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="research" /></Bar>
       <ResearchView slug={slug} brand={brand.name} currency={brand.currency ?? "USD"} subject={subject} market={market} tab={tab} row={row} hasMeta={meta.length > 0}
         products={products.slice(0, 200).map((p) => ({ title: p.title, price: p.price, image: p.image }))} researched={list.map((l) => ({ subject: l.subject, market: l.market, status: l.status }))} />
     </>

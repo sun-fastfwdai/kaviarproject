@@ -60,7 +60,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
 
   return (
     <>
-      <StudioBar base={base} brand={brand.name} on={tab === "plan" ? "plan" : "batches"} counts={{ ...reviewCount(toReview), ...(newPlans ? { plan: `${newPlans} new` } : {}) }}><LoopStrip base={base} step={2} /></StudioBar>
+      <StudioBar base={base} brand={brand.name} on={tab === "plan" ? "plan" : "batches"} counts={{ ...reviewCount(toReview), ...(newPlans ? { plan: `${newPlans} new` } : {}) }}><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: tab === "plan" ? 0 : "20px 24px", gap: 16 }}>
           {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}

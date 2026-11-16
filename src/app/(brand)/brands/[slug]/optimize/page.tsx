@@ -44,7 +44,7 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
 
   return (
     <>
-      <Bar crumbs={crumbs}><LoopStrip base={base} step={5} /></Bar>
+      <Bar crumbs={crumbs}><LoopStrip base={base} brandId={brand.id} step="optimize" /></Bar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px 0", gap: 14 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>

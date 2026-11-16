@@ -19,7 +19,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/b
   const [ad] = typeof want === "string" && /^[0-9a-f-]{36}$/i.test(want)
     ? await db.select().from(A).where(and(eq(A.id, want), eq(A.brandId, brand.id))).limit(1)
     : await db.select().from(A).where(and(eq(A.brandId, brand.id), sql`${A.status} <> 'rejected'`)).orderBy(desc(A.updatedAt)).limit(1);
-  const head = <StudioBar base={base} brand={brand.name} on="editor"><LoopStrip base={base} step={2} /></StudioBar>;
+  const head = <StudioBar base={base} brand={brand.name} on="editor"><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar>;
   if (!ad) return (<>{head}<div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Editor" title="Design an ad, then download it for Meta"
       body="The Editor opens any ad Remy wrote. Move the headline, swap in a product photo or a Shoots image, add the logo, an offer badge and a button — and download all three Meta sizes as PNGs."

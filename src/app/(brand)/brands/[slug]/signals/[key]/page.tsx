@@ -42,7 +42,7 @@ export default async function SignalPage({ params }: PageProps<"/brands/[slug]/s
   return (
     <>
       <Bar crumbs={[...crumbs, { label: s.data }]}>
-        <LoopStrip base={base} step={1} />
+        <LoopStrip base={base} brandId={brand.id} step="signals" />
       </Bar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 28px", gap: 18 }}>

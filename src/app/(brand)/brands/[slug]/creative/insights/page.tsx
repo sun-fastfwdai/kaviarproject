@@ -26,7 +26,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
-  if (!conns.meta) return (<><StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} step={2} /></StudioBar><div className="scroll" style={{ padding: "20px 24px" }}>
+  if (!conns.meta) return (<><StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar><div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Insights" title="Connect Meta Ads to see which ads really sell"
       body="Insights puts every live ad next to the Shopify orders it brought in, flags creatives that are getting tired, and turns the pattern into rules Remy follows in the next batch."
       steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad." }, { agent: "catalog", title: "Cleo pulls 90 days of results", body: "Spend, clicks and daily results per ad." }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand." }]}
@@ -71,7 +71,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
 
   return (
     <>
-      <StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} step={2} /></StudioBar>
+      <StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px", gap: 16 }}>
           <div className="col g4"><h1 className="h1">Why ads win — and when they get tired</h1><p className="sm i3">Every live ad, judged on real Shopify orders. Iris turns the pattern into rules Remy follows in the next batch.</p></div>

@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
 import { hasOwnData, videosFor } from "@/lib/audience/facts";
 import { Bar } from "@/components/shell/parts";
+import { LoopStrip } from "@/components/loop-strip";
 import type { PanelKind } from "@/lib/audience/types";
 import { AudienceView, type PanelRow, type TestRow } from "./view";
 
@@ -49,7 +50,7 @@ export default async function AudiencePage({ params, searchParams }: PageProps<"
   const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Audience test" }];
   return (
     <>
-      <Bar crumbs={crumbs} />
+      <Bar crumbs={crumbs}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="audience" /></Bar>
       <AudienceView slug={slug} brand={brand.name} kind={kind} own={own} hasMeta={meta.length > 0} panels={panels} tests={tests} test={test}
         batches={batches.filter((b) => b.ads > 0).map((b) => ({ id: b.id, title: b.title, audience: b.audience, ads: b.ads, createdAt: new Date(b.createdAt).toISOString() }))}
         videos={videos.map((v) => ({ id: v.id, name: v.name, seconds: v.meta.seconds ?? null, final: v.meta.engine === "Kaviar · final cut", createdAt: v.createdAt.toISOString() }))}

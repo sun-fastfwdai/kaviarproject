@@ -10,6 +10,7 @@ import { products } from "@/lib/queries/shop";
 import { CHANNEL_COLOR, CHANNEL_LABEL } from "@/lib/sync/attribution";
 import { money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
+import { LoopStrip } from "@/components/loop-strip";
 import { Icon } from "@/components/icon";
 import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { ChartLegend, SalesChart } from "@/components/sales-chart";
@@ -46,7 +47,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   return (
     <>
       <Bar crumbs={crumbs}>
-        <span className="row g6 xs i3"><ShopifyLogo size={12} />{num(s.orders)} orders in range</span>
+        <LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="performance" />
         <Link className="btn sm" href={`/brands/${slug}/sync`}><Icon name="database" size={14} />Data sync</Link>
       </Bar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>

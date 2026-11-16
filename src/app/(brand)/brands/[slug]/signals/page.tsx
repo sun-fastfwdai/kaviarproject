@@ -38,7 +38,7 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
   return (
     <>
       <Bar crumbs={crumbs}>
-        <LoopStrip base={base} step={1} />
+        <LoopStrip base={base} brandId={brand.id} step="signals" />
         <span className="row g6 xs i3"><ShopifyLogo size={12} />synced Shopify data</span>
         <Link className="btn sm" href={`${base}/shopify`}><Icon name="bag" size={14} />Shopify data</Link>
       </Bar>

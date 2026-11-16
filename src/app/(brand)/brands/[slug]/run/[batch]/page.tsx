@@ -24,7 +24,7 @@ export default async function NewTestPage({ params }: PageProps<"/brands/[slug]/
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: base }, { label: "Run ads", href: `${base}/run` }, { label: "New test" }]}>
-        <LoopStrip base={base} step={3} />
+        <LoopStrip base={base} brandId={brand.id} step="run" />
       </Bar>
       <div className="row between" style={{ padding: "18px 24px 4px", alignItems: "flex-end" }}>
         <div className="col g4"><h1 className="h1">New test · {data.batch.title}</h1><p className="sm i3">Approved creatives, a Shopify audience, a small budget, a clear rule.</p></div>
