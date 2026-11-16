@@ -98,7 +98,8 @@ export function PlanChat({ slug, brand, plans, hasMeta, aiOk, base }: { slug: st
         ) : (
           <div className="row g10" style={{ padding: 14, background: "rgba(255,255,255,.8)", borderRadius: 14, boxShadow: "0 0 0 1px var(--line)" }}>
             <AgentFace kind="analyst" size={22} />
-            <span className="xs i2 fill" style={{ lineHeight: "17px" }}>Iris needs a little more store data — plans appear once orders and customers have synced. You can still ask Remy for any idea above.</span>
+            <span className="xs i2 fill" style={{ lineHeight: "17px" }}>No store data to plan from yet. New to the market? Iris can research demand, buyers and competitors’ ads, and plan a cheap test of static ads — or ask Remy for any idea above.</span>
+            <Link className="btn sm dark" href={`${base}/research`}><Icon name="globe" size={12} color="#fff" />Market research</Link>
             <Link className="btn sm" href={`${base}/sync`}><Icon name="database" size={12} />Data sync</Link>
           </div>
         )}

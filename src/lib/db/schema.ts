@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Onboarding } from "../onboarding/types";
+import type { AdsRead, ManualAd, MarketReport, RivalAds, Step, TestPlan } from "../research/types";
 import {
   bigint,
   customType,
@@ -331,7 +332,7 @@ export const invites = pgTable(
 
 // ---------------------------------------------------------------- Brand assets uploaded during onboarding (deck, logos, imagery…)
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
-export type AssetKind = "deck" | "logo" | "imagery" | "video" | "guidelines" | "voice" | "character";
+export type AssetKind = "deck" | "logo" | "imagery" | "video" | "guidelines" | "voice" | "character" | "competitor";
 export const brandAssets = pgTable(
   "brand_assets",
   {
@@ -342,7 +343,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -506,3 +507,27 @@ export const shootFlows = pgTable("shoot_flows", {
   updatedBy: uuid("updated_by").references(() => members.id, { onDelete: "set null" }),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------- Market research: demand, buyers, competitors and their ads, and a message test — per product and market
+export const marketResearch = pgTable(
+  "market_research",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull().default(""), // a product title, or "" for the whole brand
+    market: text("market").notNull().default("US"),
+    status: text("status").$type<"running" | "done" | "error">().notNull().default("running"),
+    steps: jsonb("steps").$type<Step[]>().notNull().default([]),
+    report: jsonb("report").$type<MarketReport>(),
+    rivals: jsonb("rivals").$type<RivalAds[]>().notNull().default([]),
+    manual: jsonb("manual").$type<ManualAd[]>().notNull().default([]),
+    adsRead: jsonb("ads_read").$type<AdsRead>(),
+    plan: jsonb("plan").$type<TestPlan>(),
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    startedAt: tz("started_at"),
+    finishedAt: tz("finished_at"),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("market_research_subject").on(t.brandId, t.subject, t.market)],
+);

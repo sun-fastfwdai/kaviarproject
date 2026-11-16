@@ -17,7 +17,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const base = `/brands/${slug}`;
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
     [base, "Overview", "home"], [`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`],
-    [`${base}/integrations`, "Integrations", "plug"], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`],
+    [`${base}/integrations`, "Integrations", "plug"], [`${base}/research`, "Market research", "globe", `${base}/research`], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`],
     [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Performance", "chart-bar", `${base}/performance`],
   ];
   const rail = (
@@ -49,6 +49,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <NavLink href={`${base}/store`} icon={<Icon name="store" />} label="Store builder" />
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>
+        <NavLink href={`${base}/research`} icon={<Icon name="globe" />} label="Market research" />
         <NavLink href={`${base}/signals`} icon={<Icon name="lightning" />} label="Ad signals" />
         <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" />
         <NavLink href={`${base}/run`} icon={<Icon name="target" />} label="Run ads" />

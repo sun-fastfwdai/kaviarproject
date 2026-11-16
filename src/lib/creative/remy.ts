@@ -75,6 +75,38 @@ export async function createBatch(brandId: string, memberId: string, input: { si
   return batch.id;
 }
 
+/** A message test from Market research: one static ad per cell (buyer × angle), written by Remy, product photo from the catalog. */
+export async function createTestBatch(brandId: string, memberId: string, input: {
+  product: string; market: string; summary: string; budget: string;
+  cells: { segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string }[];
+}): Promise<string | null> {
+  const ctx = await brandContext(brandId);
+  const cells = input.cells.slice(0, 9);
+  const out = await ask("remy", {
+    system: `${REMY}
+This batch is a message test for a brand new to the ${input.market} market, built from market research instead of store data: there are no sales numbers to cite — cite the research.
+Write exactly one static image ad per test cell, in the same order: speak to that cell's buyer with that cell's angle, starting from its hook idea. Format is always "static". Keep the copy plain and specific so the message, not the production, is what gets tested.`,
+    content: JSON.stringify({
+      brand: ctx.brand, catalog: ctx.products.map((p) => ({ title: p.title, price: p.price })), product: input.product || null,
+      cells, test: input.summary, lessonsFromRejectedAds: ctx.rejected,
+    }),
+    schema: BatchOut,
+    maxTokens: 8000,
+  });
+  if (!out?.ads.length) return null;
+  const [batch] = await db.insert(schema.adBatches).values({
+    brandId, signal: null, title: `Message test · ${input.product || "the range"}`.slice(0, 80), brief: `${input.summary} ${input.budget}`.trim().slice(0, 600),
+    audience: [...new Set(cells.map((c) => c.segment))].join(" · ").slice(0, 300),
+    evidence: cells.map((c) => [c.segment, c.angle] as [string, string]), createdBy: memberId,
+  }).returning({ id: schema.adBatches.id });
+  await db.insert(schema.ads).values(out.ads.slice(0, cells.length).map((a, i) => ({
+    batchId: batch.id, brandId, position: i, format: "static" as const, hook: a.hook, primaryText: a.primaryText, headline: a.headline,
+    cta: a.cta, offer: a.offer, product: a.product || input.product || null, imageUrl: imageFor(ctx.products, a.product || input.product, i),
+    why: `${cells[i]?.segment ?? ""} · ${cells[i]?.angle ?? ""} — ${cells[i]?.metric ?? a.why}`.slice(0, 240),
+  })));
+  return batch.id;
+}
+
 /** Rewrite one ad (Redo), learning from the rejection note if there is one. */
 export async function redoAd(adId: string): Promise<boolean> {
   const [ad] = await db.select().from(schema.ads).where(eq(schema.ads.id, adId));

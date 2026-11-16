@@ -36,7 +36,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/b
     db.select({ id: A.id, hook: A.hook }).from(A).where(eq(A.batchId, ad.batchId)).orderBy(asc(A.position)),
     db.execute(sql`select title, image_url as url from shop_products where brand_id = ${brand.id} and image_url is not null and coalesce(status, 'ACTIVE') = 'ACTIVE' order by total_inventory desc nulls last limit 24`),
     db.select({ id: schema.brandAssets.id, kind: schema.brandAssets.kind, name: schema.brandAssets.name, mime: schema.brandAssets.mime, meta: schema.brandAssets.meta }).from(schema.brandAssets)
-      .where(and(eq(schema.brandAssets.brandId, brand.id), sql`${schema.brandAssets.mime} like 'image/%'`)).orderBy(desc(schema.brandAssets.createdAt)).limit(40),
+      .where(and(eq(schema.brandAssets.brandId, brand.id), sql`${schema.brandAssets.mime} like 'image/%' and ${schema.brandAssets.kind} <> 'competitor'`)).orderBy(desc(schema.brandAssets.createdAt)).limit(40),
   ]);
   const palette = (brand.onboarding?.analysis?.palette ?? []).map((p) => p.hex);
   const url = (id: string) => `/api/assets/${id}`;
