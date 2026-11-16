@@ -343,13 +343,13 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
     <div className="col g12">
       {block ? <Access slug={slug} kind={block.blocked!} message={block.error ?? ""} busy={running || busy != null} onRetry={() => run("pull", () => rerun(slug, id, ["ads"]))} />
         : (
-          <div className="row top g10" style={{ padding: "12px 14px", background: "var(--tray)", borderRadius: 12, border: "1px solid var(--line)" }}>
-            <Icon name="info" size={15} color="#55534F" />
-            <span className="xs i2 fill" style={{ lineHeight: "18px" }}>
+          <div className="row top g10">
+            <Icon name="facebook" size={14} color="#8B8883" style={{ marginTop: 2 }} />
+            <span className="xs i3 fill" style={{ lineHeight: "18px", maxWidth: 820 }}>
               Everything here is Meta’s own data. Meta’s API shares a brand’s ordinary ads when they also reached the EU or UK — with reach, who saw them and what was targeted. Ads shown only in {marketName(market)} are on the Ad Library website: screenshot them and Kaviar copies each ad card off the screenshot.
               {!hasMeta && <b className="w5 c-amber"> Connect Meta Ads on any brand to pull ads — the Library is read with that login.</b>}
             </span>
-            <a className="btn sm" href={adLibraryUrl({ q: names[0] ?? "", country: market })} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>Open the Ad Library<Icon name="external" size={11} /></a>
+            <a className="btn sm quiet" href={adLibraryUrl({ q: names[0] ?? "", country: market })} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>Open the Ad Library<Icon name="external" size={11} /></a>
           </div>
         )}
       {!block && hasMeta && step?.state === "error" && step.note && <div className="row g8 xs c-amber" style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 10 }}><Icon name="warning-circle" size={14} color="#B7791F" />{step.note}</div>}

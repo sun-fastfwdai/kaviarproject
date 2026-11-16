@@ -54,17 +54,25 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
     ...products.map((p) => ({ value: p.title, label: p.title, sub: [p.price != null ? `${currency === "USD" ? "$" : ""}${p.price}${currency !== "USD" ? ` ${currency}` : ""}` : null, done.has(`${p.title}|${market}`) ? "Researched" : null].filter(Boolean).join(" · ") || undefined }))];
   const report = row?.report ?? null;
   const counts = { ads: (row?.rivals.reduce((a, r) => a + r.ads.length, 0) ?? 0) + (row?.manual.reduce((a, m) => a + (m.ads?.length || 1), 0) ?? 0), plan: row?.plan?.cells.length ?? 0 };
-  const took = row?.startedAt && row.finishedAt ? Date.parse(row.finishedAt) - Date.parse(row.startedAt) : null;
+  // Where this brand's own prices sit, for the price map: the product researched, or the range across the catalogue.
+  const priced = (subject ? products.filter((p) => p.title === subject) : products).map((p) => p.price).filter((v): v is number => v != null && v > 0);
+  const own = priced.length ? { label: brand, min: Math.min(...priced), max: Math.max(...priced) } : null;
 
   return (
     <div className="row fill stretch" style={{ minHeight: 0 }}>
       <section className="scroll col" style={{ padding: "20px 24px 32px", gap: 16 }}>
-        <div className="row between top g16">
+        <div className="row between g16" style={{ alignItems: "flex-end" }}>
           <div className="col g4" style={{ minWidth: 0 }}>
             <h1 className="h1">Market research</h1>
-            <p className="sm i3">What Iris found about demand, buyers and competitors for {subject ? <b className="w5 i2">{subject}</b> : brand} in {marketName(market)} — every finding links to where it came from.</p>
+            <p className="sm i3">Demand, buyers, competitors and the message to test — for {subject ? <b className="w5 i2">{subject}</b> : brand} in {marketName(market)}.</p>
           </div>
-          {row && !running && row.finishedAt && <span className="chip" style={{ flexShrink: 0 }}><AgentFace kind="analyst" size={16} />Researched by Iris · {ago(row.finishedAt, now)}{took ? ` · took ${clock(took)}` : ""}</span>}
+          {report && (
+            <div className="row g16" style={{ flexShrink: 0 }}>
+              {([[report.sources.length, "sources"], [report.segments.length, "buyer groups"], [report.competitors.length, "competitors"], [row?.adsRead?.creatives ?? counts.ads, "ads read"], [counts.plan, "tests"]] as const).filter(([n]) => n > 0).map(([n, l]) => (
+                <span key={l} className="row g6" style={{ alignItems: "baseline" }}><b className="tnum" style={{ fontSize: 15, fontWeight: 600 }}>{n}</b><span className="xs i3">{l}</span></span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="row g8" style={{ flexWrap: "wrap" }}>
@@ -72,6 +80,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
           <Combo chip label="Market" prefix="Market" value={market} options={MARKETS.map(([k, l]) => ({ value: k, label: l }))} onChange={(v) => go({ market: v })} />
           <span className="fill" />
           {err && <span className="xs c-amber" style={{ maxWidth: 360 }}>{err}</span>}
+          {row && !running && row.finishedAt && <span className="row g6 xs i3" suppressHydrationWarning><AgentFace kind="analyst" size={15} />Researched by Iris · {ago(row.finishedAt, now)}</span>}
           <button type="button" className={`btn ${row?.report ? "" : "dark"}`} disabled={starting || running} onClick={start}>
             {starting || running ? <Icon name="spinner" size={13} className="spin" color={row?.report ? undefined : "#fff"} /> : <Icon name={row?.report ? "refresh" : "search"} size={13} color={row?.report ? undefined : "#fff"} />}
             {running ? "Researching…" : row?.report ? "Research again" : "Research this market"}
@@ -94,7 +103,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
 
         {row && (report || row.rivals.length || row.plan) && (
           <>
-            <div className="tabs">
+            <div className="tabs" style={{ marginTop: 4 }}>
               {([["position", "Positioning", 0], ["market", "Market", report ? report.segments.length + report.competitors.length : 0], ["ads", "Competitor ads", counts.ads], ["plan", "Test plan", counts.plan]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" className={`tab${tab === k ? " on" : ""}`} onClick={() => go({ tab: k })}>{l}{n ? <span className="n">{n}</span> : null}</button>
               ))}
@@ -106,7 +115,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
           </>
         )}
       </section>
-      {row && (report || row.plan) && <Rail tab={tab === "position" ? "market" : tab} row={row} currency={currency} />}
+      {row && (report || row.plan) && <Rail tab={tab === "position" ? "market" : tab} row={row} currency={currency} own={own} />}
     </div>
   );
 }

@@ -17,7 +17,7 @@ export function Face({ p, groups, size = 26 }: { p: Persona; groups: string[]; s
 
 export function ASourceChip({ s }: { s: ASource }) {
   if (s !== "general") return <Source s={s} />;
-  return <span className="row g4" style={{ height: 20, padding: "0 7px", borderRadius: 6, background: "#F2F1EE", color: "#55534F", fontSize: 10.5, fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0 }}><Icon name="users" size={11} color="#55534F" />{ASOURCE_NAME.general}</span>;
+  return <span className="row g6 xs i3" style={{ whiteSpace: "nowrap", flexShrink: 0 }}><Icon name="users" size={12} color="#8B8883" />{ASOURCE_NAME.general}</span>;
 }
 
 /** The people on the panel, who they stand for, and what the panel is built from. */
