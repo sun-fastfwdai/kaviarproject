@@ -316,7 +316,7 @@ function Body({ n }: { n: ShootNode }) {
         ))}
         {st === "running" && !jobs.length && <Pending w={tw} h={th} label={s.planning(id) ? "planning shots" : "starting"} />}
         {out.slice(0, big ? 8 : Math.max(0, 3 - jobs.length)).map((x) => s.byId.has(x) ? <Thumb key={x} id={x} w={tw} h={th} kind="video" sound={s.byId.get(x)!.sound} onClick={() => s.view(id, x)} title="Play" /> : <Pending key={x} w={tw} h={th} label="saving" />)}
-        {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text="A 5–15 s clip from a photo." w={172} h={104} />}
+        {!out.length && !jobs.length && st !== "running" && <Empty icon="video" text={s.engines.via === "Higgsfield" ? "A clip of up to 30 s from a photo." : "A 5–10 s clip from a photo."} w={172} h={104} />}
       </div>
       <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * clipCost(s.clip(c.model).rate, c.seconds, c.res))}</span>{jobs.length ? <span style={{ color: "#1A8FAB" }}>{jobs.length} rendering · {renderTime(c.seconds)}</span> : out.length ? <span className="c-green">{out.length} made</span> : <span>{renderTime(c.seconds)} each</span>}</span>
     </>;
