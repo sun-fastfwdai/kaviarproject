@@ -9,6 +9,7 @@ import { signalData } from "@/lib/queries/signals";
 import { getNotes } from "@/lib/ai/notes";
 import { buildSignals } from "@/lib/signals/build";
 import { createBatch, moreVariations, redoAd } from "@/lib/creative/remy";
+import { researchSignals } from "@/lib/research/context";
 import type { AdDesign } from "@/lib/db/schema";
 
 export type State = { error?: string; at?: number } | undefined;
@@ -19,6 +20,14 @@ export async function writeAdsFromSignal(slug: string, key: string, _: State, fo
   const me = await requireMember();
   if (!aiReady()) return fail("Remy needs the Claude API key to write ads.");
   const brand = await getBrand(slug);
+  // A buyer group from market research: Remy writes for them with the research's message (positioning comes in with the market context).
+  if (key.startsWith("seg:")) {
+    const r = (await researchSignals(brand.id)).find((x) => x.key === key);
+    if (!r) return fail("That buyer group isn’t in the research any more.");
+    const id = await createBatch(brand.id, me.id, { signal: { key: r.key, data: `${r.data} — a buyer group from market research`, value: r.value, use: `${r.use}. ${r.why}`, evidence: r.evidence }, count: Number(form.get("count")) || 6 });
+    if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
+    redirect(`/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(r.key)}${r.product ? `&product=${encodeURIComponent(r.product)}` : ""}`);
+  }
   const [d, notes] = await Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]);
   const row = buildSignals(`/brands/${slug}`, brand, d, notes).find((r) => r.key === key);
   if (!row) return fail("That signal doesn’t exist.");

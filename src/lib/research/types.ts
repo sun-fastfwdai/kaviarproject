@@ -43,14 +43,28 @@ export type AdsRead = {
 export type TestCell = { id: string; segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string; on: boolean };
 export type TestPlan = { summary: string; cells: TestCell[]; budget: { perDay: number; days: number; note: string }; at: string };
 
-export type StepKey = "context" | "search" | "write" | "adlib" | "read" | "plan";
+/** Where a positioning line comes from: the store, live ads, the web research, competitors' ads, or the brand profile. */
+export type DataSource = "shopify" | "meta" | "research" | "ads" | "brand";
+export const SOURCE_NAME: Record<DataSource, string> = { shopify: "Shopify", meta: "Meta ads", research: "Market research", ads: "Ad Library", brand: "Brand profile" };
+/** The product's positioning: the one brief every agent writes from — ads, photo prompts, storyboards, casting and plans. */
+export type Positioning = {
+  statement: string; primary: string; secondary: string[];
+  pillars: { id: string; title: string; message: string; proof: string; source: DataSource }[];
+  proof: { fact: string; source: DataSource }[];
+  price: { stance: string; note: string };
+  voice: { say: string[]; avoid: string[] };
+  avoid: string[]; where: { placement: string; why: string }[]; next: string[];
+  status?: "accepted"; edited?: boolean; at: string;
+};
+
+export type StepKey = "context" | "search" | "write" | "adlib" | "read" | "position" | "plan";
 export type Step = { key: StepKey; label: string; state: "waiting" | "running" | "done" | "error"; note?: string; ms?: number };
 export const STEP_LABEL: Record<StepKey, string> = {
   context: "Read the brand and product", search: "Search the market", write: "Write up the findings",
-  adlib: "Pull competitors’ ads from the Meta Ad Library", read: "Read their messaging", plan: "Plan the message test",
+  adlib: "Pull competitors’ ads from the Meta Ad Library", read: "Read their messaging", position: "Position the product with all the data", plan: "Plan the message test",
 };
-export type Part = "market" | "ads" | "plan";
-export const PART_STEPS: Record<Part, StepKey[]> = { market: ["context", "search", "write"], ads: ["adlib", "read"], plan: ["plan"] };
+export type Part = "market" | "ads" | "position" | "plan";
+export const PART_STEPS: Record<Part, StepKey[]> = { market: ["context", "search", "write"], ads: ["adlib", "read"], position: ["position"], plan: ["plan"] };
 
 export const MARKETS: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"]];
 export const marketName = (m: string) => MARKETS.find(([k]) => k === m)?.[1] ?? m;

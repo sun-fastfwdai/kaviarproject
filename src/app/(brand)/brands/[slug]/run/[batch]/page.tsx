@@ -28,7 +28,7 @@ export default async function NewTestPage({ params }: PageProps<"/brands/[slug]/
       </Bar>
       <div className="row between" style={{ padding: "18px 24px 4px", alignItems: "flex-end" }}>
         <div className="col g4"><h1 className="h1">New test · {data.batch.title}</h1><p className="sm i3">Approved creatives, a Shopify audience, a small budget, a clear rule.</p></div>
-        <span className="row g6 xs i3"><AgentFace kind="analyst" size={16} />Iris set this up from {data.batch.signal ? `the ${data.batch.signal.replace(/-/g, " ")} signal` : "your idea"}</span>
+        <span className="row g6 xs i3"><AgentFace kind="analyst" size={16} />Iris set this up from {data.batch.signal ? (data.batch.signal.startsWith("seg:") ? "a buyer group from market research" : `the ${data.batch.signal.replace(/-/g, " ")} signal`) : "your idea"}</span>
       </div>
       {approved.length === 0 ? (
         <div className="notice amber" style={{ margin: 24 }}><span>No approved ads in this batch yet. Approve at least two in Creative studio first.</span></div>

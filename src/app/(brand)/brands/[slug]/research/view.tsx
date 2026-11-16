@@ -4,16 +4,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { startResearch } from "./actions";
 import { Combo } from "../creative/shoots/combo";
 import { AdsTab, MarketTab, PlanTab, Rail } from "./parts";
+import { PositionTab } from "./position";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { EmptyState } from "@/components/empty";
-import { MARKETS, marketName, type AdsRead, type ManualAd, type MarketReport, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
+import { MARKETS, marketName, type AdsRead, type ManualAd, type MarketReport, type Positioning, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
 
 export type ResearchRow = {
   id: string; status: "running" | "done" | "error"; stale: boolean; steps: Step[]; report: MarketReport | null; rivals: RivalAds[]; manual: ManualAd[];
-  adsRead: AdsRead | null; plan: TestPlan | null; error: string | null; updatedAt: string; startedAt: string | null; finishedAt: string | null;
+  adsRead: AdsRead | null; plan: TestPlan | null; positioning: Positioning | null; error: string | null; updatedAt: string; startedAt: string | null; finishedAt: string | null;
 };
-type Tab = "market" | "ads" | "plan";
+type Tab = "position" | "market" | "ads" | "plan";
 
 export const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`; };
 export const ago = (iso: string, now: number) => { const m = Math.round((now - Date.parse(iso)) / 60_000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -93,17 +94,18 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
         {row && (report || row.rivals.length || row.plan) && (
           <>
             <div className="tabs">
-              {([["market", "Market", report ? report.segments.length + report.competitors.length : 0], ["ads", "Competitor ads", counts.ads], ["plan", "Test plan", counts.plan]] as const).map(([k, l, n]) => (
+              {([["position", "Positioning", 0], ["market", "Market", report ? report.segments.length + report.competitors.length : 0], ["ads", "Competitor ads", counts.ads], ["plan", "Test plan", counts.plan]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" className={`tab${tab === k ? " on" : ""}`} onClick={() => go({ tab: k })}>{l}{n ? <span className="n">{n}</span> : null}</button>
               ))}
             </div>
+            {tab === "position" && <PositionTab key={row.positioning?.at ?? "none"} slug={slug} id={row.id} pos={row.positioning} running={running} />}
             {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} currency={currency} onAds={() => go({ tab: "ads" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
             {tab === "ads" && <AdsTab slug={slug} id={row.id} row={row} market={market} hasMeta={hasMeta} running={running} />}
             {tab === "plan" && <PlanTab slug={slug} id={row.id} row={row} running={running} onMarket={() => go({ tab: "market" })} />}
           </>
         )}
       </section>
-      {row && (report || row.plan) && <Rail tab={tab} row={row} currency={currency} />}
+      {row && (report || row.plan) && <Rail tab={tab === "position" ? "market" : tab} row={row} currency={currency} />}
     </div>
   );
 }
@@ -140,7 +142,7 @@ function Progress({ row, now, subject }: { row: ResearchRow; now: number; subjec
 function ResearchArt() {
   return (
     <div className="col g8" style={{ width: 260, padding: 18, justifyContent: "center", background: "var(--tray)" }}>
-      {[["Demand", "Growing", "#2563EB", 72], ["Acne-prone Gen Z", "Primary", "#1F8A5B", 88], ["Busy professionals", "Secondary", "#1F8A5B", 61], ["Competitors’ angle: ingredients", "64%", "#B7791F", 64]].map(([a, b, c, w]) => (
+      {[["Positioning", "For Gen Z", "#1F8A5B", 80], ["Demand", "Growing", "#2563EB", 72], ["Acne-prone Gen Z", "Primary", "#1F8A5B", 88], ["Busy professionals", "Secondary", "#1F8A5B", 61], ["Competitors’ angle: ingredients", "64%", "#B7791F", 64]].map(([a, b, c, w]) => (
         <div key={a as string} className="col g4" style={{ padding: "8px 10px", background: "#fff", borderRadius: 8, border: "1px solid var(--line)" }}>
           <span className="row between xs"><span className="i1 w5">{a}</span><span style={{ color: c as string }}>{b}</span></span>
           <span style={{ height: 4, borderRadius: 2, background: "var(--tray-2)" }}><span style={{ display: "block", height: 4, width: `${w}%`, borderRadius: 2, background: c as string }} /></span>

@@ -952,7 +952,7 @@ function Studio(props: Props) {
         {n.type === "data" && <>
           <Field label="Signal" sub={nSig ? `Shopify ${nSig.group.toLowerCase()} · from the latest sync` : "No signal — a general product shoot"}>
             <Combo label="Signal" value={c.signal ?? ""} onChange={(v) => patchNode(n.id, { signal: v || null, rules: [] })} icon={<Icon name="lightning" size={13} color={CAT.in} />}
-              options={[...signals.map((x) => ({ value: x.key, label: x.data, sub: x.value ?? undefined })), { value: "", label: "No signal", sub: "a general product shoot", tone: "muted" as const }]} />
+              options={[...signals.map((x) => ({ value: x.key, label: x.data, sub: x.group === "Market research" ? `Market research · ${x.value ?? ""}` : x.value ?? undefined })), { value: "", label: "No signal", sub: "a general product shoot", tone: "muted" as const }]} />
           </Field>
           {nSig && <div className="col" style={{ flexShrink: 0 }}>
             <span className="xs w5 i3" style={{ paddingBottom: 4 }}>What the data says</span>
@@ -1160,7 +1160,7 @@ function Studio(props: Props) {
         {n.type === "send" && <>
             <Field label="Destination" sub={c.send ? "They become the batch’s ad photos, in order" : "Kept for the Editor’s Media panel"}>
               <Combo label="Destination" value={c.send ?? ""} onChange={(v) => patchNode(n.id, { send: v || null })} icon={<Icon name="squares" size={13} color={CAT.fin} />}
-                options={[...sortedBatches.map((b) => ({ value: b.id, label: b.title, sub: `${b.n} ads${b.signal ? ` · from ${b.signal.replace(/-/g, " ")}` : ""}` })), { value: "", label: "Brand assets", sub: "kept for the Editor’s Media panel" }]} />
+                options={[...sortedBatches.map((b) => ({ value: b.id, label: b.title, sub: `${b.n} ads${b.signal ? ` · from ${b.signal.startsWith("seg:") ? "market research" : b.signal.replace(/-/g, " ")}` : ""}` })), { value: "", label: "Brand assets", sub: "kept for the Editor’s Media panel" }]} />
             </Field>
             <Field label={`Photos to send · ${sPicked.length}`} sub="Otto pre-picks the ones that pass. Click to change.">
               {sPool.length ? <div className="row g4" style={{ flexWrap: "wrap" }}>{sPool.map((x) => <Thumb key={x} id={x} w={56} h={56} ring={sPicked.includes(x)} flag={flagOf(checkOf(x))} onClick={() => toggleSend(x)} />)}</div>

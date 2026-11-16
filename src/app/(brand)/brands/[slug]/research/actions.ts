@@ -9,7 +9,7 @@ import { getBrand } from "@/lib/queries/brands";
 import { runResearch } from "@/lib/research/run";
 import { adLibraryToken, competitorAds } from "@/lib/research/adlib";
 import { createTestBatch } from "@/lib/creative/remy";
-import { MARKETS, marketName, type Decision, type Part, type RivalAds } from "@/lib/research/types";
+import { MARKETS, marketName, type Decision, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
 
 const R = schema.marketResearch;
 type Result = { error?: string };
@@ -24,7 +24,7 @@ async function own(slug: string, id: string) {
 const busy = (row: typeof R.$inferSelect) => row.status === "running" && Date.now() - row.updatedAt.getTime() < 15 * 60_000;
 
 /** Start (or re-run) research for a product and market. Runs in the background; the page polls while it says "running". */
-export async function startResearch(slug: string, subject: string, market: string, parts: Part[] = ["market", "ads", "plan"]): Promise<Result & { id?: string }> {
+export async function startResearch(slug: string, subject: string, market: string, parts: Part[] = ["market", "ads", "position", "plan"]): Promise<Result & { id?: string }> {
   const me = await requireMember();
   if (!aiReady()) return { error: "Iris needs the Claude API key." };
   if (!MARKETS.some(([k]) => k === market)) return { error: "Pick a market." };
@@ -33,7 +33,7 @@ export async function startResearch(slug: string, subject: string, market: strin
   const [row] = await db.insert(R).values({ brandId: brand.id, subject: sub, market, createdBy: me.id })
     .onConflictDoUpdate({ target: [R.brandId, R.subject, R.market], set: { updatedAt: new Date() } }).returning();
   if (busy(row) && row.steps.length) return { id: row.id };
-  const want = parts.filter((p) => ["market", "ads", "plan"].includes(p));
+  const want = parts.filter((p) => ["market", "ads", "position", "plan"].includes(p));
   if (!row.report && !want.includes("market")) want.unshift("market");
   await db.update(R).set({ status: "running", error: null, updatedAt: new Date() }).where(eq(R.id, row.id));
   after(() => runResearch(row.id, want));
@@ -117,4 +117,17 @@ export async function buildTestAds(slug: string, id: string): Promise<Result> {
   });
   if (!batch) return { error: "Remy couldn’t write the ads right now — try again in a minute." };
   redirect(`/brands/${slug}/creative/${batch}`);
+}
+
+/** The team edits the positioning (statement, pillars) or accepts it — agents write from it either way; an edited one is kept on re-runs. */
+export async function savePositioning(slug: string, id: string, patch: { statement?: string; pillars?: Positioning["pillars"]; status?: "accepted" | null }): Promise<void> {
+  const { row } = await own(slug, id);
+  if (!row.positioning) return;
+  const next: Positioning = {
+    ...row.positioning,
+    ...(patch.statement != null ? { statement: patch.statement.slice(0, 400), edited: true } : {}),
+    ...(patch.pillars ? { pillars: patch.pillars.slice(0, 4).map((p) => ({ ...p, title: String(p.title).slice(0, 40), message: String(p.message).slice(0, 160), proof: String(p.proof).slice(0, 160) })), edited: true } : {}),
+    ...("status" in patch ? { status: patch.status ?? undefined } : {}),
+  };
+  await db.update(R).set({ positioning: next, updatedAt: new Date() }).where(eq(R.id, id));
 }

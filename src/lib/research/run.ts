@@ -5,7 +5,8 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { adLibraryToken, competitorAds } from "./adlib";
-import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type MarketReport, type Part, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
+import { metaLessons, storeFacts } from "./context";
+import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type DataSource, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
 
 const R = schema.marketResearch;
 type Row = typeof R.$inferSelect;
@@ -181,7 +182,52 @@ async function readAds(row: Row, rivals: RivalAds[], report: MarketReport | null
   };
 }
 
-// ---------------------------------------------------------------- 4 · the message test
+// ---------------------------------------------------------------- 4 · positioning, from every source
+const SRC = z.enum(["shopify", "meta", "research", "ads", "brand"]);
+const PositionOut = z.object({
+  statement: z.string().describe("For <primary buyer> who <need>, <product> is the <category> that <key benefit> — unlike <the usual alternative>, which <its weakness>. One sentence."),
+  primary: z.string().describe("The primary buyer — one of the research buyer groups, by name"),
+  secondary: z.array(z.string()).describe("Other buyer groups worth testing, by name"),
+  pillars: z.array(z.object({ title: z.string().describe("2–4 words"), message: z.string().describe("What we say, in the buyer's words. Under 16 words."), proof: z.string().describe("The fact that backs it, or 'to test'"), source: SRC })).describe("Exactly 3 message pillars"),
+  proof: z.array(z.object({ fact: z.string(), source: SRC })).describe("Facts the ads may state, each from the data given — numbers from Shopify or Meta, findings from the research"),
+  price: z.object({ stance: z.enum(["value", "accessible premium", "premium"]), note: z.string().describe("How to talk about price against the competitors' range") }),
+  voice: z.object({ say: z.array(z.string()).describe("3 words or phrases to use"), avoid: z.array(z.string()).describe("3 words, claims or tones to avoid") }),
+  avoid: z.array(z.string()).describe("Angles competitors overuse, or claims that would break Meta's ad policy"),
+  where: z.array(z.object({ placement: z.string(), why: z.string() })).describe("2–3 placements or formats to lead with"),
+  next: z.array(z.string()).describe("2–3 things to test or find out next"),
+});
+
+async function positionProduct(row: Row, report: MarketReport | null, read: AdsRead | null): Promise<Positioning> {
+  if (!report) throw new Error("Run the market research first — positioning builds on it.");
+  const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, row.brandId));
+  const profile = b.onboarding?.profile ? Object.fromEntries(Object.entries(b.onboarding.profile).map(([k, v]) => [k, v.value])) : null;
+  const [store, lessons] = await Promise.all([storeFacts(row.brandId, row.subject || null), metaLessons(row.brandId)]);
+  const out = await ask("iris", {
+    system: `You are Iris, Kaviar's research analyst. Position ${row.subject ? "this product" : "this brand"} for the ${marketName(row.market)} market using every source you're given — the store's own numbers (shopify), what live ads show (meta), the web research (research), competitors' live ads (ads) and the brand profile (brand). Real buyers and real results outrank the research: when the store or the ads disagree with the research, follow the data and say so in "next". Tag every pillar and proof with the source it comes from; never invent numbers. Prefer the buyer groups and gaps the team accepted, never ones they rejected. Write so a copywriter can use it directly.`,
+    content: JSON.stringify({
+      brand: { name: b.name, category: b.category, profile }, product: row.subject || "the whole range",
+      store: store ?? "no store sales yet", whatWinsInLiveAds: lessons.length ? lessons : "no live ads yet",
+      research: {
+        summary: report.summary, demand: report.demand, price: report.price, trends: report.trends.map((t) => `${t.direction}: ${t.text}`),
+        buyers: report.segments.map((s) => ({ name: s.name, decision: s.status ?? "open", who: s.who, need: s.need, why: s.why, objections: s.objections, angle: s.angle })),
+        competitors: report.competitors.map((c) => ({ name: c.name, price: c.price, positioning: c.positioning, weakness: c.weakness })),
+        opportunities: report.opportunities.map((o) => ({ text: o.text, decision: o.status ?? "open" })),
+      },
+      competitorAds: read ? { angles: read.angles.map((a) => `${a.name} (${a.share}%)`), hooks: read.hooks, offers: read.offers, positioning: read.positioning, gaps: read.gaps.map((g) => ({ text: g.text, decision: g.status ?? "open" })) } : "not read yet",
+    }),
+    schema: PositionOut, maxTokens: 8000,
+  });
+  if (!out) throw new Error("Iris couldn’t write the positioning — try again.");
+  const src = (x: string): DataSource => (["shopify", "meta", "research", "ads", "brand"].includes(x) ? x as DataSource : "research");
+  return {
+    statement: out.statement.slice(0, 400), primary: out.primary.slice(0, 80), secondary: out.secondary.slice(0, 4).map((x) => x.slice(0, 80)),
+    pillars: out.pillars.slice(0, 4).map((p) => ({ id: uid(), title: p.title.slice(0, 40), message: p.message.slice(0, 160), proof: p.proof.slice(0, 160), source: src(p.source) })),
+    proof: out.proof.slice(0, 8).map((p) => ({ fact: p.fact.slice(0, 200), source: src(p.source) })), price: out.price,
+    voice: { say: out.voice.say.slice(0, 5), avoid: out.voice.avoid.slice(0, 5) }, avoid: out.avoid.slice(0, 6), where: out.where.slice(0, 4), next: out.next.slice(0, 4), at: new Date().toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------- 5 · the message test
 const PlanOut = z.object({
   summary: z.string().describe("The test in one or two sentences: what we learn and how we'll know"),
   cells: z.array(z.object({
@@ -192,7 +238,7 @@ const PlanOut = z.object({
   budget: z.object({ perDay: z.number().describe("Total USD per day across all cells"), days: z.number(), note: z.string() }),
 });
 
-async function planTest(row: Row, report: MarketReport | null, read: AdsRead | null): Promise<TestPlan> {
+async function planTest(row: Row, report: MarketReport | null, read: AdsRead | null, pos: Positioning | null = null): Promise<TestPlan> {
   if (!report) throw new Error("Run the market research first — the plan builds on its buyers and gaps.");
   const segments = report.segments.filter((s) => s.status !== "rejected");
   const out = await ask("iris", {
@@ -202,6 +248,7 @@ async function planTest(row: Row, report: MarketReport | null, read: AdsRead | n
       buyers: segments.map((s) => ({ name: s.name, accepted: s.status === "accepted", who: s.who, need: s.need, angle: s.angle, ages: s.reach.ages, gender: s.reach.gender, interests: s.reach.interests })),
       opportunities: report.opportunities.filter((o) => o.status !== "rejected").map((o) => o.text),
       competitorAngles: read?.angles.map((a) => `${a.name} (${a.share}%)`) ?? [], gaps: read?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? [],
+      positioning: pos ? { statement: pos.statement, primaryBuyer: pos.primary, pillarsToTestAsAngles: pos.pillars.map((p) => `${p.title}: ${p.message}`), avoid: pos.avoid } : null,
     }),
     schema: PlanOut, maxTokens: 8000,
   });
@@ -217,7 +264,7 @@ export async function runResearch(id: string, parts: Part[]): Promise<void> {
   const steps: Step[] = parts.flatMap((p) => PART_STEPS[p]).map((key) => ({ key, label: STEP_LABEL[key], state: "waiting" as const }));
   await save(id, { status: "running", steps, error: null, startedAt: new Date(), finishedAt: null });
   const step = tracker(id, steps);
-  let report = row.report, rivals = row.rivals, read = row.adsRead;
+  let report = row.report, rivals = row.rivals, read = row.adsRead, pos = row.positioning;
   try {
     if (parts.includes("market")) {
       const ctx = await step("context", async (note) => { const c = await contextFor(row.brandId, row.subject); note(c.product ? c.product.title : `${c.catalog.length} products`); return c; });
@@ -234,8 +281,15 @@ export async function runResearch(id: string, parts: Part[]): Promise<void> {
         await save(id, { adsRead: read });
       } catch { for (const s of steps) if (s.key === "read" && s.state === "waiting") s.state = "error"; await save(id, { steps: [...steps] }); }
     }
+    if (parts.includes("position")) {
+      // An edited positioning is the team's: keep it unless they ask Iris for a new one (re-running "position" alone).
+      if (!pos?.edited || parts.length === 1) {
+        pos = await step("position", async (note) => { const p = await positionProduct(row, report, read); note(`For ${p.primary} · ${p.pillars.length} pillars`); return p; });
+        await save(id, { positioning: pos });
+      }
+    }
     if (parts.includes("plan")) {
-      const plan = await step("plan", async (note) => { const p = await planTest({ ...row, rivals }, report, read); note(`${p.cells.length} ads to test`); return p; });
+      const plan = await step("plan", async (note) => { const p = await planTest({ ...row, rivals }, report, read, pos); note(`${p.cells.length} ads to test`); return p; });
       await save(id, { plan });
     }
     await save(id, { status: "done", finishedAt: new Date() });

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { getNotes, refreshNotes } from "@/lib/ai/notes";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { brandThumb, getBrand, getConnections } from "@/lib/queries/brands";
 import { campaigns, daily, summary, utmHealth } from "@/lib/queries/growth";
@@ -58,6 +58,10 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
     brand.createdBy ? db.select({ name: schema.members.name }).from(schema.members).where(eq(schema.members.id, brand.createdBy)).then((r) => r[0]?.name ?? null) : Promise.resolve(null),
   ]);
 
+  // The positioning the team uses (or Iris's latest) — every agent writes from it, so it leads the Overview.
+  const R = schema.marketResearch;
+  const [pos] = await db.select({ subject: R.subject, market: R.market, positioning: R.positioning }).from(R)
+    .where(and(eq(R.brandId, brand.id), sql`${R.positioning} is not null`)).orderBy(sql`(${R.positioning}->>'status' = 'accepted') desc nulls last`, desc(R.updatedAt)).limit(1);
   const live = (c: typeof conns.shopify) => Boolean(c && ["connected", "sample"].includes(c.status));
   const synced = history.some((r) => r.provider === "shopify" && r.status === "success");
   const tagRate = health.metaOrders ? health.withAd / health.metaOrders : null;
@@ -112,6 +116,24 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
             <SyncButton slug={slug} running={history.some((r) => r.status === "running")} disabled={![conns.shopify, conns.meta].some((c) => c?.status === "connected")} />
             <Link href={`${base}/performance`} className="btn dark sm">Open performance <span>→</span></Link>
           </div>
+
+          {pos?.positioning ? (
+            <Link href={`${base}/research?product=${encodeURIComponent(pos.subject)}&market=${pos.market}&tab=position`} className="card link" style={{ padding: "14px 16px", gap: 8 }}>
+              <div className="row g8"><Icon name="globe" size={15} color="#5B6FD6" /><span className="h3 fill">Positioning</span>
+                <span className="xs i3">{pos.subject || "Whole brand"} · {pos.positioning.status === "accepted" ? "in use" : "suggested by Iris"}</span><Icon name="arrow-r" size={13} color="#8B8883" /></div>
+              <span className="sm i1" style={{ lineHeight: "21px" }}>{pos.positioning.statement}</span>
+              <div className="row g4" style={{ flexWrap: "wrap" }}>
+                <span className="pill green" style={{ height: 22, fontSize: 11 }}>For {pos.positioning.primary}</span>
+                {pos.positioning.pillars.map((p) => <span key={p.id} className="pill" style={{ height: 22, fontSize: 11 }}>{p.title}</span>)}
+              </div>
+            </Link>
+          ) : (
+            <Link href={`${base}/research`} className="card link row g10" style={{ padding: "12px 16px" }}>
+              <Icon name="globe" size={16} color="#5B6FD6" />
+              <span className="col fill"><span className="sm w5">Research the market and position {brand.name}</span><span className="xs i3">Demand, buyers, competitors’ ads and one positioning every ad is written from — about 3 minutes</span></span>
+              <Icon name="arrow-r" size={13} color="#8B8883" />
+            </Link>
+          )}
 
           {steps.some((x) => !x) && (
             <div className="card" style={{ padding: "14px 18px 6px" }}>

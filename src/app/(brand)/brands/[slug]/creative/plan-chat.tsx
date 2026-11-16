@@ -8,7 +8,7 @@ import { AgentFace } from "@/components/agent";
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
 
 /** Board 17's Plan as a chat: ask Remy for a batch in your own words, or pick one of Iris's plans. */
-export function PlanChat({ slug, brand, plans, hasMeta, aiOk, base }: { slug: string; brand: string; plans: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string }) {
+export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, base }: { slug: string; brand: string; plans: PlanCard[]; research?: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string }) {
   const [state, action, pending] = useActionState<State, FormData>(startBatch.bind(null, slug), undefined);
   const [text, setText] = useState("");
   const [count, setCount] = useState(6);
@@ -17,6 +17,7 @@ export function PlanChat({ slug, brand, plans, hasMeta, aiOk, base }: { slug: st
   const area = useRef<HTMLTextAreaElement>(null);
   const ideas = [
     ...plans.slice(0, 2).map((p) => `Ads for ${p.title.toLowerCase()} — ${p.why.split(/[.;—]/)[0].toLowerCase()}`),
+    ...research.slice(0, plans.length ? 1 : 2).map((p) => `Ads for ${p.title} — ${p.why.split("Say:")[1]?.trim().toLowerCase() ?? "in their words"}`),
     `Holiday gift ads for ${brand}’s best-seller — warm and cosy`,
     "A UGC-style video for first-time buyers",
     "A bundle offer for people who bought twice",
@@ -27,7 +28,7 @@ export function PlanChat({ slug, brand, plans, hasMeta, aiOk, base }: { slug: st
       background: "radial-gradient(60% 42% at 50% 0%, rgba(106,143,214,.16), transparent 70%), radial-gradient(38% 34% at 88% 18%, rgba(26,167,200,.12), transparent 70%), radial-gradient(36% 32% at 10% 30%, rgba(235,207,159,.28), transparent 70%), var(--sheet)" }}
       onSubmit={(e) => {
         const by = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        const plan = by?.name === "signal" ? plans.find((p) => p.key === by.value) : null;
+        const plan = by?.name === "signal" ? [...plans, ...research].find((p) => p.key === by.value) : null;
         if (!plan && text.trim().length < 8) { e.preventDefault(); area.current?.focus(); return; }
         setSent(plan ? `Build the “${plan.title}” plan — ${count} ads` : text.trim());
       }}>
@@ -103,6 +104,25 @@ export function PlanChat({ slug, brand, plans, hasMeta, aiOk, base }: { slug: st
             <Link className="btn sm" href={`${base}/sync`}><Icon name="database" size={12} />Data sync</Link>
           </div>
         )}
+        {research.length > 0 && <>
+          <div className="row between" style={{ paddingTop: 10 }}>
+            <span className="row g6 sm w5"><Icon name="globe" size={14} color="#5B6FD6" />From market research</span>
+            <Link className="xs i3 lnk" href={`${base}/research`}>buyers and positioning Iris found</Link>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(3, research.length)}, minmax(0, 1fr))`, gap: 12 }}>
+            {research.map((p, i) => (
+              <div key={p.key} className="col g8 hv-card" style={{ padding: 14, background: "#fff", borderRadius: 14, boxShadow: "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,.04)" }}>
+                <span className="row between"><span className="eyebrow">Buyer {i + 1}</span>{p.why.includes("primary buyer") && <span className="pill green" style={{ height: 18, fontSize: 10 }}>Primary</span>}</span>
+                <Link href={p.href} className="h3 lnk">{p.title}</Link>
+                <span className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.why}</span>
+                <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{k}: {v}</span>)}</span>
+                <div className="fill" />
+                <button type="submit" name="signal" value={p.key} disabled={pending || !aiOk} className="btn sm" style={{ justifyContent: "center" }}>
+                  <Icon name="sparkle" size={12} />Build {count} ads</button>
+              </div>
+            ))}
+          </div>
+        </>}
         <span className="xs i3" style={{ textAlign: "center", paddingTop: 4 }}>Next: Remy writes the batch → you make the visuals in Shoots → design in the Editor → review in Ads.</span>
       </div>
     </form>

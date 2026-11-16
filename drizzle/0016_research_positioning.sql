@@ -1,0 +1,1 @@
+ALTER TABLE "market_research" ADD COLUMN "positioning" jsonb;

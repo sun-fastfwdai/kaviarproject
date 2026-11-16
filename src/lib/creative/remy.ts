@@ -3,6 +3,7 @@ import { z } from "zod";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
+import { marketContext } from "../research/context";
 
 export type AdRow = typeof schema.ads.$inferSelect;
 export type BatchRow = typeof schema.adBatches.$inferSelect;
@@ -26,7 +27,8 @@ const BatchOut = z.object({
 
 const REMY = `You are Remy, Kaviar's creative agent. You write Meta ads for a brand from one signal in its own Shopify data.
 Rules: use the real numbers and product names given; write in the brand's voice when a profile is given; no medical, cure or guaranteed-result claims; no "best-selling" unless the data shows it;
-never invent a discount — only use a code the data shows the brand already uses; every ad needs a different hook; pick products only from the catalog list (exact titles).`;
+never invent a discount — only use a code the data shows the brand already uses; every ad needs a different hook; pick products only from the catalog list (exact titles).
+When a market context is given (from Kaviar's market research): follow its positioning and message pillars, speak to its buyers in their own words, use its proof, and stay away from the angles competitors overuse and the words it says to avoid.`;
 
 export async function brandContext(brandId: string) {
   const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, website: schema.brands.website, currency: schema.brands.currency, onboarding: schema.brands.onboarding })
@@ -48,7 +50,7 @@ const imageFor = (products: { title: string; imageUrl: string }[], title: string
 
 /** Remy writes a batch of ads. Returns the new batch id, or null if the model couldn't. */
 export async function createBatch(brandId: string, memberId: string, input: { signal?: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] }; idea?: string; count?: number }): Promise<string | null> {
-  const ctx = await brandContext(brandId);
+  const [ctx, market] = await Promise.all([brandContext(brandId), marketContext(brandId, null)]);
   const count = Math.min(9, Math.max(3, input.count ?? 6));
   const out = await ask("remy", {
     system: REMY,
@@ -59,6 +61,7 @@ export async function createBatch(brandId: string, memberId: string, input: { si
       write: `${count} ads`,
       lessonsFromRejectedAds: ctx.rejected,
       whatWinsForThisBrand: ctx.lessons,
+      market,
     }),
     schema: BatchOut,
     maxTokens: 8000,
@@ -80,7 +83,7 @@ export async function createTestBatch(brandId: string, memberId: string, input: 
   product: string; market: string; summary: string; budget: string;
   cells: { segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string }[];
 }): Promise<string | null> {
-  const ctx = await brandContext(brandId);
+  const [ctx, market] = await Promise.all([brandContext(brandId), marketContext(brandId, input.product || null)]);
   const cells = input.cells.slice(0, 9);
   const out = await ask("remy", {
     system: `${REMY}
@@ -88,7 +91,7 @@ This batch is a message test for a brand new to the ${input.market} market, buil
 Write exactly one static image ad per test cell, in the same order: speak to that cell's buyer with that cell's angle, starting from its hook idea. Format is always "static". Keep the copy plain and specific so the message, not the production, is what gets tested.`,
     content: JSON.stringify({
       brand: ctx.brand, catalog: ctx.products.map((p) => ({ title: p.title, price: p.price })), product: input.product || null,
-      cells, test: input.summary, lessonsFromRejectedAds: ctx.rejected,
+      cells, test: input.summary, lessonsFromRejectedAds: ctx.rejected, market,
     }),
     schema: BatchOut,
     maxTokens: 8000,

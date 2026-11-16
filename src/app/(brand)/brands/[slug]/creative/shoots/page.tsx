@@ -4,6 +4,7 @@ import { getBrand } from "@/lib/queries/brands";
 import { signalData } from "@/lib/queries/signals";
 import { getNotes } from "@/lib/ai/notes";
 import { buildSignals } from "@/lib/signals/build";
+import { researchSignals } from "@/lib/research/context";
 import { shootEngines, shootsThisMonth } from "@/lib/creative/shoots";
 import { ShootStudio } from "./studio";
 import { TEMPLATES, applyPreset, asFlow, defaultFlow } from "./flow";
@@ -23,7 +24,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const brand = await getBrand(slug);
   const base = `/brands/${slug}`;
   const A = schema.brandAssets;
-  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices, characters] = await Promise.all([
+  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices, characters, research] = await Promise.all([
     db.execute(sql`select p.title, p.image_url as url, p.total_inventory as stock,
         (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
       from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' order by p.total_inventory desc nulls last limit 40`),
@@ -41,10 +42,13 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
     shootEngines(),
     db.select({ id: A.id, name: A.name, meta: A.meta }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "voice"))).orderBy(desc(A.createdAt)).limit(12),
     db.select({ id: A.id, name: A.name, meta: A.meta, createdAt: A.createdAt }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "character"))).orderBy(desc(A.createdAt)).limit(24),
+    researchSignals(brand.id),
   ]);
   const signals = buildSignals(base, brand, d, notes).filter((r) => (r.status === "ready" || r.status === "in-use") && SHOOT_SIGNALS.includes(r.key))
     .sort((a, b) => SHOOT_SIGNALS.indexOf(a.key) - SHOOT_SIGNALS.indexOf(b.key))
-    .map((r) => ({ key: r.key, data: r.data, value: r.value, group: r.group, evidence: r.evidence }));
+    .map((r) => ({ key: r.key, data: r.data, value: r.value, group: r.group, evidence: r.evidence }))
+    // Buyer groups from market research work as "who it's for" too — for new brands they're the only audience data there is.
+    .concat(research.map((r) => ({ key: r.key, data: r.data, value: r.value, group: r.group, evidence: r.evidence })));
   const list = products.rows as { title: string; url: string; price: number | null; stock: number | null }[];
   const ob = brand.onboarding ?? {};
   let flow = saved ? asFlow(saved.flow) : defaultFlow(signals.find((s) => TEMPLATES[s.key])?.key ?? null, list[0]?.url ?? null);

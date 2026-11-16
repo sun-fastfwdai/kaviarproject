@@ -54,7 +54,7 @@ export function Combo({ value, options, onChange, label, icon, prefix, chip = fa
         <Icon name="chev-d" size={small ? 9 : chip ? 11 : 12} color="#8B8883" />
       </button>
       {open && (
-        <div className="col" style={{ position: "absolute", ...(right ? { right: 0 } : { left: 0 }), top: small ? 28 : chip ? 32 : 38, zIndex: 40, minWidth: chip ? menuWidth : "100%", maxWidth: 380, background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line), 0 10px 28px rgba(18,18,18,.14)", overflow: "hidden" }}>
+        <div className="col" style={{ position: "absolute", ...(right ? { right: 0 } : { left: 0 }), top: small ? 28 : chip ? 32 : 38, zIndex: 40, minWidth: chip ? menuWidth : "100%", maxWidth: chip ? 380 : "100%", background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line), 0 10px 28px rgba(18,18,18,.14)", overflow: "hidden" }}>
           {search && (
             <label className="row g6" style={{ height: 34, padding: "0 10px", borderBottom: "1px solid var(--line)" }}>
               <Icon name="search" size={13} color="#8B8883" />

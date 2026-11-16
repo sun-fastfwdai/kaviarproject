@@ -14,6 +14,7 @@ import { NeedsSource, SidePanel } from "@/components/ui";
 import { BatchArt, EmptyState } from "@/components/empty";
 import { StudioBar, reviewCount } from "./tabs";
 import { PlanChat } from "./plan-chat";
+import { researchSignals } from "@/lib/research/context";
 
 export const metadata = { title: "Creative studio" };
 export const maxDuration = 120;
@@ -28,7 +29,10 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
-  if (!conns.shopify) return (<><StudioBar base={base} brand={brand.name} on="plan" /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ads from the store’s data" /></div></>);
+  // Without Shopify, buyer groups from market research are enough to plan from.
+  const research = await researchSignals(brand.id);
+  if (!conns.shopify && !research.length) return (<><StudioBar base={base} brand={brand.name} on="plan" /><div className="scroll col g12" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ads from the store’s data" />
+    <Link className="btn" style={{ alignSelf: "flex-start" }} href={`${base}/research`}><Icon name="globe" size={14} />Or plan from market research</Link></div></>);
 
   const [d, notes, batches] = await Promise.all([
     signalData(brand.id, brand.timezone), getNotes(brand.id),
@@ -62,7 +66,8 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
           {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
           {tab === "plan" ? (
             <PlanChat slug={slug} base={base} brand={brand.name} hasMeta={Boolean(conns.meta)} aiOk={aiReady()}
-              plans={plans.map((p) => ({ key: p.key, title: p.data, why: `${p.why ?? p.value} — ${p.use.toLowerCase()}.`, evidence: p.evidence, href: `${base}/signals/${p.key}` }))} />
+              plans={plans.map((p) => ({ key: p.key, title: p.data, why: `${p.why ?? p.value} — ${p.use.toLowerCase()}.`, evidence: p.evidence, href: `${base}/signals/${p.key}` }))}
+              research={research.slice(0, 3).map((r) => ({ key: r.key, title: r.data, why: `${r.why} Say: ${r.use}`, evidence: r.evidence.filter(([k]) => k === "Targeting" || k === "For"), href: `${base}/research?product=${encodeURIComponent(r.product)}&tab=position` }))} />
           ) : (<>
             <div className="col g4"><h1 className="h1">Ads</h1><p className="sm i3">Every batch Remy wrote for {brand.name}. Open one to review, edit, approve and set up a test.</p></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>

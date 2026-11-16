@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Onboarding } from "../onboarding/types";
-import type { AdsRead, ManualAd, MarketReport, RivalAds, Step, TestPlan } from "../research/types";
+import type { AdsRead, ManualAd, MarketReport, Positioning, RivalAds, Step, TestPlan } from "../research/types";
 import {
   bigint,
   customType,
@@ -532,6 +532,7 @@ export const marketResearch = pgTable(
     manual: jsonb("manual").$type<ManualAd[]>().notNull().default([]),
     adsRead: jsonb("ads_read").$type<AdsRead>(),
     plan: jsonb("plan").$type<TestPlan>(),
+    positioning: jsonb("positioning").$type<Positioning>(),
     error: text("error"),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     startedAt: tz("started_at"),

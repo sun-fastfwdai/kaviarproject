@@ -32,7 +32,7 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
       <div className="col g10" style={{ padding: "16px 24px 0" }}>
         <div className="row between" style={{ alignItems: "flex-end" }}>
           <div className="col g4">
-            <span className="xs i3"><Link className="lnk" href={`${base}/creative`}>All batches</Link>{batch.signal && <> · from the <Link className="lnk" href={`${base}/signals/${batch.signal}`}>{batch.signal.replace(/-/g, " ")}</Link> signal</>}</span>
+            <span className="xs i3"><Link className="lnk" href={`${base}/creative`}>All batches</Link>{batch.signal && (batch.signal.startsWith("seg:") ? <> · for a buyer group from <Link className="lnk" href={`${base}/research?tab=market`}>market research</Link></> : <> · from the <Link className="lnk" href={`${base}/signals/${batch.signal}`}>{batch.signal.replace(/-/g, " ")}</Link> signal</>)}</span>
             <h1 className="h1">{batch.title}</h1>
             <span className="xs i3">{ads.length} ads · written by Remy {ago(batch.createdAt)}</span>
           </div>

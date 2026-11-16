@@ -9,6 +9,7 @@ import { fetchPublic } from "../ai/site";
 import { HF_PHOTO, HF_VIDEO, HF_VIDEO_REF, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, nearestRatio } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { ShotPlan } from "../db/schema";
+import { marketContext } from "../research/context";
 
 /** FLUX Kontext keeps the real product from the reference photo and builds the scene around it. */
 export const SHOOT_MODEL = "bfl/flux-kontext-pro";
@@ -34,7 +35,10 @@ export type PromptOut = { segments: { text: string; source: "product" | "data" |
 
 /** Remy writes the photo brief from every input, phrase by phrase, and says which input each phrase came from. */
 export async function writeShotPrompt(brandId: string, input: PromptIn): Promise<PromptOut | null> {
-  const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const [[b], market] = await Promise.all([
+    db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId)),
+    marketContext(brandId, input.product || null),
+  ]);
   const words = { short: 30, medium: 55, detailed: 85 }[input.length];
   const out = await ask("remy", {
     system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
@@ -48,6 +52,8 @@ Split the prompt into consecutive phrases and tag each with the input it came fr
       teamRules: input.rules, whatWinsForThisBrand: input.lessons,
       reference: input.reference ? { style: input.reference.note, follow: input.reference.close ? "closely" : "loosely" } : null,
       character: input.character ?? null,
+      // From market research: the scene should feel like the primary buyer's world when no data signal says otherwise (tag those phrases "data").
+      market: market ? { positioning: market.positioning?.statement ?? null, primaryBuyer: market.positioning?.primaryBuyer ?? market.buyers[0]?.who ?? null, voice: market.positioning?.voice ?? null, avoid: market.positioning?.stayAwayFrom ?? [] } : null,
     }),
     schema: z.object({
       segments: z.array(z.object({ text: z.string(), source: z.enum(["product", "data", "brand", "wins", "character", "none"]) })),
@@ -325,10 +331,14 @@ export async function makeCharacter(brandId: string, memberId: string, input: { 
 
 /** Remy suggests who should be in the ad, from who will see it and what the brand sells. */
 export async function suggestCharacter(brandId: string, input: { signal?: string | null; product?: string | null }): Promise<{ name: string; description: string } | null> {
-  const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const [[b], market] = await Promise.all([
+    db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId)),
+    marketContext(brandId, input.product ?? null),
+  ]);
   return ask("remy", {
-    system: "You are Remy, Kaviar's creative agent. Suggest ONE believable everyday person to appear in a UGC-style ad, matching the people who will see it. Describe age range, look, hair, skin, style of clothes and vibe in under 45 words, as a casting note for an image model. No celebrities, no real names, no children.",
-    content: JSON.stringify({ brand: b?.name, category: b?.category, tone: b?.onboarding?.profile?.tone?.value, audience: b?.onboarding?.profile?.audience?.value ?? null, whoWillSeeIt: input.signal ?? null, product: input.product ?? null }),
+    system: "You are Remy, Kaviar's creative agent. Suggest ONE believable everyday person to appear in a UGC-style ad, matching the people who will see it — the primary buyer from market research when there is one. Describe age range, look, hair, skin, style of clothes and vibe in under 45 words, as a casting note for an image model. No celebrities, no real names, no children.",
+    content: JSON.stringify({ brand: b?.name, category: b?.category, tone: b?.onboarding?.profile?.tone?.value, audience: b?.onboarding?.profile?.audience?.value ?? null, whoWillSeeIt: input.signal ?? null, product: input.product ?? null,
+      primaryBuyer: market ? market.buyers.find((x) => x.name === market.positioning?.primaryBuyer) ?? market.buyers[0] ?? null : null }),
     schema: z.object({ name: z.string().describe("A short first-name label, e.g. 'Mina'"), description: z.string() }),
   });
 }

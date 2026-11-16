@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { marketContext, storeFacts } from "../research/context";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { brandContext } from "./remy";
@@ -35,7 +36,7 @@ How a winning ad is built:
 - Design for sound off: the captions alone tell the story, at most 7 words each, and read as one message across scenes. Spoken lines are short, first person, natural — at most 2.5 words per second of the scene.
 - Show the product by scene 2 and in every hero moment; its label faces the camera when it matters.
 - One idea per scene, 4–10 seconds each; vary shot size and angle between scenes; end on the product, then the end card.
-- Build the arc from the chosen story framework, and speak to the buyer and the angle the data points to. Use proof the data gives (numbers, research, lessons from what already sells); never invent reviews, numbers or awards.
+- Build the arc from the chosen story framework, and speak to the buyer and the angle the data points to. When a positioning is given, the ad says its pillars to its primary buyer (unless a data signal names another audience) and stays away from what it says to avoid. Use proof the data gives (store numbers, research, lessons from what already sells); never invent reviews, numbers or awards.
 - One continuity bible (place, light, wardrobe, palette) so every scene looks like the same shoot; use the brand's palette and tone.
 - Meta ad policy: no cure or treatment claims, no guaranteed results, no before/after comparisons, don't assert the viewer's personal attributes, no fake urgency; prices and offers only if given.`;
 
@@ -47,10 +48,8 @@ export async function writeStoryboard(brandId: string, input: {
   const ctx = await brandContext(brandId);
   const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
   const item = input.product ? b?.onboarding?.catalog?.products.find((p) => p.title === input.product!.title) : null;
-  // Market research for this product (or the brand), if the team ran it: buyers, gaps and competitors' angles.
-  const R = schema.marketResearch;
-  const rows = await db.select({ subject: R.subject, report: R.report, adsRead: R.adsRead }).from(R).where(and(eq(R.brandId, brandId), eq(R.market, "US"))).orderBy(desc(R.updatedAt)).limit(5);
-  const research = rows.find((r) => r.subject === (input.product?.title ?? "")) ?? rows.find((r) => r.subject === "") ?? null;
+  // Positioning, buyers and competitors' gaps (market research) and the store's own numbers (proof the ad can state).
+  const [market, store] = await Promise.all([marketContext(brandId, input.product?.title ?? null), storeFacts(brandId, input.product?.title ?? null)]);
   const n = sceneCount(input.length), talk = talkingScenes(input.length);
   const out = await ask("remy", {
     system: REMY,
@@ -64,12 +63,7 @@ export async function writeStoryboard(brandId: string, input: {
       brand: ctx.brand, product: input.product ? { ...input.product, description: item?.body?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 700) ?? null } : null,
       catalog: ctx.products.slice(0, 12).map((p) => p.title),
       person: input.character, whoWillSeeIt: input.signal,
-      research: research?.report ? {
-        summary: research.report.summary, demand: research.report.demand.line,
-        buyers: research.report.segments.filter((s) => s.status !== "rejected").map((s) => ({ name: s.name, who: s.who, need: s.need, why: s.why, angle: s.angle, accepted: s.status === "accepted" })),
-        opportunities: research.report.opportunities.filter((o) => o.status !== "rejected").map((o) => o.text),
-        competitorsSay: research.adsRead?.angles.map((a) => `${a.name} (${a.share}%)`) ?? [], gapsNobodySpeaksTo: research.adsRead?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? [],
-      } : null,
+      market, store,
       brandRules: input.brandRules, whatWinsForThisBrand: ctx.lessons, lessonsFromRejectedAds: ctx.rejected,
     }),
     schema: StoryOut, maxTokens: 12000, effort: "medium",
