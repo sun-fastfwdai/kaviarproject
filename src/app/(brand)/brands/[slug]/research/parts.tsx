@@ -1,15 +1,13 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- competitor screenshots */
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addRival, addScreenshot, buildTestAds, decide, removeRival, removeScreenshot, rerun, toggleCell } from "./actions";
+import { buildTestAds, decide, rerun, toggleCell } from "./actions";
 import type { ResearchRow } from "./view";
 import { Icon, type IconName } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
-import { adLibraryUrl, marketName, type AdsRead, type Decision, type LibAd, type MarketReport, type Src } from "@/lib/research/types";
+import { type Decision, type MarketReport, type Src } from "@/lib/research/types";
 
 const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u.slice(0, 30); } };
-const days = (iso: string | null) => (iso ? Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 86_400_000)) : null);
 const VERDICT: Record<string, string> = { Strong: "green", Growing: "blue", Niche: "amber", Weak: "red" };
 
 /** Source chips: each finding links to the pages it came from. */
@@ -144,153 +142,6 @@ export function MarketTab({ slug, id, report, currency, onAds }: { slug: string;
         })}
       </div>
       {report.price.note && <span className="xs i3">Prices are in {currency} where Iris found them.</span>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- Competitor ads
-function AdCard({ a }: { a: LibAd }) {
-  const n = days(a.start);
-  return (
-    <div className="card" style={{ padding: 12, gap: 8 }}>
-      <div className="row g6">
-        <span className="xs w5 i1 ell fill" title={a.page}>{a.page}</span>
-        {n != null && <span className={`pill ${n >= 30 ? "green" : ""}`} style={{ height: 20, fontSize: 10.5 }} title={n >= 30 ? "Running for a month or more — likely working" : undefined}>{n} days{n >= 30 ? " · long-running" : ""}</span>}
-      </div>
-      <p className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "pre-line", margin: 0 }}>{a.bodies[0] || "No text in this ad — open it to see the creative."}</p>
-      {a.titles[0] && <span className="xs w5 i1 ell" title={a.titles[0]}>{a.titles[0]}</span>}
-      <div className="row g6 xs i3" style={{ marginTop: "auto" }}>
-        <span className="ell">{a.platforms.map((p) => p.charAt(0) + p.slice(1).toLowerCase().replace(/_/g, " ")).join(" · ")}{a.languages.length ? ` · ${a.languages.join(", ").toUpperCase()}` : ""}</span>
-        <span className="fill" /><a className="lnk row g4" href={adLibraryUrl({ id: a.id })} target="_blank" rel="noreferrer">Open<Icon name="external" size={11} /></a>
-      </div>
-    </div>
-  );
-}
-
-function ReadCard({ read, slug, id }: { read: AdsRead; slug: string; id: string }) {
-  const d = useDecisions(slug, id);
-  return (
-    <div className="card">
-      <div className="card-h"><AgentFace kind="analyst" size={20} /><span className="sm w5 fill">How competitors sell</span><span className="xs i3">{read.count} ads read</span></div>
-      <div className="card-b">
-        <span className="sm i1" style={{ lineHeight: "20px" }}>{read.summary}</span>
-        <div className="col g6">
-          <span className="xs w5 i3">Message angles</span>
-          {read.angles.map((a) => (
-            <div key={a.name} className="row g10">
-              <span className="xs i1" style={{ width: 170, flexShrink: 0 }}>{a.name}</span>
-              <span className="fill" style={{ height: 6, borderRadius: 3, background: "var(--tray-2)" }}><span style={{ display: "block", height: 6, width: `${a.share}%`, borderRadius: 3, background: "#B7791F" }} /></span>
-              <span className="xs i2 tnum" style={{ width: 36, textAlign: "right" }}>{a.share}%</span>
-              <span className="xs i3 ell" style={{ width: 220 }} title={`“${a.example}” — ${a.who.join(", ")}`}>“{a.example}”</span>
-            </div>
-          ))}
-        </div>
-        <div className="row top g16" style={{ flexWrap: "wrap" }}>
-          {([["Hooks they repeat", read.hooks], ["Offers", read.offers]] as const).map(([t, xs]) => (
-            <div key={t} className="col g4 fill" style={{ minWidth: 220 }}><span className="xs w5 i3">{t}</span>{xs.length ? xs.map((x) => <span key={x} className="xs i2" style={{ lineHeight: "17px" }}>· {x}</span>) : <span className="xs i3">None seen</span>}</div>
-          ))}
-        </div>
-        <div className="col g4"><span className="xs w5 i3">Positioning</span><span className="xs i2" style={{ lineHeight: "17px" }}>{read.positioning}</span></div>
-        <div className="col">
-          <span className="xs w5 i3" style={{ paddingBottom: 2 }}>Gaps nobody speaks to · accept the ones to test</span>
-          {read.gaps.map((g) => {
-            const st = d.of(g.id, g.status);
-            return (
-              <div key={g.id} className="row top g10" style={{ padding: "8px 0", borderTop: "1px solid var(--line)", opacity: st === "rejected" ? 0.5 : 1 }}>
-                <Icon name="lightning" size={14} color="#B7791F" />
-                <span className="col fill"><span className="sm w5 i1">{g.text}</span><span className="xs i3" style={{ lineHeight: "17px" }}>{g.why}</span></span>
-                <Decide status={st} onSet={(v) => d.set("gap", g.id, v)} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: string; id: string; row: ResearchRow; market: string; hasMeta: boolean; running: boolean }) {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [who, setWho] = useState("");
-  const [note, setNote] = useState("");
-  const run = async (k: string, fn: () => Promise<{ error?: string } | void>) => {
-    setBusy(k); setErr(null);
-    try { const r = await fn(); if (r && r.error) setErr(r.error); router.refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
-  };
-  const names = [...new Set([...row.rivals.map((r) => r.name), ...(row.report?.competitors ?? []).map((c) => c.name)])];
-  const step = row.steps.find((s) => s.key === "adlib");
-
-  return (
-    <div className="col g12">
-      <div className="row top g10" style={{ padding: "12px 14px", background: "var(--tray)", borderRadius: 12, border: "1px solid var(--line)" }}>
-        <Icon name="info" size={15} color="#55534F" />
-        <span className="xs i2 fill" style={{ lineHeight: "18px" }}>
-          Meta’s Ad Library shares a brand’s ordinary ads through its API only when they also ran in the EU — most global brands run the same messages there. Ads shown only in {marketName(market)} are on the Ad Library website: add screenshots below and Iris reads them too.
-          {!hasMeta && <b className="w5 c-amber"> Connect Meta Ads on any brand to pull ads — the Library is read with that login.</b>}
-        </span>
-        <a className="btn sm" href={adLibraryUrl({ q: names[0] ?? row.report?.competitors[0]?.name ?? "", country: market })} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>Open the Ad Library<Icon name="external" size={11} /></a>
-      </div>
-      {step?.state === "error" && step.note && <div className="row g8 xs c-amber" style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 10 }}><Icon name="warning-circle" size={14} color="#B7791F" />{step.note}</div>}
-
-      {row.adsRead && <ReadCard read={row.adsRead} slug={slug} id={id} />}
-
-      <div className="row g8" style={{ flexWrap: "wrap" }}>
-        <form className="row g6" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void run("add", async () => { const r = await addRival(slug, id, name); if (!r.error) setName(""); return r; }); }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a competitor — their Facebook Page name" aria-label="Competitor name" className="input sm" style={{ width: 300, height: 32 }} />
-          <button type="submit" className="btn sm" disabled={busy != null || !name.trim()}>{busy === "add" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="plus" size={12} />}Add</button>
-        </form>
-        <span className="fill" />
-        {err && <span className="xs c-amber" style={{ maxWidth: 420 }}>{err}</span>}
-        <button type="button" className="btn sm" disabled={busy != null || running} onClick={() => run("pull", () => rerun(slug, id, ["ads"]))}>
-          {running ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Pull and read the ads again</button>
-      </div>
-
-      {row.rivals.map((r) => (
-        <div key={r.name} className="col g8">
-          <div className="row g8">
-            <span className="sm w5 i1">{r.name}</span>
-            <span className="xs i3">{r.error ? "" : r.ads.length ? `${r.ads.length} live ads that reached the EU` : "no ads that reached the EU"}</span>
-            {r.error && <span className="xs c-amber ell" style={{ maxWidth: 420 }} title={r.error}>{r.error}</span>}
-            <span className="fill" />
-            <a className="lnk xs i2 row g4" href={adLibraryUrl({ q: r.name, country: market })} target="_blank" rel="noreferrer">Their {market} ads<Icon name="external" size={11} /></a>
-            {r.added && <button type="button" className="lnk xs i3" onClick={() => run("rm", () => removeRival(slug, id, r.name))}>Remove</button>}
-          </div>
-          {r.ads.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 10 }}>{r.ads.slice(0, 9).map((a) => <AdCard key={a.id} a={a} />)}</div>}
-        </div>
-      ))}
-      {!row.rivals.length && <span className="sm i3">No competitors pulled yet. {row.report ? "Pull the ads, or add a competitor by name." : "They come from the market research — or add one by name."}</span>}
-
-      <div className="col g8" style={{ marginTop: 6 }}>
-        <div className="row between"><span className="h3">Screenshots you added</span><span className="xs i3">US-only ads from the Ad Library website, or any ad you saw</span></div>
-        {row.manual.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-            {row.manual.map((m) => (
-              <div key={m.id} className="col g4">
-                <a href={`/api/assets/${m.id}`} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: 8, overflow: "hidden", boxShadow: "0 0 0 1px var(--line)" }}>
-                  <img src={`/api/assets/${m.id}`} alt={`${m.competitor} ad`} style={{ width: "100%", height: 180, objectFit: "cover", objectPosition: "top", display: "block" }} />
-                </a>
-                <span className="row g4 xs"><span className="w5 i1 ell fill">{m.competitor || "Competitor"}</span><button type="button" className="lnk i3" onClick={() => run("rm", () => removeScreenshot(slug, id, m.id))}>Remove</button></span>
-                {m.note && <span className="xs i3 ell" title={m.note}>{m.note}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-        <form className="row g6" style={{ flexWrap: "wrap", padding: 10, border: "1px dashed var(--line-2)", borderRadius: 10 }}
-          onSubmit={(e) => { e.preventDefault(); if (!file) return; const f = new FormData(); f.set("file", file); f.set("competitor", who); f.set("note", note);
-            void run("shot", async () => { const r = await addScreenshot(slug, id, f); if (!r.error) { setFile(null); setNote(""); } return r; }); }}>
-          <label className="btn sm" style={{ position: "relative" }}><Icon name="upload" size={12} />{file ? file.name.slice(0, 26) : "Choose a screenshot"}
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} /></label>
-          <input value={who} onChange={(e) => setWho(e.target.value)} list="research-rivals" placeholder="Whose ad" aria-label="Whose ad" className="input sm" style={{ width: 160, height: 32 }} />
-          <datalist id="research-rivals">{names.map((n) => <option key={n} value={n} />)}</datalist>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional), e.g. running since March" aria-label="Note" className="input sm fill" style={{ minWidth: 180, height: 32 }} />
-          <button type="submit" className="btn sm dark" disabled={busy != null || !file}>{busy === "shot" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="plus" size={12} color="#fff" />}Add</button>
-        </form>
-        {row.manual.length > 0 && <span className="xs i3">Iris reads screenshots the next time you pull and read the ads.</span>}
-      </div>
     </div>
   );
 }

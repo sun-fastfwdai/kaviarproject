@@ -11,14 +11,32 @@ export type Img = { media: "image/jpeg" | "image/png" | "image/webp" | "image/gi
 const OK = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ASSET = /^\/api\/assets\/([0-9a-f-]{36})/i;
 
-async function shrink(buf: Buffer, width = 1080): Promise<Buffer | null> {
+/** Any picture as a JPEG at most `width` wide, optionally cut to `box` first (fractions of the picture: x, y, w, h). Null when ffmpeg can't read it. */
+export async function toJpeg(buf: Buffer, width = 1080, box?: { x: number; y: number; w: number; h: number }): Promise<Buffer | null> {
   const dir = await mkdtemp(join(tmpdir(), "aud-"));
   try {
     const bin = await ffmpegPath();
     const inp = join(dir, "in"), out = join(dir, "out.jpg");
     await writeFile(inp, buf);
-    await run(bin, ["-hide_banner", "-y", "-i", inp, "-vf", `scale='min(${width},iw)':-2`, "-frames:v", "1", "-q:v", "4", out], 60_000);
+    const f = (n: number) => Math.min(1, Math.max(0, n)).toFixed(4);
+    const crop = box ? `crop=trunc(iw*${f(box.w)}/2)*2:trunc(ih*${f(box.h)}/2)*2:iw*${f(box.x)}:ih*${f(box.y)},` : "";
+    await run(bin, ["-hide_banner", "-y", "-i", inp, "-vf", `${crop}scale='min(${width},iw)':-2`, "-frames:v", "1", "-q:v", "4", out], 60_000);
     return await readFile(out);
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}
+const shrink = (buf: Buffer) => toJpeg(buf);
+
+/** A picture's size, read from ffmpeg's description of it. */
+export async function imageSize(buf: Buffer): Promise<{ w: number; h: number } | null> {
+  const dir = await mkdtemp(join(tmpdir(), "aud-s-"));
+  try {
+    const bin = await ffmpegPath();
+    const inp = join(dir, "in");
+    await writeFile(inp, buf);
+    const out = await run(bin, ["-hide_banner", "-i", inp], 30_000).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+    const m = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(out.stderr);
+    return m ? { w: Number(m[1]), h: Number(m[2]) } : null;
   } catch { return null; }
   finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }

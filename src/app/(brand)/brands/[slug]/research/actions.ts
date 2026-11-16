@@ -7,9 +7,10 @@ import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
 import { runResearch } from "@/lib/research/run";
-import { adLibraryToken, competitorAds } from "@/lib/research/adlib";
+import { adLibraryToken, competitorAds, libError, pruneAdCopies } from "@/lib/research/adlib";
+import { readShot } from "@/lib/research/shots";
 import { createTestBatch } from "@/lib/creative/remy";
-import { MARKETS, marketName, type Decision, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
+import { MARKETS, marketName, type Decision, type ManualAd, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
 
 const R = schema.marketResearch;
 type Result = { error?: string };
@@ -57,35 +58,67 @@ export async function addRival(slug: string, id: string, name: string): Promise<
   const token = await adLibraryToken(row.brandId);
   if (!token) return { error: "Connect Meta Ads on any brand — the Ad Library is read with that login." };
   let entry: RivalAds;
-  try { entry = { name: n, ads: await competitorAds(n, token), at: new Date().toISOString(), added: true }; }
-  catch (e) { entry = { name: n, ads: [], at: new Date().toISOString(), error: (e as Error).message, added: true }; }
-  await db.update(R).set({ rivals: [entry, ...row.rivals.filter((r) => r.name.toLowerCase() !== n.toLowerCase())].slice(0, 12), updatedAt: new Date() }).where(eq(R.id, id));
-  return entry.error ? { error: entry.error } : entry.ads.length ? {} : { error: `No ads from a Page named “${n}” reached the EU — add a screenshot of their US ads instead.` };
+  try { entry = { name: n, ...(await competitorAds(n, token, row.brandId)), at: new Date().toISOString(), added: true }; }
+  catch (e) { const le = libError(e); entry = { name: n, ads: [], at: new Date().toISOString(), error: le.message, blocked: le.blocked, added: true }; }
+  const [now] = await db.select({ rivals: R.rivals }).from(R).where(eq(R.id, id));
+  await db.update(R).set({ rivals: [entry, ...(now?.rivals ?? row.rivals).filter((r) => r.name.toLowerCase() !== n.toLowerCase())].slice(0, 12), updatedAt: new Date() }).where(eq(R.id, id));
+  await pruneAdCopies(row.brandId).catch(() => undefined);
+  return entry.error ? { error: entry.error } : entry.ads.length ? {} : { error: `No live ads from a Page named “${n}” reached the EU or UK — add a screenshot of their US ads instead.` };
 }
 export async function removeRival(slug: string, id: string, name: string): Promise<void> {
   const { row } = await own(slug, id);
   await db.update(R).set({ rivals: row.rivals.filter((r) => r.name !== name) }).where(eq(R.id, id));
+  await pruneAdCopies(row.brandId).catch(() => undefined);
 }
 
-/** A screenshot of a competitor's ad (e.g. a US-only ad from the Ad Library website). Iris reads it with the rest. */
+/** Replace one screenshot's entry, reading the latest row so two uploads at once don't overwrite each other. */
+async function setShot(id: string, assetId: string, patch: (m: ManualAd) => ManualAd) {
+  const [now] = await db.select({ manual: R.manual }).from(R).where(eq(R.id, id));
+  await db.update(R).set({ manual: (now?.manual ?? []).map((m) => (m.id === assetId ? patch(m) : m)), updatedAt: new Date() }).where(eq(R.id, id));
+}
+async function transcribe(brandId: string, id: string, assetId: string, competitor: string): Promise<Result> {
+  try {
+    const r = await readShot(brandId, assetId, competitor);
+    await setShot(id, assetId, (m) => ({ ...m, ads: r.ads, read: "done", readNote: r.note }));
+    return r.ads.length ? {} : { error: r.note };
+  } catch (e) {
+    await setShot(id, assetId, (m) => ({ ...m, read: "error", readNote: "Iris couldn’t read it — try again." }));
+    return { error: (e as Error).message.slice(0, 160) };
+  }
+}
+
+/** A screenshot of competitors' ads (e.g. US-only ads from the Ad Library website). Iris copies each ad card off it right away. */
 export async function addScreenshot(slug: string, id: string, form: FormData): Promise<Result> {
   const { me, row } = await own(slug, id);
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose a screenshot." };
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return { error: "Screenshots must be PNG, JPG or WebP." };
-  if (file.size > 4 * 1024 * 1024) return { error: "Keep screenshots under 4 MB." };
+  if (file.size > 4.3 * 1024 * 1024) return { error: "Keep screenshots under 4 MB." };
   const competitor = String(form.get("competitor") ?? "").trim().slice(0, 80), note = String(form.get("note") ?? "").trim().slice(0, 300);
   const [a] = await db.insert(schema.brandAssets).values({
-    brandId: row.brandId, kind: "competitor", name: `${competitor || "Competitor"} · ad`.slice(0, 60), mime: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()),
+    brandId: row.brandId, kind: "competitor", name: `${competitor || "Competitor"} · ad screenshot`.slice(0, 60), mime: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()),
     meta: { note, competitor }, createdBy: me.id,
   }).returning({ id: schema.brandAssets.id });
-  await db.update(R).set({ manual: [{ id: a.id, competitor, note, at: new Date().toISOString() }, ...row.manual].slice(0, 24), updatedAt: new Date() }).where(eq(R.id, id));
-  return {};
+  const [now] = await db.select({ manual: R.manual }).from(R).where(eq(R.id, id));
+  await db.update(R).set({ manual: [{ id: a.id, competitor, note, at: new Date().toISOString() }, ...(now?.manual ?? row.manual)].slice(0, 24), updatedAt: new Date() }).where(eq(R.id, id));
+  if (!aiReady()) return {};
+  return transcribe(row.brandId, id, a.id, competitor);
+}
+/** Read a screenshot's ad cards again (or for the first time, for screenshots added before Kaviar read them). */
+export async function readScreenshot(slug: string, id: string, assetId: string): Promise<Result> {
+  const { row } = await own(slug, id);
+  const m = row.manual.find((x) => x.id === assetId);
+  if (!m) return { error: "That screenshot is gone." };
+  if (!aiReady()) return { error: "Iris needs the Claude API key." };
+  const r = await transcribe(row.brandId, id, assetId, m.competitor);
+  await pruneAdCopies(row.brandId).catch(() => undefined);
+  return r;
 }
 export async function removeScreenshot(slug: string, id: string, assetId: string): Promise<void> {
   const { row } = await own(slug, id);
   await db.update(R).set({ manual: row.manual.filter((m) => m.id !== assetId) }).where(eq(R.id, id));
   await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, row.brandId), eq(schema.brandAssets.kind, "competitor")));
+  await pruneAdCopies(row.brandId).catch(() => undefined);
 }
 
 /** Re-run part of the research in the background: the ads (pull + read), or just the plan. */

@@ -27,15 +27,46 @@ export type MarketReport = {
   sources: Src[];
 };
 
-/** One ad from the Meta Ad Library. */
-export type LibAd = { id: string; page: string; start: string | null; stop: string | null; bodies: string[]; titles: string[]; descriptions: string[]; platforms: string[]; languages: string[]; reach: number | null };
-export type RivalAds = { name: string; ads: LibAd[]; at: string; error?: string; added?: boolean };
-/** A screenshot the team added by hand (US-only ads the API doesn't share). `id` is the brand asset. */
-export type ManualAd = { id: string; competitor: string; note: string; at: string };
+/**
+ * One creative from the Meta Ad Library. Ads with the same text are grouped the way the Library groups them
+ * ("3 ads use this creative and text"); `id` is the longest-running one. Everything here is Meta's own data —
+ * from the Ad Library API (`from: "api"`, ads that reached the EU/UK) or read off a screenshot of the Ad Library website (`from: "shot"`).
+ */
+export type LibAd = {
+  id: string; page: string; start: string | null; stop: string | null;
+  bodies: string[]; titles: string[]; descriptions: string[]; platforms: string[]; languages: string[];
+  /** People reached in the EU (Meta's estimate, summed over the grouped ads). */
+  reach: number | null;
+  pageId?: string; captions?: string[];
+  /** How many ads use this creative and text, and their Library IDs. */
+  copies?: number; ids?: string[];
+  /** The creative as Meta shows it: a stored copy of the image or video's first frame. */
+  media?: { kind: "image" | "video" | "carousel" | "text"; asset: string | null; n?: number } | null;
+  /** Who it reached, from Meta's age × gender reach breakdown. */
+  audience?: { top: string; topShare: number; women: number; ages: { age: string; share: number }[] } | null;
+  countries?: { code: string; reach: number }[];
+  /** What the advertiser targeted (shared for EU/UK ads). */
+  target?: { ages: string | null; gender: string | null; places: string[] } | null;
+  payer?: string | null;
+  from?: "api" | "shot";
+  /** For screenshot ads: the screenshot, where the ad sat in it, and what the card showed. */
+  shot?: string; rank?: number; partner?: string | null; cta?: string | null; status?: "active" | "inactive" | null;
+};
+export type RivalStats = {
+  ads: number; creatives: number; new30: number; longest: number; median: number; proven: number;
+  reach: number | null; formats: Record<string, number>; platforms: Record<string, number>; countries: { code: string; reach: number }[]; women: number | null;
+};
+/** Why the Ad Library refused: the login must confirm identity, the login expired, or the hourly limit was hit. */
+export type LibBlock = "identity" | "auth" | "limit";
+export type RivalAds = { name: string; ads: LibAd[]; at: string; error?: string; blocked?: LibBlock; added?: boolean; pages?: { id: string; name: string }[]; stats?: RivalStats };
+/** A screenshot the team added (US-only ads the API doesn't share). `id` is the brand asset; `ads` are the ad cards Iris read off it. */
+export type ManualAd = { id: string; competitor: string; note: string; at: string; ads?: LibAd[]; read?: "done" | "error"; readNote?: string };
 
 export type AdsRead = {
   summary: string; count: number; at: string;
-  angles: { name: string; share: number; example: string; who: string[] }[];
+  /** `share` is counted: the share of the creatives Iris tagged with this angle; `ids` are those ads, `proven` how many ran 30+ days. */
+  angles: { name: string; share: number; example: string; who: string[]; ids?: string[]; n?: number; proven?: number }[];
+  counted?: boolean; creatives?: number;
   offers: string[]; hooks: string[]; positioning: string;
   gaps: { id: string; text: string; why: string; status?: Decision }[];
 };

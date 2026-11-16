@@ -54,7 +54,7 @@ export async function marketContext(brandId: string, product?: string | null) {
     demand: `${rep.demand.verdict} — ${rep.demand.line}`,
     buyers: rep.segments.filter((s) => s.status !== "rejected").map((s) => ({ name: s.name, who: s.who, need: s.need, objections: s.objections, message: s.angle, accepted: s.status === "accepted" })),
     priceRange: rep.price.low != null || rep.price.high != null ? `${rep.price.low ?? "?"}–${rep.price.high ?? "?"}: ${rep.price.note}` : null,
-    competitorsSay: r.adsRead?.angles.map((a) => `${a.name} (${a.share}% of their ads)`) ?? [],
+    competitorsSay: r.adsRead ? r.adsRead.angles.map((a) => r.adsRead!.counted && a.n != null ? `${a.name} (${a.n} of ${r.adsRead!.creatives} of their live ads, ${a.proven ?? 0} running 30+ days)` : `${a.name} (${a.share}% of their ads)`) : [],
     gapsNobodyOwns: [...(r.adsRead?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? []), ...rep.opportunities.filter((o) => o.status !== "rejected").map((o) => o.text)].slice(0, 8),
   };
 }

@@ -7,6 +7,7 @@ import {
   ShieldCheck, Palette, CloudArrowUp, Phone, Swatches, FileText, ArrowElbowDownLeft, SpinnerGap,
   Cursor, Hand, ChatCircle, ArrowCounterClockwise, ArrowClockwise, Monitor, DeviceTablet, DeviceMobile, Columns, Play, Pause, Minus,
   MusicNotes, PenNib, SquaresFour, DotsThree, Star, ArrowUpRight, PaintBrush,
+  FacebookLogo, InstagramLogo, MessengerLogo, ThreadsLogo, WhatsappLogo, IdentificationCard,
 } from "@phosphor-icons/react/ssr";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
@@ -24,6 +25,7 @@ const ICONS = {
   pointer: Cursor, hand: Hand, msg: ChatCircle, undo: ArrowCounterClockwise, redo: ArrowClockwise, monitor: Monitor, tablet: DeviceTablet, mobile: DeviceMobile,
   split: Columns, play: Play, pause: Pause, minus: Minus, music: MusicNotes, pen: PenNib, squares: SquaresFour, more: DotsThree, star: Star, "arrow-ur": ArrowUpRight, brush: PaintBrush,
   warning: Warning, "warning-circle": WarningCircle, webhook: WebhooksLogo, x: X,
+  facebook: FacebookLogo, instagram: InstagramLogo, messenger: MessengerLogo, threads: ThreadsLogo, whatsapp: WhatsappLogo, id: IdentificationCard,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;

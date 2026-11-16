@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { startResearch } from "./actions";
 import { Combo } from "../creative/shoots/combo";
-import { AdsTab, MarketTab, PlanTab, Rail } from "./parts";
+import { MarketTab, PlanTab, Rail } from "./parts";
+import { AdsTab } from "./ads";
 import { PositionTab } from "./position";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -52,7 +53,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
   const productOptions = [{ value: "", label: "Whole brand", sub: done.has(`|${market}`) ? "Researched" : "All products together" },
     ...products.map((p) => ({ value: p.title, label: p.title, sub: [p.price != null ? `${currency === "USD" ? "$" : ""}${p.price}${currency !== "USD" ? ` ${currency}` : ""}` : null, done.has(`${p.title}|${market}`) ? "Researched" : null].filter(Boolean).join(" · ") || undefined }))];
   const report = row?.report ?? null;
-  const counts = { ads: (row?.rivals.reduce((a, r) => a + r.ads.length, 0) ?? 0) + (row?.manual.length ?? 0), plan: row?.plan?.cells.length ?? 0 };
+  const counts = { ads: (row?.rivals.reduce((a, r) => a + r.ads.length, 0) ?? 0) + (row?.manual.reduce((a, m) => a + (m.ads?.length || 1), 0) ?? 0), plan: row?.plan?.cells.length ?? 0 };
   const took = row?.startedAt && row.finishedAt ? Date.parse(row.finishedAt) - Date.parse(row.startedAt) : null;
 
   return (

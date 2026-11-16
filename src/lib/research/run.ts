@@ -4,9 +4,9 @@ import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
-import { adLibraryToken, competitorAds } from "./adlib";
+import { adLibraryToken, competitorAds, libError, pruneAdCopies, samePage } from "./adlib";
 import { metaLessons, storeFacts } from "./context";
-import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type DataSource, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
+import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type DataSource, type LibAd, type ManualAd, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
 
 const R = schema.marketResearch;
 type Row = typeof R.$inferSelect;
@@ -141,44 +141,79 @@ async function pullAds(row: Row, report: MarketReport | null, note: (s: string) 
   if (!token) throw new Error("Connect Meta Ads on any brand — the Ad Library is read with that login.");
   const out: RivalAds[] = [];
   for (const name of names) {
-    try { out.push({ name, ads: await competitorAds(name, token), at: new Date().toISOString(), added: added.includes(name) || undefined }); }
-    catch (e) { out.push({ name, ads: [], at: new Date().toISOString(), error: (e as Error).message, added: added.includes(name) || undefined }); }
+    const at = new Date().toISOString(), add = added.includes(name) || undefined;
+    // A refusal for the login (identity, expired, limit) is the same for every competitor: don't ask Meta again.
+    const stop = out.find((r) => r.blocked);
+    if (stop) { out.push({ name, ads: [], at, error: stop.error, blocked: stop.blocked, added: add }); continue; }
+    try { out.push({ name, ...(await competitorAds(name, token, row.brandId)), at, added: add }); }
+    catch (e) { const le = libError(e); out.push({ name, ads: [], at, error: le.message, blocked: le.blocked, added: add }); }
   }
+  // Keep what came back (and why not) even when Meta refused, so the page can say what to do.
+  await save(row.id, { rivals: out });
+  await pruneAdCopies(row.brandId).catch(() => undefined);
   if (out.every((r) => r.error)) throw new Error(out[0].error!);
-  const total = out.reduce((a, r) => a + r.ads.length, 0);
+  const total = out.reduce((a, r) => a + (r.stats?.ads ?? r.ads.length), 0);
   note(`${out.filter((r) => r.ads.length).length} of ${out.length} competitors have ads there · ${total} ads`);
   return out;
 }
 
+/** "Ingredient proof — 12 of 40 ads (30%), 7 running 30+ days", or the estimated share for reads made before counting. */
+export const angleLine = (read: AdsRead) => (a: AdsRead["angles"][number]) =>
+  read.counted && a.n != null ? `${a.name} — ${a.n} of ${read.creatives} ads (${a.share}%), ${a.proven ?? 0} running 30+ days` : `${a.name} (${a.share}%)`;
 const daysSince = (iso: string | null) => (iso ? Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 86_400_000)) : null);
 const AdsOut = z.object({
   summary: z.string().describe("What competitors are saying, in 1–2 sentences"),
-  angles: z.array(z.object({ name: z.string(), share: z.number().describe("Share of the ads using it, 0–100"), example: z.string().describe("A short quote from one ad"), who: z.array(z.string()) })),
-  offers: z.array(z.string()), hooks: z.array(z.string()).describe("Opening lines or patterns that recur"),
+  angles: z.array(z.object({ name: z.string().describe("2–5 words"), meaning: z.string().describe("What ads with this angle claim, in one line") })).describe("3–7 message angles that together cover the ads"),
+  tags: z.array(z.object({ ref: z.string(), angle: z.string().describe("Exactly one of the angle names"), offer: z.string().describe("The offer or price hook in this ad, if any (e.g. '20% off', 'free gift'); empty if none") })).describe("One tag per ad, every ad"),
+  hooks: z.array(z.string()).describe("Opening lines or patterns that recur, quoted or described"),
   positioning: z.string().describe("How the category positions itself, and who looks different"),
   gaps: z.array(z.object({ text: z.string().describe("A message or buyer nobody speaks to"), why: z.string() })),
 });
 
-async function readAds(row: Row, rivals: RivalAds[], report: MarketReport | null, note: (s: string) => void): Promise<AdsRead | null> {
-  const ads = rivals.flatMap((r) => r.ads.slice(0, 12).map((a) => ({ competitor: r.name, runningDays: daysSince(a.start), text: a.bodies[0] ?? "", title: a.titles[0] ?? "", platforms: a.platforms }))).slice(0, 70);
-  const shots = row.manual.slice(0, 8);
-  const imgs = shots.length ? await db.select({ id: schema.brandAssets.id, data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets)
-    .where(and(eq(schema.brandAssets.brandId, row.brandId), inArray(schema.brandAssets.id, shots.map((m) => m.id)))) : [];
-  if (!ads.length && !imgs.length) { note("No ads to read yet — none found in the Library and no screenshots added"); return null; }
+/** Iris tags every ad with one angle; the shares are then counted from those tags, so each angle links to the real ads behind it. */
+async function readAds(row: Row, rivals: RivalAds[], manual: ManualAd[], report: MarketReport | null, note: (s: string) => void): Promise<AdsRead | null> {
+  type C = { ref: string; competitor: string; a: LibAd };
+  const pool: C[] = [
+    ...rivals.flatMap((r) => r.ads.slice(0, 25).map((a) => ({ competitor: r.name, a }))),
+    ...manual.flatMap((m) => (m.ads ?? []).map((a) => { const k = m.competitor || a.partner || a.page; return { competitor: rivals.find((r) => samePage(r.name, k) || samePage(k, r.name))?.name ?? k, a }; })),
+  ].filter((c, i, all) => all.findIndex((x) => x.a.id === c.a.id || (x.a.ids ?? []).includes(c.a.id)) === i).slice(0, 160).map((c, i) => ({ ...c, ref: `A${i + 1}` }));
+  // Screenshots added before Kaviar read them card by card: Iris still looks at the pictures.
+  const legacy = manual.filter((m) => !m.ads?.length).slice(0, 6);
+  const imgs = legacy.length ? await db.select({ id: schema.brandAssets.id, data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets)
+    .where(and(eq(schema.brandAssets.brandId, row.brandId), inArray(schema.brandAssets.id, legacy.map((m) => m.id)))) : [];
+  if (!pool.length && !imgs.length) { note("No ads to read yet — none found in the Library and no screenshots added"); return null; }
+  const ads = pool.map(({ ref, competitor, a }) => ({
+    ref, competitor, runningDays: daysSince(a.start), adsUsingIt: a.copies ?? 1, where: a.from === "shot" ? "US (Ad Library website)" : "EU/UK (Ad Library API)",
+    format: a.media?.kind ?? "unknown", text: (a.bodies[0] ?? "").slice(0, 400), headline: a.titles[0] ?? "", reachedInEU: a.reach,
+  }));
   const out = await ask("iris", {
-    system: `You are Iris, Kaviar's research analyst. Read competitors' live Meta ads (text from the Ad Library, plus screenshots the team added) and say how the category sells: the message angles and how often each is used, offers, recurring hooks, positioning, and the gaps — messages or buyers nobody speaks to — that a new brand could own${report ? `, given these buyers: ${report.segments.map((s) => s.name).join(", ")}` : ""}. Ads that have run 30+ days are likely working; weigh them more.`,
+    system: `You are Iris, Kaviar's research analyst. Read competitors' live Meta ads (from Meta's Ad Library) and say how the category sells. First name 3–7 message angles that together cover the ads, then tag EVERY ad (by its ref) with exactly one angle and any offer it makes — Kaviar counts your tags to show how often each angle is used, so tag each ad on what it actually says. Then the hooks that recur, the positioning, and the gaps — messages or buyers nobody speaks to — that a new brand could own${report ? `, given these buyers: ${report.segments.map((s) => s.name).join(", ")}` : ""}. Ads running 30+ days, or used by many ads, are likely working; weigh them more.`,
     content: [
-      { type: "text", text: JSON.stringify({ ads, screenshots: shots.map((m) => ({ competitor: m.competitor, note: m.note })) }) },
+      { type: "text", text: JSON.stringify({ ads, screenshotsNotYetTranscribed: legacy.map((m) => ({ competitor: m.competitor, note: m.note })) }) },
       ...imgs.filter((i) => /^image\/(png|jpeg|webp|gif)$/.test(i.mime)).map((i) => ({ type: "image" as const, source: { type: "base64" as const, media_type: i.mime as "image/png", data: Buffer.from(i.data).toString("base64") } })),
     ],
-    schema: AdsOut, maxTokens: 8000,
+    schema: AdsOut, maxTokens: 16000,
   });
   if (!out) throw new Error("Iris couldn’t read the ads — try again.");
-  note(`${ads.length} ads${imgs.length ? ` + ${imgs.length} screenshots` : ""}`);
+  const byRef = new Map(pool.map((c) => [c.ref, c]));
+  const tagged = out.tags.filter((t) => byRef.has(t.ref));
+  const counted = tagged.length >= Math.max(3, pool.length * 0.6);
+  const angles = out.angles.slice(0, 8).map((g) => {
+    const mine = tagged.filter((t) => t.angle.trim().toLowerCase() === g.name.trim().toLowerCase()).map((t) => byRef.get(t.ref)!);
+    const best = [...mine].sort((x, y) => (daysSince(y.a.start) ?? 0) - (daysSince(x.a.start) ?? 0))[0];
+    return {
+      name: g.name, share: tagged.length ? Math.round((100 * mine.length) / tagged.length) : 0, n: mine.length, ids: mine.map((c) => c.a.id),
+      proven: mine.filter((c) => (daysSince(c.a.start) ?? 0) >= 30).length, who: [...new Set(mine.map((c) => c.competitor))].slice(0, 6),
+      example: (best?.a.bodies[0] ?? g.meaning).replace(/\s+/g, " ").slice(0, 140),
+    };
+  }).filter((g) => !counted || g.n > 0).sort((a, b) => b.share - a.share);
+  const offers = new Map<string, number>();
+  for (const t of tagged) if (t.offer.trim()) offers.set(t.offer.trim(), (offers.get(t.offer.trim()) ?? 0) + 1);
+  note(`${pool.length} ads${imgs.length ? ` + ${imgs.length} screenshots` : ""} · ${tagged.length} tagged`);
   return {
-    summary: out.summary, count: ads.length + imgs.length, at: new Date().toISOString(), offers: out.offers.slice(0, 8), hooks: out.hooks.slice(0, 8), positioning: out.positioning,
-    angles: out.angles.slice(0, 8).map((a) => ({ ...a, share: Math.max(0, Math.min(100, Math.round(a.share))) })),
-    gaps: out.gaps.slice(0, 6).map((g) => ({ id: uid(), ...g })),
+    summary: out.summary, count: pool.length + imgs.length, creatives: pool.length, counted, at: new Date().toISOString(),
+    offers: [...offers].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([o, n]) => `${o}${n > 1 ? ` (${n} ads)` : ""}`), hooks: out.hooks.slice(0, 8), positioning: out.positioning,
+    angles, gaps: out.gaps.slice(0, 6).map((g) => ({ id: uid(), ...g })),
   };
 }
 
@@ -213,7 +248,7 @@ async function positionProduct(row: Row, report: MarketReport | null, read: AdsR
         competitors: report.competitors.map((c) => ({ name: c.name, price: c.price, positioning: c.positioning, weakness: c.weakness })),
         opportunities: report.opportunities.map((o) => ({ text: o.text, decision: o.status ?? "open" })),
       },
-      competitorAds: read ? { angles: read.angles.map((a) => `${a.name} (${a.share}%)`), hooks: read.hooks, offers: read.offers, positioning: read.positioning, gaps: read.gaps.map((g) => ({ text: g.text, decision: g.status ?? "open" })) } : "not read yet",
+      competitorAds: read ? { angles: read.angles.map(angleLine(read)), hooks: read.hooks, offers: read.offers, positioning: read.positioning, gaps: read.gaps.map((g) => ({ text: g.text, decision: g.status ?? "open" })) } : "not read yet",
     }),
     schema: PositionOut, maxTokens: 8000,
   });
@@ -247,7 +282,7 @@ async function planTest(row: Row, report: MarketReport | null, read: AdsRead | n
       product: row.subject || "the brand's range", summary: report.summary, demand: report.demand.verdict, price: report.price,
       buyers: segments.map((s) => ({ name: s.name, accepted: s.status === "accepted", who: s.who, need: s.need, angle: s.angle, ages: s.reach.ages, gender: s.reach.gender, interests: s.reach.interests })),
       opportunities: report.opportunities.filter((o) => o.status !== "rejected").map((o) => o.text),
-      competitorAngles: read?.angles.map((a) => `${a.name} (${a.share}%)`) ?? [], gaps: read?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? [],
+      competitorAngles: read ? read.angles.map(angleLine(read)) : [], gaps: read?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? [],
       positioning: pos ? { statement: pos.statement, primaryBuyer: pos.primary, pillarsToTestAsAngles: pos.pillars.map((p) => `${p.title}: ${p.message}`), avoid: pos.avoid } : null,
     }),
     schema: PlanOut, maxTokens: 8000,
@@ -273,13 +308,14 @@ export async function runResearch(id: string, parts: Part[]): Promise<void> {
       await save(id, { report });
     }
     if (parts.includes("ads")) {
-      // Ads are a bonus: if Meta refuses, the plan still runs on the market research.
+      // Ads are a bonus: if Meta refuses, Iris still reads the screenshots, and the plan still runs on the market research.
+      try { rivals = await step("adlib", (note) => pullAds(row, report, note)); }
+      catch { const [r] = await db.select({ rivals: R.rivals }).from(R).where(eq(R.id, id)); rivals = r?.rivals ?? rivals; }
       try {
-        rivals = await step("adlib", (note) => pullAds(row, report, note));
-        await save(id, { rivals });
-        read = await step("read", (note) => readAds(row, rivals, report, note));
+        const [m] = await db.select({ manual: R.manual }).from(R).where(eq(R.id, id));
+        read = await step("read", (note) => readAds(row, rivals, m?.manual ?? row.manual, report, note));
         await save(id, { adsRead: read });
-      } catch { for (const s of steps) if (s.key === "read" && s.state === "waiting") s.state = "error"; await save(id, { steps: [...steps] }); }
+      } catch { /* the step shows the error */ }
     }
     if (parts.includes("position")) {
       // An edited positioning is the team's: keep it unless they ask Iris for a new one (re-running "position" alone).
