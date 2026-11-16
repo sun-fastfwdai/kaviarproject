@@ -5,14 +5,17 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, deleteShot, designFromShot, planShots, pollVideo, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
+import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
-import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
+import { ALLOWED, CAT, DEFAULTS, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
 import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
 import { ProductCombo } from "./product-combo";
 import { ShotList } from "./shot-list";
+import { Field, Pills } from "./bits";
+import { CutPanel, SceneRenderPanel, StoryPanel } from "./story-ui";
+import { scenePrompt, sceneSound } from "@/lib/creative/story";
 import { STYLE, STYLES, autoShots, autoStyle, directionText, fitTimes, planLines, sameWords } from "@/lib/creative/director";
 import { StudioCtx, ShootCanvasNode, WireEdge, Tag, Thumb, Tile, agoFrom, asset, flagOf, joinSegs, passes, short, usd,
   type Batch, type CanvasNode, type Check, type Lesson, type Product, type RunState, type Shot, type Signal, type StudioApi, type Wire } from "./canvas-nodes";
@@ -51,19 +54,6 @@ const valid = (g: ShootFlow, src: string | null, dst: string | null, ignore?: st
 const uniq = (xs: string[]) => [...new Set(xs)];
 
 // ---------------------------------------------------------------- inspector controls
-function Field({ label, sub, children }: { label: string; sub?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="col g4" style={{ flexShrink: 0 }}><span className="xs w5 i3">{label}</span>{children}{sub ? <span className="xs i3">{sub}</span> : null}</div>;
-}
-function Pills<T extends string | number>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label?: string }) {
-  return (
-    <div className="row g4" role="radiogroup" aria-label={label} style={{ flexWrap: "wrap" }}>
-      {options.map(([v, l]) => (
-        <button key={String(v)} type="button" role="radio" aria-checked={v === value} onClick={() => onChange(v)} className="row"
-          style={{ height: 26, padding: "0 9px", borderRadius: 7, fontSize: 11.5, ...(v === value ? { background: "var(--ink)", color: "#fff" } : { border: "1px solid var(--line-2)", color: "var(--ink-2)", background: "#fff" }) }}>{l}</button>
-      ))}
-    </div>
-  );
-}
 function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} style={{ width: 28, height: 16, borderRadius: 99, background: on ? "#121212" : "var(--line-2)", position: "relative", flexShrink: 0 }}>
@@ -126,6 +116,8 @@ function Studio(props: Props) {
   const [viewer, setViewer] = useState<{ node: string; id: string } | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [planning, setPlanning] = useState<string[]>([]); // Video nodes Remy is planning shots for
+  const [working, setWorking] = useState<Record<string, "write" | "frames" | null>>({}); // Storyboard nodes: writing or making keyframes
+  const autoCut = useRef<Set<string>>(new Set()); // Video nodes whose finished scenes were already cut this session
   const flowRef = useRef(flow);
   const dirty = useRef(props.preset); // a handoff preset (?batch=…&signal=…) is saved straight away
   const search = useRef<HTMLInputElement>(null);
@@ -176,13 +168,18 @@ function Studio(props: Props) {
           const cur = find(flowRef.current, n.id);
           if (!cur) continue;
           const c = cfgOf(cur), left = (c.jobs ?? []).filter((x) => x.id !== j.id);
-          patchNode(n.id, { jobs: left, ...(r.id ? { out: [r.id, ...c.out.filter((x) => x !== r.id)].slice(0, 8), at: new Date().toISOString() } : {}) }, false);
+          patchNode(n.id, { jobs: left, ...(r.id ? { out: [r.id, ...c.out.filter((x) => x !== r.id)].slice(0, 12), at: new Date().toISOString(), ...(j.scene ? { sceneOut: { ...(c.sceneOut ?? {}), [j.scene]: r.id } } : {}) } : {}) }, false);
           if (r.id) {
             update((f) => (f.last ? { ...f, last: { ...f.last, clips: f.last.clips + 1, cost: f.last.cost + j.seconds * perVideoSecond * (props.engines.res[j.res as "720p"] ?? 1) } } : f), false);
             router.refresh();
           }
           if (r.error) setMsg(r.error);
           if (!left.length) { setStatus((x) => ({ ...x, [n.id]: r.error ? "error" : "done" })); }
+          // The last scene of a storyboard landed: cut the ad straight away if a Final cut node is wired.
+          if (!left.length && j.scene && r.id) {
+            const cutN = outs(flowRef.current, n.id).find((x) => x.type === "cut");
+            if (cutN && !autoCut.current.has(n.id)) { autoCut.current.add(n.id); void cutRun(cutN.id).catch((e: Error) => setMsg(e.message)); }
+          }
         }
       } finally { polling.current = false; }
     };
@@ -210,6 +207,16 @@ function Studio(props: Props) {
     return d ? signals.find((s) => s.key === cfgOf(d).signal) ?? null : null;
   };
   const lessonsOf = (w: ShootNode) => props.lessons.filter((l) => !cfgOf(w).strongOnly || l.strength === "Strong");
+  /** The Storyboard behind a node: itself, wired in directly, or behind its Video node (for a Final cut). */
+  const storyNodeOf = (g: ShootFlow, id: string): ShootNode | null => {
+    const n = find(g, id);
+    if (!n) return null;
+    if (n.type === "story") return n;
+    const direct = inc(g, id).find((x) => x.type === "story");
+    if (direct) return direct;
+    for (const v of inc(g, id).filter((x) => x.type === "video")) { const st = inc(g, v.id).find((x) => x.type === "story"); if (st) return st; }
+    return null;
+  };
   const promptOf = (g: ShootFlow, id: string) => { const n = find(g, id); return !n ? null : n.type === "prompt" ? n : inc(g, id).find((x) => x.type === "prompt") ?? up(g, id, "prompt"); };
   const promptIn = (g: ShootFlow, P: ShootNode): PromptIn => {
     const ins = inc(g, P.id), c = cfgOf(P);
@@ -376,14 +383,101 @@ function Studio(props: Props) {
     return { ids, jobs: jobs.length };
   };
 
+  // ---- full ads: Storyboard → keyframes → one clip per scene → Final cut
+  const storyWrite = async (sid: string): Promise<boolean> => {
+    const g = flowRef.current, S = find(g, sid);
+    if (!S) return false;
+    const c = cfgOf(S), prod = productOf(g, sid), sig = signalOf(g, sid), b = up(g, sid, "brand"), ch = up(g, sid, "character");
+    mark(sid, "running"); setWorking((w) => ({ ...w, [sid]: "write" }));
+    try {
+      const r = await writeStory(slug, {
+        product: prod ? { title: prod.title, price: prod.price } : null, length: c.adLength, framework: c.framework, look: c.look, hookCount: c.hookCount,
+        characterId: ch ? cfgOf(ch).characterId : null, signal: sig ? { data: sig.data, value: sig.value, evidence: sig.evidence } : null, brandRules: b ? cfgOf(b).brandRules : [],
+      });
+      if (!r.story) { fail(sid, r.error ?? "No storyboard came back."); return false; }
+      patchNode(sid, { storyboard: r.story }, false);
+      mark(sid, "done");
+      return true;
+    } finally { setWorking((w) => ({ ...w, [sid]: null })); }
+  };
+  const storyFrames = async (sid: string, ids?: string[]): Promise<boolean> => {
+    const g = flowRef.current, S = find(g, sid), sb = S ? cfgOf(S).storyboard : null;
+    if (!S || !sb) return false;
+    const prod = productOf(g, sid);
+    if (!prod) { fail(sid, "Wire a Product node into the Storyboard — keyframes start from its photo."); return false; }
+    const want = ids ?? sb.scenes.filter((x) => !x.frame).map((x) => x.id);
+    if (!want.length) return true;
+    const ch = up(g, sid, "character");
+    mark(sid, "running"); setWorking((w) => ({ ...w, [sid]: "frames" }));
+    try {
+      const r = await makeKeyframes(slug, { story: sb, sceneIds: want, product: { title: prod.title, url: prod.url }, characterId: ch ? cfgOf(ch).characterId : null });
+      const cur = cfgOf(find(flowRef.current, sid)!).storyboard ?? sb;
+      patchNode(sid, { storyboard: { ...cur, scenes: cur.scenes.map((x) => (r.frames[x.id] ? { ...x, frame: r.frames[x.id] } : x)) } }, false);
+      if (r.error) fail(sid, r.error); else mark(sid, "done");
+      router.refresh();
+      return Object.keys(r.frames).length > 0;
+    } finally { setWorking((w) => ({ ...w, [sid]: null })); }
+  };
+  const scenesRun = async (vid: string, only?: string[]): Promise<{ jobs: number; ids: string[] }> => {
+    const S = storyNodeOf(flowRef.current, vid);
+    if (!S || !cfgOf(S).storyboard) { fail(vid, "Write the storyboard first — wire a Storyboard node into this one."); return { jobs: 0, ids: [] }; }
+    mark(vid, "running");
+    if (cfgOf(S).storyboard!.scenes.some((x) => !x.frame)) await storyFrames(S.id);
+    const g = flowRef.current, sb = cfgOf(find(g, S.id)!).storyboard!, c = cfgOf(find(g, vid)!);
+    const todo = sb.scenes.filter((x) => x.frame && (!only || only.includes(x.id)));
+    if (!todo.length) { fail(vid, "No keyframes to start from — see the Storyboard node."); return { jobs: 0, ids: [] }; }
+    const snd = inc(g, vid).find((x) => x.type === "sound"), voiceId = snd ? cfgOf(snd).voiceId : null;
+    const ch = up(g, S.id, "character") ?? inc(g, vid).find((x) => x.type === "character"), characterId = ch ? cfgOf(ch).characterId : null;
+    const res = await Promise.all(todo.map((x) => runVideo(slug, {
+      fromAssetId: x.frame!, prompt: scenePrompt(sb, x).slice(0, 3200), seconds: x.seconds, aspect: "9:16",
+      sound: props.engines.sound ? sceneSound(sb, x, Boolean(voiceId && x.line)) : null, voiceId: x.line ? voiceId : null, res: c.res, characterId: x.person ? characterId : null, scene: x.id,
+    })));
+    const jobs = res.flatMap((o) => (o.job ? [o.job] : [])), direct: Record<string, string> = {};
+    res.forEach((o, i) => { if (o.id) direct[todo[i].id] = o.id; });
+    if (!jobs.length && !Object.keys(direct).length) { fail(vid, res.find((o) => o.error)?.error ?? "No clip came back."); return { jobs: 0, ids: [] }; }
+    if (res.some((o) => o.error)) setMsg(res.find((o) => o.error)!.error!);
+    const cur = cfgOf(find(flowRef.current, vid)!);
+    patchNode(vid, { jobs: [...(cur.jobs ?? []), ...jobs], sceneOut: { ...(cur.sceneOut ?? {}), ...direct }, ...(Object.keys(direct).length ? { out: [...Object.values(direct), ...cur.out].slice(0, 12), at: new Date().toISOString() } : {}) }, false);
+    mark(vid, jobs.length ? "running" : "done");
+    autoCut.current.delete(vid);
+    router.refresh();
+    return { jobs: jobs.length, ids: Object.values(direct) };
+  };
+  const cutRun = async (cid: string) => {
+    const g = flowRef.current, C = find(g, cid);
+    if (!C) return;
+    const V = inc(g, cid).find((x) => x.type === "video"), S = storyNodeOf(g, cid), sb = S ? cfgOf(S).storyboard : null;
+    if (!V || !S || !sb) { fail(cid, "Wire the Storyboard’s Video node into this one."); return; }
+    const so = cfgOf(V).sceneOut ?? {}, missing = sb.scenes.filter((x) => !so[x.id]);
+    if (missing.length) { fail(cid, `${missing.length} scene${missing.length > 1 ? "s aren’t" : " isn’t"} rendered yet — run the Video node.`); return; }
+    const c = cfgOf(C), prod = productOf(g, S.id);
+    mark(cid, "running");
+    const r = await cutFinal(slug, {
+      scenes: sb.scenes.map((x) => ({ clip: so[x.id], seconds: x.seconds, text: x.line.trim() || x.caption })), captions: c.captions, sound: c.keepSound, endCard: c.endCard,
+      end: sb.end, product: prod ? { title: prod.title, url: prod.url } : null, title: sb.title,
+    });
+    if (!r.id) { fail(cid, r.error ?? "The cut didn’t come back."); return; }
+    patchNode(cid, { out: [r.id, ...cfgOf(find(flowRef.current, cid)!).out].slice(0, 6), at: new Date().toISOString() }, false);
+    mark(cid, "done");
+    router.refresh();
+    setMsg(`Your ${r.seconds ?? ""}s ad is cut — play or download it in the Final cut node.`);
+  };
+  const cutStatus = (cid: string) => {
+    const V = inc(flow, cid).find((x) => x.type === "video"), S = storyNodeOf(flow, cid), sb = S ? cfgOf(S).storyboard : null;
+    if (!V || !sb) return { ready: 0, total: 0 };
+    const so = cfgOf(V).sceneOut ?? {};
+    return { ready: sb.scenes.filter((x) => so[x.id]).length, total: sb.scenes.length };
+  };
+
   const runFlow = () => go(async () => {
     setMsg(null);
     const g = flowRef.current;
-    const photos = g.nodes.filter((n) => n.type === "photo"), videos = g.nodes.filter((n) => n.type === "video");
-    if (!photos.length && !videos.length) { setMsg("Add a Photo node — it’s what makes the pictures."); return; }
+    const photos = g.nodes.filter((n) => n.type === "photo"), videos = g.nodes.filter((n) => n.type === "video"), stories = g.nodes.filter((n) => n.type === "story");
+    if (!photos.length && !videos.length && !stories.length) { setMsg("Add a Photo node — it’s what makes the pictures."); return; }
     // Everything this run will touch starts as queued, so the canvas shows the order the work moves in.
     const queue: Record<string, RunState> = {};
     for (const n of [...photos, ...videos]) { queue[n.id] = "queued"; const P = promptOf(g, n.id); if (P) queue[P.id] = "queued"; }
+    for (const n of g.nodes.filter((x) => x.type === "story" || x.type === "cut")) queue[n.id] = "queued";
     for (const n of g.nodes.filter((x) => x.type === "check" && inc(g, x.id).some((y) => y.type === "photo"))) queue[n.id] = "queued";
     for (const n of g.nodes.filter((x) => x.type === "character" && !cfgOf(x).characterId && g.edges.some((e) => e.from === x.id))) queue[n.id] = "queued";
     setStatus(queue); errorsRef.current = {}; setErrors({});
@@ -409,11 +503,23 @@ function Studio(props: Props) {
       mark(ch.id, "done");
       router.refresh();
     }
+    // Storyboards: Remy writes the ad (or rewrites it for a new length), then a keyframe for every scene.
+    for (const S of flowRef.current.nodes.filter((x) => x.type === "story")) {
+      const sb = cfgOf(S).storyboard;
+      if (!sb || sb.length !== cfgOf(S).adLength) { if (!(await storyWrite(S.id))) continue; }
+      if (cfgOf(find(flowRef.current, S.id)!).storyboard!.scenes.some((x) => !x.frame)) await storyFrames(S.id);
+      else mark(S.id, "done");
+    }
     const checks = new Map<string, Check>();
     let p = 0, cl = 0, flagged = 0, spent = 0;
     for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += r.ids.length * perImage; } }
     let rendering = 0;
-    for (const V of videos) { const r = await videoRun(V.id, checks); cl += r.ids.length; rendering += r.jobs; spent += r.ids.length * cfgOf(V).seconds * perVideoSecond; }
+    for (const V of videos) {
+      const r = storyNodeOf(flowRef.current, V.id) ? await scenesRun(V.id) : await videoRun(V.id, checks);
+      cl += r.ids.length; rendering += r.jobs; spent += r.ids.length * cfgOf(V).seconds * perVideoSecond;
+    }
+    // Final cuts whose scenes are all in (clips that came back directly) cut now; the rest cut themselves when the last scene lands.
+    for (const C of flowRef.current.nodes.filter((x) => x.type === "cut")) { const st = cutStatus(C.id); if (st.total && st.ready === st.total && !rendering) await cutRun(C.id); }
     if (rendering) setMsg(`${rendering} clip${rendering > 1 ? "s are" : " is"} rendering — usually ${renderTime(Math.max(...videos.map((V) => cfgOf(V).seconds)))}. Keep working; ${rendering > 1 ? "they" : "it"} will appear in the Video node.`);
     for (const d of flowRef.current.nodes.filter((n) => n.type === "data")) { const sig = signals.find((s) => s.key === cfgOf(d).signal); if (sig) patchNode(d.id, { value: sig.value }, false); }
     if (p || cl) update((f) => ({ ...f, last: { at: new Date().toISOString(), photos: p, clips: cl, flagged, cost: spent } }), false);
@@ -423,7 +529,10 @@ function Studio(props: Props) {
     setMsg(null);
     const n = find(flowRef.current, id);
     if (n?.type === "photo") await photoRun(id, new Map());
+    else if (n?.type === "video" && storyNodeOf(flowRef.current, id)) { const r = await scenesRun(id); if (r.jobs) setMsg(`${r.jobs} scenes are rendering — usually 3–6 minutes. The Final cut runs by itself when they’re in.`); }
     else if (n?.type === "video") { const r = await videoRun(id, new Map()); if (r.jobs) setMsg(`The clip is rendering — usually ${renderTime(cfgOf(n).seconds)}. It appears in the Video node.`); }
+    else if (n?.type === "story") { if (!cfgOf(n).storyboard) await storyWrite(id); else await storyFrames(id); }
+    else if (n?.type === "cut") await cutRun(id);
     else if (n?.type === "prompt") await write(id);
   });
   const rerunOne = (checkId: string, shotId: string) => go(async () => {
@@ -510,6 +619,7 @@ function Studio(props: Props) {
   const removeEdge = (id: string) => { update((f) => ({ ...f, edges: f.edges.filter((e) => e.id !== id) })); setSelEdge(null); };
   const connect = (a: string, b: string) => { const g = flowRef.current; if (!valid(g, a, b)) return; update((f) => ({ ...f, edges: [...f.edges, edgeOf(find(g, a)!, find(g, b)!)] })); };
   const setTemplate = (key: string) => {
+    if (key === "__fullad") { update(() => fullAdFlow(flowSignal(flowRef.current), headProduct?.url ?? products[0]?.url ?? null, props.characters[0]?.id ?? null)); select("story"); setTimeout(() => rf.fitView({ padding: 0.12, maxZoom: 1, duration: 200 }), 50); return; }
     if (key === "__ugc") { update(() => ugcFlow(flowSignal(flowRef.current), headProduct?.url ?? products[0]?.url ?? null, props.characters[0]?.id ?? null)); select("character"); setTimeout(() => rf.fitView({ padding: 0.12, maxZoom: 1, duration: 200 }), 50); return; }
     if (key === "__reset") { update(() => defaultFlow(flowSignal(flowRef.current), headProduct?.url ?? products[0]?.url ?? null)); select(null); setTimeout(() => rf.fitView({ padding: 0.12, maxZoom: 1, duration: 200 }), 50); return; }
     if (key) update((f) => applyPreset(f, { template: key }));
@@ -589,7 +699,7 @@ function Studio(props: Props) {
   // The viewer shows what the clicked node made (or everything, for a Check node).
   const viewerNode = viewer ? find(flow, viewer.node) : null;
   const viewerItems: Shot[] = viewerNode?.type === "character" ? props.characters.filter((c) => c.id === viewer?.id).map((c) => ({ id: c.id, kind: "image" as const, product: null, prompt: c.description, check: null, edit: null, seconds: null, at: c.at, engine: c.uploaded ? "Real creator · photo" : "Character sheet", cost: null, sound: false }))
-    : !viewerNode ? [] : (viewerNode.type === "photo" || viewerNode.type === "video" ? cfgOf(viewerNode).out : viewerNode.type === "check" ? checkedFor(viewerNode.id).map((x) => x.id) : shots.map((x) => x.id))
+    : !viewerNode ? [] : (viewerNode.type === "photo" || viewerNode.type === "video" || viewerNode.type === "cut" ? cfgOf(viewerNode).out : viewerNode.type === "story" ? (cfgOf(viewerNode).storyboard?.scenes ?? []).flatMap((x) => (x.frame ? [x.frame] : [])) : viewerNode.type === "check" ? checkedFor(viewerNode.id).map((x) => x.id) : shots.map((x) => x.id))
     .map((x) => byId.get(x)).filter((x): x is Shot => Boolean(x));
   const viewerChecks = viewerNode ? outs(flow, viewerNode.id).filter((x) => x.type === "check") : [];
   const viewerVideos = viewerNode ? outs(flow, viewerNode.id).filter((x) => x.type === "video") : [];
@@ -603,7 +713,8 @@ function Studio(props: Props) {
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
     characterOf: (id) => charById(id), errorFor: (id) => errors[id] ?? null,
-    statusAt, jobState, planning: (id) => planning.includes(id), styleFor: (id) => { const d = directionOf(flow, id); return { name: STYLE[d.key].name, auto: d.auto }; },
+    statusAt, jobState, planning: (id) => planning.includes(id),
+    storyOf: (id) => { const S = storyNodeOf(flow, id); return S ? cfgOf(S).storyboard ?? null : null; }, sceneClip: (vid, sc) => cfgOf(find(flow, vid)!).sceneOut?.[sc] ?? null, cutStatus, styleFor: (id) => { const d = directionOf(flow, id); return { name: STYLE[d.key].name, auto: d.auto }; },
     view: (node, id) => setViewer({ node, id }), expanded: (id) => expanded.includes(id), toggleExpand: (id) => setExpanded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])),
     patch: (id, cfg) => patchNode(id, cfg), select, writePrompt: (id) => go(async () => { await write(id); }), design, rerunOne, send, focus: (id) => setFocus(id),
   };
@@ -677,7 +788,7 @@ function Studio(props: Props) {
         </div>
         <button type="button" className="hv" title="Undo (⌘Z)" aria-label="Undo" disabled={!past.length} onClick={undo} style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", opacity: past.length ? 1 : 0.4 }}><Icon name="undo" size={14} color="#55534F" /></button>
         <Combo chip label="Template" prefix="Template" icon={<Icon name="layers" size={13} />} value={flowSignal(flow) ?? ""} onChange={setTemplate}
-          options={[...signals.filter((x) => TEMPLATES[x.key]).map((x) => ({ value: x.key, label: TEMPLATES[x.key], sub: x.data })), { value: "", label: "Product shoot", sub: "no data signal" }, { value: "__ugc", label: "UGC video layout", sub: "a person holds the product and talks to camera" }, { value: "__reset", label: "Reset the canvas", sub: "back to this template’s layout", tone: "muted" as const }]} />
+          options={[...signals.filter((x) => TEMPLATES[x.key]).map((x) => ({ value: x.key, label: TEMPLATES[x.key], sub: x.data })), { value: "", label: "Product shoot", sub: "no data signal" }, { value: "__fullad", label: "Full ad layout", sub: "storyboard → scenes → final cut with captions and end card, 15–60 s" }, { value: "__ugc", label: "UGC video layout", sub: "a person holds the product and talks to camera" }, { value: "__reset", label: "Reset the canvas", sub: "back to this template’s layout", tone: "muted" as const }]} />
         <span className="row g6 xs i3" style={{ whiteSpace: "nowrap" }} title={saved.by ? `Last saved by ${saved.by}` : undefined}>
           {saved.saving ? <><Icon name="spinner" size={12} className="spin" />Saving…</> : <><Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" />Saved · {flow.last ? `ran ${agoFrom(flow.last.at, now)}` : "not run yet"}</>}
         </span>
@@ -756,6 +867,9 @@ function Studio(props: Props) {
   const nFrames = nPh ? cfgOf(nPh).out.filter((x) => byId.has(x)) : [];
   const nFrame = n?.type === "video" ? frameOf(flow, n.id) : null;
   const nClips = n?.type === "video" && c ? c.out.filter((x) => byId.has(x)) : [];
+  const nStoryNode = n && (n.type === "video" || n.type === "cut") ? storyNodeOf(flow, n.id) : null, nStory = nStoryNode ? cfgOf(nStoryNode).storyboard ?? null : null;
+  const nCut = n?.type === "cut" ? cutStatus(n.id) : { ready: 0, total: 0 };
+  const nVoiceNode = n?.type === "video" ? inc(flow, n.id).find((x) => x.type === "sound") ?? null : null;
   const vDir = n?.type === "video" ? directionOf(flow, n.id) : null, vStyle = vDir ? STYLE[vDir.key] : null;
   const vPlan = n?.type === "video" && c ? c.plan ?? null : null, vFits = vDir ? planFits(vPlan, vDir) : false, vPlanning = n ? planning.includes(n.id) : false;
   const vStale = Boolean(vDir && vPlan && vDir.voice && vPlan.shots.some((x) => x.line) && !sameWords(planLines(vPlan), vDir.voice));
@@ -946,7 +1060,24 @@ function Studio(props: Props) {
             </div>
           </>}
 
-        {n.type === "video" && <>
+        {n.type === "story" && c && (
+          <StoryPanel cfg={c} story={c.storyboard ?? null} busy={busy} working={working[n.id] ?? null} perImage={perImage} byId={byId}
+            hasProduct={Boolean(productOf(flow, n.id))} hasPerson={Boolean(up(flow, n.id, "character"))}
+            onPatch={(x, save = true) => patchNode(n.id, x, save)} onWrite={() => go(() => storyWrite(n.id))} onFrames={(ids) => go(() => storyFrames(n.id, ids))} onView={(x) => setViewer({ node: n.id, id: x })} />
+        )}
+
+        {n.type === "video" && nStoryNode && c && <>
+            <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
+            <SceneRenderPanel story={nStory} sceneOut={c.sceneOut ?? {}} jobs={c.jobs ?? []} jobState={jobState} busy={busy} res={c.res ?? "720p"} via={props.engines.via} perVideoSecond={perVideoSecond} resMul={props.engines.res}
+              voice={nVoiceNode && cfgOf(nVoiceNode).voiceId ? props.voices.find((v) => v.id === cfgOf(nVoiceNode).voiceId)?.name ?? "Brand voice" : null} byId={byId}
+              onRes={(r) => patchNode(n.id, { res: r })} onRender={(ids) => go(async () => { const r = await scenesRun(n.id, ids); if (r.jobs) setMsg(`${r.jobs} scene${r.jobs > 1 ? "s are" : " is"} rendering — usually 3–6 minutes.`); })} onView={(x) => setViewer({ node: n.id, id: x })} />
+          </>}
+
+        {n.type === "cut" && c && (
+          <CutPanel cfg={c} story={nStory} ready={nCut.ready} total={nCut.total} busy={busy} working={status[n.id] === "running"} onPatch={(x) => patchNode(n.id, x)} onCut={() => go(() => cutRun(n.id))} />
+        )}
+
+        {n.type === "video" && !nStoryNode && <>
             <Field label="Model"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.video}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
             <Field label="Start frame" sub={nFrames.length > 1 ? "Click another photo to start from it" : undefined}>
               {nFrame ? <div className="col g6"><div className="row g8"><Thumb id={nFrame} w={40} h={50} /><div className="col"><span className="xs w5 i1">From the Photo node</span><span className="xs i3">{c.from ? "picked by hand" : "Otto’s best pass"}</span></div></div>
@@ -965,7 +1096,7 @@ function Studio(props: Props) {
               </div>
             </>}
             <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}>
-              <Pills label="Length" value={c.seconds} options={props.engines.via === "Higgsfield" ? [[5, "5s"], [10, "10s"], [15, "15s"]] : [[5, "5s"], [10, "10s"]]}
+              <Pills label="Length" value={c.seconds} options={props.engines.via === "Higgsfield" ? [[5, "5s"], [10, "10s"], [15, "15s"], [20, "20s"], [30, "30s"]] : [[5, "5s"], [10, "10s"]]}
                 onChange={(v) => patchNode(n.id, { seconds: v, plan: c.plan && c.plan.shots.length * 1.5 <= v ? { ...c.plan, seconds: v, shots: fitTimes(c.plan.shots, v) } : null })} />
               {props.engines.via === "Higgsfield" && <Pills label="Quality" value={c.res ?? "720p"} options={[["480p", "Draft"], ["720p", "Standard"], ["1080p", "High"]]} onChange={(v) => patchNode(n.id, { res: v })} />}
               {props.engines.via !== "Higgsfield" && <Pills label="Size" value={c.aspect === "1:1" ? "1:1" : "9:16"} options={[["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} />}

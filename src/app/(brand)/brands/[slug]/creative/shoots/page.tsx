@@ -28,7 +28,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
         (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
       from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' order by p.total_inventory desc nulls last limit 40`),
     db.select({ id: A.id, mime: A.mime, meta: A.meta, createdAt: A.createdAt }).from(A)
-      .where(and(eq(A.brandId, brand.id), sql`(${A.meta}->>'ai')::boolean`, sql`${A.kind} <> 'character'`)).orderBy(desc(A.createdAt)).limit(60),
+      .where(and(eq(A.brandId, brand.id), sql`(${A.meta}->>'ai')::boolean`, sql`${A.kind} <> 'character'`)).orderBy(desc(A.createdAt)).limit(150),
     shootsThisMonth(brand.id),
     db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal,
       n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected')::int`,
@@ -72,6 +72,6 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
       lessons={(notes.insights?.lessons ?? []).map((l) => ({ dimension: l.dimension, lesson: l.lesson, evidence: l.evidence, strength: l.strength }))}
       products={list} refs={refs}
       shots={shots.map((s) => ({ id: s.id, kind: s.mime.startsWith("video/") ? "video" as const : "image" as const, product: s.meta.product ?? null, prompt: s.meta.prompt ?? null,
-        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound) }))} />
+        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound), scene: s.meta.scene ?? null }))} />
   );
 }

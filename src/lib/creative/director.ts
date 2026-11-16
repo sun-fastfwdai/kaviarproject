@@ -72,11 +72,11 @@ export function autoStyle(scene: string, person: boolean): string {
   return person && STYLE[s].group === "Product" ? "review" : s;
 }
 /** How many shots a pro would cut a clip into. */
-export const autoShots = (key: string, seconds: number) => (STYLE[key]?.group === "UGC" ? (seconds <= 5 ? 2 : seconds <= 10 ? 4 : 5) : seconds <= 5 ? 2 : seconds <= 10 ? 3 : 4);
+export const autoShots = (key: string, seconds: number) => (STYLE[key]?.group === "UGC" ? (seconds <= 5 ? 2 : seconds <= 10 ? 4 : seconds <= 15 ? 5 : seconds <= 20 ? 6 : 8) : seconds <= 5 ? 2 : seconds <= 10 ? 3 : seconds <= 15 ? 4 : seconds <= 20 ? 5 : 6);
 
 /** Whole seconds, back to back from 0 to the clip length, each shot at least a second. */
 export function fitTimes(shots: DirShot[], seconds: number): DirShot[] {
-  const list = shots.slice(0, Math.max(1, Math.min(6, seconds)));
+  const list = shots.slice(0, Math.max(1, Math.min(8, seconds)));
   const want = list.map((s) => Math.max(0.5, (Number(s.to) || 0) - (Number(s.from) || 0)));
   const total = want.reduce((a, b) => a + b, 0) || 1;
   let t = 0;

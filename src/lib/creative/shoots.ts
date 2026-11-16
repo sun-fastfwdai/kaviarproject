@@ -17,11 +17,11 @@ export const COST_PER_IMAGE = 0.04;
 export const VIDEO_MODEL = "klingai/kling-v2.6-i2v";
 export const COST_PER_VIDEO_SECOND = 0.042;
 
-/** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos, Seedance 2.0 clips with sound), else AI Gateway. */
+/** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos, Seedance 2.5 clips with sound), else AI Gateway. */
 export async function shootEngines() {
   if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: { "480p": 1, "720p": 1, "1080p": 1 } };
   const p = await hfPrices().catch(() => null);
-  return { photo: "Marketing Studio", video: "Seedance 2.0", via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: p?.videoSecond ?? 0.1, perSoundSecond: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
+  return { photo: "Marketing Studio", video: "Seedance 2.5", via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: p?.videoSecond ?? 0.1, perSoundSecond: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
 }
 
 export type PromptIn = {
@@ -248,17 +248,17 @@ export function wavSeconds(b: Buffer): number | null {
   return null;
 }
 
-export type VideoJob = { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null };
+export type VideoJob = { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string };
 
-/** Higgsfield Seedance 2.0 clip, started in the background: framing follows the start photo; a wired Voice + music node adds sound; a brand voice uses reference mode. */
-export async function startVideoJob(brandId: string, input: { fromAssetId: string; prompt: string; seconds: number; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null }): Promise<{ job?: VideoJob; error?: string }> {
+/** Higgsfield Seedance 2.5 clip, started in the background: framing follows the start photo; a wired Voice + music node adds sound; a brand voice uses reference mode. */
+export async function startVideoJob(brandId: string, input: { fromAssetId: string; prompt: string; seconds: number; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null }): Promise<{ job?: VideoJob; error?: string }> {
   const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta, mime: schema.brandAssets.mime }).from(schema.brandAssets).where(and(eq(schema.brandAssets.id, input.fromAssetId), eq(schema.brandAssets.brandId, brandId)));
   if (!a) return { error: "Pick a photo to start from." };
   try {
     const url = await hfUpload(a.data, a.mime);
     const withSound = Boolean(input.sound);
     const resolution = input.res ?? "720p";
-    const duration = Math.min(15, Math.max(4, Math.round(input.seconds)));
+    const duration = Math.min(30, Math.max(4, Math.round(input.seconds)));
     const [voice] = input.voiceId && withSound ? await db.select({ data: schema.brandAssets.data }).from(schema.brandAssets)
       .where(and(eq(schema.brandAssets.id, input.voiceId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "voice"))) : [];
     let r;
@@ -274,7 +274,7 @@ export async function startVideoJob(brandId: string, input: { fromAssetId: strin
       r = await hfSubmit(HF_VIDEO, { image_url: url, prompt: prompt.slice(0, 4000), duration, resolution, generate_audio: withSound });
     }
     if (!r.requestId) return { error: r.error ?? "Higgsfield didn’t take the job." };
-    return { job: { id: r.requestId, at: new Date().toISOString(), seconds: duration, sound: withSound, res: resolution, product: a.meta.product ?? null, prompt: input.prompt.slice(0, 500), voice: voice ? input.voiceId! : null } };
+    return { job: { id: r.requestId, at: new Date().toISOString(), seconds: duration, sound: withSound, res: resolution, product: a.meta.product ?? null, prompt: input.prompt.slice(0, 500), voice: voice ? input.voiceId! : null, ...(input.scene ? { scene: input.scene.slice(0, 40) } : {}) } };
   } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
 }
 
@@ -293,7 +293,7 @@ export async function finishVideoJob(brandId: string, memberId: string, job: Vid
   const cost = p ? job.seconds * (p.videoSecond * (p.res[job.res as "720p"] ?? 1) + (job.sound ? p.soundSecond : 0)) : null;
   const [row] = await db.insert(A).values({
     brandId, kind: "video", name: `${(job.product ?? "Product").slice(0, 40)} · clip`, mime: v.mime.startsWith("video/") ? v.mime : "video/mp4", size: v.data.byteLength, data: v.data,
-    meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: "Higgsfield · Seedance 2.0", sound: job.sound, job: job.id, ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
+    meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: "Higgsfield · Seedance 2.5", sound: job.sound, job: job.id, ...(job.scene ? { scene: job.scene } : {}), ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
   }).returning({ id: A.id });
   return { id: row.id };
 }

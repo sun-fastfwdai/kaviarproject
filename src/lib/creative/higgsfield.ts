@@ -9,8 +9,8 @@ import { env } from "../env";
  */
 const API = "https://api.higgsfield.ai";
 export const HF_PHOTO = "marketing-studio/image/flare"; // product-ad images; the product photo goes in first
-export const HF_VIDEO = "bytedance/seedance-2.0/image-to-video"; // up to 15 s, generates sound with the clip
-export const HF_VIDEO_REF = "bytedance/seedance-2.0/reference-to-video"; // same model, with a brand voice sample as audio reference
+export const HF_VIDEO = "bytedance/seedance-2.5/image-to-video"; // 4–30 s, generates sound with the clip; starts from our frame
+export const HF_VIDEO_REF = "bytedance/seedance-2.5/reference-to-video"; // same model, with a brand voice sample (and the character sheet) as references
 export const hfReady = () => Boolean(env.higgsfield());
 
 type Status = { status: "queued" | "in_progress" | "completed" | "failed" | "nsfw" | "canceled"; request_id: string; error?: string | null;

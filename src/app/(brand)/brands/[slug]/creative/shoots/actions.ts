@@ -6,8 +6,11 @@ import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
 import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotList, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
-import type { ShootFlow, ShotPlan } from "@/lib/db/schema";
+import type { ShootFlow, ShotPlan, Story } from "@/lib/db/schema";
 import { STYLE } from "@/lib/creative/director";
+import { writeStoryboard } from "@/lib/creative/storyboard";
+import { cutAd } from "@/lib/creative/cut";
+import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
 import { hfReady } from "@/lib/creative/higgsfield";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
@@ -23,12 +26,13 @@ export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ ou
 export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  const TYPES = ["product", "character", "data", "brand", "wins", "reference", "prompt", "photo", "video", "sound", "check", "send"];
+  const TYPES = ["product", "character", "data", "brand", "wins", "reference", "prompt", "story", "photo", "video", "sound", "cut", "check", "send"];
   const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []).filter((n) => n && TYPES.includes(n.type) && typeof n.id === "string").slice(0, 40).map((n) => ({
     id: n.id.slice(0, 40), type: n.type, x: Math.round(Number(n.x) || 0), y: Math.round(Number(n.y) || 0),
     cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
       ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 4, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
-      ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 6).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
+      ...(n.cfg?.storyboard ? { storyboard: { ...n.cfg.storyboard, scenes: (n.cfg.storyboard.scenes ?? []).slice(0, 10).map((x) => ({ ...x, keyframe: String(x.keyframe ?? "").slice(0, 900), motion: String(x.motion ?? "").slice(0, 400), line: String(x.line ?? "").slice(0, 200), caption: String(x.caption ?? "").slice(0, 60) })) } } : {}),
+      ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 8).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
   }));
   const ids = new Set(nodes.map((n) => n.id));
   const edges = (Array.isArray(flow.edges) ? flow.edges : []).filter((e) => e && ids.has(e.from) && ids.has(e.to)).slice(0, 80);
@@ -73,10 +77,10 @@ export async function runCheck(slug: string, assetId: string, referenceUrl: stri
 }
 
 /** A clip: on Higgsfield it starts in the background and returns a job the canvas polls; on AI Gateway it waits for the clip. */
-export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null }): Promise<{ id?: string; job?: VideoJob; error?: string }> {
+export async function runVideo(slug: string, input: { fromAssetId: string; prompt: string; seconds: number; aspect: "9:16" | "1:1" | "4:5"; sound?: string | null; voiceId?: string | null; res?: "480p" | "720p" | "1080p"; characterId?: string | null; scene?: string | null }): Promise<{ id?: string; job?: VideoJob; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  const clean = { ...input, seconds: Math.min(15, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? undefined };
+  const clean = { ...input, seconds: Math.min(hfReady() ? 30 : 10, Math.max(4, Math.round(input.seconds))), sound: input.sound?.slice(0, 400) ?? undefined };
   if (hfReady()) return startVideoJob(brand.id, clean);
   return shootVideo(brand.id, me.id, clean);
 }
@@ -88,7 +92,7 @@ export async function planShots(slug: string, input: { style: string; seconds: n
   if (!STYLE[input.style]) return { error: "Pick a shooting style." };
   const brand = await getBrand(slug);
   const plan = await writeShotList(brand.id, {
-    style: input.style, seconds: Math.min(15, Math.max(4, Math.round(Number(input.seconds) || 5))), count: input.count ? Math.min(6, Math.max(1, Math.round(input.count))) : null,
+    style: input.style, seconds: Math.min(30, Math.max(4, Math.round(Number(input.seconds) || 5))), count: input.count ? Math.min(8, Math.max(1, Math.round(input.count))) : null,
     frame: String(input.frame ?? "").slice(0, 900), product: String(input.product ?? "").slice(0, 120), scene: String(input.scene ?? "").slice(0, 60),
     character: input.character ? { name: String(input.character.name).slice(0, 40), description: String(input.character.description).slice(0, 600) } : null, voice: String(input.voice ?? "").slice(0, 140),
   });
@@ -180,6 +184,57 @@ export async function searchProducts(slug: string, q: string): Promise<{ title: 
       (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
     from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' and p.title ilike ${term}
     order by p.total_inventory desc nulls last limit 30`)).rows as { title: string; url: string; price: number | null; stock: number | null }[];
+}
+
+/** Storyboard node: Remy writes a full ad from every input (brand, product, buyer, research, what wins). */
+export async function writeStory(slug: string, input: {
+  product: { title: string; price: number | null } | null; length: number; framework: string; look: string; hookCount: number; characterId: string | null;
+  signal: { data: string; value: string | null; evidence: [string, string][] } | null; brandRules: string[];
+}): Promise<{ story?: Story; error?: string }> {
+  await requireMember();
+  if (!aiReady()) return { error: "Remy needs the Claude API key." };
+  const brand = await getBrand(slug);
+  const [ch] = input.characterId ? await db.select({ name: schema.brandAssets.name, meta: schema.brandAssets.meta }).from(schema.brandAssets)
+    .where(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "character"))) : [];
+  const story = await writeStoryboard(brand.id, {
+    product: input.product ? { title: input.product.title.slice(0, 200), price: input.product.price } : null,
+    length: (LENGTHS as readonly number[]).includes(input.length) ? input.length : 30, framework: String(input.framework).slice(0, 20), look: String(input.look).slice(0, 20),
+    hookCount: Math.min(3, Math.max(1, Math.round(input.hookCount) || 1)),
+    character: ch ? { name: ch.name, description: ch.meta.character?.description ?? "" } : null, signal: input.signal, brandRules: (input.brandRules ?? []).slice(0, 8).map((r) => String(r).slice(0, 120)),
+  });
+  return story ? { story } : { error: "Remy couldn’t write the storyboard — try again." };
+}
+
+/** One keyframe per scene: the real product (and person) locked into the opening still. */
+export async function makeKeyframes(slug: string, input: { story: Story; sceneIds: string[]; product: { title: string; url: string }; characterId: string | null }): Promise<{ frames: Record<string, string>; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  if (!/^https:\/\//.test(input.product.url)) return { frames: {}, error: "Pick a product with a Shopify photo." };
+  const scenes = input.story.scenes.filter((x) => input.sceneIds.includes(x.id)).slice(0, 10);
+  const res = await Promise.all(scenes.map((x) => shoot(brand.id, me.id, {
+    product: input.product.title, imageUrl: input.product.url, prompt: keyframePrompt(input.story, x, Boolean(input.characterId)).slice(0, 2400), aspect: "9:16", n: 1,
+    characterId: x.person ? input.characterId : null,
+  }).catch((e: Error) => ({ ids: [] as string[], error: e.message }))));
+  const frames: Record<string, string> = {};
+  res.forEach((r, i) => { if (r.ids[0]) frames[scenes[i].id] = r.ids[0]; });
+  const failed = res.find((r) => !r.ids.length);
+  return { frames, ...(failed ? { error: `${res.filter((r) => !r.ids.length).length} keyframe${res.filter((r) => !r.ids.length).length > 1 ? "s" : ""} failed: ${failed.error ?? "no image came back"}` } : {}) };
+}
+
+/** Final cut: the scene clips become one ad with captions and an end card with the real product photo. */
+export async function cutFinal(slug: string, input: {
+  scenes: { clip: string; seconds: number; text: string }[]; captions: boolean; sound: boolean; endCard: boolean;
+  end: { headline: string; sub: string; cta: string; offer: string }; product: { title: string; url: string } | null; title: string;
+}): Promise<{ id?: string; seconds?: number; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const palette = (brand.onboarding?.analysis?.palette ?? []).map((p) => p.hex).filter(Boolean);
+  return cutAd(brand.id, me.id, {
+    scenes: input.scenes.slice(0, 12).map((x) => ({ clip: x.clip, seconds: Math.min(30, Math.max(1, Math.round(x.seconds))), text: String(x.text ?? "").slice(0, 200) })),
+    captions: Boolean(input.captions), sound: Boolean(input.sound), endCard: Boolean(input.endCard),
+    end: { headline: String(input.end.headline ?? "").slice(0, 60), sub: String(input.end.sub ?? "").slice(0, 80), cta: String(input.end.cta ?? "Shop now").slice(0, 20), offer: String(input.end.offer ?? "").slice(0, 60) },
+    productImage: input.product && /^https:\/\//.test(input.product.url) ? input.product.url : null, palette, title: input.title.slice(0, 80), product: input.product?.title ?? null,
+  });
 }
 
 /** Character node: make a character sheet from a casting note. */

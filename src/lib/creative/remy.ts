@@ -28,7 +28,7 @@ const REMY = `You are Remy, Kaviar's creative agent. You write Meta ads for a br
 Rules: use the real numbers and product names given; write in the brand's voice when a profile is given; no medical, cure or guaranteed-result claims; no "best-selling" unless the data shows it;
 never invent a discount — only use a code the data shows the brand already uses; every ad needs a different hook; pick products only from the catalog list (exact titles).`;
 
-async function brandContext(brandId: string) {
+export async function brandContext(brandId: string) {
   const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, website: schema.brands.website, currency: schema.brands.currency, onboarding: schema.brands.onboarding })
     .from(schema.brands).where(eq(schema.brands.id, brandId));
   const products = (await db.execute(sql`

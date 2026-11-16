@@ -343,7 +343,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; scene?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -475,7 +475,7 @@ export type ShootFlowV1 = {
   video: { move: string; seconds: 5 | 10; aspect: "9:16" | "1:1"; n: number; from: string | null }; send: string | null; picked: string[] | null;
   last: { at: string; photos: string[]; clips: string[]; flagged: number; cost: number; value: string | null } | null;
 };
-export type ShootNodeType = "product" | "character" | "data" | "brand" | "wins" | "reference" | "prompt" | "photo" | "video" | "sound" | "check" | "send";
+export type ShootNodeType = "product" | "character" | "data" | "brand" | "wins" | "reference" | "prompt" | "story" | "photo" | "video" | "sound" | "cut" | "check" | "send";
 /** One node's settings; each type uses its own fields. `out` = asset ids its last run made. */
 export type ShootNodeCfg = {
   characterId?: string | null;                                                  // character: the person (a character sheet or a real creator’s photo)
@@ -491,8 +491,17 @@ export type ShootNodeCfg = {
   music?: string; voice?: string; voiceStyle?: string; voiceId?: string | null; // voice + music (made with the clip; voiceId = a brand voice sample)
   out?: string[]; at?: string | null;
   res?: "480p" | "720p" | "1080p";                                             // video quality
-  jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null }[]; // clips still rendering
+  jobs?: { id: string; at: string; seconds: number; sound: boolean; res: string; product: string | null; prompt: string; voice: string | null; scene?: string }[]; // clips still rendering (scene = a storyboard scene)
   style?: string; shotCount?: number | null; plan?: ShotPlan | null;            // video direction: shooting style ("auto" = from the scene), shots per clip (null = auto), Remy's shot list
+  adLength?: number; framework?: string; look?: string; hookCount?: number; storyboard?: Story | null; // storyboard: a full ad's script and scenes
+  captions?: boolean; endCard?: boolean; keepSound?: boolean;                 // final cut
+  sceneOut?: Record<string, string>;                                           // video fed by a storyboard: the latest clip per scene
+};
+/** One scene of a full ad: what to show (keyframe), how it moves, what's said and what's on screen. `frame` is the keyframe asset. */
+export type StoryScene = { id: string; purpose: string; seconds: number; camera: string; keyframe: string; motion: string; line: string; caption: string; person: boolean; frame?: string | null };
+export type Story = {
+  title: string; logline: string; framework: string; look: string; length: number; bible: string; voice: string;
+  scenes: StoryScene[]; end: { headline: string; sub: string; cta: string; offer: string }; hooks: string[]; why: string; at: string;
 };
 /** One shot in a clip's shot list (seconds from the clip start). */
 export type DirShot = { from: number; to: number; size: string; angle: string; move: string; action: string; line?: string };

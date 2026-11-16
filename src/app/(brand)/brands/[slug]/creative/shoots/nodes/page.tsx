@@ -11,7 +11,7 @@ import { CAT, NODES, asFlow, defaultFlow, flowSignal, runCost, templateName, typ
 
 export const metadata = { title: "Shoots · Every node" };
 
-const ORDER: NodeKey[] = ["product", "data", "brand", "wins", "reference", "prompt", "photo", "video", "sound", "check", "send"];
+const ORDER: NodeKey[] = ["product", "character", "data", "brand", "wins", "reference", "prompt", "story", "photo", "video", "sound", "cut", "check", "send"];
 const GROUP = { in: "INPUT", make: "MAKE", edit: "EDIT", fin: "FINISH" } as const;
 const EDIT = { cat: "edit" as const, icon: "brush" as const, name: "Edit", does: "Fixes a photo without starting again. The original stays.", ins: "a photo", outs: "the edited version",
   settings: "Remove bg · Extend · Relight", example: "Extend a 4:5 photo to 9:16 for Reels", agent: "builder" as const };
@@ -57,7 +57,7 @@ export default async function NodesPage({ params }: PageProps<"/brands/[slug]/cr
   const flow = saved ? asFlow(saved.flow) : defaultFlow(null, null);
   const eng = await shootEngines();
   const cost = runCost(flow, eng.perImage, eng.perVideoSecond, eng.perSoundSecond);
-  const costs: Partial<Record<NodeKey, string>> = { photo: `$${eng.perImage.toFixed(2)} each`, video: `$${eng.perVideoSecond.toFixed(3)} / second`, ...(eng.sound ? { sound: `+$${eng.perSoundSecond.toFixed(3)} / second` } : {}) };
+  const costs: Partial<Record<NodeKey, string>> = { story: `$${eng.perImage.toFixed(2)} per keyframe`, character: `$${eng.perImage.toFixed(2)} per sheet`, photo:`$${eng.perImage.toFixed(2)} each`, video: `$${eng.perVideoSecond.toFixed(3)} / second`, ...(eng.sound ? { sound: `+$${eng.perSoundSecond.toFixed(3)} / second` } : {}) };
   const cards = [...ORDER.map((k) => ({ ...NODES[k], cost: costs[k] ?? NODES[k].cost, ...(k === "photo" ? { example: `${eng.photo} · In hand · 4:5 × 4` } : k === "video" ? { example: `${eng.video} · Selfie talk · 4 shots · 10s` } : {}) })), { ...EDIT, cost: `$${eng.perImage.toFixed(2)} each` }];
   // Board order: inputs, then make, edit, finish.
   const sorted = [...cards.filter((c) => c.cat === "in"), ...cards.filter((c) => c.cat === "make"), ...cards.filter((c) => c.cat === "edit"), ...cards.filter((c) => c.cat === "fin")];

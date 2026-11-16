@@ -5,7 +5,13 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   devIndicators: { position: "bottom-right" },
   // The Supabase CA is read at runtime for verified TLS; make sure every function bundle carries it.
-  outputFileTracingIncludes: { "/**": ["./certs/**"] },
+  outputFileTracingIncludes: {
+    "/**": ["./certs/**"],
+    // The Final cut runs ffmpeg in the Shoots server function and burns captions with these fonts.
+    "/brands/[slug]/creative/shoots": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
+  },
+  // A native binary: load it from node_modules at runtime instead of bundling it.
+  serverExternalPackages: ["ffmpeg-static"],
   partialPrefetching: true,
   experimental: {
     // Brand assets (decks, logos, photos) and theme files are uploaded through Server Actions; Vercel caps a request at 4.5 MB.
