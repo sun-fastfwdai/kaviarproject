@@ -82,7 +82,7 @@ export async function describeReference(brandId: string, assetId: string): Promi
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
-export async function shoot(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
   if (hfReady()) return shootHiggsfield(brandId, memberId, input);
   const ref = await fetchPublic(input.imageUrl, 15_000, "image/*");
   if (!ref?.ok) return { ids: [], error: "Couldn’t load the product photo." };
@@ -109,7 +109,7 @@ export async function shoot(brandId: string, memberId: string, input: { product:
 }
 
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
-async function shootHiggsfield(brandId: string, memberId: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
   const urls = [input.imageUrl];
   let person = false;
   if (input.characterId) {

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getBrand, getConnections } from "@/lib/queries/brands";
-import { dawnIndexJson, qaChecks, storeProducts } from "@/lib/store/build";
+import { dawnIndexJson, qaChecks, storeProducts, allSteps } from "@/lib/store/build";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -19,7 +19,7 @@ import { starterInfo, storageReady, storeThemes } from "@/lib/store/themes";
 import { themeStorePreview } from "@/lib/store/theme-previews";
 
 export const metadata = { title: "Store builder" };
-export const maxDuration = 180;
+export const maxDuration = 800; // a build shoots the store photos too
 
 export default async function StorePage({ params, searchParams }: PageProps<"/brands/[slug]/store">) {
   const { slug } = await params;
@@ -68,7 +68,7 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
   if (step === "build" && build) {
     const appsWaiting = STORE_APPS.filter((a) => build.apps[a.key] && a.who === "Merchant" && brand.integrations?.[a.key]?.status !== "connected").map((a) => a.name);
     return (
-      <BuildCanvas slug={slug} brand={brand.name} category={brand.category ?? null} currency={brand.currency} tasks={build.tasks} content={c ?? null} products={products} look={look}
+      <BuildCanvas slug={slug} brand={brand.name} category={brand.category ?? null} currency={brand.currency} tasks={allSteps(build.tasks)} content={c ?? null} products={products} look={look}
         hero={products.find((p) => p.image)?.image ?? null} running={running} startedAt={build.startedAt?.toISOString() ?? null} finishedAt={build.finishedAt?.toISOString() ?? null}
         approved={build.approved} log={build.log} comments={build.comments} history={build.history} qa={qa} appsWaiting={appsWaiting} setupDone />
     );
@@ -82,7 +82,7 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
       </Bar>
       {step === "setup"
         ? <StoreSetup slug={slug} initial={{ theme: build?.theme ?? "kaviar-starter", pages: build?.pages ?? ["home", "products", "collections", "story", "contact", "policies"], apps: build?.apps ?? {} }} products={products.length} profile={Boolean(ob.profile && Object.keys(ob.profile).length)} hasBuild={Boolean(build?.content)} themes={themes} />
-        : <BuildView slug={slug} step={step} brand={brand.name} currency={brand.currency} tasks={build?.tasks ?? []} content={c ?? null} products={products} look={look}
+        : <BuildView slug={slug} step={step} brand={brand.name} currency={brand.currency} tasks={allSteps(build?.tasks ?? [])} content={c ?? null} products={products} look={look}
             hero={products.find((p) => p.image)?.image ?? null} running={running} approved={build?.approved ?? []} qa={qa} dawn={c ? dawnIndexJson(c) : null} copyText={copyText} theme={build?.theme ?? "kaviar-starter"} themes={themes} />}
     </>
   );

@@ -446,7 +446,10 @@ export type StoreContent = {
   newsletter: { title: string; body: string };
   nav: string[];
   aboutPage: string;
+  photos?: StorePhotos;
 };
+/** The store's own photos (brand asset ids), shot from the real product photos: hero, story, and a lifestyle shot per product title. */
+export type StorePhotos = { hero?: string; story?: string; products?: Record<string, string>; look?: string };
 // "needs" = waiting on a person (a photo, a merchant approval, the final review); ms = how long the stage took.
 export type BuildTask = { key: string; label: string; agent: "iris" | "cleo" | "remy" | "otto" | "you"; status: "waiting" | "running" | "done" | "error" | "needs"; detail: string; ms?: number; at?: string };
 export const storeBuilds = pgTable("store_builds", {

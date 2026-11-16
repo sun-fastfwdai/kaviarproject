@@ -6,7 +6,7 @@ import { ask, type Block } from "../ai/client";
 import type { StoreContent } from "../db/schema";
 
 /** The sections you can select on the canvas, and which fields of the content each one owns. */
-export const SECTIONS: Record<string, { label: string; fields: (keyof StoreContent)[] }> = {
+export const SECTIONS: Record<string, { label: string; fields: Exclude<keyof StoreContent, "photos">[] }> = {
   announcement: { label: "Announcement bar", fields: ["announcement"] },
   header: { label: "Header & navigation", fields: ["nav"] },
   hero: { label: "Hero", fields: ["hero", "heroOptions", "subline", "cta"] },
@@ -53,14 +53,15 @@ export async function revise(brandId: string, who: string, instruction: string, 
   const out = await ask("remy", {
     system: `You are Remy, Kaviar's store builder. Apply the team's instruction to the store copy. ${section ? `Change ONLY the ${section.label} (fields: ${section.fields.join(", ")}). Every other field must come back exactly as it is.` : "It applies to the whole page; keep anything the instruction doesn't touch."} No invented claims, discounts, awards or reviews.`,
     content: image
-      ? [{ type: "image", source: { type: "base64", media_type: image.mime as "image/png", data: image.data } }, { type: "text", text: JSON.stringify({ instruction: instruction.slice(0, 600), note: "The image is a reference the team attached.", current: b.content }) }] satisfies Block[]
-      : JSON.stringify({ instruction: instruction.slice(0, 600), current: b.content }),
+      ? [{ type: "image", source: { type: "base64", media_type: image.mime as "image/png", data: image.data } }, { type: "text", text: JSON.stringify({ instruction: instruction.slice(0, 600), note: "The image is a reference the team attached.", current: { ...b.content, photos: undefined } }) }] satisfies Block[]
+      : JSON.stringify({ instruction: instruction.slice(0, 600), current: { ...b.content, photos: undefined } }),
     schema: z.object({ content: Content, changed: z.string().describe("One short line: what you changed") }),
     maxTokens: 6000,
   });
   if (!out) return { error: "Remy couldn’t make that change right now." };
   // A scoped change can only touch its own fields, whatever the model returned.
-  const next: StoreContent = section ? { ...b.content, ...Object.fromEntries(section.fields.map((f) => [f, out.content[f]])) } as StoreContent : out.content;
+  // The store's photos are never rewritten by a copy change.
+  const next: StoreContent = section ? { ...b.content, ...Object.fromEntries(section.fields.map((f) => [f, out.content[f]])) } as StoreContent : { ...out.content, photos: b.content.photos };
   await commit(brandId, next, { who, agent: "remy", what: out.changed, scope });
   return { summary: out.changed };
 }

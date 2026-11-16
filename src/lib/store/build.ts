@@ -5,6 +5,7 @@ import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import type { BuildTask, StoreContent } from "../db/schema";
 import { commit, note } from "./revise";
+import { makeStorePhotos } from "./photos";
 import { STORE_APPS } from "@/app/(brand)/brands/[slug]/integrations/apps";
 
 export type StoreProduct = { title: string; handle: string | null; image: string | null; price: number | null; units: number };
@@ -17,11 +18,15 @@ export const TASKS: Omit<BuildTask, "status" | "detail">[] = [
   { key: "theme", label: "Theme configuration", agent: "remy" },
   { key: "catalog", label: "Product catalog", agent: "cleo" },
   { key: "content", label: "Homepage", agent: "remy" },
+  { key: "imagery", label: "Store photos", agent: "remy" },
   { key: "pages", label: "Product pages", agent: "cleo" },
   { key: "apps", label: "Shopify apps", agent: "cleo" },
   { key: "qa", label: "Quality assurance", agent: "otto" },
   { key: "review", label: "Final review", agent: "you" },
 ];
+
+/** A build made before a stage existed shows that stage as not run yet, in its place in the plan. */
+export const allSteps = (tasks: BuildTask[]): BuildTask[] => (tasks.length ? TASKS.map((t) => tasks.find((x) => x.key === t.key) ?? { ...t, status: "waiting", detail: "Not run yet" }) : tasks);
 
 export async function storeProducts(brandId: string): Promise<StoreProduct[]> {
   return (await db.execute(sql`
@@ -105,6 +110,18 @@ export async function runBuild(brandId: string, opts: { resume?: boolean } = {})
     content = { ...out, heroOptions: out.heroOptions.slice(0, 3), hero: out.heroOptions[0] ?? b.name };
     await commit(brandId, content, { who: "Remy", agent: "remy", what: `Wrote the homepage, story page and ${out.faq.length} FAQs from the brand profile and best-sellers`, scope: null });
     return `7 sections · ${out.heroOptions.length} hero options · ${out.faq.length} FAQs`;
+  });
+  // Remy art-directs one shoot from the real product photos; Otto keeps only the photos where the product is exact.
+  await step("imagery", async () => {
+    if (!content) return { needs: "Write the homepage first" };
+    const r = await makeStorePhotos(brandId, b, products);
+    if (!r.kept) { if (r.error && !r.made) throw new Error(r.error); return { needs: r.error ?? "No photo passed the check" }; }
+    const [now] = await db.select({ content: schema.storeBuilds.content }).from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brandId));
+    content = { ...(now?.content ?? content), photos: r.photos };
+    const n = Object.keys(r.photos.products ?? {}).length;
+    await commit(brandId, content, { who: "Remy", agent: "remy", what: `Shot ${r.kept} store photo${r.kept === 1 ? "" : "s"} from the real product photos — ${[r.photos.hero && "hero", r.photos.story && "story", n && `${n} best-seller${n === 1 ? "" : "s"}`].filter(Boolean).join(", ")}`, scope: "hero" });
+    await note(brandId, { who: "Otto", agent: "otto", what: r.made > r.kept ? `Checked every store photo against the real product — kept ${r.kept}, turned down ${r.made - r.kept} where the label or shape changed` : `Checked every store photo against the real product — all ${r.kept} keep the label and shape`, scope: null });
+    return `${r.kept} photos · ${r.photos.look ?? "one shoot"}`.slice(0, 120);
   });
   await step("pages", async () => noImg.length
     ? { needs: `${noImg.length} photo${noImg.length > 1 ? "s" : ""} needed` }

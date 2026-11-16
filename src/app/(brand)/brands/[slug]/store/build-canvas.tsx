@@ -267,11 +267,13 @@ export function BuildCanvas(p: {
           {tasks.map((t, i) => {
             const on = t.status === "running" || (t.key === "content" && !running && page === "home" && Boolean(content));
             const tone = on || t.status === "needs" || t.status === "error" ? "i1 w5" : t.status === "done" ? "i2" : "i3";
-            const right = t.status === "needs" || t.status === "error" ? <span className="xs c-amber ell" style={{ maxWidth: 120 }}>{t.detail}</span>
+            const right = t.key === "imagery" && content && !running && t.status !== "done" && t.status !== "running"
+              ? <span role="button" tabIndex={0} className="btn sm" style={{ height: 24, padding: "0 8px" }} onClick={(e) => { e.stopPropagation(); void act(() => retryStage(slug, "imagery"), "Remy is planning the shoot…"); }}><Icon name="image" size={12} />{t.status === "waiting" ? "Shoot" : "Again"}</span>
+              : t.status === "needs" || t.status === "error" ? <span className="xs c-amber ell" style={{ maxWidth: 120 }}>{t.detail}</span>
               : t.status === "running" && t.at ? <span className="xs tnum i3">{dur(now - Date.parse(t.at))}</span>
               : t.status === "done" && t.ms != null ? <span className="xs tnum i3">{dur(t.ms)}</span> : null;
             const go = t.key === "review" && content && !running ? () => router.push(`/brands/${slug}/store?step=review`)
-              : t.key === "pages" ? () => setPage("product") : t.key === "apps" && appsOpen ? () => setTab("decisions") : t.key === "content" ? () => setPage("home") : undefined;
+              : t.key === "pages" ? () => setPage("product") : t.key === "imagery" ? () => setPage("home") : t.key === "apps" && appsOpen ? () => setTab("decisions") : t.key === "content" ? () => setPage("home") : undefined;
             return (
               <div key={t.key} className="col">
                 <button type="button" onClick={go} disabled={!go} title={t.detail || undefined} className="row g10 ti"

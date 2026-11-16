@@ -65,10 +65,19 @@ export function StorePreview({ brand, c, products, look, hero, width, currency, 
   const ink = look.text, muted = "#8A7A69", body = "#5E554C";
   const withImg = products.filter((p) => p.image);
   const cols = mobile ? 2 : 4;
-  const story = withImg[1]?.image ?? withImg[0]?.image ?? hero;
+  // Remy's store photos (shot from the real product photos) take the place of the plain packshots where they exist.
+  const asset = (id?: string) => (id ? `/api/assets/${id}` : null);
+  const shot = (p: StoreProduct) => asset(c.photos?.products?.[p.title]);
+  const heroSrc = asset(c.photos?.hero) ?? hero;
+  const story = asset(c.photos?.story) ?? withImg[1]?.image ?? withImg[0]?.image ?? heroSrc;
   const tile = (p: StoreProduct, i: number) => (
     <div key={`${p.title}${i}`} style={{ display: "flex", flexDirection: "column", gap: px(8), minWidth: 0 }}>
-      {p.image
+      {p.image && shot(p)
+        ? <div className="kv-swap" style={{ position: "relative", aspectRatio: "1 / 1.18", overflow: "hidden", background: "#F1ECE6" }}>
+            <img src={shot(p)!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img className="kv-b" src={p.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0, transition: "opacity .25s" }} />
+          </div>
+        : p.image
         ? <div style={{ aspectRatio: "1 / 1.18", overflow: "hidden", background: "#F1ECE6" }}><img src={p.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
         : <div style={{ aspectRatio: "1 / 1.18", background: "#F6F2ED", border: "1px dashed #DCD2C6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: px(10), color: "#B7791F" }}>Photo needed</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -87,6 +96,7 @@ export function StorePreview({ brand, c, products, look, hero, width, currency, 
 
   return (
     <div style={{ width, background: "#fff", color: ink, fontSize: px(12), lineHeight: 1.5, borderRadius: "8px 8px 0 0", boxShadow: "0 0 0 1px rgba(18,18,18,.06), 0 12px 32px rgba(18,18,18,.08)", position: "relative" }}>
+      <style>{".kv-swap:hover .kv-b{opacity:1}"}</style>
       <Sec id="announcement" pick={pick} style={{ height: px(26), display: "flex", alignItems: "center", justifyContent: "center", background: look.text, color: "#EDE7DF", fontSize: px(10), letterSpacing: ".08em", textTransform: "uppercase", borderRadius: "8px 8px 0 0", padding: "0 10px", textAlign: "center" }}>{c.announcement}</Sec>
       <Sec id="header" pick={pick} style={{ height: px(52), display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${pad}px`, borderBottom: "1px solid #EEE9E3", background: "#fff" }}>
         {mobile ? <span style={{ fontSize: 18 }}>☰</span> : <div style={{ display: "flex", gap: px(20), fontSize: px(11), color: "#3A342E" }}>{c.nav.slice(0, 4).map((n) => <span key={n}>{n}</span>)}</div>}
@@ -112,7 +122,7 @@ export function StorePreview({ brand, c, products, look, hero, width, currency, 
             <span style={{ fontSize: px(12), lineHeight: 1.6, color: body, maxWidth: px(250) * 1.3 }}>{c.subline}</span>
             <div style={{ display: "flex", gap: px(8), marginTop: 4, flexWrap: "wrap" }}>{btn(c.cta, true)}{btn(c.nav[4] ?? "Our story", false)}</div>
           </div>
-          <div style={{ width: mobile ? "100%" : "48%", height: mobile ? 260 : "auto", overflow: "hidden", background: "#EDE6DC" }}>{hero && <img src={hero} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}</div>
+          <div style={{ width: mobile ? "100%" : "48%", height: mobile ? 260 : "auto", overflow: "hidden", background: "#EDE6DC" }}>{heroSrc && <img src={heroSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}</div>
           {cur("hero")}
         </Sec>
         <Sec id="promises" pick={pick} style={{ display: "grid", gridTemplateColumns: `repeat(${mobile ? 1 : 3}, 1fr)`, gap: px(14), padding: `${px(16)}px ${pad}px`, background: "#fff", borderBottom: "1px solid #EEE9E3" }}>
@@ -147,7 +157,12 @@ export function StorePreview({ brand, c, products, look, hero, width, currency, 
 
       {page === "product" && first && (
         <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", gap: px(28), padding: `${px(28)}px ${pad}px`, background: "#fff" }}>
-          <div style={{ flex: 1.1, aspectRatio: "1", overflow: "hidden", background: "#F1ECE6" }}>{first.image ? <img src={first.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#B7791F", fontSize: 12 }}>Photo needed</div>}</div>
+          <div style={{ flex: 1.1, display: "flex", flexDirection: "column", gap: px(8), minWidth: 0 }}>
+            <div style={{ aspectRatio: "1", overflow: "hidden", background: "#F1ECE6" }}>{first.image ? <img src={first.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#B7791F", fontSize: 12 }}>Photo needed</div>}</div>
+            {shot(first) && <div style={{ display: "flex", gap: px(8) }}>
+              {[first.image, shot(first)].filter(Boolean).map((u) => <div key={u!} style={{ width: px(64), aspectRatio: "1", overflow: "hidden", background: "#F1ECE6", outline: u === first.image ? `1.5px solid ${ink}` : undefined, outlineOffset: 1 }}><img src={u!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>)}
+            </div>}
+          </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: px(12) }}>
             {eyebrow(brand)}
             <span style={{ ...head, fontSize: px(32), lineHeight: 1.1 }}>{first.title}</span>

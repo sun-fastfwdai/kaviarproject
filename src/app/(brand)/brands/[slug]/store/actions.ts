@@ -6,7 +6,7 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
-import { runBuild } from "@/lib/store/build";
+import { runBuild, allSteps } from "@/lib/store/build";
 import type { StoreContent } from "@/lib/db/schema";
 import { applyHomepage, installStarter, publishTheme, uploadStarter } from "@/lib/store/themes";
 import { Content, SECTIONS, commit, note, revise, undo } from "@/lib/store/revise";
@@ -59,7 +59,10 @@ export async function redoStore(slug: string, content: StoreContent): Promise<{ 
   const brand = await getBrand(slug);
   const ok = Content.safeParse(content);
   if (!ok.success) return { error: "Nothing to redo." };
-  await commit(brand.id, ok.data, { who: me.name, agent: "you", what: "Redid the last change", scope: null });
+  const id = (x: unknown) => (typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x) ? x : undefined);
+  const ph = content.photos;
+  const photos = ph ? { hero: id(ph.hero), story: id(ph.story), look: typeof ph.look === "string" ? ph.look.slice(0, 300) : undefined, products: Object.fromEntries(Object.entries(ph.products ?? {}).flatMap(([k, v]) => (id(v) ? [[k.slice(0, 200), id(v)!]] : []))) } : undefined;
+  await commit(brand.id, { ...ok.data, ...(photos ? { photos } : {}) }, { who: me.name, agent: "you", what: "Redid the last change", scope: null });
   revalidatePath(`/brands/${slug}/store`);
   return {};
 }
@@ -80,9 +83,10 @@ export async function retryStage(slug: string, key: string): Promise<{ error?: s
   await requireMember();
   const brand = await getBrand(slug);
   const [b] = await db.select({ tasks: schema.storeBuilds.tasks }).from(schema.storeBuilds).where(eq(schema.storeBuilds.brandId, brand.id));
-  const i = b?.tasks.findIndex((t) => t.key === key) ?? -1;
+  const all = allSteps(b?.tasks ?? []);
+  const i = all.findIndex((t) => t.key === key);
   if (!b || i < 0) return { error: "Start the build first." };
-  const tasks = b.tasks.map((t, j) => (j >= i ? { ...t, status: "waiting" as const, detail: "" } : t));
+  const tasks = all.map((t, j) => (j >= i ? { ...t, status: "waiting" as const, detail: "" } : t));
   await db.update(schema.storeBuilds).set({ tasks, finishedAt: null }).where(eq(schema.storeBuilds.brandId, brand.id));
   after(() => runBuild(brand.id, { resume: true }).catch((e) => console.error("store build", e)));
   return {};
