@@ -267,7 +267,7 @@ export function BuildCanvas(p: {
           {tasks.map((t, i) => {
             const on = t.status === "running" || (t.key === "content" && !running && page === "home" && Boolean(content));
             const tone = on || t.status === "needs" || t.status === "error" ? "i1 w5" : t.status === "done" ? "i2" : "i3";
-            const right = t.key === "imagery" && content && !running && t.status !== "done" && t.status !== "running"
+            const right = t.key === "imagery" && content && !running && t.status !== "running"
               ? <span role="button" tabIndex={0} className="btn sm" style={{ height: 24, padding: "0 8px" }} onClick={(e) => { e.stopPropagation(); void act(() => retryStage(slug, "imagery"), "Remy is planning the shoot…"); }}><Icon name="image" size={12} />{t.status === "waiting" ? "Shoot" : "Again"}</span>
               : t.status === "needs" || t.status === "error" ? <span className="xs c-amber ell" style={{ maxWidth: 120 }}>{t.detail}</span>
               : t.status === "running" && t.at ? <span className="xs tnum i3">{dur(now - Date.parse(t.at))}</span>
