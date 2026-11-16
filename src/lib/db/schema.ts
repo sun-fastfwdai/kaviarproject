@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Onboarding } from "../onboarding/types";
 import type { AdsRead, ManualAd, MarketReport, Positioning, RivalAds, Step, TestPlan } from "../research/types";
+import type { Calibration, PanelBody, PanelKind, Persona, Reaction, TestItem, TestResult, TestSource } from "../audience/types";
 import {
   bigint,
   customType,
@@ -540,4 +541,47 @@ export const marketResearch = pgTable(
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("market_research_subject").on(t.brandId, t.subject, t.market)],
+);
+
+// ---------------------------------------------------------------- Audience test: small agents built to behave like a brand's audience, and the ads shown to them before any spend
+export const audiencePanels = pgTable(
+  "audience_panels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<PanelKind>().notNull(),
+    status: text("status").$type<"running" | "done" | "error">().notNull().default("running"),
+    panel: jsonb("panel").$type<PanelBody>(),
+    calibration: jsonb("calibration").$type<Calibration>(),
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    startedAt: tz("started_at"),
+    finishedAt: tz("finished_at"),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("audience_panels_kind").on(t.brandId, t.kind)],
+);
+export const audienceTests = pgTable(
+  "audience_tests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    panelId: uuid("panel_id").notNull().references(() => audiencePanels.id, { onDelete: "cascade" }),
+    purpose: text("purpose").$type<"test" | "calibration">().notNull().default("test"),
+    title: text("title").notNull(),
+    source: jsonb("source").$type<TestSource>().notNull(),
+    personas: jsonb("personas").$type<Persona[]>().notNull().default([]), // the panel as it was when the test ran
+    items: jsonb("items").$type<TestItem[]>().notNull().default([]),
+    reactions: jsonb("reactions").$type<Reaction[]>().notNull().default([]),
+    progress: jsonb("progress").$type<{ done: number; total: number; failed: number }>().notNull().default({ done: 0, total: 0, failed: 0 }),
+    result: jsonb("result").$type<TestResult>(),
+    status: text("status").$type<"running" | "done" | "error">().notNull().default("running"),
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
+    startedAt: tz("started_at"),
+    finishedAt: tz("finished_at"),
+    createdAt: tz("created_at").notNull().defaultNow(),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("audience_tests_brand").on(t.brandId, t.createdAt)],
 );

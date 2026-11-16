@@ -11,6 +11,7 @@ import { env } from "../env";
  * - Otto (checks what's missing before launch): Sonnet 5.5 — rule-following review.
  * - Cleo (catalog and sync status notes): Haiku 5.5 — short, frequent, cheap.
  * - Remy (turns signals into ad angles and copy): Sonnet 5.5 — strong writing at speed.
+ * - Shoppers (the people on an Audience test panel, many calls per test): Haiku 5.5 — small, fast agents that each play one person.
  */
 export const AGENTS = {
   kaviar: { model: "claude-sonnet-5-5", effort: "low" },
@@ -18,6 +19,7 @@ export const AGENTS = {
   otto: { model: "claude-sonnet-5-5", effort: "low" },
   remy: { model: "claude-sonnet-5-5", effort: "low" },
   cleo: { model: "claude-haiku-5-5", effort: "low" },
+  shopper: { model: "claude-haiku-5-5", effort: "low" },
 } as const;
 export type Agent = keyof typeof AGENTS;
 type Effort = "low" | "medium" | "high";

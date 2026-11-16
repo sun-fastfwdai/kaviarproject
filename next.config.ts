@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
     "/**": ["./certs/**"],
     // The Final cut runs ffmpeg in the Shoots server function and burns captions with these fonts.
     "/brands/[slug]/creative/shoots": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
+    // Audience test shrinks ad pictures and pulls frames from videos with the same ffmpeg.
+    "/brands/[slug]/audience": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   // A native binary: load it from node_modules at runtime instead of bundling it.
   serverExternalPackages: ["ffmpeg-static"],

@@ -37,6 +37,7 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
             <span className="xs i3">{ads.length} ads · written by Remy {ago(batch.createdAt)}</span>
           </div>
           <div className="row g8">
+            <Link className="btn" href={`${base}/audience?batch=${batch.id}`}><Icon name="users-three" size={14} />Test on audience</Link>
             <Link className={`btn dark${approved ? "" : " off"}`} aria-disabled={!approved} href={`${base}/run/${batch.id}`}><Icon name="target" size={14} color="#fff" />Set up a test · {approved} approved</Link>
           </div>
         </div>

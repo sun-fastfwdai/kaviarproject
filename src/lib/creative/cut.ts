@@ -15,13 +15,13 @@ import { END_SECONDS, captionChunks } from "./story";
 const FONT = join(process.cwd(), "src/lib/creative/fonts/Poppins-Bold.ttf");
 const FONT_SEMI = join(process.cwd(), "src/lib/creative/fonts/Poppins-SemiBold.ttf");
 
-async function ffmpegPath(): Promise<string> {
+export async function ffmpegPath(): Promise<string> {
   const mod = (await import("ffmpeg-static")) as unknown as { default?: string } | string;
   const p = typeof mod === "string" ? mod : mod.default;
   if (!p) throw new Error("The video editor isn’t available on this server.");
   return p;
 }
-const run = (bin: string, args: string[], timeoutMs = 600_000) =>
+export const run = (bin: string, args: string[], timeoutMs = 600_000) =>
   new Promise<{ stderr: string }>((res, rej) => execFile(bin, args, { timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024 }, (err, _out, stderr) => (err ? rej(Object.assign(err, { stderr: String(stderr) })) : res({ stderr: String(stderr) }))));
 
 /** ffmpeg prints stream info for `-i`: we read the size and whether there's audio. */

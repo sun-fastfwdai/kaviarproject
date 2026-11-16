@@ -148,6 +148,29 @@ export async function moreVariations(adId: string): Promise<number> {
   return out.ads.length;
 }
 
+/** Two new versions of an ad that fix what the Audience test panel said held it back. Added to the same batch; the original stays. */
+export async function improveFromPanel(adId: string, feedback: { fix: string; liked: string[]; putOff: string[]; quotes: string[] }): Promise<number> {
+  const [ad] = await db.select().from(schema.ads).where(eq(schema.ads.id, adId));
+  if (!ad) return 0;
+  const [batch] = await db.select().from(schema.adBatches).where(eq(schema.adBatches.id, ad.batchId));
+  const [ctx, market] = await Promise.all([brandContext(ad.brandId), marketContext(ad.brandId, ad.product)]);
+  const out = await ask("remy", {
+    system: `${REMY}
+A panel of people from the brand's audience just looked at this ad in a simulated feed. Write 2 new versions that keep what worked for them and fix what held it back — same product and format, new hooks.`,
+    content: JSON.stringify({ brand: ctx.brand, catalog: ctx.products.map((p) => p.title), batch: { brief: batch.brief, audience: batch.audience, evidence: batch.evidence }, market,
+      thisAd: { hook: ad.hook, primaryText: ad.primaryText, headline: ad.headline, format: ad.format, product: ad.product }, panel: feedback, write: "2 improved versions" }),
+    schema: z.object({ ads: z.array(AdOut) }),
+  });
+  if (!out?.ads.length) return 0;
+  const [{ max }] = (await db.execute(sql`select coalesce(max(position), 0)::int as max from ads where batch_id = ${ad.batchId}`)).rows as { max: number }[];
+  await db.insert(schema.ads).values(out.ads.slice(0, 2).map((a, i) => ({
+    batchId: ad.batchId, brandId: ad.brandId, position: max + 1 + i, format: a.format, hook: a.hook, primaryText: a.primaryText, headline: a.headline,
+    cta: a.cta, offer: a.offer, product: a.product || ad.product, imageUrl: (a.product && a.product !== ad.product ? imageFor(ctx.products, a.product, i) : null) ?? ad.imageUrl,
+    why: `After the audience test: ${a.why}`.slice(0, 240),
+  })));
+  return Math.min(2, out.ads.length);
+}
+
 export async function batchWithAds(batchId: string, brandId: string) {
   const [batch] = await db.select().from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brandId)));
   if (!batch) return null;
