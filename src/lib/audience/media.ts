@@ -115,3 +115,18 @@ export async function avgColor(buf: Buffer, box: { x: number; y: number; w: numb
   } catch { return null; }
   finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }
+
+/** A list thumbnail: pictures shrunk to `width`, videos as a frame half a second in. */
+export async function thumbnail(buf: Buffer, mime: string, width = 480): Promise<Buffer | null> {
+  if (mime.startsWith("image/")) return toJpeg(buf, width);
+  if (!mime.startsWith("video/")) return null;
+  const dir = await mkdtemp(join(tmpdir(), "aud-t-"));
+  try {
+    const bin = await ffmpegPath();
+    const f = join(dir, "v.mp4"), out = join(dir, "t.jpg");
+    await writeFile(f, buf);
+    await run(bin, ["-hide_banner", "-y", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", `scale='min(${width},iw)':-2`, "-q:v", "4", out], 60_000);
+    return await readFile(out);
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getMember } from "@/lib/auth";
-import { toJpeg } from "@/lib/audience/media";
+import { thumbnail, toJpeg } from "@/lib/audience/media";
 import { storedLink } from "@/lib/assets/storage";
 
 const EXT: Record<string, string> = {
@@ -13,6 +13,15 @@ const EXT: Record<string, string> = {
 const LIMIT = 4_000_000;
 const CHUNK = 3_500_000;
 const A = schema.brandAssets;
+
+// Reading a whole 5–15 MB file out of the database is slow: let two run at a time per server, the rest wait their turn.
+let busy = 0;
+const waiting: (() => void)[] = [];
+async function heavy<T>(fn: () => Promise<T>): Promise<T> {
+  if (busy >= 2) await new Promise<void>((r) => waiting.push(r));
+  busy++;
+  try { return await fn(); } finally { busy--; waiting.shift()?.(); }
+}
 
 /**
  * Serves a brand asset to signed-in team members only. SVGs are sandboxed so they can't run script.
@@ -36,13 +45,18 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/assets/[id]"
     "X-Content-Type-Options": "nosniff",
     ...extra,
   });
-  const whole = async () => Buffer.from((await db.select({ data: A.data }).from(A).where(eq(A.id, id)).limit(1))[0].data);
+  const whole = () => heavy(async () => Buffer.from((await db.select({ data: A.data }).from(A).where(eq(A.id, id)).limit(1))[0].data));
   const isImage = a.mime.startsWith("image/") && a.mime !== "image/svg+xml" && a.mime !== "image/gif";
 
-  // A thumbnail.
+  // A thumbnail for lists: a small JPEG made once and kept with the asset (pictures, and a frame of each video).
   const w = Number(req.nextUrl.searchParams.get("w"));
-  if (isImage && w >= 120 && w <= 1600) {
-    const jpg = await toJpeg(await whole(), Math.round(w));
+  if ((isImage || a.mime.startsWith("video/")) && w >= 120 && w <= 600) {
+    const [t] = await db.select({ thumb: A.thumb }).from(A).where(eq(A.id, id)).limit(1);
+    let jpg: Buffer | null = t?.thumb ? Buffer.from(t.thumb) : null;
+    if (!jpg) {
+      jpg = await thumbnail(await whole(), a.mime);
+      if (jpg) await db.update(A).set({ thumb: jpg }).where(eq(A.id, id));
+    }
     if (jpg) return new NextResponse(new Uint8Array(jpg), { headers: head("image/jpeg", named("jpg"), { "Cache-Control": "private, max-age=604800, immutable" }) });
   }
 

@@ -44,5 +44,8 @@ export async function keepInStorage(assetId: string): Promise<void> {
   if (!storage()) return;
   const [a] = await db.select({ id: schema.brandAssets.id, brandId: schema.brandAssets.brandId, mime: schema.brandAssets.mime, meta: schema.brandAssets.meta, data: schema.brandAssets.data }).from(schema.brandAssets).where(eq(schema.brandAssets.id, assetId));
   if (!a) return;
+  const { thumbnail } = await import("../audience/media");
+  const t = await thumbnail(Buffer.from(a.data), a.mime).catch(() => null);
+  if (t) await db.update(schema.brandAssets).set({ thumb: t }).where(eq(schema.brandAssets.id, assetId));
   await storedLink(a, async () => Buffer.from(a.data), "file").catch((e) => console.error("keep in storage", assetId, (e as Error).message));
 }

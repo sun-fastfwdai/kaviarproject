@@ -29,7 +29,7 @@ function Thumb({ a }: { a: AssetRow }) {
   if (isImg(a)) return <img src={a.mime === "image/svg+xml" ? src(a) : src(a, 480)} alt={a.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: a.kind === "logo" ? "contain" : "cover", padding: a.kind === "logo" ? 18 : 0 }} />;
   if (isVid(a)) return (
     <>
-      <video src={`${src(a)}#t=0.5`} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <img src={src(a, 480)} alt={a.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ width: 34, height: 34, borderRadius: 99, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="play" size={15} color="#fff" /></span></span>
     </>
   );
@@ -91,7 +91,7 @@ export function AssetsView({ brand, assets, initial }: { brand: string; assets: 
           <div className="col g12" style={{ padding: 16 }}>
             <div style={{ borderRadius: 12, overflow: "hidden", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
               {isVid(a) ? <video key={a.id} src={src(a)} controls playsInline style={{ width: "100%", display: "block", maxHeight: 460, background: "#000" }} />
-                : isImg(a) ? <img src={a.mime === "image/svg+xml" ? src(a) : src(a, 900)} alt={a.name} style={{ width: "100%", display: "block" }} />
+                : isImg(a) ? <img src={src(a)} alt={a.name} style={{ width: "100%", display: "block" }} />
                 : a.kind === "voice" ? <audio key={a.id} src={src(a)} controls style={{ width: "100%", padding: 12 }} />
                 : <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="file" size={30} color="#8B8883" /></div>}
             </div>
