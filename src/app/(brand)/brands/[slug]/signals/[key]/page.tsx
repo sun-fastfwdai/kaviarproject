@@ -18,7 +18,7 @@ import { WriteAdsForm } from "./write-form";
 
 export const metadata = { title: "Ad signal" };
 // Remy writes the batch inside the request; give it room.
-export const maxDuration = 120;
+export const maxDuration = 800; // a static batch is designed in the background after Remy writes it
 
 export default async function SignalPage({ params }: PageProps<"/brands/[slug]/signals/[key]">) {
   const { slug, key } = await params;

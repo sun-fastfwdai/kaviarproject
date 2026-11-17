@@ -9,7 +9,7 @@ import { getBrand } from "@/lib/queries/brands";
 import { signalData } from "@/lib/queries/signals";
 import { getNotes } from "@/lib/ai/notes";
 import { buildSignals } from "@/lib/signals/build";
-import { createBatch, moreVariations, redoAd } from "@/lib/creative/remy";
+import { createBatch, moreVariations, redoAd, type BatchKind } from "@/lib/creative/remy";
 import { researchSignals } from "@/lib/research/context";
 import type { AdDesign } from "@/lib/db/schema";
 import { designBatch, markDesigning, rerenderCard } from "@/lib/creative/design";
@@ -17,7 +17,18 @@ import { designBatch, markDesigning, rerenderCard } from "@/lib/creative/design"
 export type State = { error?: string; at?: number } | undefined;
 const fail = (error: string): State => ({ error, at: Date.now() });
 
-/** "Write the ads" from a plan or a signal's page — Remy writes the batch, then the flow moves on to Shoots for its visuals. */
+const kindOf = (form: FormData): BatchKind => { const k = String(form.get("kind") ?? ""); return k === "static" || k === "video" || k === "ugc" || k === "mixed" ? k : "mixed"; };
+/** Where a new batch goes: static cards are designed straight away on the batch page; video and UGC go to Shoots. */
+async function nextFor(slug: string, brandId: string, memberId: string, batchId: string, kind: BatchKind, shoots: string): Promise<string> {
+  if (kind === "video" || kind === "ugc") return shoots;
+  const statics = (await db.select({ id: schema.ads.id, format: schema.ads.format }).from(schema.ads).where(eq(schema.ads.batchId, batchId))).filter((a) => a.format === "static" || a.format === "carousel").map((a) => a.id);
+  if (!statics.length) return shoots;
+  await markDesigning(batchId, statics);
+  after(() => designBatch(brandId, batchId, memberId, statics).then((r) => { if (r.error) console.error("design cards", batchId, r.error); }));
+  return `/brands/${slug}/creative/${batchId}`;
+}
+
+/** "Write the ads" from a plan or a signal's page — Remy writes the batch in the chosen format, then the matching pipeline takes over. */
 export async function writeAdsFromSignal(slug: string, key: string, _: State, form: FormData): Promise<State> {
   const me = await requireMember();
   if (!aiReady()) return fail("Remy needs the Claude API key to write ads.");
@@ -26,17 +37,19 @@ export async function writeAdsFromSignal(slug: string, key: string, _: State, fo
   if (key.startsWith("seg:")) {
     const r = (await researchSignals(brand.id)).find((x) => x.key === key);
     if (!r) return fail("That buyer group isn’t in the research any more.");
-    const id = await createBatch(brand.id, me.id, { signal: { key: r.key, data: `${r.data} — a buyer group from market research`, value: r.value, use: `${r.use}. ${r.why}`, evidence: r.evidence }, count: Number(form.get("count")) || 6 });
+    const kind = kindOf(form);
+    const id = await createBatch(brand.id, me.id, { signal: { key: r.key, data: `${r.data} — a buyer group from market research`, value: r.value, use: `${r.use}. ${r.why}`, evidence: r.evidence }, count: Number(form.get("count")) || 6, kind });
     if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
-    redirect(`/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(r.key)}${r.product ? `&product=${encodeURIComponent(r.product)}` : ""}`);
+    redirect(await nextFor(slug, brand.id, me.id, id, kind, `/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(r.key)}${r.product ? `&product=${encodeURIComponent(r.product)}` : ""}`));
   }
   const [d, notes] = await Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]);
   const row = buildSignals(`/brands/${slug}`, brand, d, notes).find((r) => r.key === key);
   if (!row) return fail("That signal doesn’t exist.");
   const count = Number(form.get("count")) || 6;
-  const id = await createBatch(brand.id, me.id, { signal: { key: row.key, data: row.data, value: row.value, use: row.use, evidence: row.evidence }, count });
+  const kind = kindOf(form);
+  const id = await createBatch(brand.id, me.id, { signal: { key: row.key, data: row.data, value: row.value, use: row.use, evidence: row.evidence }, count, kind });
   if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
-  redirect(`/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(row.key)}`);
+  redirect(await nextFor(slug, brand.id, me.id, id, kind, `/brands/${slug}/creative/shoots?batch=${id}&signal=${encodeURIComponent(row.key)}`));
 }
 
 /** The Plan chat: one form — a plan card's button sends `signal`, the composer sends `idea`. */
@@ -53,9 +66,10 @@ export async function writeAdsFromIdea(slug: string, _: State, form: FormData): 
   const idea = String(form.get("idea") ?? "").trim().slice(0, 600);
   if (idea.length < 8) return fail("Describe the idea in a sentence.");
   const brand = await getBrand(slug);
-  const id = await createBatch(brand.id, me.id, { idea, count: Number(form.get("count")) || 6 });
+  const kind = kindOf(form);
+  const id = await createBatch(brand.id, me.id, { idea, count: Number(form.get("count")) || 6, kind });
   if (!id) return fail("Remy couldn’t write ads right now. Try again in a minute.");
-  redirect(`/brands/${slug}/creative/shoots?batch=${id}`);
+  redirect(await nextFor(slug, brand.id, me.id, id, kind, `/brands/${slug}/creative/shoots?batch=${id}`));
 }
 
 async function ownAd(slug: string, adId: string) {

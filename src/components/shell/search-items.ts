@@ -1,6 +1,6 @@
 import type { SearchItem } from "./search";
 
-const PAGES: [string, string][] = [["Overview", ""], ["Store builder", "/store"], ["Integrations", "/integrations"], ["Market research", "/research"], ["Ad signals", "/signals"], ["Creative studio", "/creative"], ["Audience test", "/audience"], ["Run ads", "/run"], ["Performance", "/performance"], ["Optimize & repeat", "/optimize"], ["Meta Ads", "/meta"], ["Shopify data", "/shopify"], ["Data sync", "/sync"]];
+const PAGES: [string, string][] = [["Overview", ""], ["Store builder", "/store"], ["Brand assets", "/assets"], ["Integrations", "/integrations"], ["Market research", "/research"], ["Ad signals", "/signals"], ["Creative studio", "/creative"], ["Audience test", "/audience"], ["Run ads", "/run"], ["Performance", "/performance"], ["Optimize & repeat", "/optimize"], ["Meta Ads", "/meta"], ["Shopify data", "/shopify"], ["Data sync", "/sync"]];
 
 export function searchItems(brands: { slug: string; name: string; category: string | null }[], current?: { slug: string; name: string }): SearchItem[] {
   const out: SearchItem[] = [];

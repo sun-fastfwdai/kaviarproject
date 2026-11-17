@@ -37,6 +37,7 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
             <span className="xs i3">{ads.length} ads · written by Remy {ago(batch.createdAt)}</span>
           </div>
           <div className="row g8">
+            {ads.some((a) => a.format === "video" || a.format === "ugc") && <Link className="btn" href={`${base}/creative/shoots?batch=${batch.id}`}><Icon name="video" size={14} />Make the {ads.filter((a) => a.format === "video" || a.format === "ugc").length} videos in Shoots</Link>}
             <Link className="btn" href={`${base}/audience?batch=${batch.id}`}><Icon name="users-three" size={14} />Test on audience</Link>
             <Link className={`btn dark${approved ? "" : " off"}`} aria-disabled={!approved} href={`${base}/run/${batch.id}`}><Icon name="target" size={14} color="#fff" />Set up a test · {approved} approved</Link>
           </div>

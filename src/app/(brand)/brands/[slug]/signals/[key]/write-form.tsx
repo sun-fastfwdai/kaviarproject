@@ -15,6 +15,11 @@ export function WriteAdsForm({ slug, signal, disabled }: { slug: string; signal:
             {[3, 6, 9].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
+        <label className="chip" style={{ height: 34, position: "relative" }}>
+          <select name="kind" defaultValue="static" style={{ border: 0, outline: 0, background: "transparent", font: "inherit" }} aria-label="What kind of ads">
+            <option value="static">Static images</option><option value="video">Product video</option><option value="ugc">UGC video</option><option value="mixed">Static, video & UGC</option>
+          </select>
+        </label>
         <button className="btn dark" disabled={pending || disabled} style={{ height: 34 }}>
           {pending ? <Icon name="spinner" size={14} className="spin" color="#fff" /> : <Icon name="sparkle" size={14} color="#fff" />}
           {pending ? "Remy is writing the ads…" : "Write the ads"}

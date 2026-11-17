@@ -17,7 +17,7 @@ import { PlanChat } from "./plan-chat";
 import { researchSignals } from "@/lib/research/context";
 
 export const metadata = { title: "Creative studio" };
-export const maxDuration = 120;
+export const maxDuration = 800; // a static batch is designed in the background after Remy writes it
 
 // Signals that make good ad batches, best first when Iris hasn't ranked them.
 const PLAN_ORDER = ["lapsed", "reorder", "top-customers", "best-sellers", "repeat", "bundles", "inventory", "catalog"];

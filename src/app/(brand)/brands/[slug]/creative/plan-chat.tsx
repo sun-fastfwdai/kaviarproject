@@ -5,6 +5,15 @@ import { startBatch, type State } from "./actions";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 
+/** What the batch is made of — it decides the pipeline: static cards are designed straight away; videos go to Shoots. [value, label, noun, after-writing note, icon, next steps] */
+type Kind = "static" | "video" | "ugc" | "mixed";
+const KINDS: [Kind, string, string, string, "image" | "video" | "user" | "layers", string][] = [
+  ["static", "Static images", "static ads", "Then Remy designs a card for each — a styled shot of the real product with the message on it.", "image", "Next: Remy writes the messages → designs a card for each from a real product shot → you review and test them on the audience."],
+  ["video", "Product video", "video ads", "Then the clips are made in Shoots.", "video", "Next: Remy writes the batch → Shoots renders the clips from real product photos → review in Ads."],
+  ["ugc", "UGC video", "UGC ads", "Then the creator clips are made in Shoots.", "user", "Next: Remy writes creator scripts → Shoots films them with a consistent person → review in Ads."],
+  ["mixed", "Static, video & UGC", "ads", "Then Remy designs the static cards; the videos are made in Shoots.", "layers", "Next: Remy writes the batch → static cards are designed straight away → videos are made in Shoots → review in Ads."],
+];
+
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
 
 /** Board 17's Plan as a chat: ask Remy for a batch in your own words, or pick one of Iris's plans. */
@@ -12,6 +21,8 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
   const [state, action, pending] = useActionState<State, FormData>(startBatch.bind(null, slug), undefined);
   const [text, setText] = useState("");
   const [count, setCount] = useState(6);
+  const [kind, setKind] = useState<Kind>("static");
+  const k = KINDS.find((x) => x[0] === kind)!;
   const [sent, setSent] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -30,7 +41,7 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
         const by = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
         const plan = by?.name === "signal" ? [...plans, ...research].find((p) => p.key === by.value) : null;
         if (!plan && text.trim().length < 8) { e.preventDefault(); area.current?.focus(); return; }
-        setSent(plan ? `Build the “${plan.title}” plan — ${count} ads` : text.trim());
+        setSent(plan ? `Build the “${plan.title}” plan — ${count} ${k[2]}` : text.trim());
       }}>
       <div className="col g16" style={{ width: "100%", maxWidth: 780 }}>
         <div className="col g8" style={{ alignItems: "center", textAlign: "center", paddingBottom: 6 }}>
@@ -45,7 +56,7 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
             <div className="row top g8">
               <AgentFace kind="builder" size={26} mood={state?.error && !pending ? "worried" : "focus"} />
               <span className="sm i1" style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,.05)", lineHeight: "20px" }}>
-                {pending ? <span className="row g8"><span className="row g4">{[0, 1, 2].map((i) => <span key={i} className="pulse-dot" style={{ width: 6, height: 6, borderRadius: 99, background: "#1AA7C8", animationDelay: `${i * 0.15}s` }} />)}</span>Writing {count} ads on {brand}’s real products — about 30 seconds. Then we’ll make the visuals in Shoots.</span>
+                {pending ? <span className="row g8"><span className="row g4">{[0, 1, 2].map((i) => <span key={i} className="pulse-dot" style={{ width: 6, height: 6, borderRadius: 99, background: "#1AA7C8", animationDelay: `${i * 0.15}s` }} />)}</span>Writing {count} {k[2]} on {brand}’s real products — about 30 seconds. {k[3]}</span>
                   : <span className="c-amber">{state?.error}</span>}
               </span>
             </div>
@@ -60,7 +71,8 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
           <div className="row g8">
             <label className="chip" style={{ height: 30, position: "relative" }}><Icon name="squares" size={12} /><span className="i3">Ads</span>{count}<Icon name="chev-d" size={11} color="#8B8883" />
               <select name="count" value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label="How many ads" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}>{[3, 6, 9].map((n) => <option key={n} value={n}>{n} ads</option>)}</select></label>
-            <span className="chip" style={{ height: 30 }}><Icon name="image" size={12} />Static, video & UGC</span>
+            <label className="chip" style={{ height: 30, position: "relative" }}><Icon name={k[4]} size={12} />{k[1]}<Icon name="chev-d" size={11} color="#8B8883" />
+              <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as Kind)} aria-label="What kind of ads" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
             <span className="fill xs i3" style={{ textAlign: "right" }}>{aiOk ? "⌘↵ to send" : "Remy needs the Claude API key"}</span>
             <button type="submit" aria-label="Send to Remy" disabled={pending || !aiOk || text.trim().length < 8}
               style={{ width: 34, height: 34, borderRadius: 99, background: text.trim().length >= 8 && !pending ? "var(--ink)" : "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -92,7 +104,7 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
                 <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5 }}>{k}: {v}</span>)}</span>
                 <div className="fill" />
                 <button type="submit" name="signal" value={p.key} disabled={pending || !aiOk} className={`btn sm${i === 0 ? " dark" : ""}`} style={{ justifyContent: "center" }}>
-                  <Icon name="sparkle" size={12} color={i === 0 ? "#fff" : undefined} />Build {count} ads</button>
+                  <Icon name="sparkle" size={12} color={i === 0 ? "#fff" : undefined} />Build {count} {k[2]}</button>
               </div>
             ))}
           </div>
@@ -118,12 +130,12 @@ export function PlanChat({ slug, brand, plans, research = [], hasMeta, aiOk, bas
                 <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{k}: {v}</span>)}</span>
                 <div className="fill" />
                 <button type="submit" name="signal" value={p.key} disabled={pending || !aiOk} className="btn sm" style={{ justifyContent: "center" }}>
-                  <Icon name="sparkle" size={12} />Build {count} ads</button>
+                  <Icon name="sparkle" size={12} />Build {count} {k[2]}</button>
               </div>
             ))}
           </div>
         </>}
-        <span className="xs i3" style={{ textAlign: "center", paddingTop: 4 }}>Next: Remy writes the batch → you make the visuals in Shoots → design in the Editor → review in Ads.</span>
+        <span className="xs i3" style={{ textAlign: "center", paddingTop: 4 }}>{k[5]}</span>
       </div>
     </form>
   );

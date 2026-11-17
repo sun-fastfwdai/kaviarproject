@@ -51,7 +51,15 @@ const imageFor = (products: { title: string; imageUrl: string }[], title: string
   products.find((p) => p.title.toLowerCase() === title.toLowerCase())?.imageUrl ?? products.find((p) => title && p.title.toLowerCase().includes(title.toLowerCase().slice(0, 12)))?.imageUrl ?? products[i % Math.max(1, products.length)]?.imageUrl ?? null;
 
 /** Remy writes a batch of ads. Returns the new batch id, or null if the model couldn't. */
-export async function createBatch(brandId: string, memberId: string, input: { signal?: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] }; idea?: string; count?: number }): Promise<string | null> {
+export type BatchKind = "static" | "video" | "ugc" | "mixed";
+const KIND_RULE: Record<BatchKind, string> = {
+  static: "Every ad is a static image ad (format \"static\"): one clear message each, written to sit on a designed card — a short, punchy hook.",
+  video: "Every ad is a short product video (format \"video\") — no people on camera.",
+  ugc: "Every ad is a UGC creator video (format \"ugc\"): a real-sounding person talking to camera.",
+  mixed: "Mix formats: static, video and UGC.",
+};
+export async function createBatch(brandId: string, memberId: string, input: { signal?: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] }; idea?: string; count?: number; kind?: BatchKind }): Promise<string | null> {
+  const kind: BatchKind = input.kind ?? "mixed";
   const [ctx, market] = await Promise.all([brandContext(brandId), marketContext(brandId, null)]);
   const count = Math.min(9, Math.max(3, input.count ?? 6));
   const out = await ask("remy", {
@@ -60,7 +68,7 @@ export async function createBatch(brandId: string, memberId: string, input: { si
       brand: ctx.brand,
       catalog: ctx.products.map((p) => ({ title: p.title, price: p.price })),
       ...(input.signal ? { signal: input.signal } : { idea: input.idea }),
-      write: `${count} ads`,
+      write: `${count} ads`, formats: KIND_RULE[kind],
       lessonsFromRejectedAds: ctx.rejected,
       whatWinsForThisBrand: ctx.lessons,
       market,
@@ -74,7 +82,7 @@ export async function createBatch(brandId: string, memberId: string, input: { si
     evidence: input.signal?.evidence ?? [], createdBy: memberId,
   }).returning({ id: schema.adBatches.id });
   await db.insert(schema.ads).values(out.ads.slice(0, count).map((a, i) => ({
-    batchId: batch.id, brandId, position: i, format: a.format, hook: a.hook, primaryText: a.primaryText, headline: a.headline,
+    batchId: batch.id, brandId, position: i, format: kind === "mixed" ? a.format : kind, hook: a.hook, primaryText: a.primaryText, headline: a.headline,
     cta: a.cta, offer: a.offer, product: a.product || null, imageUrl: imageFor(ctx.products, a.product, i), why: a.why,
   })));
   return batch.id;
