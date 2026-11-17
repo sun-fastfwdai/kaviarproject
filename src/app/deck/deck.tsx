@@ -22,7 +22,7 @@ const h1: CSSProperties = { fontSize: 66, lineHeight: "72px", fontWeight: 600, l
 const card: CSSProperties = { background: "#fff", borderRadius: 20, boxShadow: `0 0 0 1px ${LINE}, 0 18px 50px rgba(18,18,18,.07)` };
 /** Where the pointer is, as a direction for the agents' eyes (they watch the room). */
 type Look = [number, number];
-type Ctx = { t: number; look: Look };
+export type Ctx = { t: number; look: Look };
 
 function Face({ who, size = 36, look }: { who: Who; size?: number; look?: Look }) {
   if (who === "you") return <span style={{ width: size, height: size, borderRadius: 99, background: INK, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 600, flexShrink: 0 }}>You</span>;
@@ -222,7 +222,7 @@ function Growth() {
   );
 }
 
-type Slide = { key: string; dark?: boolean; notes: string; body: (c: Ctx) => ReactNode };
+export type Slide = { key: string; dark?: boolean; notes: string; body: (c: Ctx) => ReactNode };
 const W = "#fff", W2 = "rgba(255,255,255,.66)";
 const SLIDES: Slide[] = [
   { key: "cover", dark: true, notes: "Kaviar is one system for the whole growth loop. Four agents do the work; people approve. Everything you'll see is the live product, on a sample copy of Jmella's catalogue — and every ad on this wall was shot by Kaviar.", body: ({ look }) => (
@@ -451,21 +451,24 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .dk-rise, .dk-pop, .dk-shot, .dk-float, .dk-grow, .dk-up, .dk-down, .dk-ping, .dk-spin, .dk-drift, .dk-slide { animation: none; } }
 `;
 
-export function Deck() {
+/** The stage: `slides` is the deck to show; `plain` drops the coloured washes for a quieter, single-tone look. */
+export function Deck({ slides = SLIDES, plain = false, pptx = "/deck/kaviar-full-loop.pptx" }: { slides?: Slide[]; plain?: boolean; pptx?: string | null }) {
+  const SLIDES_ = slides;
   const [i, setI] = useState(0);
   const [scale, setScale] = useState(0.5);
   const [notes, setNotes] = useState(false);
   const [t, setT] = useState(0); // ticks on the current slide — drives typing, the loop and the swarm
   const [look, setLook] = useState<Look>([0.7, 0.8]);
-  const go = useCallback((n: number) => { setT(0); setI(Math.min(SLIDES.length - 1, Math.max(0, n))); }, []);
+  const go = useCallback((n: number) => { setT(0); setI(Math.min(SLIDES_.length - 1, Math.max(0, n))); }, [SLIDES_]);
   useEffect(() => {
     const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
     // On open: size the stage to the window and go to the slide in the address (#4).
     const from = Number(window.location.hash.slice(1)); // read now: the address is rewritten as soon as a slide shows
-    const raf = window.requestAnimationFrame(() => { fit(); if (from >= 1 && from <= SLIDES.length) setI(from - 1); });
+    const raf = window.requestAnimationFrame(() => { fit(); if (from >= 1 && from <= SLIDES_.length) setI(from - 1); });
     const move = (e: MouseEvent) => setLook([Math.max(-1.6, Math.min(1.6, (e.clientX / window.innerWidth - 0.3) * 3.4)), Math.max(-1.4, Math.min(1.4, (e.clientY / window.innerHeight - 0.75) * 3))]);
     window.addEventListener("resize", fit); window.addEventListener("mousemove", move);
     return () => { window.cancelAnimationFrame(raf); window.removeEventListener("resize", fit); window.removeEventListener("mousemove", move); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
   }, []);
   useEffect(() => { window.history.replaceState(null, "", `#${i + 1}`); }, [i]);
   useEffect(() => { const id = window.setInterval(() => setT((x) => x + 1), 240); return () => window.clearInterval(id); }, []);
@@ -474,29 +477,33 @@ export function Deck() {
       if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); go(i + 1); }
       else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); go(i - 1); }
       else if (e.key === "Home") go(0);
-      else if (e.key === "End") go(SLIDES.length - 1);
+      else if (e.key === "End") go(SLIDES_.length - 1);
       else if (e.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen().catch(() => undefined); }
       else if (e.key.toLowerCase() === "n") setNotes((v) => !v);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the deck doesn't change while it is open
   }, [i, go]);
-  const s = SLIDES[i], dark = Boolean(s.dark);
+  const s = SLIDES_[Math.min(i, SLIDES_.length - 1)], dark = Boolean(s.dark);
   return (
     <div style={{ position: "fixed", inset: 0, background: dark ? "#0B0B0B" : "#E9E7E3", overflow: "hidden", fontFamily: "var(--font)", transition: "background .5s" }}>
       <style>{CSS}</style>
       <div onClick={(e) => { const x = e.clientX / window.innerWidth; go(x < 0.18 ? i - 1 : i + 1); }}
         style={{ position: "absolute", left: "50%", top: "50%", width: 1920, height: 1080, marginLeft: -960, marginTop: -540, transform: `scale(${scale})`, overflow: "hidden", cursor: "pointer", transition: "background-color .5s",
-          backgroundColor: dark ? "#121212" : "#F7F6F4",
-          backgroundImage: dark ? "radial-gradient(1000px 700px at 8% -10%, rgba(235,122,60,.20), transparent 60%), radial-gradient(900px 700px at 30% 110%, rgba(106,143,214,.22), transparent 60%)"
+          backgroundColor: dark ? "#121212" : plain ? "#FBFAF8" : "#F7F6F4",
+          backgroundImage: plain ? "none" : dark ? "radial-gradient(1000px 700px at 8% -10%, rgba(235,122,60,.20), transparent 60%), radial-gradient(900px 700px at 30% 110%, rgba(106,143,214,.22), transparent 60%)"
             : "radial-gradient(900px 620px at 12% -8%, rgba(245,196,150,.34), transparent 60%), radial-gradient(900px 640px at 96% 4%, rgba(160,190,240,.30), transparent 60%), radial-gradient(#DDD9D3 1.2px, transparent 1.2px)", backgroundSize: dark ? "auto" : "auto, auto, 22px 22px" }}>
         <div key={s.key} className="dk-slide" style={{ position: "absolute", inset: 0 }}>{s.body({ t, look })}</div>
-        <div style={{ position: "absolute", left: 0, top: 0, height: 5, width: `${((i + 1) / SLIDES.length) * 100}%`, background: dark ? "#fff" : INK, transition: "width .5s cubic-bezier(.2,.7,.2,1)" }} />
+        <div style={{ position: "absolute", left: 0, top: 0, height: 5, width: `${((i + 1) / SLIDES_.length) * 100}%`, background: dark ? "#fff" : INK, transition: "width .5s cubic-bezier(.2,.7,.2,1)" }} />
         <div style={{ position: "absolute", left: 96, right: 96, bottom: 34, display: "flex", alignItems: "center", gap: 14, pointerEvents: "none" }}>
           <span style={{ width: 24, height: 24, borderRadius: 7, background: dark ? "#fff" : INK, color: dark ? INK : "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>K</span>
           <span style={{ fontSize: 17, fontWeight: 600, color: dark ? "#fff" : INK }}>Kaviar</span>
           <span style={{ flex: 1 }} />
-          <span style={{ fontSize: 17, color: dark ? W2 : INK3, fontVariantNumeric: "tabular-nums" }}>{i + 1} / {SLIDES.length}</span>
+          {pptx && <a href={pptx} download onClick={(e) => e.stopPropagation()} title="Download this deck as a PowerPoint file — editable text, the same pictures"
+            style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", marginRight: 10, borderRadius: 99, fontSize: 15, fontWeight: 500, textDecoration: "none", color: dark ? "#fff" : INK, background: dark ? "rgba(255,255,255,.08)" : "#fff", boxShadow: `0 0 0 1px ${dark ? "rgba(255,255,255,.3)" : "#CFCBC4"}` }}>
+            <Icon name="download" size={14} color={dark ? "#fff" : INK} />Export PPT</a>}
+          <span style={{ fontSize: 17, color: dark ? W2 : INK3, fontVariantNumeric: "tabular-nums" }}>{i + 1} / {SLIDES_.length}</span>
         </div>
       </div>
       {notes && <div style={{ position: "absolute", left: 16, right: 16, bottom: 16, padding: "12px 16px", borderRadius: 12, background: "rgba(18,18,18,.92)", color: "#fff", fontSize: 15, lineHeight: "22px", boxShadow: "0 0 0 1px rgba(255,255,255,.15)" }}>{s.notes}</div>}
