@@ -226,7 +226,7 @@ const ART: Record<string, () => ReactNode> = {
 };
 
 /** Bump when the example photos are re-shot, so browsers fetch the new ones. */
-const PHOTOS = 1;
+const PHOTOS = 2;
 /**
  * The picture for a look: the brand's own latest ad in that style when it has one, else Kaviar's example ad (a real photo shot in
  * that style, with the type laid out), else the illustration — which also shows while the photo loads.
