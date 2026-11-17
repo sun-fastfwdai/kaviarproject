@@ -5,6 +5,7 @@ import { decrypt } from "../crypto";
 import { MetaAuthError, metaGet } from "../meta/client";
 import { toJpeg } from "../audience/media";
 import type { LibAd, LibBlock, RivalAds, RivalStats } from "./types";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
  * Meta Ad Library (Graph API `ads_archive`). Meta shares ordinary (non-political) ads only when they reached someone in the EU or UK,
@@ -218,10 +219,10 @@ async function attachMedia(brandId: string, competitor: string, ads: LibAd[], sn
     if (!img.ok) return;
     const jpg = await toJpeg(Buffer.from(await img.arrayBuffer()), 720);
     if (!jpg) return;
-    const [row] = await db.insert(A).values({
+    const [row] = await saveAsset({
       brandId, kind: "competitor", name: `${a.page} · Ad Library ${a.id}`.slice(0, 80), mime: "image/jpeg", size: jpg.length, data: jpg,
       meta: { competitor, libId: a.id, format: m.kind, n: m.n, source: "adlib" },
-    }).returning({ id: A.id });
+    });
     a.media = { kind: m.kind, asset: row.id, n: m.n };
   });
 }
@@ -248,5 +249,5 @@ export async function pruneAdCopies(brandId: string) {
   const keep = new Set(rows.flatMap((r) => [...r.rivals.flatMap((x) => x.ads), ...r.manual.flatMap((m) => [...(m.ads ?? []), { media: { asset: m.id } }])].map((a) => a.media?.asset).filter(Boolean) as string[]));
   const all = await db.select({ id: A.id }).from(A).where(and(eq(A.brandId, brandId), eq(A.kind, "competitor"), sql`${A.meta}->>'source' in ('adlib', 'shot')`));
   const drop = all.map((a) => a.id).filter((id) => !keep.has(id));
-  if (drop.length) await db.delete(A).where(and(eq(A.brandId, brandId), inArray(A.id, drop)));
+  if (drop.length) await deleteAssets(and(eq(A.brandId, brandId), inArray(A.id, drop)));
 }

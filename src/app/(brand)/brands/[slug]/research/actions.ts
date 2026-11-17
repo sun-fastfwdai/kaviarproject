@@ -12,6 +12,7 @@ import { readShot } from "@/lib/research/shots";
 import { createTestBatch } from "@/lib/creative/remy";
 import { designBatch, markDesigning } from "@/lib/creative/design";
 import { MARKETS, marketName, type Decision, type ManualAd, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 const R = schema.marketResearch;
 type Result = { error?: string };
@@ -96,10 +97,10 @@ export async function addScreenshot(slug: string, id: string, form: FormData): P
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return { error: "Screenshots must be PNG, JPG or WebP." };
   if (file.size > 4.3 * 1024 * 1024) return { error: "Keep screenshots under 4 MB." };
   const competitor = String(form.get("competitor") ?? "").trim().slice(0, 80), note = String(form.get("note") ?? "").trim().slice(0, 300);
-  const [a] = await db.insert(schema.brandAssets).values({
+  const [a] = await saveAsset({
     brandId: row.brandId, kind: "competitor", name: `${competitor || "Competitor"} · ad screenshot`.slice(0, 60), mime: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()),
     meta: { note, competitor }, createdBy: me.id,
-  }).returning({ id: schema.brandAssets.id });
+  });
   const [now] = await db.select({ manual: R.manual }).from(R).where(eq(R.id, id));
   await db.update(R).set({ manual: [{ id: a.id, competitor, note, at: new Date().toISOString() }, ...(now?.manual ?? row.manual)].slice(0, 24), updatedAt: new Date() }).where(eq(R.id, id));
   if (!aiReady()) return {};
@@ -118,7 +119,7 @@ export async function readScreenshot(slug: string, id: string, assetId: string):
 export async function removeScreenshot(slug: string, id: string, assetId: string): Promise<void> {
   const { row } = await own(slug, id);
   await db.update(R).set({ manual: row.manual.filter((m) => m.id !== assetId) }).where(eq(R.id, id));
-  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, row.brandId), eq(schema.brandAssets.kind, "competitor")));
+  await deleteAssets(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, row.brandId), eq(schema.brandAssets.kind, "competitor")));
   await pruneAdCopies(row.brandId).catch(() => undefined);
 }
 

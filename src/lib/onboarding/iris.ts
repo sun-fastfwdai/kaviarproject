@@ -7,6 +7,7 @@ import { detectPlatform, readPage, shopifyProducts, shopNameFree, styleEvidence,
 import { slugify } from "../format";
 import { patchOnboarding, readOnboarding } from "./draft";
 import type { Analysis, ChatTurn, Field, Job, Onboarding, Profile, Recommendation, SiteScan, ToAdd } from "./types";
+import { readAssets } from "@/lib/assets/storage";
 
 const now = () => new Date().toISOString();
 const LANG = new Intl.DisplayNames(["en"], { type: "language" });
@@ -227,7 +228,8 @@ export async function runAnalysis(id: string): Promise<void> {
 
   // 1. Brand deck (PDF) — Iris reads it directly.
   await set("deck", { status: "running", detail: "Opening the deck" });
-  const [deck] = await db.select().from(schema.brandAssets).where(and(eq(schema.brandAssets.brandId, id), eq(schema.brandAssets.kind, "deck"))).orderBy(desc(schema.brandAssets.createdAt)).limit(1);
+  const [latest] = await db.select({ id: schema.brandAssets.id }).from(schema.brandAssets).where(and(eq(schema.brandAssets.brandId, id), eq(schema.brandAssets.kind, "deck"))).orderBy(desc(schema.brandAssets.createdAt)).limit(1);
+  const [deck] = latest ? await readAssets(eq(schema.brandAssets.id, latest.id)) : [];
   let deckRead: z.infer<typeof DeckOut> | null = null;
   if (deck && deck.mime === "application/pdf") {
     const doc: Block = { type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(deck.data).toString("base64") } };

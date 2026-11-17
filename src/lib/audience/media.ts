@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ffmpegPath, run } from "../creative/cut";
+import { readAssets } from "@/lib/assets/storage";
 
 /** What the panel sees: images as base64 blocks, small enough to send to many agents in one test. */
 export type Img = { media: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string };
@@ -48,8 +49,7 @@ export async function loadImage(brandId: string, url: string | null): Promise<Im
   try {
     const m = ASSET.exec(url);
     if (m) {
-      const [a] = await db.select({ data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets)
-        .where(and(eq(schema.brandAssets.id, m[1]), eq(schema.brandAssets.brandId, brandId)));
+      const [a] = await readAssets(and(eq(schema.brandAssets.id, m[1]), eq(schema.brandAssets.brandId, brandId)));
       if (!a || !a.mime.startsWith("image/")) return null;
       buf = Buffer.from(a.data); mime = a.mime;
     } else if (/^https:\/\//.test(url)) {
@@ -73,8 +73,7 @@ export async function loadImage(brandId: string, url: string | null): Promise<Im
 
 /** A video from Shoots as the frames a viewer sees: the first second, the hook, the middle and the end. */
 export async function videoFrames(brandId: string, assetId: string): Promise<{ at: number; img: Img }[]> {
-  const [a] = await db.select({ data: schema.brandAssets.data, meta: schema.brandAssets.meta }).from(schema.brandAssets)
-    .where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, brandId)));
+  const [a] = await readAssets(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, brandId)));
   if (!a) return [];
   const dir = await mkdtemp(join(tmpdir(), "aud-v-"));
   try {

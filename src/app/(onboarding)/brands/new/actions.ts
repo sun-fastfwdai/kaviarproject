@@ -13,6 +13,7 @@ import { getDraft, patchOnboarding, readOnboarding } from "@/lib/onboarding/draf
 import { chatTurn, draftPolicy, freshAnalysis, pullImages, runAnalysis, scanSite } from "@/lib/onboarding/iris";
 import type { AssetKind } from "@/lib/db/schema";
 import type { Basics, Field, Source } from "@/lib/onboarding/types";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 export type ActionState = { error?: string; at?: number; ok?: boolean } | undefined;
 const fail = (error: string): ActionState => ({ error, at: Date.now() });
@@ -200,7 +201,7 @@ export async function uploadAssets(id: string, kind: AssetKind | "auto", form: F
     if (!/^(image\/|video\/|application\/pdf)/.test(mime)) { skipped.push(`${f.name} isn’t an image, video or PDF`); continue; }
     const buf = Buffer.from(await f.arrayBuffer());
     const meta = mime.startsWith("image/") ? imageSize(buf) : mime === "application/pdf" ? { pages: (buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length || undefined } : {};
-    await db.insert(schema.brandAssets).values({ brandId: id, kind: kind === "auto" ? sortKind(f.name, mime) : kind, name: f.name.slice(0, 120), mime, size: f.size, data: buf, meta, createdBy: member.id });
+    await saveAsset({ brandId: id, kind: kind === "auto" ? sortKind(f.name, mime) : kind, name: f.name.slice(0, 120), mime, size: f.size, data: buf, meta, createdBy: member.id });
   }
   return skipped.length ? fail(`${skipped.length} file${skipped.length > 1 ? "s" : ""} skipped — ${skipped[0]}.`) : undefined;
 }
@@ -208,7 +209,7 @@ export async function uploadAssets(id: string, kind: AssetKind | "auto", form: F
 export async function removeAsset(id: string, assetId: string): Promise<void> {
   await requireMember();
   await getDraft(id);
-  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, id)));
+  await deleteAssets(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, id)));
 }
 
 export async function setInspiration(id: string, list: string[]): Promise<ActionState> {

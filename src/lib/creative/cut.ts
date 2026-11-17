@@ -1,5 +1,4 @@
 import "server-only";
-import { keepInStorage } from "../assets/storage";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,6 +6,7 @@ import { join } from "node:path";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { END_SECONDS, captionChunks } from "./story";
+import { readAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
  * The final cut, done on our server with ffmpeg: every scene trimmed to its planned length and scaled to one frame size,
@@ -44,7 +44,7 @@ export type CutInput = {
 export async function cutAd(brandId: string, memberId: string, input: CutInput): Promise<{ id?: string; error?: string; seconds?: number }> {
   if (!input.scenes.length) return { error: "No scene clips to cut yet." };
   const A = schema.brandAssets;
-  const rows = await db.select({ id: A.id, data: A.data, mime: A.mime }).from(A).where(and(eq(A.brandId, brandId), inArray(A.id, input.scenes.map((s) => s.clip))));
+  const rows = await readAssets(and(eq(A.brandId, brandId), inArray(A.id, input.scenes.map((s) => s.clip))));
   const byId = new Map(rows.map((r) => [r.id, r]));
   if (input.scenes.some((s) => !byId.has(s.clip))) return { error: "A scene clip is missing — render the scenes again." };
   const bin = await ffmpegPath();
@@ -110,12 +110,11 @@ export async function cutAd(brandId: string, memberId: string, input: CutInput):
     try { await run(bin, args); }
     catch (e) { console.error("cut failed", (e as { stderr?: string }).stderr?.slice(-1200)); return { error: "The cut failed — try again, or render the scenes again." }; }
     const data = await readFile(out);
-    const [row] = await db.insert(A).values({
+    const [row] = await saveAsset({
       brandId, kind: "video", name: `${input.title.slice(0, 40) || "Ad"} · full ad`, mime: "video/mp4", size: data.byteLength, data,
       meta: { ai: true, prompt: input.title.slice(0, 500), product: input.product ?? undefined, seconds: total, engine: "Kaviar · final cut", sound: input.sound },
       createdBy: memberId,
-    }).returning({ id: A.id });
-    await keepInStorage(row.id);
+    });
     return { id: row.id, seconds: total };
   } finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }

@@ -7,6 +7,7 @@ import { ask } from "../ai/client";
 import { adLibraryToken, competitorAds, libError, pruneAdCopies, samePage } from "./adlib";
 import { metaLessons, storeFacts } from "./context";
 import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type DataSource, type LibAd, type ManualAd, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
+import { readAssets } from "@/lib/assets/storage";
 
 const R = schema.marketResearch;
 type Row = typeof R.$inferSelect;
@@ -179,8 +180,7 @@ async function readAds(row: Row, rivals: RivalAds[], manual: ManualAd[], report:
   ].filter((c, i, all) => all.findIndex((x) => x.a.id === c.a.id || (x.a.ids ?? []).includes(c.a.id)) === i).slice(0, 160).map((c, i) => ({ ...c, ref: `A${i + 1}` }));
   // Screenshots added before Kaviar read them card by card: Iris still looks at the pictures.
   const legacy = manual.filter((m) => !m.ads?.length).slice(0, 6);
-  const imgs = legacy.length ? await db.select({ id: schema.brandAssets.id, data: schema.brandAssets.data, mime: schema.brandAssets.mime }).from(schema.brandAssets)
-    .where(and(eq(schema.brandAssets.brandId, row.brandId), inArray(schema.brandAssets.id, legacy.map((m) => m.id)))) : [];
+  const imgs = legacy.length ? await readAssets(and(eq(schema.brandAssets.brandId, row.brandId), inArray(schema.brandAssets.id, legacy.map((m) => m.id)))) : [];
   if (!pool.length && !imgs.length) { note("No ads to read yet — none found in the Library and no screenshots added"); return null; }
   const ads = pool.map(({ ref, competitor, a }) => ({
     ref, competitor, runningDays: daysSince(a.start), adsUsingIt: a.copies ?? 1, where: a.from === "shot" ? "US (Ad Library website)" : "EU/UK (Ad Library API)",

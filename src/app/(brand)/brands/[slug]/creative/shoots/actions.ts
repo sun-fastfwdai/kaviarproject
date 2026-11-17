@@ -12,6 +12,7 @@ import { writeStoryboard } from "@/lib/creative/storyboard";
 import { cutAd } from "@/lib/creative/cut";
 import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
 import { hfReady } from "@/lib/creative/higgsfield";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
 export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ out?: PromptOut; error?: string }> {
@@ -125,7 +126,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
 export async function deleteShot(slug: string, id: string): Promise<void> {
   await requireMember();
   const brand = await getBrand(slug);
-  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id)));
+  await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id)));
 }
 
 /** "Design an ad" from a Shoots photo: an ad with this photo opens straight in the Editor canvas. */
@@ -162,17 +163,17 @@ export async function saveVoice(slug: string, form: FormData): Promise<{ id?: st
   const secs = wavSeconds(data);
   if (secs == null) return { error: "That isn’t a WAV recording." };
   if (secs < 2 || secs > 15.5) return { error: "Keep the sample between 2 and 15 seconds." };
-  const [row] = await db.insert(schema.brandAssets).values({
+  const [row] = await saveAsset({
     brandId: brand.id, kind: "voice", name: name || "Brand voice", mime: "audio/wav", size: data.byteLength, data,
     meta: { seconds: Math.round(secs * 10) / 10, consent: { by: me.name, at: new Date().toISOString() } }, createdBy: me.id,
-  }).returning({ id: schema.brandAssets.id });
+  });
   return { id: row.id };
 }
 
 export async function deleteVoice(slug: string, id: string): Promise<void> {
   await requireMember();
   const brand = await getBrand(slug);
-  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "voice")));
+  await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "voice")));
 }
 
 /** Product search for the Product node: any active product with a Shopify photo, by title. */
@@ -261,15 +262,15 @@ export async function uploadCharacter(slug: string, form: FormData): Promise<{ i
   if (form.get("consent") !== "yes") return { error: "Confirm you have this person’s permission first." };
   if (!(file instanceof File) || !/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 4_000_000) return { error: "Add a JPG, PNG or WebP photo under 4 MB." };
   const data = Buffer.from(await file.arrayBuffer());
-  const [row] = await db.insert(schema.brandAssets).values({
+  const [row] = await saveAsset({
     brandId: brand.id, kind: "character", name: name || "Creator", mime: file.type, size: data.byteLength, data,
     meta: { character: { description: note || "A real creator (from their photo)", uploaded: true }, consent: { by: me.name, at: new Date().toISOString() } }, createdBy: me.id,
-  }).returning({ id: schema.brandAssets.id });
+  });
   return { id: row.id };
 }
 
 export async function deleteCharacter(slug: string, id: string): Promise<void> {
   await requireMember();
   const brand = await getBrand(slug);
-  await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "character")));
+  await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), eq(schema.brandAssets.kind, "character")));
 }

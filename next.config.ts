@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   devIndicators: { position: "bottom-right" },
   // The Supabase CA is read at runtime for verified TLS; make sure every function bundle carries it.
   outputFileTracingIncludes: {
-    "/**": ["./certs/**"],
+    // ffmpeg makes thumbnails and compact JPEGs wherever a file is saved; the fonts draw ad cards.
+    "/**": ["./certs/**", "./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
     // The Final cut runs ffmpeg in the Shoots server function and burns captions with these fonts.
     "/brands/[slug]/creative/shoots": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
     // Audience test shrinks ad pictures and pulls frames from videos with the same ffmpeg.

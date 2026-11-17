@@ -9,6 +9,7 @@ import { marketContext } from "../research/context";
 import { brandContext } from "./remy";
 import { checkShot, shoot } from "./shoots";
 import { renderDesign } from "./card";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
  * Static ad cards that test one message each: a big headline that IS the message, a short line that explains it, a small payoff at the
@@ -124,7 +125,7 @@ export async function designBatch(brandId: string, batchId: string, memberId: st
             if (!id) break;
             const ok = await checkShot(brandId, id, photo, a.product ?? product?.title ?? "the product");
             if (!ok || (ok.labelMatches && ok.shapeExact && ok.noTextOrWatermark)) scene = `/api/assets/${id}`;
-            else await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brandId)));
+            else await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brandId)));
           }
         }
         const bg = scene ?? photo ?? null;
@@ -137,10 +138,10 @@ export async function designBatch(brandId: string, batchId: string, memberId: st
         const t = pick(tc), btm = pick(bc);
         const design: AdDesign = { image: bg, overlay: 0, layers: cardLayers(card, { serif, top: t.color, bottom: btm.color, topShadow: t.shadow, bottomShadow: btm.shadow }), layout: card.layout };
         const png = await renderDesign(brandId, design);
-        const [asset] = await db.insert(schema.brandAssets).values({
+        const [asset] = await saveAsset({
           brandId, kind: "imagery", name: `${(a.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png,
           meta: { ai: true, prompt: card.scene.slice(0, 500), product: a.product ?? undefined, edit: "card" }, createdBy: memberId,
-        }).returning({ id: schema.brandAssets.id });
+        });
         await db.update(A).set({ design: { ...design, card: `/api/assets/${asset.id}`, pending: false }, imageUrl: `/api/assets/${asset.id}`, updatedAt: new Date() }).where(eq(A.id, a.id));
         made++;
       } catch (e) {
@@ -159,7 +160,7 @@ export async function designBatch(brandId: string, batchId: string, memberId: st
 export async function rerenderCard(brandId: string, adId: string, design: AdDesign): Promise<string | null> {
   try {
     const png = await renderDesign(brandId, design);
-    const [asset] = await db.insert(schema.brandAssets).values({ brandId, kind: "imagery", name: "Ad card · edited", mime: "image/png", size: png.length, data: png, meta: { ai: true, edit: "card" } }).returning({ id: schema.brandAssets.id });
+    const [asset] = await saveAsset({ brandId, kind: "imagery", name: "Ad card · edited", mime: "image/png", size: png.length, data: png, meta: { ai: true, edit: "card" } });
     return `/api/assets/${asset.id}`;
   } catch (e) { console.error("rerender card", adId, (e as Error).message); return null; }
 }

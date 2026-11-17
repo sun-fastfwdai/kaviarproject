@@ -5,6 +5,7 @@ import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { imageSize, toJpeg } from "../audience/media";
 import type { LibAd } from "./types";
+import { readAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
  * US-only ads aren't in Meta's API, but they are on the Ad Library website. The team screenshots a results page (or one ad);
@@ -51,7 +52,7 @@ const A = schema.brandAssets;
 
 /** Reads one screenshot (a brand asset) into ad cards; each card's picture is stored as its own copy. */
 export async function readShot(brandId: string, assetId: string, competitor: string): Promise<{ ads: LibAd[]; note: string }> {
-  const [shot] = await db.select({ data: A.data, mime: A.mime }).from(A).where(and(eq(A.id, assetId), eq(A.brandId, brandId)));
+  const [shot] = await readAssets(and(eq(A.id, assetId), eq(A.brandId, brandId)));
   if (!shot) throw new Error("The screenshot is gone.");
   const buf = Buffer.from(shot.data);
   const size = await imageSize(buf);
@@ -84,8 +85,8 @@ export async function readShot(brandId: string, assetId: string, competitor: str
         const crop = { x: b.x, y: p.y + b.y * p.h, w: Math.min(b.w, 1 - b.x), h: Math.min(b.h * p.h, 1 - (p.y + b.y * p.h)) };
         const jpg = await toJpeg(buf, 640, crop);
         if (jpg) {
-          const [row] = await db.insert(A).values({ brandId, kind: "competitor", name: `${a.advertiser || competitor || "Ad"} · from a screenshot`.slice(0, 80), mime: "image/jpeg", size: jpg.length, data: jpg,
-            meta: { competitor, libId: id, format: a.format, source: "shot", tile: pi } }).returning({ id: A.id });
+          const [row] = await saveAsset({ brandId, kind: "competitor", name: `${a.advertiser || competitor || "Ad"} · from a screenshot`.slice(0, 80), mime: "image/jpeg", size: jpg.length, data: jpg,
+            meta: { competitor, libId: id, format: a.format, source: "shot", tile: pi } });
           media = { kind: a.format === "unknown" ? "image" : a.format, asset: row.id };
         }
       }

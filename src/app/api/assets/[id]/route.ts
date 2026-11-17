@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getMember } from "@/lib/auth";
-import { thumbnail, toJpeg } from "@/lib/audience/media";
-import { storedLink } from "@/lib/assets/storage";
+import { thumbnail } from "@/lib/audience/media";
+import { readAssets, signedLink } from "@/lib/assets/storage";
 
 const EXT: Record<string, string> = {
   "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
@@ -11,29 +11,19 @@ const EXT: Record<string, string> = {
 };
 /** A Vercel function can't send back more than 4.5 MB: bigger files go out in parts, as a smaller copy, or from storage. */
 const LIMIT = 4_000_000;
-const CHUNK = 3_500_000;
 const A = schema.brandAssets;
-
-// Reading a whole 5–15 MB file out of the database is slow: let two run at a time per server, the rest wait their turn.
-let busy = 0;
-const waiting: (() => void)[] = [];
-async function heavy<T>(fn: () => Promise<T>): Promise<T> {
-  if (busy >= 2) await new Promise<void>((r) => waiting.push(r));
-  busy++;
-  try { return await fn(); } finally { busy--; waiting.shift()?.(); }
-}
 
 /**
  * Serves a brand asset to signed-in team members only. SVGs are sandboxed so they can't run script.
- * - `?w=480` returns a JPEG thumbnail (lists, the Editor's media panel).
- * - Videos, audio and pictures over 4 MB are kept in Supabase Storage and open through a short-lived signed link.
- * - If storage can't be reached: video ranges are read in parts from the database, and large pictures go out as full-size JPEGs.
+ * - `?w=480` returns the stored thumbnail (lists, the Editor's media panel) — a small JPEG kept with the row.
+ * - Files live in Supabase Storage: videos, audio and anything over 4 MB open through a short-lived signed link;
+ *   smaller files are passed through, so pictures keep working in the Editor's canvas.
  */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/assets/[id]">) {
   if (!(await getMember())) return new NextResponse("Not found", { status: 404 });
   const { id } = await ctx.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return new NextResponse("Not found", { status: 404 });
-  const [a] = await db.select({ id: A.id, brandId: A.brandId, mime: A.mime, name: A.name, size: A.size, meta: A.meta }).from(A).where(eq(A.id, id)).limit(1);
+  const [a] = await db.select({ id: A.id, mime: A.mime, name: A.name, size: A.size, meta: A.meta }).from(A).where(eq(A.id, id)).limit(1);
   if (!a) return new NextResponse("Not found", { status: 404 });
   const ext = EXT[a.mime], base = a.name.replace(/[\\/:*?"<>|\r\n]+/g, " ").trim() || "asset";
   const named = (e: string | undefined) => (e && !base.toLowerCase().endsWith(`.${e}`) ? `${base}.${e}` : base);
@@ -45,12 +35,12 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/assets/[id]"
     "X-Content-Type-Options": "nosniff",
     ...extra,
   });
-  const whole = () => heavy(async () => Buffer.from((await db.select({ data: A.data }).from(A).where(eq(A.id, id)).limit(1))[0].data));
-  const isImage = a.mime.startsWith("image/") && a.mime !== "image/svg+xml" && a.mime !== "image/gif";
+  const whole = async () => (await readAssets(eq(A.id, id), 1))[0].data;
+  const visual = (a.mime.startsWith("image/") && a.mime !== "image/svg+xml") || a.mime.startsWith("video/");
 
-  // A thumbnail for lists: a small JPEG made once and kept with the asset (pictures, and a frame of each video).
+  // A thumbnail for lists: made when the file is saved; older files get theirs on first view.
   const w = Number(req.nextUrl.searchParams.get("w"));
-  if ((isImage || a.mime.startsWith("video/")) && w >= 120 && w <= 600) {
+  if (visual && w >= 120 && w <= 600) {
     const [t] = await db.select({ thumb: A.thumb }).from(A).where(eq(A.id, id)).limit(1);
     let jpg: Buffer | null = t?.thumb ? Buffer.from(t.thumb) : null;
     if (!jpg) {
@@ -60,28 +50,12 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/assets/[id]"
     if (jpg) return new NextResponse(new Uint8Array(jpg), { headers: head("image/jpeg", named("jpg"), { "Cache-Control": "private, max-age=604800, immutable" }) });
   }
 
-  // Videos, audio and large pictures live in Supabase Storage: open them from there (copied in the first time).
-  if (a.size > LIMIT || a.mime.startsWith("video/") || a.mime.startsWith("audio/")) {
-    const link = await storedLink(a, whole, named(ext), req.nextUrl.searchParams.has("download")).catch((e) => { console.error("asset storage", id, (e as Error).message); return null; });
+  // Big files, video and audio open straight from storage.
+  const direct = a.size > LIMIT || a.mime.startsWith("video/") || a.mime.startsWith("audio/") || req.nextUrl.searchParams.has("download");
+  if (a.meta.stored && direct) {
+    const link = await signedLink(a.meta.stored, req.nextUrl.searchParams.has("download") ? named(ext) : undefined).catch((e: Error) => { console.error("asset link", id, e.message); return null; });
     if (link) return NextResponse.redirect(link, 302);
   }
-
-  // Storage unreachable — fallbacks. Byte ranges (video and audio players), read in parts from the database.
-  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
-  if (range && a.size > 0) {
-    const start = range[1] ? Number(range[1]) : Math.max(0, a.size - Number(range[2] || 0));
-    if (start >= a.size) return new NextResponse(null, { status: 416, headers: { "Content-Range": `bytes */${a.size}` } });
-    const end = Math.min(a.size - 1, range[2] && range[1] ? Number(range[2]) : a.size - 1, start + CHUNK - 1);
-    const [part] = (await db.execute(sql`select substring(data from ${start + 1} for ${end - start + 1}) as d from brand_assets where id = ${id}`)).rows as { d: Buffer }[];
-    return new NextResponse(new Uint8Array(part.d), { status: 206, headers: head(a.mime, named(ext), { "Content-Range": `bytes ${start}-${end}/${a.size}`, "Accept-Ranges": "bytes", "Content-Length": String(end - start + 1) }) });
-  }
-
-  if (a.size <= LIMIT) return new NextResponse(new Uint8Array(await whole()), { headers: head(a.mime, named(ext), { "Accept-Ranges": "bytes" }) });
-
-  // Too big to send at once: a picture as a full-size JPEG.
-  if (isImage) {
-    const jpg = await toJpeg(await whole(), 2400);
-    if (jpg && jpg.length <= LIMIT) return new NextResponse(new Uint8Array(jpg), { headers: head("image/jpeg", named("jpg")) });
-  }
-  return new NextResponse("This file is too large to open here — play it in Kaviar.", { status: 413 });
+  if (a.size > LIMIT) return new NextResponse("This file is still being moved to storage — try again in a minute.", { status: 503, headers: { "Retry-After": "60" } });
+  return new NextResponse(new Uint8Array(await whole()), { headers: head(a.mime, named(ext)) });
 }

@@ -7,6 +7,7 @@ import { checkShot, shoot } from "../creative/shoots";
 import { marketContext } from "../research/context";
 import type { StorePhotos } from "../db/schema";
 import type { StoreProduct } from "./build";
+import { deleteAssets } from "@/lib/assets/storage";
 
 /**
  * The store's own photography: Remy art-directs one shoot for the store — a hero, a brand-story image and a lifestyle shot per best-seller —
@@ -69,7 +70,7 @@ export async function makeStorePhotos(brandId: string, b: { name: string; catego
   };
   const done = (await Promise.all(jobs.map((j) => one(j).catch(() => null)))).filter((x): x is [string, string] => Boolean(x));
   // Photos Otto turned down don't stay in the brand's assets.
-  if (drop.length) await db.delete(schema.brandAssets).where(and(eq(schema.brandAssets.brandId, brandId), inArray(schema.brandAssets.id, drop)));
+  if (drop.length) await deleteAssets(and(eq(schema.brandAssets.brandId, brandId), inArray(schema.brandAssets.id, drop)));
   const photos: StorePhotos = { look: art.look, products: {} };
   for (const [slot, id] of done) {
     if (slot === "hero") photos.hero = id;

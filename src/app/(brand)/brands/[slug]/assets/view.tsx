@@ -37,7 +37,7 @@ function Thumb({ a }: { a: AssetRow }) {
 }
 
 /** Board 07a · Brand assets: every file in one place — filter, preview, download. */
-export function AssetsView({ brand, assets, initial }: { brand: string; assets: AssetRow[]; initial: string | null }) {
+export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: string; assets: AssetRow[]; initial: string | null; moving?: number }) {
   const [cat, setCat] = useState<Cat>("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string | null>(initial ?? assets[0]?.id ?? null);
@@ -65,6 +65,7 @@ export function AssetsView({ brand, assets, initial }: { brand: string; assets: 
         <div className="row g8">
           <div className="input" style={{ width: 280, height: 32 }}><Icon name="search" size={13} color="#8B8883" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search assets" aria-label="Search assets" style={{ border: 0, outline: 0, background: "transparent", flex: 1, font: "inherit", fontSize: 13 }} /></div>
           <span className="fill" />
+          {moving > 0 && <span className="row g6 xs i3"><Icon name="spinner" size={12} className="spin" />Moving {moving} older file{moving === 1 ? "" : "s"} to storage</span>}
           <span className="xs i3">{shown.length} shown · newest first</span>
         </div>
         {shown.length ? (
