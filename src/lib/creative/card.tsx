@@ -13,14 +13,16 @@ import { loadImage } from "../audience/media";
 const DIR = join(process.cwd(), "src/lib/creative/fonts");
 let fonts: Promise<{ name: string; data: ArrayBuffer; weight: 300 | 400 | 500 | 600 | 700; style: "normal" }[]> | null = null;
 const loadFonts = () => (fonts ??= Promise.all([
-  ["Poppins", "Poppins-Light.ttf", 300], ["Poppins", "Poppins-Medium.ttf", 500], ["Poppins", "Poppins-SemiBold.ttf", 600], ["Poppins", "Poppins-Bold.ttf", 700], ["DM Serif Display", "DMSerifDisplay-Regular.ttf", 400],
+  ["Poppins", "Poppins-Light.ttf", 300], ["Poppins", "Poppins-Medium.ttf", 500], ["Poppins", "Poppins-SemiBold.ttf", 600], ["Poppins", "Poppins-Bold.ttf", 700], ["DM Serif Display", "DMSerifDisplay-Regular.ttf", 400], ["Anton", "Anton-Regular.ttf", 400],
 ].map(async ([name, file, weight]) => {
   const b = await readFile(join(DIR, file as string));
   return { name: name as string, data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, weight: weight as 300 | 400 | 500 | 600 | 700, style: "normal" as const };
 })));
 
-const family = (l: Layer) => (l.font === "serif" ? "DM Serif Display" : "Poppins");
-const weight = (l: Layer) => (l.font === "serif" ? 400 : (() => { const w = Math.round((l.weight ?? (l.font === "display" ? 700 : 500)) / 100) * 100; return w <= 300 ? 300 : w <= 500 ? 500 : w >= 700 ? 700 : 600; })());
+const family = (l: Layer) => (l.font === "serif" ? "DM Serif Display" : l.font === "condensed" ? "Anton" : "Poppins");
+/** Is this colour light? (decides the tick's colour inside a bullet) */
+const lightHex = (c: string) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.trim()); return m ? (0.2126 * parseInt(m[1], 16) + 0.7152 * parseInt(m[2], 16) + 0.0722 * parseInt(m[3], 16)) / 255 > 0.6 : true; };
+const weight = (l: Layer) => (l.font === "serif" || l.font === "condensed" ? 400 : (() => { const w = Math.round((l.weight ?? (l.font === "display" ? 700 : 500)) / 100) * 100; return w <= 300 ? 300 : w <= 500 ? 500 : w >= 700 ? 700 : 600; })());
 
 export const SIZES = { "4x5": { w: 1080, h: 1350 }, "1x1": { w: 1080, h: 1080 }, "9x16": { w: 1080, h: 1920 } } as const;
 
@@ -45,9 +47,18 @@ export async function renderDesign(brandId: string, d: AdDesign, size: keyof typ
             <div key={l.id} style={{
               position: "absolute", left, top, ...(l.kind === "badge" ? { maxWidth: width } : { width }), display: "flex", justifyContent: al === "center" ? "center" : al === "right" ? "flex-end" : "flex-start",
               fontFamily: family(l), fontWeight: weight(l), fontSize: l.size, lineHeight: 1.15, color: l.color, textAlign: al, textTransform: l.upper ? "uppercase" : "none",
-              letterSpacing: l.tracking ? l.tracking * l.size : l.font === "display" && !l.upper ? -0.02 * l.size : 0,
-              ...(box ? { backgroundColor: l.bg ?? "#fff", borderRadius: l.kind === "button" ? 999 : 4, padding: `${l.size * 0.35}px ${l.size * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }),
-            }}>{l.text}</div>
+              letterSpacing: l.tracking ? l.tracking * l.size : l.font === "display" && !l.upper ? -0.02 * l.size : 0, opacity: l.opacity ?? 1, alignItems: "flex-start",
+              ...(l.font === "condensed" ? { lineHeight: 1.02 } : {}),
+              ...(box ? { backgroundColor: l.bg ?? "#fff", borderRadius: l.kind === "button" || l.role === "benefit" ? 999 : 4, padding: `${l.size * 0.35}px ${l.size * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }),
+            }}>
+              {l.bullet && !box && (
+                <svg width={l.size * 1.15} height={l.size * 1.15} viewBox="0 0 24 24" style={{ marginRight: l.size * 0.42, flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="12" fill={l.color} />
+                  <path d="M6.8 12.4l3.4 3.4 7-7.4" fill="none" stroke={lightHex(l.color) ? "#1C1B19" : "#FFFFFF"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              <span style={{ display: "flex" }}>{l.text}</span>
+            </div>
           );
         })}
       </div>

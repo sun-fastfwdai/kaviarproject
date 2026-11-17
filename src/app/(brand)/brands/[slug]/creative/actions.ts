@@ -112,12 +112,12 @@ export async function deleteBatch(slug: string, batchId: string): Promise<void> 
 export async function saveDesign(slug: string, adId: string, design: AdDesign): Promise<State> {
   const brand = await ownAd(slug, adId);
   if (!Array.isArray(design.layers) || design.layers.length > 30) return fail("That layout can’t be saved.");
-  const layers = design.layers.map((l) => ({ ...l, text: String(l.text ?? "").slice(0, 300), x: Math.min(1, Math.max(0, Number(l.x))), y: Math.min(1, Math.max(0, Number(l.y))), w: Math.min(1, Math.max(0.05, Number(l.w))), size: Math.min(200, Math.max(0, Number(l.size))) }));
+  const layers = design.layers.map((l) => ({ ...l, text: String(l.text ?? "").slice(0, 300), x: Math.min(1, Math.max(0, Number(l.x))), y: Math.min(1, Math.max(0, Number(l.y))), w: Math.min(1, Math.max(0.05, Number(l.w))), size: Math.min(480, Math.max(0, Number(l.size))) }));
   const image = design.image && /^(https:\/\/|\/api\/assets\/)/.test(design.image) ? design.image : null;
   const head = layers.find((l) => l.kind === "text")?.text;
   const clean: AdDesign = {
     image, overlay: Math.min(0.9, Math.max(0, Number(design.overlay) || 0)), overlayTop: Math.min(0.9, Math.max(0, Number(design.overlayTop) || 0)),
-    layers: layers.map((l) => ({ ...l, font: l.font === "serif" || l.font === "display" ? l.font : "sans", align: l.align === "center" || l.align === "right" ? l.align : "left", tracking: l.tracking ? Math.min(0.4, Math.max(0, Number(l.tracking))) : undefined })),
+    layers: layers.map((l) => ({ ...l, font: l.font === "serif" || l.font === "display" || l.font === "condensed" ? l.font : "sans", opacity: l.opacity != null ? Math.min(1, Math.max(0.05, Number(l.opacity))) : undefined, bullet: l.bullet ? true : undefined, align: l.align === "center" || l.align === "right" ? l.align : "left", tracking: l.tracking ? Math.min(0.4, Math.max(0, Number(l.tracking))) : undefined })),
     ...(design.layout ? { layout: String(design.layout).slice(0, 20) } : {}), ...(design.copy ? { copy: design.copy } : {}),
   };
   // The ad's picture becomes the finished card (photo + type), drawn on the server with the same fonts as the Editor.

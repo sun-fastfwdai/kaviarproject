@@ -370,8 +370,9 @@ export const agentNotes = pgTable(
 export type AdStatus = "review" | "approved" | "rejected";
 /** An Editor layer. Sizes are px at 1080 wide; x, y, w are fractions of the artboard. `display` is the bold ad face; `role` says which part of the ad's copy it carries. */
 export type Layer = {
-  id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display"; color: string;
+  id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display" | "condensed"; color: string;
   bg?: string; weight?: number; align?: "left" | "center" | "right"; src?: string; shadow?: boolean; tracking?: number; upper?: boolean; role?: string;
+  opacity?: number; bullet?: boolean; // opacity: a see-through giant word; bullet: a round tick before the line (benefit lists)
 };
 /**
  * An ad's design: the photo (or clip) from Shoots with type layers on it. `overlay` / `overlayTop` darken the bottom / top behind type.
@@ -379,7 +380,7 @@ export type Layer = {
  */
 export type AdDesign = {
   image: string | null; overlay: number; layers: Layer[]; overlayTop?: number; card?: string | null; pending?: boolean; layout?: string;
-  copy?: { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string }; video?: string | null;
+  copy?: { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string; word?: string; benefits?: string[] }; video?: string | null;
 };
 export const adBatches = pgTable(
   "ad_batches",

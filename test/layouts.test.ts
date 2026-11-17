@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AD_LOOKS, LAYOUTS, copyOf, layoutDesign, toneFor } from "@/lib/creative/layouts";
 
-const copy = { headline: "Why This Eye Balm?", subline: "The balm that helps tired eyes look brighter and more awake.", tagline: "One swipe delivers.", note: "Your quick fix.", brand: "Hey Bud", cta: "Shop now" };
+const copy = { headline: "Why This Eye Balm?", subline: "The balm that helps tired eyes look brighter and more awake.", tagline: "One swipe delivers.", note: "Your quick fix.", brand: "Hey Bud", cta: "Shop now", word: "Glow", benefits: ["Brightens tired eyes", "One swipe", "No sting"] };
 const light = toneFor(0.9), dark = toneFor(0.2);
 
 describe("toneFor", () => {

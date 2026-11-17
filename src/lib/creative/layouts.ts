@@ -5,10 +5,13 @@ import type { AdDesign, Layer } from "../db/schema";
  * layouts and edit every layer). A layout places the ad's copy — headline, subline, payoff, brand — over the photo from Shoots.
  * Sizes are px on a 1080-wide artboard; positions are fractions of the artboard.
  */
-export type CardCopy = { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string };
-export type LayoutKey = "bold" | "editorial" | "luxe" | "minimal" | "caption";
+export type CardCopy = { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string; word?: string; benefits?: string[] };
+export type LayoutKey = "bold" | "bigword" | "benefits" | "statement" | "editorial" | "luxe" | "minimal" | "caption";
 export const LAYOUTS: { key: LayoutKey; name: string; hint: string }[] = [
   { key: "bold", name: "Bold", hint: "Big centred headline, payoff at the bottom" },
+  { key: "bigword", name: "Big word", hint: "One giant word behind the top, labels beside the product" },
+  { key: "benefits", name: "Benefit list", hint: "Serif headline and a ticked list of benefits on the left" },
+  { key: "statement", name: "Statement", hint: "A stacked, provocative headline and three ticked proofs" },
   { key: "editorial", name: "Editorial", hint: "Large serif headline top-left, small caps under it" },
   { key: "luxe", name: "Luxe", hint: "Brand at the top, light-and-bold caps at the bottom" },
   { key: "minimal", name: "Minimal", hint: "One quiet serif line and the brand, lots of air" },
@@ -20,6 +23,9 @@ export type Box = { x: number; y: number; w: number; h: number };
 /** Where each layout puts its type — the photo is sampled there to choose light or dark type. */
 export const REGIONS: Record<LayoutKey, { top: Box; bottom: Box }> = {
   bold: { top: { x: 0.08, y: 0.03, w: 0.84, h: 0.3 }, bottom: { x: 0.08, y: 0.82, w: 0.84, h: 0.16 } },
+  bigword: { top: { x: 0.06, y: 0.03, w: 0.88, h: 0.3 }, bottom: { x: 0.1, y: 0.84, w: 0.8, h: 0.14 } },
+  benefits: { top: { x: 0.04, y: 0.04, w: 0.58, h: 0.5 }, bottom: { x: 0.04, y: 0.84, w: 0.5, h: 0.13 } },
+  statement: { top: { x: 0.06, y: 0.03, w: 0.88, h: 0.42 }, bottom: { x: 0.05, y: 0.88, w: 0.9, h: 0.1 } },
   editorial: { top: { x: 0.04, y: 0.03, w: 0.66, h: 0.36 }, bottom: { x: 0.04, y: 0.86, w: 0.6, h: 0.12 } },
   luxe: { top: { x: 0.2, y: 0.03, w: 0.6, h: 0.08 }, bottom: { x: 0.08, y: 0.66, w: 0.84, h: 0.31 } },
   minimal: { top: { x: 0.1, y: 0.04, w: 0.8, h: 0.2 }, bottom: { x: 0.25, y: 0.9, w: 0.5, h: 0.08 } },
@@ -51,6 +57,18 @@ export const AD_LOOKS: { name: string; direction: string; room: string; layout: 
   { name: "Ad look · Ingredients on stone", layout: "minimal",
     direction: "The product stands upright on honed pale stone with a few of its real key ingredients arranged around the base (fresh leaves, citrus, petals — only what the product truly contains), against a plain plaster wall with dappled daylight and soft leaf shadows. Calm, fresh, expensive.",
     room: "The product stands in the lower half, centred; the top third is plain wall for a quiet headline." },
+  { name: "Ad look · Big word", layout: "bigword",
+    direction: "A poster-style hero shot. The product stands upright and centred on a seamless backdrop in ONE saturated-but-soft colour (from the packaging or the hero ingredient — a fresh green, a warm peach, a rosy pink), with one or two of its real ingredients at the base (a citrus slice, a leaf, a water bead, petals). Glossy studio light, a soft reflection under the product, a gentle glow behind it.",
+    room: "The product fills only the lower 58% of the frame, narrow and centred, with clear backdrop to its left and right. The top 38% is completely empty backdrop — a giant word is printed there." },
+  { name: "Ad look · Benefit list", layout: "benefits",
+    direction: "A soft, feminine product still life. The product stands on a small plinth or folded linen with one gentle prop (a flower, a rolled towel), on a warm pastel backdrop with a subtle gradient; soft daylight from the left, calm and premium.",
+    room: "The product and props sit in the RIGHT 42% of the frame, from the middle down. The LEFT 58% is clean, plain backdrop from top to bottom — the headline and a list of benefits go there." },
+  { name: "Ad look · Bold statement", layout: "statement",
+    direction: "A playful, graphic product shot. The product floats at a slight tilt on a plain warm paper-coloured backdrop (cream, blush or butter) with a soft drop shadow, as if dropped onto a poster. Nothing else in frame; crisp, even light.",
+    room: "The product sits in the lower-middle of the frame, no higher than 48% from the top. The top 45% is completely empty backdrop for a huge stacked headline, and a calm strip stays free along the very bottom." },
+  { name: "Ad look · Dark luxury", layout: "luxe",
+    direction: "A moody luxury still life. The product stands on a rough stone plinth with a fold of satin and a sprig of dried flowers, against a deep backdrop (charcoal, espresso or forest) with one soft spotlight from above; fine reflections, rich shadows, expensive.",
+    room: "The product stands in the middle of the frame. The lower third falls into calm darkness for the headline, and a clear dark strip stays at the very top for the brand name." },
 ];
 export const adLook = (scene: string) => AD_LOOKS.find((l) => l.name === scene) ?? null;
 
@@ -65,8 +83,9 @@ const linesOf = (text: string, widthPx: number, size: number, k: number, trackin
 const LH = 1.15;
 
 /** The design for a layout: type layers placed and coloured for the photo, with a scrim where the photo needs one. */
-export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone; bottom: Tone }, image: string | null, W = 1080, H = 1350): AdDesign {
+export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone; bottom: Tone; accent?: string }, image: string | null, W = 1080, H = 1350): AdDesign {
   const T = tones.top, B = tones.bottom, L: Layer[] = [];
+  const benefits = (copy.benefits ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 4);
   const text = (role: string, t: string, o: Omit<Layer, "id" | "kind" | "text" | "color" | "shadow"> & { tone: Tone }) => {
     if (!t.trim()) return;
     const { tone, ...rest } = o;
@@ -85,6 +104,45 @@ export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone;
     text("tagline", copy.tagline, { x: 0.08, y: tagY / H, w: 0.84, size: 48, font: "display", weight: 700, align: "center", tone: B });
     text("note", copy.note, { x: 0.12, y: (tagY + 48 * LH + 8) / H, w: 0.76, size: 30, font: "sans", weight: 500, align: "center", tone: B });
     usedBottom = Boolean(copy.tagline || copy.note);
+  } else if (key === "bigword") {
+    // One giant word across the top, see-through against the backdrop; short labels beside the product; the message at the bottom.
+    const word = (copy.word || copy.headline.split(/\s+/)[0] || copy.brand).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 9).toUpperCase();
+    const size = Math.round(Math.min(470, (0.9 * W) / (Math.max(3, word.length) * 0.47)));
+    const dark = T.color !== "#FFFFFF";
+    L.push({ id: uid(), kind: "text", role: "word", text: word, x: 0.03, y: 0.035, w: 0.94, size, font: "condensed", align: "center", color: dark ? T.color : "#FFFFFF", opacity: dark ? 0.14 : 0.6, shadow: false });
+    const pill = (t: string, x: number, y: number) => L.push({ id: uid(), kind: "badge", role: "benefit", text: t, x, y, w: 0.3, size: 28, font: "sans", weight: 600, color: "#1C1B19", bg: "#FFFFFF" });
+    if (benefits[0]) pill(benefits[0], 0.05, 0.47);
+    if (benefits[1]) pill(benefits[1], 0.67, 0.58);
+    const subH = copy.subline ? linesOf(copy.subline, 0.76 * W, 30, 0.54) * 30 * LH + 10 : 0;
+    const headSize = len <= 22 ? 60 : 50, headH = linesOf(copy.headline, 0.84 * W, headSize, 0.58) * headSize * LH;
+    const y = H - 64 - subH - headH;
+    text("headline", copy.headline, { x: 0.08, y: y / H, w: 0.84, size: headSize, font: "display", weight: 700, align: "center", tone: B });
+    text("subline", copy.subline, { x: 0.12, y: (y + headH + 10) / H, w: 0.76, size: 30, font: "sans", weight: 500, align: "center", tone: B });
+    usedBottom = true;
+  } else if (key === "benefits") {
+    // Serif headline with its second line in the accent colour, three caps words, a ticked list down the left; the product has the right.
+    const size = len <= 18 ? 84 : len <= 28 ? 72 : 62, y0 = 0.06 * H;
+    const headH = linesOf(copy.headline, 0.6 * W, size, 0.5) * size * LH;
+    text("headline", copy.headline, { x: 0.07, y: y0 / H, w: 0.6, size, font: "serif", align: "left", tone: T });
+    const tagH = copy.tagline ? linesOf(copy.tagline, 0.6 * W, size * 0.92, 0.5) * size * 0.92 * LH : 0;
+    if (copy.tagline.trim()) L.push({ id: uid(), kind: "text", role: "tagline", text: copy.tagline.trim(), x: 0.07, y: (y0 + headH) / H, w: 0.6, size: Math.round(size * 0.92), font: "serif", align: "left", color: tones.accent ?? T.color, shadow: T.shadow });
+    let y = y0 + headH + tagH + 26;
+    if (copy.note.trim()) { text("note", copy.note, { x: 0.075, y: y / H, w: 0.56, size: 24, font: "sans", weight: 600, align: "left", upper: true, tracking: 0.14, tone: T }); y += 24 * LH + 34; }
+    for (const b of benefits) { L.push({ id: uid(), kind: "text", role: "benefit", text: b, bullet: true, x: 0.075, y: y / H, w: 0.5, size: 32, font: "sans", weight: 500, align: "left", color: T.color, shadow: T.shadow }); y += linesOf(b, 0.44 * W, 32, 0.54) * 32 * LH + 22; }
+    const light = B.color === "#FFFFFF";
+    if (copy.cta.trim()) L.push({ id: uid(), kind: "button", role: "cta", text: copy.cta.trim(), x: 0.07, y: (H - 132) / H, w: 0.32, size: 30, font: "sans", weight: 600, align: "center", color: light ? "#121212" : "#FFFFFF", bg: light ? "#FFFFFF" : tones.accent ?? B.color });
+    usedBottom = light;
+  } else if (key === "statement") {
+    // A stacked statement that fills the top, the twist under it, and three ticked proofs along the bottom.
+    const size = len <= 12 ? 176 : len <= 20 ? 148 : len <= 30 ? 122 : 100, y0 = 0.05 * H;
+    const headH = linesOf(copy.headline, 0.88 * W, size, 0.56) * size * 1.02;
+    text("headline", copy.headline, { x: 0.06, y: y0 / H, w: 0.88, size, font: "serif", align: "center", upper: true, tone: T });
+    text("subline", copy.subline, { x: 0.14, y: (y0 + headH * (LH / 1.02) + 18) / H, w: 0.72, size: 36, font: "sans", weight: 500, align: "center", tone: T });
+    // The proofs share the row by their length, so the gaps between them look even.
+    const row = benefits.slice(0, 3), total = row.reduce((a, b) => a + b.length + 5, 0);
+    let x = 0.05;
+    for (const b of row) { const w = (0.9 * (b.length + 5)) / total; L.push({ id: uid(), kind: "text", role: "benefit", text: b, bullet: true, x, y: (H - 108) / H, w: w - 0.012, size: 25, font: "sans", weight: 600, align: "left", color: B.color, shadow: B.shadow }); x += w; }
+    usedBottom = row.length > 0;
   } else if (key === "editorial") {
     const size = len <= 16 ? 124 : len <= 26 ? 104 : 86, y0 = 0.06 * H;
     const headH = linesOf(copy.headline, 0.66 * W, size, 0.5) * size * LH;
@@ -137,5 +195,7 @@ export function copyOf(d: AdDesign | null, ad: { hook: string; headline: string;
     note: by("note") || c?.note || "",
     brand: by("brand") || c?.brand || brand,
     cta: by("cta") || c?.cta || ad.cta,
+    word: by("word") || c?.word || "",
+    benefits: (() => { const now = (d?.layers ?? []).filter((l) => l.role === "benefit").map((l) => l.text.trim()).filter(Boolean); return now.length ? now : c?.benefits ?? []; })(),
   };
 }

@@ -589,7 +589,9 @@ function Studio(props: Props) {
     if (!n) return;
     const c = cfgOf(n), picked = pickedFor(sid), target = batches.find((b) => b.id === c.send);
     if (c.send) setMsg("Sending to the Editor — Remy is laying out each ad…");
-    const r = await sendShots(slug, picked, c.send, sendItems(sid).clips);
+    // The look the photos were shot in (the Prompt node's scene) tells Remy which layout they were composed for.
+    const look = flowRef.current.nodes.filter((x) => x.type === "prompt").map((x) => cfgOf(x).scene).find((x) => x.startsWith("Ad look")) ?? null;
+    const r = await sendShots(slug, picked, c.send, sendItems(sid).clips, look);
     if (c.send && r.done) setSent((s) => ({ ...s, [sid]: { batch: c.send!, ad: r.firstAd ?? null } }));
     setMsg(r.error ?? (c.send ? `${r.done} ad${r.done === 1 ? "" : "s"} in “${target?.title}” ${r.done === 1 ? "has its" : "have their"} visuals${r.cards ? ` — ${r.cards} laid out as cards` : ""}. Opening the Editor…` : `${r.done} file${r.done === 1 ? "" : "s"} kept in brand assets — they’re in the Editor’s Media panel.`));
     // The pipeline's output goes to the Editor: refine each ad there, then review in Ads.
@@ -601,6 +603,15 @@ function Studio(props: Props) {
     patchNode(rid, { reference: { id: assetId, note: "Remy is reading this photo…", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } });
     const r = await readReference(slug, assetId);
     patchNode(rid, { reference: { id: assetId, note: r.note ?? r.error ?? "", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } }, false);
+  });
+
+  // Arriving from Plan: Remy writes the Prompt node straight away, so the pipeline is fully written before anyone presses Run.
+  const wrote = useRef(false);
+  useEffect(() => {
+    if (!props.planned || wrote.current) return;
+    wrote.current = true;
+    const P = flowRef.current.nodes.find((x) => x.type === "prompt" && !cfgOf(x).prompt);
+    if (P) go(async () => { await write(P.id); });
   });
 
   // Started from the node-types page's Run flow.

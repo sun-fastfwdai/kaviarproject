@@ -18,8 +18,10 @@ const SIZES: Size[] = [
 // The same faces the server draws finished cards with (public/fonts), so the Editor and the PNG match.
 const SERIF = "'DM Serif Display', Georgia, serif";
 const SANS = "Poppins, Inter, -apple-system, 'Helvetica Neue', sans-serif";
-const face = (f: Layer["font"]) => (f === "serif" ? SERIF : SANS);
-const FACES = ["300 20px Poppins", "500 20px Poppins", "600 20px Poppins", "700 20px Poppins", "400 20px 'DM Serif Display'"];
+const TALL = "Anton, 'Arial Narrow', sans-serif";
+const face = (f: Layer["font"]) => (f === "serif" ? SERIF : f === "condensed" ? TALL : SANS);
+const isLight = (c: string) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.trim()); return m ? (0.2126 * parseInt(m[1], 16) + 0.7152 * parseInt(m[2], 16) + 0.0722 * parseInt(m[3], 16)) / 255 > 0.6 : true; };
+const FACES = ["300 20px Poppins", "500 20px Poppins", "600 20px Poppins", "700 20px Poppins", "400 20px 'DM Serif Display'", "400 20px Anton"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 export type EditorAd = { id: string; batchId: string; hook: string; primaryText: string; headline: string; cta: string; offer: string; imageUrl: string | null; status: string; design: AdDesign | null };
@@ -45,7 +47,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
 }
 
 const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = src; });
-const weightOf = (l: Layer) => (l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500));
+const weightOf = (l: Layer) => (l.font === "serif" || l.font === "condensed" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500));
 const spacingOf = (l: Layer) => (l.tracking ? l.tracking * l.size : l.font === "display" && !l.upper ? -0.02 * l.size : 0);
 
 /** How bright the photo is under a patch of the 4:5 artboard (0 dark – 1 light), to choose light or dark type. Null when the photo can't be read. */
@@ -102,15 +104,24 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
       const bw = l.kind === "button" ? w : Math.min(w, ctx.measureText(txt).width + l.size * 1.2);
       const bh = lh * lines.length + l.size * 0.7;
       ctx.fillStyle = l.bg ?? "#fff";
-      ctx.beginPath(); ctx.roundRect(x, y, bw, bh, l.kind === "button" ? bh / 2 : 10); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(x, y, bw, bh, l.kind === "button" || l.role === "benefit" ? bh / 2 : 10); ctx.fill();
       ctx.fillStyle = l.color; ctx.textAlign = "center";
       lines.forEach((t, i) => ctx.fillText(t, x + bw / 2, y + l.size * 0.38 + i * lh));
       ctx.textAlign = "left";
     } else {
       ctx.fillStyle = l.color;
+      ctx.globalAlpha = l.opacity ?? 1;
       if (l.shadow !== false) { ctx.shadowColor = "rgba(0,0,0,.3)"; ctx.shadowBlur = 16; }
-      lines.forEach((t, i) => { const tw = ctx.measureText(t).width; ctx.fillText(t, l.align === "center" ? x + (w - tw) / 2 : l.align === "right" ? x + w - tw : x, y + i * lh + l.size * 0.07); });
-      ctx.shadowBlur = 0;
+      const pad = l.bullet ? l.size * 1.57 : 0, tl = l.bullet ? wrap(ctx, txt, w - pad) : lines, step = l.font === "condensed" ? l.size * 1.02 : lh;
+      if (l.bullet) {
+        const r = l.size * 0.575;
+        ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = isLight(l.color) ? "#1C1B19" : "#FFFFFF"; ctx.lineWidth = r * 0.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+        ctx.beginPath(); ctx.moveTo(x + r * 0.57, y + r * 1.03); ctx.lineTo(x + r * 0.85, y + r * 1.32); ctx.lineTo(x + r * 1.43, y + r * 0.7); ctx.stroke();
+      }
+      tl.forEach((t, i) => { const tw = ctx.measureText(t).width; ctx.fillText(t, pad + (l.align === "center" ? x + (w - pad - tw) / 2 : l.align === "right" ? x + w - pad - tw : x), y + i * step + l.size * 0.07); });
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
     }
   }
   return new Promise((res) => c.toBlob((b) => res(b!), "image/png"));
@@ -140,9 +151,11 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
           const box = l.kind === "button" || l.kind === "badge";
           return (
             <div key={l.id} onPointerDown={start} style={{ ...common, width: l.kind === "badge" ? "auto" : `${l.w * 100}%`, maxWidth: `${l.w * 100}%`, fontFamily: face(l.font), fontSize: fs, lineHeight: 1.15, fontWeight: weightOf(l), color: l.color,
-              letterSpacing: spacingOf(l) * scale, textTransform: l.upper ? "uppercase" : "none",
-              textAlign: box ? "center" : l.align ?? "left", ...(box ? { background: l.bg, borderRadius: l.kind === "button" ? 999 : 4, padding: `${fs * 0.35}px ${fs * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }), whiteSpace: "pre-wrap" }}>
-              {l.text || (l.kind === "text" ? brand : "")}
+              letterSpacing: spacingOf(l) * scale, textTransform: l.upper ? "uppercase" : "none", opacity: l.opacity ?? 1, ...(l.font === "condensed" ? { lineHeight: 1.02 } : {}),
+              ...(l.bullet && !box ? { display: "flex", alignItems: "flex-start", gap: fs * 0.42 } : {}),
+              textAlign: box ? "center" : l.align ?? "left", ...(box ? { background: l.bg, borderRadius: l.kind === "button" || l.role === "benefit" ? 999 : 4, padding: `${fs * 0.35}px ${fs * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }), whiteSpace: "pre-wrap" }}>
+              {l.bullet && !box && <svg width={fs * 1.15} height={fs * 1.15} viewBox="0 0 24 24" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="12" fill={l.color} /><path d="M6.8 12.4l3.4 3.4 7-7.4" fill="none" stroke={isLight(l.color) ? "#1C1B19" : "#FFFFFF"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              {l.bullet && !box ? <span>{l.text}</span> : l.text || (l.kind === "text" ? brand : "")}
             </div>
           );
         })}
@@ -154,6 +167,9 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
 /** A layout as a tiny wireframe: where its type sits on the card. [x, y, w, h, strong] in % of the card. */
 const WIRE: Record<LayoutKey, [number, number, number, number, boolean][]> = {
   bold: [[14, 8, 72, 9, true], [26, 21, 48, 3, false], [28, 84, 44, 5, true], [34, 92, 32, 2.5, false]],
+  bigword: [[8, 6, 84, 22, false], [8, 48, 22, 4, true], [70, 58, 22, 4, true], [24, 84, 52, 5, true], [32, 92, 36, 2.5, false]],
+  benefits: [[8, 8, 46, 6, true], [8, 16, 40, 6, false], [8, 30, 4, 4, true], [15, 30.5, 30, 3, false], [8, 38, 4, 4, true], [15, 38.5, 26, 3, false], [8, 46, 4, 4, true], [15, 46.5, 32, 3, false], [8, 87, 26, 6, true]],
+  statement: [[10, 6, 80, 10, true], [16, 18, 68, 10, true], [22, 30, 56, 10, true], [28, 43, 44, 2.5, false], [8, 92, 24, 3, false], [38, 92, 24, 3, false], [68, 92, 24, 3, false]],
   editorial: [[8, 8, 52, 10, true], [8, 20, 40, 10, true], [8, 34, 34, 2.5, false], [8, 90, 36, 3, false]],
   luxe: [[32, 7, 36, 2.5, false], [22, 70, 56, 6, false], [16, 78, 68, 6, true], [30, 88, 40, 2.5, false]],
   minimal: [[18, 9, 64, 5, true], [28, 16, 44, 5, true], [36, 92, 28, 2.5, false]],
@@ -356,8 +372,8 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
             {layer.kind !== "logo" && <>
               <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={3} value={layer.text} onChange={(e) => upd(layer.id, { text: e.target.value })} style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 13 }} /></div>
               <div className="row g6">
-                <div className="seg">{(["display", "serif", "sans"] as const).map((f) => <button key={f} type="button" className={`o${layer.font === f ? " on" : ""}`} onClick={() => upd(layer.id, { font: f })} style={{ fontFamily: face(f), fontWeight: f === "display" ? 700 : 500 }}>{f === "serif" ? "Serif" : f === "display" ? "Bold" : "Sans"}</button>)}</div>
-                <label className="chip" style={{ height: 30 }}>Size<input type="number" min={18} max={160} value={layer.size} onChange={(e) => upd(layer.id, { size: Number(e.target.value) || 30 })} style={{ width: 48, border: 0, outline: 0, font: "inherit" }} /></label>
+                <div className="seg">{(["display", "serif", "sans", "condensed"] as const).map((f) => <button key={f} type="button" className={`o${layer.font === f ? " on" : ""}`} onClick={() => upd(layer.id, { font: f })} style={{ fontFamily: face(f), fontWeight: f === "display" ? 700 : 500 }}>{f === "serif" ? "Serif" : f === "display" ? "Bold" : f === "condensed" ? "Tall" : "Sans"}</button>)}</div>
+                <label className="chip" style={{ height: 30 }}>Size<input type="number" min={18} max={480} value={layer.size} onChange={(e) => upd(layer.id, { size: Number(e.target.value) || 30 })} style={{ width: 48, border: 0, outline: 0, font: "inherit" }} /></label>
               </div>
               <div className="col g4"><span className="xs i3">Colour</span>
                 <div className="row g6">{colors.map((c) => <button key={c} type="button" onClick={() => upd(layer.id, { color: c })} aria-label={c} style={{ width: 22, height: 22, borderRadius: 99, background: c, border: layer.color === c ? "2px solid #1AA7C8" : "1px solid var(--line-2)", cursor: "pointer" }} />)}</div></div>

@@ -8,11 +8,22 @@ import type { PlanBrief, PlanFormat, PlanReply, PlanTurn } from "@/lib/creative/
 
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
 
-const FORMAT: Record<PlanFormat, { name: string; icon: IconName; time: string; steps: (b: PlanBrief) => string[] }> = {
-  static: { name: "Static image ads", icon: "image", time: "about 2 minutes to shoot", steps: (b) => ["Product", "Buyer data", "Brand kit", "Prompt · Remy", `Photo × ${Math.min(4, b.count)}`, "Otto’s check", "Editor · designed cards", "Ads"] },
-  video: { name: "Product video", icon: "video", time: "3–6 minutes a clip", steps: (b) => ["Product", "Buyer data", "Brand kit", "Prompt · Remy", "Start photo", `Video · ${b.seconds}s`, "Otto’s check", "Ads"] },
-  ugc: { name: "UGC video", icon: "user", time: "3–6 minutes a clip", steps: (b) => ["Creator", "Product", "Buyer data", "Prompt · Remy", "Selfie photo", `Video · ${b.seconds}s`, "Voice", "Ads"] },
-  full: { name: "Full video ad", icon: "play", time: "8–12 minutes", steps: () => ["Creator", "Product", "Buyer data", "Storyboard · Remy", "Scene clips", "Final cut", "Ads"] },
+const short = (t: string, n = 46) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+/** The nodes Remy writes in Shoots for each format, and what goes into each. */
+const FORMAT: Record<PlanFormat, { name: string; icon: IconName; time: string; steps: (b: PlanBrief) => [string, string][] }> = {
+  static: { name: "Static image ads", icon: "image", time: "about 2 minutes to shoot", steps: (b) => [
+    ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Brand kit", "Tone and rules from the brand profile"],
+    ["Prompt", `Remy writes the ${b.adLook.replace("Ad look · ", "")} look for this product`], ["Photo", `× ${Math.min(4, b.count)} · 4:5, real product locked`], ["Check", "Otto: label, shape, colours, no stray text"],
+    ["Editor", `${b.count} designed cards — one message each, type laid out for the photo`], ["Ads", "Review, audience test, set up the test"]] },
+  video: { name: "Product video", icon: "video", time: "3–6 minutes a clip", steps: (b) => [
+    ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Brand kit", "Tone and rules from the brand profile"], ["Prompt", "Remy writes the scene"],
+    ["Photo", "The clip’s start frame · 9:16"], ["Video", `${b.seconds}s clip, shot list by Remy`], ["Check", "Otto: label, shape, colours"], ["Ads", "Clips attach to the batch’s ads"]] },
+  ugc: { name: "UGC video", icon: "user", time: "3–6 minutes a clip", steps: (b) => [
+    ["Character", "A consistent creator for every clip"], ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Prompt", "Remy writes the selfie scene and the line"],
+    ["Photo", "Creator holding the product · 9:16"], ["Video", `${b.seconds}s, talking to camera`], ["Voice + music", "Their voice, no music"], ["Ads", "Clips attach to the batch’s ads"]] },
+  full: { name: "Full video ad", icon: "play", time: "8–12 minutes", steps: (b) => [
+    ["Character", "A consistent creator"], ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Storyboard", "Remy writes the ad scene by scene"],
+    ["Video", "A clip per scene"], ["Final cut", "Captions and an end card"], ["Ads", "The finished ad attaches to the batch"]] },
 };
 
 /** Board 17's Plan as a conversation: say what you want, Remy asks what's missing, then lays out the pipeline it will set up in Shoots. */
@@ -118,13 +129,14 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   ))}
                 </div>
                 <div className="col g8" style={{ padding: "12px 16px 14px", background: "var(--tray)" }}>
-                  <span className="xs w5 i2">The pipeline Remy sets up in Shoots</span>
-                  <div className="row g4" style={{ flexWrap: "wrap", rowGap: 6 }}>
-                    {f.steps(brief).map((s, i, all) => (
-                      <span key={s} className="row g4">
-                        <span className="xs i1" style={{ height: 24, padding: "0 9px", display: "inline-flex", alignItems: "center", borderRadius: 7, background: "#fff", boxShadow: "0 0 0 1px var(--line)", fontWeight: /Editor|Ads/.test(s) ? 500 : 400 }}>{s}</span>
-                        {i < all.length - 1 && <Icon name="arrow-r" size={10} color="#8B8883" />}
-                      </span>
+                  <span className="xs w5 i2">The pipeline Remy writes in Shoots — node by node</span>
+                  <div className="col" style={{ background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line)", padding: "2px 12px" }}>
+                    {f.steps(brief).map(([node, what], i, all) => (
+                      <div key={node} className="row top g10" style={{ padding: "7px 0", borderBottom: i < all.length - 1 ? "1px solid var(--line)" : 0 }}>
+                        <span className="xs i3 tnum" style={{ width: 14, flexShrink: 0, lineHeight: "17px" }}>{i + 1}</span>
+                        <span className="xs w5 i1" style={{ width: 92, flexShrink: 0, lineHeight: "17px" }}>{node}</span>
+                        <span className="xs i2 fill" style={{ lineHeight: "17px" }}>{what}</span>
+                      </div>
                     ))}
                   </div>
                   <div className="row g8" style={{ paddingTop: 6 }}>

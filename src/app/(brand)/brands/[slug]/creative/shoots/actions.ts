@@ -14,6 +14,7 @@ import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
 import { hfReady } from "@/lib/creative/higgsfield";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { layoutBatch } from "@/lib/creative/design";
+import { adLook } from "@/lib/creative/layouts";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
 export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ out?: PromptOut; error?: string }> {
@@ -110,7 +111,7 @@ export async function pollVideo(slug: string, job: VideoJob): Promise<{ id?: str
 }
 
 /** Send photos to a batch (they become its ads' photos, in order) or keep them in brand assets. */
-export async function sendShots(slug: string, ids: string[], batchId: string | null, clipIds: string[] = []): Promise<{ done?: number; firstAd?: string; cards?: number; error?: string }> {
+export async function sendShots(slug: string, ids: string[], batchId: string | null, clipIds: string[] = [], look: string | null = null): Promise<{ done?: number; firstAd?: string; cards?: number; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   const A = schema.brandAssets;
@@ -136,7 +137,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   }
   if (!done) return { error: "Nothing to send yet — run the flow first." };
   // Static ads become cards: Remy writes the words for each picture and lays them out, ready to refine in the Editor.
-  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id).catch(() => ({ made: 0 }))).made : 0;
+  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout).catch(() => ({ made: 0 }))).made : 0;
   return { done, cards, firstAd: list[0].id };
 }
 
