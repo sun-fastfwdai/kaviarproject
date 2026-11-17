@@ -72,6 +72,13 @@ export async function planWithRemy(brandId: string, turns: PlanTurn[], options: 
     const all: [string, string][] = [["static", "Static images"], ["video", "Product video"], ["ugc", "UGC video"], ["full", "Full video ad"]];
     return { say: out.say.slice(0, 500), brief: null, questions: [{ text: "Static images or video?", options: [...all.filter(([k]) => k === rec), ...all.filter(([k]) => k !== rec)].map(([, l]) => l) }] };
   }
+  // The ad style decides the photo and the layout, so the team picks it: ask once before proposing a static pipeline.
+  const styled = AD_LOOKS.some((l) => said.toLowerCase().includes(l.name.replace("Ad look · ", "").toLowerCase())) || turns.some((t) => t.who === "remy" && /ad style/i.test(t.text));
+  if (out.ready && out.brief.format === "static" && !styled) {
+    const pick = (AD_LOOKS.find((l) => l.name.toLowerCase().endsWith(out.brief.adLook.trim().toLowerCase())) ?? AD_LOOKS[0]).name;
+    const rest = ["Ad look · Big word", "Ad look · Texture swatch", "Ad look · Benefit list", "Ad look · Bold statement"].filter((n) => n !== pick);
+    return { say: out.say.slice(0, 500), brief: null, questions: [{ text: "Which ad style?", options: [pick, ...rest].slice(0, 4).map((n) => n.replace("Ad look · ", "")) }] };
+  }
   const keys = new Set([...options.plans, ...options.buyers].map((o) => o.key));
   const b = out.brief;
   const brief: PlanBrief | null = out.ready ? {

@@ -44,7 +44,7 @@ export const toneFor = (lum: number | null, ink = "#1C1B19"): Tone =>
 export const AD_LOOKS: { name: string; direction: string; room: string; layout: LayoutKey }[] = [
   { name: "Ad look · Texture swatch", layout: "bold",
     direction: "Top-down studio flat lay. The product lies at a slight angle on a thick, glossy smear of its own texture (cream, gel, balm or serum) in the formula's real colour, on a seamless matte backdrop in ONE soft colour — taken from the packaging, or, when the packaging is white, silver, grey or black, a gentle tint that suits the formula and its hero ingredient (sage, blush, butter, sky, peach). Soft overhead light, one gentle natural shadow, nothing else in frame.",
-    room: "Product and swatch fill the lower two-thirds; the top third is empty backdrop for a headline, and a thin calm strip stays free along the bottom." },
+    room: "Product and swatch sit between 34% and 84% of the frame height; the top third is empty backdrop for a headline, and the bottom 16% stays empty backdrop for the payoff line." },
   { name: "Ad look · Colour studio", layout: "editorial",
     direction: "A monochrome beauty studio in ONE saturated colour drawn from the product — backdrop, light spill and styling all in that hue. A hand with natural nails presents the product, label square to camera; behind it, softly out of focus, a model turns her face into warm light. Glowing skin, shallow depth of field, premium campaign finish.",
     room: "The product sits just below the centre; the top-left third is clean, soft colour for a large headline." },
@@ -59,7 +59,7 @@ export const AD_LOOKS: { name: string; direction: string; room: string; layout: 
     room: "The product stands in the lower half, centred; the top third is plain wall for a quiet headline." },
   { name: "Ad look · Big word", layout: "bigword",
     direction: "A poster-style hero shot. The product stands upright and centred on a seamless backdrop in ONE saturated-but-soft colour (from the packaging or the hero ingredient — a fresh green, a warm peach, a rosy pink), with one or two of its real ingredients at the base (a citrus slice, a leaf, a water bead, petals). Glossy studio light, a soft reflection under the product, a gentle glow behind it.",
-    room: "The product fills only the lower 58% of the frame, narrow and centred, with clear backdrop to its left and right. The top 38% is completely empty backdrop — a giant word is printed there." },
+    room: "The product stands between 38% and 82% of the frame height, narrow and centred, with clear backdrop to its left and right. The top 36% is completely empty backdrop — a giant word is printed there — and the bottom 18% is calm, empty surface for the headline; props stay small, beside the product's base, never in the bottom strip." },
   { name: "Ad look · Benefit list", layout: "benefits",
     direction: "A soft, feminine product still life. The product stands on a small plinth or folded linen with one gentle prop (a flower, a rolled towel), on a warm pastel backdrop with a subtle gradient; soft daylight from the left, calm and premium.",
     room: "The product and props sit in the RIGHT 42% of the frame, from the middle down. The LEFT 58% is clean, plain backdrop from top to bottom — the headline and a list of benefits go there." },
