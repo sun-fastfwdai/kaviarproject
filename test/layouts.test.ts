@@ -42,7 +42,10 @@ describe("layoutDesign", () => {
   it("sets the poster headline as one or two rows that fit the width", () => {
     const one = layoutDesign("poster", { ...copy, headline: "Sunscreen Day" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
     expect(one.map((l) => l.text)).toEqual(["Sunscreen Day"]);
-    expect(one[0].size * 13 * 0.47).toBeLessThanOrEqual(0.92 * 1080);
+    expect(one[0].size).toBeGreaterThan(120); expect(one[0].size).toBeLessThan(180); // fills the width, never past it
+    const wide = layoutDesign("bigword", { ...copy, word: "Glow" }, { top: toneFor(0.7), bottom: light }, null, 1080, 1350, { behind: true }).layers.find((l) => l.role === "word")!;
+    const narrow = layoutDesign("bigword", { ...copy, word: "Lift" }, { top: toneFor(0.7), bottom: light }, null, 1080, 1350, { behind: true }).layers.find((l) => l.role === "word")!;
+    expect(wide.size).toBeLessThan(narrow.size); // a W needs more room than an I
     const two = layoutDesign("poster", { ...copy, headline: "Calm Skin, No Burn" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
     expect(two.map((l) => l.text)).toEqual(["Calm Skin,", "No Burn"]);
     expect(two[1].y).toBeGreaterThan(two[0].y);

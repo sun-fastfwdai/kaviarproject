@@ -132,6 +132,9 @@ const linesOf = (text: string, widthPx: number, size: number, k: number, trackin
   return n;
 };
 const LH = 1.15;
+/** Width of a line of capitals in the tall poster face (Anton), in em — its letters differ a lot (I is narrow, W is wide). */
+const TALL: Record<string, number> = { I: 0.27, J: 0.35, L: 0.41, F: 0.43, E: 0.45, T: 0.45, M: 0.69, W: 0.75, " ": 0.22, ",": 0.2, ".": 0.2, "'": 0.16, "’": 0.16, "-": 0.3, "&": 0.56 };
+const tallEm = (t: string) => [...t.toUpperCase()].reduce((a, ch) => a + (TALL[ch] ?? 0.51), 0);
 
 /** The design for a layout: type layers placed and coloured for the photo, with a scrim where the photo needs one. */
 export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone; bottom: Tone; accent?: string; chip?: string }, image: string | null, W = 1080, H = 1350, opts: { behind?: boolean } = {}): AdDesign {
@@ -160,7 +163,7 @@ export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone;
     const word = (copy.word || copy.headline.split(/\s+/)[0] || copy.brand).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 9).toUpperCase();
     // When the photo has a clean backdrop the word goes BEHIND the product: bigger, lower, solid — the product stands in front of it.
     const behind = Boolean(opts.behind);
-    const size = Math.round(Math.min(behind ? 520 : 470, ((behind ? 0.96 : 0.9) * W) / (Math.max(3, word.length) * 0.47)));
+    const size = Math.round(Math.min(behind ? 520 : 470, ((behind ? 0.93 : 0.9) * W) / Math.max(1.4, tallEm(word))));
     const white = T.color === "#FFFFFF" || (behind && (T.lum ?? 1) < 0.86);
     L.push({ id: uid(), kind: "text", role: "word", text: word, x: behind ? 0.02 : 0.03, y: behind ? 0.1 : 0.035, w: behind ? 0.96 : 0.94, size, font: "condensed", align: "center", color: white ? "#FFFFFF" : T.color,
       opacity: behind ? (white ? 0.88 : 0.2) : white ? 0.6 : 0.14, shadow: false, ...(behind ? { behind: true } : {}) });
@@ -207,8 +210,7 @@ export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone;
       for (let i = 1; i < words.length; i++) { const g = Math.abs(words.slice(0, i).join(" ").length - words.slice(i).join(" ").length); if (g < gap) { gap = g; best = i; } }
       rows = [words.slice(0, best).join(" "), words.slice(best).join(" ")];
     }
-    const longest = Math.max(...rows.map((r) => r.length));
-    const size = Math.round(Math.min(rows.length > 1 ? 200 : 300, (0.9 * W) / (Math.max(4, longest) * 0.47)));
+    const size = Math.round(Math.min(rows.length > 1 ? 200 : 300, (0.9 * W) / Math.max(1.8, ...rows.map(tallEm))));
     const subH = copy.subline ? linesOf(copy.subline, 0.84 * W, 30, 0.62, 0.08) * 30 * LH + 14 : 0;
     let y = H - 58 - subH - rows.length * size * 1.02;
     for (const r of rows) { L.push({ id: uid(), kind: "text", role: "headline", text: r, x: 0.04, y: y / H, w: 0.92, size, font: "condensed", align: "center", upper: true, color: B.color, shadow: false }); y += size * 1.02; }
