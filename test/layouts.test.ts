@@ -6,8 +6,8 @@ const light = toneFor(0.9), dark = toneFor(0.2);
 
 describe("toneFor", () => {
   it("puts dark type on light photos and white type on dark ones", () => {
-    expect(light).toEqual({ color: "#1C1B19", shadow: false, scrim: 0 });
-    expect(dark).toEqual({ color: "#FFFFFF", shadow: true, scrim: 0 });
+    expect(light).toMatchObject({ color: "#1C1B19", shadow: false, scrim: 0 });
+    expect(dark).toMatchObject({ color: "#FFFFFF", shadow: true, scrim: 0 });
   });
   it("adds a scrim behind white type on mid-tone photos, and when the photo can't be read", () => {
     expect(toneFor(0.42).scrim).toBeGreaterThan(0);
@@ -63,6 +63,15 @@ describe("layoutDesign", () => {
     expect(word.y * 1350).toBeGreaterThanOrEqual(lead.y * 1350 + lead.size);
     expect(tag.y * 1350).toBeGreaterThanOrEqual(word.y * 1350 + word.size);
   });
+  it("sets the giant word behind the product when the photo allows it: bigger, lower, solid", () => {
+    const over = layoutDesign("bigword", copy, { top: toneFor(0.7), bottom: light }, null).layers.find((l) => l.role === "word")!;
+    const behind = layoutDesign("bigword", copy, { top: toneFor(0.7), bottom: light }, null, 1080, 1350, { behind: true }).layers.find((l) => l.role === "word")!;
+    expect(over.behind).toBeUndefined();
+    expect(behind.behind).toBe(true);
+    expect(behind.color).toBe("#FFFFFF");
+    expect(behind.y).toBeGreaterThan(over.y);
+    expect(behind.opacity).toBeGreaterThan(over.opacity!);
+  });
   it("splits the luxe headline into a light line and a bold line", () => {
     const heads = layoutDesign("luxe", { ...copy, headline: "New Year New Skin" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
     expect(heads.map((l) => l.text)).toEqual(["New Year", "New Skin"]);
@@ -102,5 +111,25 @@ describe("ad looks", () => {
     expect(lookNamed("Which ad style? Reach to camera")?.key).toBe("reach");
     expect(lookNamed("Ad look · Big word")?.key).toBe("bigword");
     expect(lookNamed("something else")).toBeNull();
+  });
+});
+
+describe("subject mask", () => {
+  it("finds a product on a plain backdrop and leaves the backdrop see-through, soft shadows included", async () => {
+    const { subjectMask, coverage, canGoBehind, behindBand } = await import("@/lib/creative/cutout");
+    const w = 60, h = 80, px = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, shade = 1 - 0.08 * (y / h); // a backdrop that darkens slightly toward the floor
+      let c = [160 * shade, 215 * shade, 205 * shade];
+      if (x >= 22 && x < 38 && y >= 24 && y < 70) c = y < 32 ? [20, 20, 20] : [250, 250, 250]; // black cap, white bottle
+      else if (x >= 38 && x < 44 && y >= 50 && y < 70) c = c.map((v) => v * 0.9); // a soft shadow beside it
+      px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255;
+    }
+    const m = subjectMask(px, w, h), at = (x: number, y: number) => m.a[y * w + x];
+    expect(at(30, 28)).toBeGreaterThan(0.9); expect(at(30, 50)).toBeGreaterThan(0.9);
+    expect(at(8, 40)).toBeLessThan(0.05); expect(at(41, 60)).toBeLessThan(0.3);
+    expect(canGoBehind(coverage(m, 0.1, 0.45))).toBe(true);
+    expect(canGoBehind(coverage(m, 0, 0.2))).toBe(false); // nothing overlaps there
+    expect(behindBand([{ y: 0.1, size: 440, text: "GLOW", w: 0.96, behind: true }, { y: 0.9, size: 40, text: "x", w: 0.5 }], 1080, 1350)!.y0).toBeCloseTo(0.09);
   });
 });

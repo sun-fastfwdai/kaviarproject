@@ -8,6 +8,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { AdDesign, Layer } from "@/lib/db/schema";
 import { LAYOUTS, REGIONS, copyOf, isLayout, layoutDesign, toneFor, type Box, type CardCopy, type LayoutKey } from "@/lib/creative/layouts";
+import { MASK_W, behindBand, canGoBehind, coverage, subjectMask, type Mask } from "@/lib/creative/cutout";
 
 type Size = { key: string; label: string; w: number; h: number; note: string };
 const SIZES: Size[] = [
@@ -65,14 +66,42 @@ async function brightness(src: string | null, box: Box): Promise<number | null> 
     return sum / (64 * 255);
   } catch { return null; }
 }
-/** A layout applied to this ad's words over this photo. */
+/** The photo's subject with its backdrop see-through — drawn over layers set behind the product. Worked out once per photo. */
+const cuts = new Map<string, Promise<{ url: string; mask: Mask } | null>>();
+function cutOf(src: string): Promise<{ url: string; mask: Mask } | null> {
+  let p = cuts.get(src);
+  if (!p) {
+    p = (async () => {
+      try {
+        const img = await load(src);
+        const mw = MASK_W, mh = Math.max(8, Math.round((MASK_W * img.height) / img.width));
+        const small = document.createElement("canvas"); small.width = mw; small.height = mh;
+        const sx = small.getContext("2d", { willReadFrequently: true })!;
+        sx.drawImage(img, 0, 0, mw, mh);
+        const mask = subjectMask(sx.getImageData(0, 0, mw, mh).data, mw, mh);
+        const alpha = new ImageData(mw, mh);
+        for (let i = 0; i < mw * mh; i++) alpha.data[i * 4 + 3] = Math.round(mask.a[i] * 255);
+        sx.putImageData(alpha, 0, 0);
+        const w = Math.min(1080, img.width), h = Math.round((w * img.height) / img.width);
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        const cx = c.getContext("2d")!;
+        cx.drawImage(img, 0, 0, w, h); cx.globalCompositeOperation = "destination-in"; cx.drawImage(small, 0, 0, w, h);
+        const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
+        return blob ? { url: URL.createObjectURL(blob), mask } : null;
+      } catch { return null; } // a photo from another site can't be read
+    })();
+    cuts.set(src, p);
+  }
+  return p;
+}
+/** A layout applied to this ad's words over this photo. A giant word goes behind the product when the photo's backdrop allows it. */
 async function laidOut(key: LayoutKey, copy: CardCopy, image: string | null): Promise<AdDesign> {
-  const [t, b] = await Promise.all([brightness(image, REGIONS[key].top), brightness(image, REGIONS[key].bottom)]);
-  return layoutDesign(key, copy, { top: toneFor(t), bottom: toneFor(b) }, image);
+  const [t, b, cut] = await Promise.all([brightness(image, REGIONS[key].top), brightness(image, REGIONS[key].bottom), key === "bigword" && image ? cutOf(image) : null]);
+  return layoutDesign(key, copy, { top: toneFor(t), bottom: toneFor(b) }, image, 1080, 1350, { behind: cut ? canGoBehind(coverage(cut.mask, 0.1, 0.46)) : false });
 }
 
 /** Draw the design at full Meta size and return a PNG blob. */
-async function render(d: AdDesign, s: Size): Promise<Blob> {
+async function render(d: AdDesign, s: Size, cut: string | null = null): Promise<Blob> {
   await Promise.all(FACES.map((f) => document.fonts.load(f).catch(() => undefined)));
   const c = document.createElement("canvas");
   c.width = s.w; c.height = s.h;
@@ -88,7 +117,18 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
   }
   if ((d.overlayTop ?? 0) > 0) { const g = ctx.createLinearGradient(0, 0, 0, s.h * 0.46); g.addColorStop(0, `rgba(0,0,0,${d.overlayTop})`); g.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = g; ctx.fillRect(0, 0, s.w, s.h * 0.46); }
   if (d.overlay > 0) { const g = ctx.createLinearGradient(0, s.h * 0.48, 0, s.h); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${d.overlay})`); ctx.fillStyle = g; ctx.fillRect(0, s.h * 0.48, s.w, s.h * 0.52); }
-  for (const l of d.layers) {
+  // Layers set behind the product go down first; then the photo's subject is drawn over them, then everything else.
+  const band = cut ? behindBand(d.layers, s.w, s.h) : null;
+  const order = band ? [...d.layers.filter((l) => l.behind), ...d.layers.filter((l) => !l.behind)] : d.layers, firstFront = band ? order.findIndex((l) => !l.behind) : -1;
+  const subject = async () => {
+    try {
+      const img = await load(cut!), r = Math.max(s.w / img.width, s.h / img.height);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, band!.y0 * s.h, s.w, (band!.y1 - band!.y0) * s.h); ctx.clip();
+      ctx.drawImage(img, (s.w - img.width * r) / 2, (s.h - img.height * r) / 2, img.width * r, img.height * r); ctx.restore();
+    } catch { /* the type stays in front */ }
+  };
+  for (const [n, l] of order.entries()) {
+    if (band && n === firstFront) await subject();
     const x = l.x * s.w, y = l.y * s.h, w = l.w * s.w;
     if (l.kind === "logo" && l.src) {
       try { const img = await load(l.src); const h = (w / img.width) * img.height; ctx.drawImage(img, x, y, w, h); } catch { /* skip */ }
@@ -124,12 +164,14 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
       ctx.shadowBlur = 0; ctx.globalAlpha = 1;
     }
   }
+  if (band && firstFront < 0) await subject();
   return new Promise((res) => c.toBlob((b) => res(b!), "image/png"));
 }
 
 const STRIPES = "repeating-linear-gradient(45deg, rgba(235,122,60,.10) 0 6px, transparent 6px 12px)";
-function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; s: Size; scale: number; sel: string | null; onSelect: (id: string | null) => void; onMove: (id: string, x: number, y: number) => void; brand: string }) {
+function Artboard({ d, s, scale, sel, onSelect, onMove, brand, cut }: { d: AdDesign; s: Size; scale: number; sel: string | null; onSelect: (id: string | null) => void; onMove: (id: string, x: number, y: number) => void; brand: string; cut?: string | null }) {
   const W = s.w * scale, H = s.h * scale;
+  const band = cut ? behindBand(d.layers, s.w, s.h) : null;
   const drag = useRef<{ id: string; sx: number; sy: number; lx: number; ly: number } | null>(null);
   return (
     <div className="col g6" style={{ alignItems: "center" }}>
@@ -143,8 +185,10 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
         {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)`, pointerEvents: "none" }} />}
         {d.overlay > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)`, pointerEvents: "none" }} />}
         {s.key === "9x16" && <><div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "14%", background: STRIPES, pointerEvents: "none" }} /><div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "20%", background: STRIPES, pointerEvents: "none" }} /></>}
+        {band && cut && <div style={{ position: "absolute", left: 0, right: 0, top: `${band.y0 * 100}%`, height: `${(band.y1 - band.y0) * 100}%`, overflow: "hidden", pointerEvents: "none", zIndex: 2 }}>
+          <img src={cut} alt="" draggable={false} style={{ position: "absolute", left: 0, top: -band.y0 * H, width: W, height: H, objectFit: "cover" }} /></div>}
         {d.layers.map((l) => {
-          const common: React.CSSProperties = { position: "absolute", left: `${l.x * 100}%`, top: `${l.y * 100}%`, cursor: "move", outline: sel === l.id ? "1.5px solid #1AA7C8" : "none", outlineOffset: 2 };
+          const common: React.CSSProperties = { position: "absolute", left: `${l.x * 100}%`, top: `${l.y * 100}%`, cursor: "move", outline: sel === l.id ? "1.5px solid #1AA7C8" : "none", outlineOffset: 2, ...(band ? { zIndex: l.behind ? 1 : 3 } : {}) };
           const start = (e: React.PointerEvent) => { e.stopPropagation(); onSelect(l.id); drag.current = { id: l.id, sx: e.clientX, sy: e.clientY, lx: l.x, ly: l.y }; };
           if (l.kind === "logo") return l.src ? <img key={l.id} src={l.src} alt="logo" draggable={false} onPointerDown={start} style={{ ...common, width: `${l.w * 100}%` }} /> : null;
           const fs = l.size * scale;
@@ -198,6 +242,36 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
   const layer = d.layers.find((l) => l.id === sel) ?? null;
   const set = (next: AdDesign) => { setD(next); setDirty(true); };
   const [opened] = useState(d); // the design as the ad opened, to tell whether anything changed since
+  // Type behind the product: the photo's subject, worked out once per photo when a layer needs it.
+  const [cut, setCut] = useState<{ src: string; url: string } | null>(null);
+  const needsCut = Boolean(d.image) && d.layers.some((l) => l.behind);
+  useEffect(() => {
+    const src = d.image;
+    if (!src || !needsCut || cut?.src === src) return;
+    let live = true;
+    void cutOf(src).then((c) => { if (live && c) setCut({ src, url: c.url }); });
+    return () => { live = false; };
+  }, [d.image, needsCut, cut]);
+  const cutUrl = needsCut && cut && cut.src === d.image ? cut.url : null;
+  // The canvas: all three sizes side by side, or one size up close; zoom with the buttons or ⌘/Ctrl + scroll.
+  const stage = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<string>("all");
+  const [zoom, setZoom] = useState(0.22);
+  const clampZ = (z: number) => Math.min(1, Math.max(0.08, z));
+  const fit = (v: string) => {
+    const el = stage.current;
+    if (!el) return;
+    const shown = SIZES.filter((x) => v === "all" || x.key === v), w = shown.reduce((a, x) => a + x.w, 0), h = Math.max(...shown.map((x) => x.h));
+    setZoom(clampZ(Math.min((el.clientWidth - 56 - (shown.length - 1) * 24) / w, (el.clientHeight - 120) / h)));
+  };
+  useEffect(() => { fit("all"); }, []);
+  useEffect(() => {
+    const el = stage.current;
+    if (!el) return;
+    const wheel = (e: WheelEvent) => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); setZoom((z) => clampZ(z * (e.deltaY < 0 ? 1.08 : 0.925))); };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
   const isClip = Boolean(d.video);
   const logosOf = (x: AdDesign) => x.layers.filter((l) => l.kind === "logo");
   const nameOf = (l: Layer) => (l.role ? l.role.charAt(0).toUpperCase() + l.role.slice(1) : l.kind === "text" ? "Text" : l.kind === "button" ? "Button" : l.kind === "badge" ? "Badge" : "Logo");
@@ -253,7 +327,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
     setExporting(true); setMsg(null);
     try {
       for (const s of SIZES) {
-        const blob = await render(d, s);
+        const blob = await render(d, s, cutUrl);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url; a.download = `${brand}-${ad.hook}`.toLowerCase().replace(/[^\w]+/g, "-").slice(0, 50) + `-${s.key}.png`; a.click();
         URL.revokeObjectURL(url);
@@ -360,11 +434,23 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
           </div>
         </aside>
 
-        <div className="fill" style={{ overflow: "auto", background: "var(--tray)", backgroundImage: "radial-gradient(#D9D6D1 1px, transparent 1px)", backgroundSize: "16px 16px" }}>
-          <div className="row top g24" style={{ padding: 28, justifyContent: "center", flexWrap: "wrap" }}>
-            {SIZES.map((s) => <Artboard key={s.key} d={d} s={s} scale={0.18} sel={sel} onSelect={setSel} onMove={(id, x, y) => upd(id, { x, y })} brand={brand} />)}
+        <div ref={stage} className="fill" style={{ position: "relative", overflow: "auto", background: "var(--tray)", backgroundImage: "radial-gradient(#D9D6D1 1px, transparent 1px)", backgroundSize: "16px 16px" }}>
+          <div className="row g8" style={{ position: "sticky", top: 0, left: 0, zIndex: 5, padding: "10px 14px", pointerEvents: "none" }}>
+            <div className="seg" style={{ pointerEvents: "auto", background: "#fff" }}>
+              {[["all", "All sizes"], ...SIZES.map((x) => [x.key, x.label])].map(([k, n]) => <button key={k} type="button" className={`o${view === k ? " on" : ""}`} onClick={() => { setView(k); fit(k); }}>{n}</button>)}
+            </div>
+            <span className="fill" />
+            <div className="row g2" style={{ pointerEvents: "auto", height: 30, padding: "0 4px", borderRadius: 8, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+              <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => setZoom((z) => clampZ(z / 1.2))} style={{ width: 26, height: 26, borderRadius: 6, cursor: "pointer" }}><Icon name="minus" size={13} /></button>
+              <span className="xs tnum i2" style={{ width: 40, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
+              <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => setZoom((z) => clampZ(z * 1.2))} style={{ width: 26, height: 26, borderRadius: 6, cursor: "pointer" }}><Icon name="plus" size={13} /></button>
+              <button type="button" className="xs i2" title="Fit the canvas" onClick={() => fit(view)} style={{ height: 26, padding: "0 8px", borderRadius: 6, cursor: "pointer", borderLeft: "1px solid var(--line)" }}>Fit</button>
+            </div>
           </div>
-          <p className="xs i3" style={{ textAlign: "center" }}>Drag any layer. The striped bands on 9:16 are where Reels covers text.</p>
+          <div className="row top g24" style={{ padding: "8px 28px 20px", width: "max-content", minWidth: "100%", justifyContent: "center" }}>
+            {SIZES.filter((x) => view === "all" || x.key === view).map((x) => <Artboard key={x.key} d={d} s={x} scale={zoom} sel={sel} onSelect={setSel} onMove={(id, px, py) => upd(id, { x: px, y: py })} brand={brand} cut={cutUrl} />)}
+          </div>
+          <p className="xs i3" style={{ textAlign: "center", paddingBottom: 16 }}>Drag any layer · zoom with the buttons or ⌘/Ctrl + scroll. The striped bands on 9:16 are where Reels covers text.</p>
         </div>
 
         <aside className="col" style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--line)", minHeight: 0 }}>
@@ -389,6 +475,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
               <button type="button" className={`chip${layer.upper ? "" : " dash"}`} style={{ height: 30 }} onClick={() => upd(layer.id, { upper: !layer.upper, tracking: layer.upper ? undefined : layer.tracking ?? 0.08 })}>CAPS</button>
               {layer.font === "sans" && <div className="seg">{([[300, "Light"], [500, "Regular"], [600, "Semi"]] as const).map(([w, n]) => <button key={w} type="button" className={`o${(layer.weight ?? 500) === w ? " on" : ""}`} onClick={() => upd(layer.id, { weight: w })}>{n}</button>)}</div>}
               <button type="button" className={`chip${layer.shadow === false ? " dash" : ""}`} style={{ height: 30 }} onClick={() => upd(layer.id, { shadow: layer.shadow === false })}>Shadow</button>
+              <button type="button" className={`chip${layer.behind ? "" : " dash"}`} style={{ height: 30 }} title="The product in the photo covers this text where they overlap — works on a plain backdrop" onClick={() => upd(layer.id, { behind: layer.behind ? undefined : true })}>Behind product</button>
             </div>}
             {layer.kind === "logo" && <label className="col g4"><span className="xs i3">Size · {Math.round(layer.w * 100)}%</span><input type="range" min={0.1} max={0.6} step={0.01} value={layer.w} onChange={(e) => upd(layer.id, { w: Number(e.target.value) })} /></label>}
             {layer.kind === "text" && otherHooks.length > 0 && <>

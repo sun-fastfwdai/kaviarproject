@@ -63,12 +63,12 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
   return editShot(brand.id, me.id, assetId, kind);
 }
 
-export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids?: string[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   if (input.prompt.trim().length < 10) return { error: "Describe the scene first." };
   if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
-  const r = await shoot(brand.id, me.id, { ...input, prompt: input.prompt.slice(0, 1200) });
+  const r = await shoot(brand.id, me.id, { ...input, prompt: input.prompt.slice(0, 4400) });
   return r.ids.length ? { ids: r.ids, ...(r.error ? { error: `Some images failed: ${r.error}` } : {}) } : { error: r.error ?? "No image came back." };
 }
 

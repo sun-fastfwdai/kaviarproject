@@ -28,6 +28,7 @@ const Out = z.object({
     count: z.number().describe("3, 6 or 9"),
     look: z.string().describe("The visual direction in one line: setting, light, mood"),
     adLook: z.string().describe("For static ads, the ad style that suits this product and buyer — exactly one name from the ad styles list. Empty for video."),
+    alsoFits: z.array(z.string()).describe("For static ads, two more ad styles from the list that would also suit, different in kind from adLook — when adLook is product-only, make at least one of these a with-a-person style, and the other way round. Empty for video."),
     seconds: z.number().describe("Clip length for video formats (5–30); 0 for static"),
     why: z.string().describe("One line: why this plan, citing a number from the data when there is one"),
   }),
@@ -80,7 +81,9 @@ export async function planWithRemy(brandId: string, turns: PlanTurn[], options: 
   const asked = turns.some((t) => t.who === "remy" && /ad style/i.test(t.text));
   const fit = named ?? lookNamed(out.brief.adLook) ?? AD_LOOKS[0];
   if (out.ready && out.brief.format === "static" && !named && !asked) {
-    return { say: out.say.slice(0, 500), brief: null, questions: [{ text: "Which ad style?", options: [shortLook(fit.name)] }] };
+    const more = out.brief.alsoFits.map((n) => lookNamed(n)).filter((l): l is NonNullable<typeof l> => Boolean(l) && l !== fit);
+    const fill = AD_LOOKS.filter((l) => l !== fit && !more.includes(l) && l.group !== fit.group); // always offer the other kind too
+    return { say: out.say.slice(0, 500), brief: null, questions: [{ text: "Which ad style?", options: [...new Set([fit, ...more, ...fill])].slice(0, 3).map((l) => shortLook(l.name)) }] };
   }
   const keys = new Set([...options.plans, ...options.buyers].map((o) => o.key));
   const b = out.brief;

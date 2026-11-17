@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import type { AdDesign, Layer } from "../db/schema";
-import { loadImage } from "../audience/media";
+import { cutoutPng, loadImage } from "../audience/media";
+import { behindBand } from "./cutout";
 
 /**
  * Draws an ad design (the Editor's layers over a photo) to a PNG on the server — the same layout rules as the Editor's canvas,
@@ -27,20 +28,31 @@ const weight = (l: Layer) => (l.font === "serif" || l.font === "condensed" ? 400
 export const SIZES = { "4x5": { w: 1080, h: 1350 }, "1x1": { w: 1080, h: 1080 }, "9x16": { w: 1080, h: 1920 } } as const;
 
 /** The design as a PNG. Pictures come from brand assets or public URLs (Shopify CDN); a picture that can't be read leaves the soft background. */
-export async function renderDesign(brandId: string, d: AdDesign, size: keyof typeof SIZES = "4x5"): Promise<Buffer> {
+export async function renderDesign(brandId: string, d: AdDesign, size: keyof typeof SIZES = "4x5", photo: { media: string; data: string } | null = null): Promise<Buffer> {
   const { w: W, h: H } = SIZES[size];
-  const [f, bg, ...logos] = await Promise.all([loadFonts(), loadImage(brandId, d.image), ...d.layers.map((l) => (l.kind === "logo" && l.src ? loadImage(brandId, l.src) : Promise.resolve(null)))]);
+  const [f, bg, ...logos] = await Promise.all([loadFonts(), photo ?? loadImage(brandId, d.image), ...d.layers.map((l) => (l.kind === "logo" && l.src ? loadImage(brandId, l.src) : Promise.resolve(null)))]);
   const uri = (x: { media: string; data: string } | null) => (x ? `data:${x.media};base64,${x.data}` : null);
   const bgUri = uri(bg);
+  // Type set behind the product: the photo's subject (its backdrop made see-through) is drawn again over those layers.
+  const band = bg ? behindBand(d.layers, W, H) : null;
+  const cut = band ? await cutoutPng(Buffer.from(bg!.data, "base64")).catch(() => null) : null;
+  const order = cut ? [...d.layers.filter((l) => l.behind), ...d.layers.filter((l) => !l.behind)] : d.layers;
+  const firstFront = cut ? order.findIndex((l) => !l.behind) : -1;
   const res = new ImageResponse(
     (
       <div style={{ width: W, height: H, display: "flex", position: "relative", backgroundImage: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }}>
         {bgUri && <img src={bgUri} width={W} height={H} alt="" style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} />}
         {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)` }} />}
         {d.overlay > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)` }} />}
-        {d.layers.map((l, i) => {
+        {order.flatMap((l, n) => {
           const left = l.x * W, top = l.y * H, width = l.w * W;
-          if (l.kind === "logo") { const src = uri(logos[i]); return src ? <img key={l.id} src={src} alt="" style={{ position: "absolute", left, top, width }} /> : null; }
+          const subject = cut && band && (n === firstFront || (firstFront < 0 && n === order.length - 1)) ? (
+            <div key="subject" style={{ position: "absolute", left: 0, top: band.y0 * H, width: W, height: (band.y1 - band.y0) * H, overflow: "hidden", display: "flex" }}>
+              <img src={`data:image/png;base64,${cut.toString("base64")}`} width={W} height={H} alt="" style={{ position: "absolute", left: 0, top: -band.y0 * H, width: W, height: H, objectFit: "cover" }} />
+            </div>
+          ) : null;
+          const el = (() => {
+          if (l.kind === "logo") { const src = uri(logos[d.layers.indexOf(l)]); return src ? <img key={l.id} src={src} alt="" style={{ position: "absolute", left, top, width }} /> : null; }
           const box = l.kind === "button" || l.kind === "badge";
           const al = box ? "center" : l.align ?? "left";
           return (
@@ -60,6 +72,9 @@ export async function renderDesign(brandId: string, d: AdDesign, size: keyof typ
               <span style={{ display: "flex" }}>{l.text}</span>
             </div>
           );
+          })();
+          // The subject goes in after the last behind-layer: before the first front layer, or at the very end when every layer is behind.
+          return firstFront >= 0 ? [subject, el] : [el, subject];
         })}
       </div>
     ),

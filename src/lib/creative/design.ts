@@ -4,7 +4,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask, type Block } from "../ai/client";
 import type { AdDesign } from "../db/schema";
-import { avgColor, loadImage, toJpeg } from "../audience/media";
+import { avgColor, loadImage, subjectOf, toJpeg } from "../audience/media";
+import { canGoBehind, coverage } from "./cutout";
 import { deleteAssets, saveAsset } from "../assets/storage";
 import { marketContext } from "../research/context";
 import { brandContext } from "./remy";
@@ -56,13 +57,13 @@ const SYSTEM = `You are Remy, Kaviar's creative director, finishing static Meta 
 const lum = (c: { r: number; g: number; b: number } | null) => (c ? (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255 : null);
 const hexLum = (h: string) => lum({ r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) })!;
 
-/** Light or dark type for a layout's two type areas, read from the photo. */
-async function tonesFor(brandId: string, image: string | null, key: LayoutKey, ink: string): Promise<{ top: Tone; bottom: Tone }> {
+/** Light or dark type for a layout's two type areas, read from the photo — and whether a giant word can go behind the product. */
+async function tonesFor(brandId: string, image: string | null, key: LayoutKey, ink: string): Promise<{ top: Tone; bottom: Tone; behind: boolean }> {
   const img = image ? await loadImage(brandId, image).catch(() => null) : null;
-  if (!img) return { top: toneFor(0.9, ink), bottom: toneFor(0.9, ink) }; // no photo: the soft light background
+  if (!img) return { top: toneFor(0.9, ink), bottom: toneFor(0.9, ink), behind: false }; // no photo: the soft light background
   const buf = Buffer.from(img.data, "base64"), r = REGIONS[key];
-  const [t, b] = await Promise.all([avgColor(buf, r.top), avgColor(buf, r.bottom)]);
-  return { top: toneFor(lum(t), ink), bottom: toneFor(lum(b), ink) };
+  const [t, b, subject] = await Promise.all([avgColor(buf, r.top), avgColor(buf, r.bottom), key === "bigword" ? subjectOf(buf) : null]);
+  return { top: toneFor(lum(t), ink), bottom: toneFor(lum(b), ink), behind: subject ? canGoBehind(coverage(subject.mask, 0.1, 0.46)) : false };
 }
 
 const A = schema.ads;
@@ -126,7 +127,8 @@ export async function layoutBatch(brandId: string, batchId: string, memberId: st
       const photo = photoOf(a);
       const key: LayoutKey = layout ?? byPhoto.get(photo ?? "") ?? (isLayout(c.layout) ? c.layout : "bold");
       byPhoto.set(photo ?? "", key);
-      await drawCard(brandId, memberId, a, { ...layoutDesign(key, copy, { ...(await tonesFor(brandId, photo, key, ink)), accent, chip }, photo), ...(look ? { look } : {}) });
+      const tones = await tonesFor(brandId, photo, key, ink);
+      await drawCard(brandId, memberId, a, { ...layoutDesign(key, copy, { ...tones, accent, chip }, photo, 1080, 1350, { behind: tones.behind }), ...(look ? { look } : {}) });
       made++;
     } catch (e) { console.error("layout card", a.id, (e as Error).message); }
   }
@@ -146,5 +148,6 @@ export async function relayout(brandId: string, key: LayoutKey, current: AdDesig
   const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
   const inkHex = b?.onboarding?.analysis?.palette?.find((p) => /text/i.test(p.role))?.hex;
   const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
-  return { ...layoutDesign(key, copyOf(current, ad, brand), await tonesFor(brandId, current.image, key, ink), current.image), ...(current.look ? { look: current.look } : {}) };
+  const tones = await tonesFor(brandId, current.image, key, ink);
+  return { ...layoutDesign(key, copyOf(current, ad, brand), tones, current.image, 1080, 1350, { behind: tones.behind }), ...(current.look ? { look: current.look } : {}) };
 }

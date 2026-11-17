@@ -51,6 +51,10 @@ async function storedSize(path: string): Promise<number | null> {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Files that don't belong to a brand (the example ad for each ad style), kept at a fixed path. */
+export const putFile = (path: string, mime: string, data: Buffer) => upload(path, mime, data);
+export const getFile = (path: string): Promise<Buffer | null> => download(path).catch(() => null);
+
 /** A link that opens the stored file for an hour. */
 export async function signedLink(path: string, downloadAs?: string): Promise<string> {
   const s = storage()!;

@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { DEFAULT_VIDEO, HF_PHOTO, VIDEO_MODELS, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
+import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { ShotPlan } from "../db/schema";
 import { marketContext } from "../research/context";
@@ -24,11 +24,12 @@ export type ClipModel = { key: string; name: string; note: string; rate: Rate };
 /** Which models Shoots uses: Higgsfield when its key is set (Marketing Studio photos; Wan 3.0 Prime or Seedance 2.5 clips with sound), else AI Gateway. */
 export async function shootEngines() {
   const flat = { "480p": 1, "720p": 1, "1080p": 1 };
-  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: flat, model: "kling", models: [] as ClipModel[] };
+  if (!hfReady()) return { photo: "FLUX Kontext", video: "Kling", via: "AI Gateway", sound: false, perImage: COST_PER_IMAGE, perVideoSecond: COST_PER_VIDEO_SECOND, perSoundSecond: 0, res: flat, model: "kling", models: [] as ClipModel[], photoModel: "", photoModels: [] as { key: string; name: string; note: string; price: number }[] };
   const p = await hfPrices().catch(() => null);
   const fallback: Rate = { second: p?.videoSecond ?? 0.1, sound: p?.soundSecond ?? 0, res: p?.res ?? { "480p": 0.6, "720p": 1, "1080p": 1.8 } };
   const models: ClipModel[] = (Object.keys(VIDEO_MODELS) as VideoModel[]).map((k) => ({ key: k, name: VIDEO_MODELS[k].name, note: VIDEO_MODELS[k].note, rate: p?.video[k] ?? fallback }));
-  return { photo: "Marketing Studio", video: VIDEO_MODELS[DEFAULT_VIDEO].name, via: "Higgsfield", sound: true, perImage: p?.photo ?? 0.06, perVideoSecond: fallback.second, perSoundSecond: fallback.sound, res: fallback.res, model: DEFAULT_VIDEO as string, models };
+  const photoModels = (Object.keys(PHOTO_MODELS) as PhotoModel[]).map((k) => ({ key: k as string, name: PHOTO_MODELS[k].name, note: PHOTO_MODELS[k].note, price: p?.photos[k] ?? p?.photo ?? 0.084 }));
+  return { photo: PHOTO_MODELS[DEFAULT_PHOTO].name, photoModel: DEFAULT_PHOTO as string, photoModels, video: VIDEO_MODELS[DEFAULT_VIDEO].name, via: "Higgsfield", sound: true, perImage: p?.photos[DEFAULT_PHOTO] ?? p?.photo ?? 0.084, perVideoSecond: fallback.second, perSoundSecond: fallback.sound, res: fallback.res, model: DEFAULT_VIDEO as string, models };
 }
 
 export type PromptIn = {
@@ -46,14 +47,24 @@ export async function writeShotPrompt(brandId: string, input: PromptIn): Promise
     marketContext(brandId, input.product || null),
   ]);
   const look = adLook(input.scene);
-  const words = look ? (look.person ? 120 : 100) : { short: 30, medium: 55, detailed: 85 }[input.length];
+  const words = look ? (look.person ? 270 : 240) : { short: 90, medium: 150, detailed: 220 }[input.length];
   const out = await ask("remy", {
-    system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
+    system: `You are Remy, Kaviar's creative agent, writing the brief for an image model — GPT Image 2.5 in Higgsfield Marketing Studio — that edits a product photo. It receives the brand's real product photo as reference image 1 and must keep that product exactly (pack shape and proportions, cap, label design, printed words, colours) while building a new photograph around it for a Meta ad. This model follows long, literal, well-organised briefs far better than short ones, so write a complete production brief the way an art director briefs a photographer — never a caption.
+Write these labelled parts in this order, each starting on a new line with its label in capitals and a colon:
+SUBJECT: the product by its exact name and pack type, how many pieces, how each stands or lies, which face is to camera, and what must stay identical to reference image 1.
+SET: the place, backdrop and surface — materials and colours, each colour named with its hex.
+COMPOSITION: the frame's proportions; where the product sits and how much of the frame it fills, in percentages; what is in each third of the frame; which areas stay completely empty and plain.
+CAMERA: lens in mm, camera height and angle, distance, depth of field, what is in sharp focus.
+LIGHT: key, fill and rim — where each comes from, hard or soft, the shadows they make, colour temperature.
+STYLING: props, real ingredients, textures; hands or a person (casting, pose, expression, outfit) — only what belongs in this picture.
+FINISH: retouching level, surface detail, colour grade, and the kind of campaign it should look like.
+AVOID: what must not appear — added text, lettering, logos or watermarks; extra or duplicate products; a changed label; anything that breaks the composition (name it).
+About ${words} words in all. Concrete nouns, numbers and positions instead of adjectives — never "beautiful", "stunning" or "high quality".
 If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
 When there is a person (a character, or a UGC scene), also write voiceLine: what they say to camera in a short clip — first person, casual, under 16 words, about why they reach for this product; no medical or guaranteed claims, no prices or discounts. Otherwise voiceLine is "".
 When adLook is given, the photo is the background of a designed static ad, shot like a studio campaign: follow its art direction exactly — surface, props, camera angle, light — and its room-for-type rule, stating plainly which part of the frame stays empty and plain. Build ONE colour story and name the backdrop colour: from the brand palette if there is one, else from this product's packaging — and when the packaging is neutral (white, silver, grey, black), choose a soft, appetising tint that suits the formula and its hero ingredient rather than grey. Never a grey-on-grey picture. The product is the hero: sharp, correctly lit, label readable. Portrait 4:5. Show only ingredients, textures and claims the product truly has.
 adLook.camera is the photographer's brief — lens, camera position and light: state it in the prompt in plain photographic terms, because it is what makes this look (a wide lens close to the product, a view from directly above, a low angle against the sky). When adLook.withPerson is true and no character is given, cast the model yourself: a woman or man the primary buyer would see as themselves on a good day (age and style from who will see the ad), and describe their look, hair, outfit in the colour story, pose, expression and exactly where the product is in relation to the lens and their face. Real skin, natural hands with five fingers, one person only. Even in a person's hand or at an angle, the product keeps its true proportions and its label faces the camera, readable.
-Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
+Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as the whole brief; a phrase that opens a part begins with a line break and that part's label. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
     content: JSON.stringify({
       brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
       adLook: look ? { artDirection: look.direction, camera: look.camera, roomForType: look.room, withPerson: Boolean(look.person) } : null, brandColours: (b?.onboarding?.analysis?.palette ?? []).map((c) => `${c.role}: ${c.hex}`),
@@ -70,6 +81,7 @@ Split the prompt into consecutive phrases and tag each with the input it came fr
       rules: z.array(z.string()),
       voiceLine: z.string(),
     }),
+    maxTokens: 4000,
   });
   if (!out) return null;
   return { segments: out.segments.filter((x) => x.text), rules: (input.rules.length ? input.rules : out.rules).slice(0, 6), voiceLine: out.voiceLine.trim().slice(0, 140) };
@@ -88,7 +100,7 @@ export async function describeReference(brandId: string, assetId: string): Promi
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
-export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids: string[]; error?: string }> {
   if (hfReady()) return shootHiggsfield(brandId, memberId, input);
   const ref = await fetchPublic(input.imageUrl, 15_000, "image/*");
   if (!ref?.ok) return { ids: [], error: "Couldn’t load the product photo." };
@@ -115,7 +127,7 @@ export async function shoot(brandId: string, memberId: string | null, input: { p
 }
 
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
-async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null }): Promise<{ ids: string[]; error?: string }> {
+async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids: string[]; error?: string }> {
   const urls = [input.imageUrl];
   let person = false;
   if (input.characterId) {
@@ -128,8 +140,17 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   }
   const text = `${input.prompt}\nReference image 1 is the real product: keep it exactly — same shape, label, colours and printed text.${person ? " Reference image 2 is a character sheet: the person in the photo must be that exact person — same face, hair, skin tone and build — shown once, naturally." : ""}${urls.length > (person ? 2 : 1) ? ` The last reference image is a style reference for light, mood and composition only.` : ""} Photorealistic, no added text, logos or watermarks.`;
   const body = { prompt: text.slice(0, 5000), image_urls: urls.filter(Boolean), aspect_ratio: input.aspect === "4:5" ? "3:4" : input.aspect, resolution: "2k", quality: "high", enhance_prompt: false };
-  const price = (await hfPrices().catch(() => null))?.photo ?? null;
-  const runs = await Promise.all(Array.from({ length: Math.min(4, Math.max(1, input.n)) }, () => hfRun(HF_PHOTO, body, 150_000)));
+  let model: PhotoModel = isPhotoModel(input.model) ? input.model : DEFAULT_PHOTO;
+  const prices = await hfPrices().catch(() => null);
+  const count = Math.min(4, Math.max(1, input.n));
+  let runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 170_000)));
+  // The precise model isn't open to every account: when it returns nothing at all, shoot with the fast one rather than fail.
+  if (model !== "flare" && runs.every((r) => !r.out?.images?.[0]?.url) && !runs.some((r) => /credit|safety|busy/i.test(r.error ?? ""))) {
+    console.error("higgsfield", PHOTO_MODELS[model].path, "returned nothing — using flare:", runs[0]?.error);
+    model = "flare";
+    runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS.flare.path, body, 150_000)));
+  }
+  const price = prices?.photos[model] ?? prices?.photo ?? null;
   const ids: string[] = [];
   let error: string | undefined;
   for (const r of runs) {
@@ -139,7 +160,7 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
       const img = await hfImage(url);
       const [row] = await saveAsset({
         brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · shoot`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
-        meta: { ai: true, prompt: input.prompt.slice(0, 500), product: input.product, engine: "Higgsfield · Marketing Studio", ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
+        meta: { ai: true, prompt: input.prompt.slice(0, 2400), product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name}`, ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
       });
       ids.push(row.id);
     } catch (e) { error = (e as Error).message; }
@@ -203,7 +224,7 @@ export async function editShot(brandId: string, memberId: string, assetId: strin
 }
 
 const CheckOut = z.object({
-  labelMatches: z.boolean().describe("The product's label/name matches the reference"),
+  labelMatches: z.boolean().describe("The label's design and the product's name match the reference at the size shown (unreadably small print is fine)"),
   shapeExact: z.boolean().describe("Bottle/pack shape matches the reference"),
   coloursOnBrand: z.boolean(),
   noTextOrWatermark: z.boolean().describe("No added text, letters or watermarks besides the product's own label"),
@@ -216,7 +237,7 @@ export async function checkShot(brandId: string, assetId: string, referenceUrl: 
   const [a] = await readAssets(eq(schema.brandAssets.id, assetId));
   if (!a || !a.mime.startsWith("image/")) return null;
   const out = await ask("otto", {
-    system: "You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. Be strict about the product itself: brands get complaints when a product looks different from what arrives. The pose is free — the product may be tilted, lying down, held in a hand, partly behind a finger, much larger or smaller, or stretched by a wide lens close to it: that is the photographer's choice, not a fault. Judge whether it is the SAME product: same pack type and proportions, same cap or closure, same label design, wording and colours. People, hands and props are not added text.",
+    system: "You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. Be strict about the product itself: brands get complaints when a product looks different from what arrives. The pose is free — the product may be tilted, lying down, held in a hand, partly behind a finger, much larger or smaller, or stretched by a wide lens close to it: that is the photographer's choice, not a fault. Judge whether it is the SAME product: same pack type and proportions, same cap or closure, same label design, wording and colours. People, hands and props are not added text. Judge the label at the size it appears in the photo: small print that is too small to read is not a fault as long as the label's layout, colours and the position of the brand or product name match. Mark labelMatches false only for a visibly different label — a wrong or misspelled name in readable letters, a different design, a missing label, or the label on the wrong face.",
     content: [
       { type: "text", text: `Reference: the real product “${product}”.` },
       { type: "image", source: { type: "url", url: referenceUrl } },

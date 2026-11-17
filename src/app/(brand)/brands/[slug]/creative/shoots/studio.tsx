@@ -72,7 +72,7 @@ type Props = {
   slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; planned?: "static" | "video" | "ugc" | "full" | null; savedAt: string | null; savedBy: string | null;
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
   examples?: Record<string, string>;
-  engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
+  engines: { photo: string; photoModel: string; photoModels: { key: string; name: string; note: string; price: number }[]; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
   batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
 };
 
@@ -90,7 +90,7 @@ function ScenePick({ value, onChange, examples }: { value: string; onChange: (v:
   return <>{SCENE_GROUPS.map(([g, list]) => (
     <div key={g} className="col g4" style={{ paddingBottom: 4 }}>
       <span className="xs i3">{g}</span>
-      {g === "Static ad looks" ? <LookGallery value={value} examples={examples} onPick={onChange} min={62} blurbs={false} /> : <Pills label={`Scene · ${g}`} value={value} options={list.map((x) => [x, x])} onChange={onChange} />}
+      {g === "Static ad looks" ? <LookGallery value={value} examples={examples} onPick={onChange} compact /> : <Pills label={`Scene · ${g}`} value={value} options={list.map((x) => [x, x])} onChange={onChange} />}
     </div>
   ))}</>;
 }
@@ -272,9 +272,22 @@ function Studio(props: Props) {
   };
   const pickedFor = (sid: string) => { const n = find(flow, sid); if (!n) return []; const c = cfgOf(n); return c.picked ? c.picked.filter((x) => byId.has(x)) : sendItems(sid).photos; };
   // The run's output is ready and a batch is waiting for it: offer the next step right in the status bar.
+  /** Every photo wired toward a Send node — the ones Otto flagged too. */
+  const allPhotos = (sid: string) => uniq(inc(flow, sid).flatMap((x) => (x.type === "check" ? inc(flow, x.id).filter((y) => y.type === "photo").flatMap((y) => cfgOf(y).out) : x.type === "photo" ? cfgOf(x).out : []))).filter((x) => byId.has(x));
   const toEditor = (() => {
-    for (const S of flow.nodes.filter((x) => x.type === "send" && cfgOf(x).send)) { const it = sendItems(S.id), k = pickedFor(S.id).length + it.clips.length; if (k) return { id: S.id, n: k }; }
+    for (const S of flow.nodes.filter((x) => x.type === "send" && cfgOf(x).send)) {
+      const it = sendItems(S.id), k = pickedFor(S.id).length + it.clips.length;
+      if (k) return { id: S.id, n: k, flagged: false };
+      // Otto flagged every photo: the team can still take them into the Editor and judge for themselves.
+      if (allPhotos(S.id).length) return { id: S.id, n: allPhotos(S.id).length, flagged: true };
+    }
     return null;
+  })();
+  // No batch is waiting (results go to brand assets): the best photo can still open in the Editor as a new ad.
+  const toDesign = (() => {
+    if (toEditor) return null;
+    const ids = uniq(flow.nodes.filter((x) => x.type === "photo").flatMap((x) => cfgOf(x).out)).filter((x) => byId.has(x));
+    return ids.find((x) => passes(checkOf(x))) ?? ids[0] ?? null;
   })();
   const changedOf = (did: string) => { const n = find(flow, did); if (!n) return false; const c = cfgOf(n), sig = signalOf(flow, did); return Boolean(c.rerun && c.value && sig?.value && sig.value !== c.value); };
 
@@ -319,7 +332,7 @@ function Studio(props: Props) {
     mark(xid, "running");
     const refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null;
     const chNode = up(g, xid, "character");
-    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null });
+    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: c.model ?? null });
     if (!r.ids?.length) { fail(xid, r.error ?? "No photos came back."); return null; }
     if (r.error) setMsg(r.error);
     const ids = r.ids;
@@ -596,10 +609,10 @@ function Studio(props: Props) {
     patchNode(photoId, { out: [r.id, ...cfgOf(find(flowRef.current, photoId)!).out].slice(0, 8) }, false);
     setFocus(r.id); router.refresh();
   });
-  const send = (sid: string) => go(async () => {
+  const send = (sid: string, flaggedToo = false) => go(async () => {
     const n = find(flowRef.current, sid);
     if (!n) return;
-    const c = cfgOf(n), picked = pickedFor(sid), target = batches.find((b) => b.id === c.send);
+    const c = cfgOf(n), picked = flaggedToo ? allPhotos(sid) : pickedFor(sid), target = batches.find((b) => b.id === c.send);
     if (c.send) setMsg("Sending to the Editor — Remy is laying out each ad…");
     // The look the photos were shot in (the Prompt node's scene) tells Remy which layout they were composed for.
     const look = flowRef.current.nodes.filter((x) => x.type === "prompt").map((x) => cfgOf(x).scene).find((x) => x.startsWith("Ad look")) ?? null;
@@ -611,6 +624,16 @@ function Studio(props: Props) {
     router.refresh();
   });
   const design = (id: string) => startNav(() => designFromShot(slug, id));
+  // A pipeline that came from Plan runs straight through: once the photos pass Otto, Remy designs the ads and the Editor opens.
+  // (Once per run — coming back to this page doesn't lay the ads out again over the team's edits.)
+  const lastRun = flow.last?.at ?? null, handOff = toEditor && !toEditor.flagged ? toEditor.id : null;
+  useEffect(() => {
+    if (props.planned !== "static" || busy || !handOff || !lastRun || Date.now() - Date.parse(lastRun) > 180_000) return;
+    const key = `kv-handoff:${lastRun}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch { return; }
+    send(handOff);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires when a run finishes and its photos are in
+  }, [lastRun, handOff, busy]);
   const pickReference = (rid: string, assetId: string) => go(async () => {
     patchNode(rid, { reference: { id: assetId, note: "Remy is reading this photo…", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } });
     const r = await readReference(slug, assetId);
@@ -862,7 +885,9 @@ function Studio(props: Props) {
                   : flow.last ? <span className="xs i2"><span className="w5 i1">Last run:</span> {flow.last.photos} photo{flow.last.photos === 1 ? "" : "s"}{flow.last.clips ? ` + ${flow.last.clips} clip${flow.last.clips === 1 ? "" : "s"}` : ""} · {flow.last.flagged ? `${flow.last.flagged} flagged by Otto` : "all passed Otto"} · {usd(flow.last.cost)}</span>
                   : <span className="xs i2"><span className="w5 i1">Not run yet:</span> Run flow follows the wires · about {usd(cost)}</span>}
                 {anyChanged && !busy && <button type="button" className="btn sm" onClick={runFlow}><Icon name="refresh" size={11} />The number changed — run again</button>}
-                {!busy && toEditor && <button type="button" className="btn sm dark" onClick={() => send(toEditor.id)}><Icon name="arrow-r" size={11} color="#fff" />Send {toEditor.n} to the Editor</button>}
+                {!busy && toEditor && !toEditor.flagged && <button type="button" className="btn sm dark" onClick={() => send(toEditor.id)}><Icon name="arrow-r" size={11} color="#fff" />Design {toEditor.n} as ads in the Editor</button>}
+                {!busy && toEditor?.flagged && <button type="button" className="btn sm" title="Otto flagged every photo. Open them in the Editor anyway and judge for yourself, or re-run for new ones." onClick={() => send(toEditor.id, true)}><Icon name="arrow-r" size={11} />Use them anyway — design in the Editor</button>}
+                {!busy && toDesign && <button type="button" className="btn sm dark" title="Opens this photo in the Editor as a new ad, with a layout ready to edit" onClick={() => design(toDesign)}><Icon name="arrow-r" size={11} color="#fff" />Design it in the Editor</button>}
               </div>
             </Panel>
             {flow.nodes.length === 0 && (
@@ -1057,7 +1082,7 @@ function Studio(props: Props) {
 
         {n.type === "prompt" && <>
           <Field label="Prompt" sub={c.segments && c.prompt === joinSegs(c.segments) ? "Written by Remy · edit it and it’s yours" : c.prompt ? "Edited by hand" : undefined}>
-            <textarea value={c.prompt} rows={8} onChange={(e) => patchNode(n.id, { prompt: e.target.value, promptFor: keyOf(flow, n) }, false)} placeholder="Describe the scene, or let Remy write it from the inputs wired in."
+            <textarea value={c.prompt} rows={18} onChange={(e) => patchNode(n.id, { prompt: e.target.value, promptFor: keyOf(flow, n) }, false)} placeholder="Describe the scene, or let Remy write it from the inputs wired in."
               style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
           </Field>
           <Field label="Scene" sub={isUgc(c.scene) && !inc(flow, n.id).some((x) => x.type === "character") ? "UGC scene — wire a Character in to keep the same person in every shot" : undefined}>
@@ -1074,7 +1099,12 @@ function Studio(props: Props) {
         </>}
 
         {n.type === "photo" && <>
-            <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
+            {props.engines.photoModels.length > 1
+              ? <Field label="Model" sub={(props.engines.photoModels.find((x) => x.key === (c.model ?? props.engines.photoModel)) ?? props.engines.photoModels[0]).note}>
+                  <Combo label="Model" value={c.model ?? props.engines.photoModel} onChange={(v) => patchNode(n.id, { model: v })}
+                    options={props.engines.photoModels.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.price)} a photo · keeps the real product from the Shopify photo` }))} />
+                </Field>
+              : <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>}
             <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>
             <div className="row g6" style={{ flexShrink: 0 }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [4, "× 4"]]} onChange={(v) => patchNode(n.id, { n: v })} /></div>
             {(nMine.length > 0 || nEarlier.length > 0) && <Field label={focusShot ? "Selected photo" : "Pick a photo to edit or design"}>

@@ -1,6 +1,8 @@
-/* eslint-disable @next/next/no-img-element -- brand files served from /api/assets */
-import type { ReactNode } from "react";
-import { AD_LOOKS, LOOK_GROUPS, shortLook, type AdLook } from "@/lib/creative/layouts";
+"use client";
+/* eslint-disable @next/next/no-img-element -- example ads served from /api/looks and /api/assets */
+import { useState, type ReactNode } from "react";
+import { AD_LOOKS, LAYOUTS, LOOK_GROUPS, shortLook, type AdLook, type LookGroup } from "@/lib/creative/layouts";
+import { Icon } from "@/components/icon";
 
 /**
  * A picture for every ad style: a small illustrated poster that shows how the photo is composed and where the type goes
@@ -223,40 +225,99 @@ const ART: Record<string, () => ReactNode> = {
   </>),
 };
 
-/** The picture for a look: the brand's own latest ad in that style when it has one, else the illustration. */
+/** Bump when the example photos are re-shot, so browsers fetch the new ones. */
+const PHOTOS = 1;
+/**
+ * The picture for a look: the brand's own latest ad in that style when it has one, else Kaviar's example ad (a real photo shot in
+ * that style, with the type laid out), else the illustration — which also shows while the photo loads.
+ */
 export function LookArt({ look, example }: { look: Pick<AdLook, "key" | "name">; example?: string | null }) {
-  if (example) return <img src={example} alt={shortLook(look.name)} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />;
+  const src = example || `/api/looks/${look.key}?v=${PHOTOS}`;
+  const [state, setState] = useState<"wait" | "ok" | "none">("wait");
   const draw = ART[look.key];
-  return <svg viewBox="0 0 120 150" role="img" aria-label={shortLook(look.name)} style={{ width: "100%", height: "100%", display: "block" }}>{draw ? draw() : <Bg c="#EDE9E2" />}</svg>;
+  return (
+    <span style={{ position: "relative", display: "block", width: "100%", height: "100%" }}>
+      {state !== "ok" && <svg viewBox="0 0 120 150" role="img" aria-label={shortLook(look.name)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>{draw ? draw() : <Bg c="#EDE9E2" />}</svg>}
+      {state !== "none" && <img key={src} src={src} alt={shortLook(look.name)} loading="lazy" onLoad={() => setState("ok")} onError={() => setState("none")}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: state === "ok" ? 1 : 0, transition: "opacity .25s" }} />}
+    </span>
+  );
 }
 
-/** Every ad style as a gallery, in two groups; tap one to choose it. `pick` is Remy's recommendation, `value` the chosen look (full names). */
-export function LookGallery({ value, pick, examples = {}, onPick, min = 104, blurbs = true, disabled }: {
-  value?: string | null; pick?: string | null; examples?: Record<string, string>; onPick: (name: string) => void; min?: number; blurbs?: boolean; disabled?: boolean;
-}) {
+function Tile({ l, on, tag, yours, example, onClick, compact, disabled }: { l: AdLook; on: boolean; tag?: string | null; yours?: boolean; example?: string | null; onClick: () => void; compact?: boolean; disabled?: boolean }) {
   return (
-    <div className="col g10">
-      {LOOK_GROUPS.map((g) => (
-        <div key={g} className="col g6">
-          <span className="xs i3">{g} · {AD_LOOKS.filter((l) => l.group === g).length} styles</span>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: blurbs ? 10 : 6 }}>
-            {AD_LOOKS.filter((l) => l.group === g).map((l) => {
-              const on = value === l.name, rec = pick === l.name;
-              return (
-                <button key={l.key} type="button" disabled={disabled} onClick={() => onPick(l.name)} title={l.blurb} className="col g4" style={{ textAlign: "left", padding: 0, minWidth: 0 }}>
-                  <span style={{ position: "relative", display: "block", width: "100%", aspectRatio: "4 / 5", borderRadius: blurbs ? 10 : 7, overflow: "hidden", background: "var(--tray-2)", boxShadow: on ? "0 0 0 2px var(--ink)" : rec ? "0 0 0 1.5px var(--ink)" : "0 0 0 1px var(--line)" }}>
-                    <LookArt look={l} example={examples[l.name]} />
-                    {rec && blurbs && <span className="xs w5" style={{ position: "absolute", right: 5, top: 5, padding: "1px 6px", borderRadius: 99, background: "var(--ink)", color: "#fff", fontSize: 9.5 }}>Remy’s pick</span>}
-                    {examples[l.name] && blurbs && <span className="xs" style={{ position: "absolute", right: 5, bottom: 5, padding: "1px 6px", borderRadius: 99, background: "rgba(0,0,0,.55)", color: "#fff", fontSize: 9 }}>Yours</span>}
-                  </span>
-                  <span className="xs w5 i1 ell" style={{ fontSize: blurbs ? undefined : 10 }}>{shortLook(l.name)}</span>
-                  {blurbs && <span className="xs i3" style={{ lineHeight: "14px", marginTop: -3 }}>{l.blurb}</span>}
-                </button>
-              );
-            })}
+    <button type="button" disabled={disabled} onClick={onClick} title={l.blurb} aria-pressed={on} className="col g4 hv-card" style={{ textAlign: "left", padding: 0, minWidth: 0, cursor: "pointer" }}>
+      <span style={{ position: "relative", display: "block", width: "100%", aspectRatio: "4 / 5", borderRadius: compact ? 7 : 12, overflow: "hidden", background: "var(--tray-2)", boxShadow: on ? "0 0 0 2.5px var(--ink)" : "0 0 0 1px var(--line)" }}>
+        <LookArt look={l} example={example} />
+        {!compact && <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "22px 8px 7px", background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.62))", color: "#fff", fontSize: 12, fontWeight: 600, lineHeight: "15px" }}>{shortLook(l.name)}</span>}
+        {tag && !compact && <span style={{ position: "absolute", left: 6, top: 6, padding: "2px 7px", borderRadius: 99, background: tag === "Remy’s pick" ? "var(--ink)" : "rgba(255,255,255,.92)", color: tag === "Remy’s pick" ? "#fff" : "var(--ink)", fontSize: 10, fontWeight: 600 }}>{tag}</span>}
+        {yours && !compact && <span style={{ position: "absolute", right: 6, top: 6, padding: "2px 7px", borderRadius: 99, background: "rgba(0,0,0,.55)", color: "#fff", fontSize: 9.5 }}>Your ad</span>}
+        {on && <span style={{ position: "absolute", right: 6, bottom: compact ? 6 : 8, width: 18, height: 18, borderRadius: 99, background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 2px #fff" }}><Icon name="check" size={10} color="#fff" /></span>}
+      </span>
+      {compact && <span className="xs w5 i1 ell" style={{ fontSize: 10 }}>{shortLook(l.name)}</span>}
+    </button>
+  );
+}
+
+/**
+ * Every ad style as a gallery of example ads. In Plan (`confirm`): Remy's suggestions come first, the rest can be filtered to
+ * product-only or with-a-person, and tapping a style shows what it is before it is chosen. In Shoots (`compact`): a small grid; a tap picks.
+ * `suggest` are Remy's recommendations (full names, best first); `value` is the chosen look.
+ */
+export function LookGallery({ value, suggest = [], examples = {}, onPick, compact, disabled }: {
+  value?: string | null; suggest?: string[]; examples?: Record<string, string>; onPick: (name: string) => void; compact?: boolean; disabled?: boolean;
+}) {
+  const [group, setGroup] = useState<"all" | LookGroup>("all");
+  const [open, setOpen] = useState<string | null>(value ?? suggest[0] ?? null);
+  const shown = AD_LOOKS.filter((l) => group === "all" || l.group === group);
+  if (compact) {
+    return (
+      <div className="col g8">
+        {LOOK_GROUPS.map((g) => (
+          <div key={g} className="col g4">
+            <span className="xs i3" style={{ fontSize: 10 }}>{g}</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(62px, 1fr))", gap: 6 }}>
+              {AD_LOOKS.filter((l) => l.group === g).map((l) => <Tile key={l.key} l={l} compact on={value === l.name} example={examples[l.name]} disabled={disabled} onClick={() => onPick(l.name)} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  const picks = suggest.map((n) => AD_LOOKS.find((l) => l.name === n)).filter((l): l is AdLook => Boolean(l)).slice(0, 3);
+  const sel = AD_LOOKS.find((l) => l.name === open) ?? null;
+  return (
+    <div className="col g12">
+      {picks.length > 0 && (
+        <div className="col g6">
+          <span className="xs i3">Remy suggests</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, maxWidth: 520 }}>
+            {picks.map((l, i) => <Tile key={l.key} l={l} on={open === l.name} tag={i === 0 ? "Remy’s pick" : "Also fits"} yours={Boolean(examples[l.name])} example={examples[l.name]} disabled={disabled} onClick={() => setOpen(l.name)} />)}
           </div>
         </div>
-      ))}
+      )}
+      <div className="col g6">
+        <div className="row g8" style={{ flexWrap: "wrap" }}>
+          <span className="xs i3">{picks.length ? "Or browse every style" : "Every style"}</span><span className="fill" />
+          <div className="seg">
+            {([["all", `All ${AD_LOOKS.length}`], ...LOOK_GROUPS.map((g) => [g, `${g} ${AD_LOOKS.filter((l) => l.group === g).length}`])] as [("all" | LookGroup), string][]).map(([k, n]) => <button key={k} type="button" className={`o${group === k ? " on" : ""}`} onClick={() => setGroup(k)}>{n}</button>)}
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))", gap: 10 }}>
+          {shown.map((l) => <Tile key={l.key} l={l} on={open === l.name} yours={Boolean(examples[l.name])} example={examples[l.name]} disabled={disabled} onClick={() => setOpen(l.name)} />)}
+        </div>
+      </div>
+      {sel && (
+        <div className="row g12" style={{ position: "sticky", bottom: 8, padding: 10, borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 10px 28px rgba(18,18,18,.12)" }}>
+          <span style={{ width: 56, aspectRatio: "4 / 5", borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 0 0 1px var(--line)" }}><LookArt look={sel} example={examples[sel.name]} /></span>
+          <span className="col g2 fill" style={{ minWidth: 0 }}>
+            <span className="sm w5 i1">{shortLook(sel.name)} <span className="xs i3" style={{ fontWeight: 400 }}>· {sel.group.toLowerCase()}</span></span>
+            <span className="xs i2" style={{ lineHeight: "16px" }}>{sel.blurb}. {sel.camera.split(". ")[0]}.</span>
+            <span className="xs i3" style={{ lineHeight: "16px" }}>Type: {(LAYOUTS.find((x) => x.key === sel.layout)?.hint ?? "").toLowerCase()}</span>
+          </span>
+          <button type="button" className="btn dark" disabled={disabled} onClick={() => onPick(sel.name)} style={{ flexShrink: 0 }}>Use this style<Icon name="arrow-r" size={12} color="#fff" /></button>
+        </div>
+      )}
     </div>
   );
 }

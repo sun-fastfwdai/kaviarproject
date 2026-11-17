@@ -39,9 +39,9 @@ export const REGIONS: Record<LayoutKey, { top: Box; bottom: Box }> = {
 };
 
 /** Type colour for a patch of photo: white (with a soft scrim when the patch isn't dark enough) or the brand's dark ink. */
-export type Tone = { color: string; shadow: boolean; scrim: number };
+export type Tone = { color: string; shadow: boolean; scrim: number; lum?: number | null };
 export const toneFor = (lum: number | null, ink = "#1C1B19"): Tone =>
-  lum == null ? { color: "#FFFFFF", shadow: true, scrim: 0.34 } : lum < 0.5 ? { color: "#FFFFFF", shadow: true, scrim: lum > 0.33 ? 0.28 : 0 } : { color: ink, shadow: false, scrim: 0 };
+  lum == null ? { color: "#FFFFFF", shadow: true, scrim: 0.34, lum } : lum < 0.5 ? { color: "#FFFFFF", shadow: true, scrim: lum > 0.33 ? 0.28 : 0, lum } : { color: ink, shadow: false, scrim: 0, lum };
 
 /**
  * Ad looks: how the photo behind a static ad is shot — written the way an art director briefs a photographer. `direction` is the
@@ -57,9 +57,9 @@ export const AD_LOOKS: AdLook[] = [
     camera: "Shot straight down from above, 50 mm, f/8 so everything is sharp. One large soft overhead light, one gentle natural shadow falling to the lower right.",
     room: "Product and swatch sit between 34% and 84% of the frame height; the top third is empty backdrop for a headline, and the bottom 16% stays empty backdrop for the payoff line." },
   { key: "bigword", name: "Ad look · Big word", group: "Product only", layout: "bigword", blurb: "One giant word behind the product",
-    direction: "A poster-style hero shot. The product stands upright and centred on a seamless backdrop in ONE saturated-but-soft colour (from the packaging or the hero ingredient — a fresh green, a warm peach, a rosy pink), with one or two of its real ingredients at the base (a citrus slice, a leaf, a water bead, petals). A soft reflection under the product, a gentle glow behind it.",
-    camera: "Eye level with the product, 85 mm, f/8. Glossy studio light: a large soft key from the front-left and a rim light that draws a bright edge down the product's side.",
-    room: "The product stands between 38% and 82% of the frame height, narrow and centred, with clear backdrop to its left and right. The top 36% is completely empty backdrop — a giant word is printed there — and the bottom 18% is calm, empty surface for the headline; props stay small, beside the product's base, never in the bottom strip." },
+    direction: "A poster-style hero shot. The product stands upright and centred on a seamless backdrop in ONE saturated-but-soft colour (from the packaging or the hero ingredient — a fresh green, a warm peach, a rosy pink), with one or two of its real ingredients at the base (a citrus slice, a leaf, a water bead, petals). The backdrop is one flat, evenly lit colour from edge to edge — no glow, no vignette, no gradient, no texture. A soft reflection under the product.",
+    camera: "Eye level with the product, 85 mm, f/8. Glossy studio light: a large soft key from the front-left and a rim light that draws a bright edge down the product's side; the backdrop lit separately and evenly.",
+    room: "The product stands between 30% and 84% of the frame height, narrow and centred, with plain backdrop to its left and right all the way to the frame's edges. The top 30% is completely empty backdrop: a giant word is printed across the top and the product stands in front of its lower part. The bottom 16% is calm, empty surface for the headline; props stay small, beside the product's base, never in the bottom strip." },
   { key: "benefits", name: "Ad look · Benefit list", group: "Product only", layout: "benefits", blurb: "Serif headline and a ticked list beside the product",
     direction: "A soft, feminine product still life. The product stands on a small plinth or folded linen with one gentle prop (a flower, a rolled towel), on a warm pastel backdrop with a subtle gradient. Calm and premium.",
     camera: "Slightly above eye level, 70 mm, f/5.6. Soft daylight from the left through a diffuser, a white card filling the shadows on the right.",
@@ -134,7 +134,7 @@ const linesOf = (text: string, widthPx: number, size: number, k: number, trackin
 const LH = 1.15;
 
 /** The design for a layout: type layers placed and coloured for the photo, with a scrim where the photo needs one. */
-export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone; bottom: Tone; accent?: string; chip?: string }, image: string | null, W = 1080, H = 1350): AdDesign {
+export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone; bottom: Tone; accent?: string; chip?: string }, image: string | null, W = 1080, H = 1350, opts: { behind?: boolean } = {}): AdDesign {
   const T = tones.top, B = tones.bottom, L: Layer[] = [];
   const benefits = (copy.benefits ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 4);
   const text = (role: string, t: string, o: Omit<Layer, "id" | "kind" | "text" | "color" | "shadow"> & { tone: Tone }) => {
@@ -158,9 +158,12 @@ export function layoutDesign(key: LayoutKey, copy: CardCopy, tones: { top: Tone;
   } else if (key === "bigword") {
     // One giant word across the top, see-through against the backdrop; short labels beside the product; the message at the bottom.
     const word = (copy.word || copy.headline.split(/\s+/)[0] || copy.brand).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 9).toUpperCase();
-    const size = Math.round(Math.min(470, (0.9 * W) / (Math.max(3, word.length) * 0.47)));
-    const dark = T.color !== "#FFFFFF";
-    L.push({ id: uid(), kind: "text", role: "word", text: word, x: 0.03, y: 0.035, w: 0.94, size, font: "condensed", align: "center", color: dark ? T.color : "#FFFFFF", opacity: dark ? 0.14 : 0.6, shadow: false });
+    // When the photo has a clean backdrop the word goes BEHIND the product: bigger, lower, solid — the product stands in front of it.
+    const behind = Boolean(opts.behind);
+    const size = Math.round(Math.min(behind ? 520 : 470, ((behind ? 0.96 : 0.9) * W) / (Math.max(3, word.length) * 0.47)));
+    const white = T.color === "#FFFFFF" || (behind && (T.lum ?? 1) < 0.86);
+    L.push({ id: uid(), kind: "text", role: "word", text: word, x: behind ? 0.02 : 0.03, y: behind ? 0.1 : 0.035, w: behind ? 0.96 : 0.94, size, font: "condensed", align: "center", color: white ? "#FFFFFF" : T.color,
+      opacity: behind ? (white ? 0.88 : 0.2) : white ? 0.6 : 0.14, shadow: false, ...(behind ? { behind: true } : {}) });
     const pill = (t: string, x: number, y: number) => L.push({ id: uid(), kind: "badge", role: "benefit", text: t, x, y, w: 0.3, size: 28, font: "sans", weight: 600, color: "#1C1B19", bg: "#FFFFFF" });
     if (benefits[0]) pill(benefits[0], 0.05, 0.47);
     if (benefits[1]) pill(benefits[1], 0.67, 0.58);

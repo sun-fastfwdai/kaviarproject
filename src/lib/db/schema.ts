@@ -373,6 +373,7 @@ export type Layer = {
   id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display" | "condensed"; color: string;
   bg?: string; weight?: number; align?: "left" | "center" | "right"; src?: string; shadow?: boolean; tracking?: number; upper?: boolean; role?: string;
   opacity?: number; bullet?: boolean; // opacity: a see-through giant word; bullet: a round tick before the line (benefit lists)
+  behind?: boolean; // the type sits behind the product: the photo's subject is drawn over it where they overlap
 };
 /**
  * An ad's design: the photo (or clip) from Shoots with type layers on it. `overlay` / `overlayTop` darken the bottom / top behind type.

@@ -203,9 +203,10 @@ function Body({ n }: { n: ShootNode }) {
 
   if (n.type === "prompt") {
     return <>
-      <span className="xs i2" style={{ lineHeight: "20px", overflow: "hidden", flex: 1, minHeight: 0, display: "-webkit-box", WebkitLineClamp: 9, WebkitBoxOrient: "vertical" }}>
+      <span className="xs i2 nowheel" style={{ lineHeight: "19px", overflowY: "auto", flex: 1, minHeight: 0, maxHeight: 260, whiteSpace: "pre-line" }}>
         {c.segments && c.prompt === joinSegs(c.segments) ? <Segments segs={c.segments} /> : c.prompt || <span className="i3">Wire inputs in, then Run flow — Remy writes this from them. Or write the scene yourself in the panel.</span>}
       </span>
+      {c.prompt ? <span className="xs i3">{c.prompt.trim().split(/\s+/).length} words · written for the photo model — scroll to read it all</span> : null}
       {s.stale(id) && <span className="xs c-amber">Inputs changed — Remy rewrites it on the next run.</span>}
       <div className="row g8" style={{ flexWrap: "wrap" }}>{(["product", "character", "data", "brand", "wins"] as const).map((k) => <span key={k} className="row g4" style={{ fontSize: 10, color: "var(--ink-3)" }}><span style={{ width: 8, height: 2, background: TOK[k] }} />{k === "wins" ? "Wins" : k === "character" ? "Person" : k[0].toUpperCase() + k.slice(1)}</span>)}</div>
       <button type="button" className="row g4 xs i2 nodrag" disabled={s.busy} onClick={(e) => { e.stopPropagation(); s.select(id); s.writePrompt(id); }} style={{ paddingTop: 6, borderTop: "1px solid var(--line)", textAlign: "left" }}>

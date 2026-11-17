@@ -18,6 +18,7 @@ const LayerOut = z.object({
   color: z.string().describe("#RRGGBB"), bg: z.string().describe("#RRGGBB fill for a button or badge; empty for text"),
   align: z.enum(["left", "center", "right"]), upper: z.boolean(), tracking: z.number().describe("Letter spacing in em, 0–0.3"), shadow: z.boolean(),
   opacity: z.number().describe("1 for normal type; 0.1–0.7 for a see-through giant word"), bullet: z.boolean().describe("True puts a round tick before the line (benefit lists)"),
+  behind: z.boolean().describe("True sets this text BEHIND the product: the product in the photo is drawn over it where they overlap. For a giant word the product stands in front of. Needs a plain backdrop behind the word."),
 });
 const Out = z.object({
   say: z.string().describe("One or two short sentences to the team: what you changed, or why you didn't"),
@@ -31,7 +32,7 @@ const Out = z.object({
 
 const SYSTEM = `You are Remy, Kaviar's designer, working in the ad Editor. The team asks for a change to one ad; you edit its design and say what you did.
 The artboard is 1080 × 1350 (4:5). Layers sit over a photo: x, y and w are fractions of the artboard (top-left origin), size is px. Keep type inside a 6% margin. The same design is also cropped to 9:16, where the top 14% and bottom 20% get covered by the app's own buttons.
-Fonts: display (Poppins bold — punchy headlines), serif (DM Serif Display — editorial, premium), sans (Poppins — weights 300, 500, 600), condensed (Anton — tall poster caps, for one giant word). upper + tracking makes small caps lines; bullet puts a round tick before a line; opacity makes a giant word see-through.
+Fonts: display (Poppins bold — punchy headlines), serif (DM Serif Display — editorial, premium), sans (Poppins — weights 300, 500, 600), condensed (Anton — tall poster caps, for one giant word). upper + tracking makes small caps lines; bullet puts a round tick before a line; opacity makes a giant word see-through; behind puts text behind the product.
 Layouts you can switch to: ${LAYOUTS.map((l) => `${l.key} (${l.hint})`).join("; ")}.
 Rules:
 - You can see the card as it looks now. Judge it like an art director: hierarchy, contrast against the photo, breathing room, nothing over the product's label or a face.
@@ -39,6 +40,7 @@ Rules:
 - Change only what was asked, and what that change forces (e.g. move the subline down when the headline grows). Return every layer, unchanged ones as they are.
 - White type needs a dark enough photo behind it: raise overlayTop / overlay a little, or switch to dark type on a light area.
 - Copy: keep claims to what the ad already says — never invent numbers, reviews, awards or discounts.
+- Text behind the product: you CAN do this — set the layer's behind to true and place it so the product overlaps part of it (for a giant word: font condensed, size 380–520, centred, y about 0.1, solid white or a strong colour with opacity 0.85–1 so it reads once the product covers part of it). It works when the backdrop behind the word is plain; say so if the photo is busy there. Never say you can't layer text behind the product.
 - You cannot make new photos or clips here. If the request needs one, set needsShoots, change nothing else that depends on it, and say it is made in Shoots. You may swap to one of the pictures listed.
 - "say" is short and specific ("Headline up to 110 and moved the subline down to clear it.").`;
 
@@ -58,7 +60,7 @@ export async function editWithRemy(brandId: string, brand: string, ad: { hook: s
     request: ask_.instruction.slice(0, 600), selectedLayer: ask_.selected && editable.some((l) => l.id === ask_.selected) ? ask_.selected : null,
     earlierInThisChat: ask_.recent.slice(-6),
     ad: { brand, ...ad }, currentLayout: design.layout ?? null, overlayTop: design.overlayTop ?? 0, overlay: design.overlay, picture: design.image,
-    layers: editable.map((l) => ({ id: l.id, kind: l.kind, role: l.role ?? "", text: l.text, x: l.x, y: l.y, w: l.w, size: l.size, font: l.font, weight: l.weight ?? (l.font === "display" ? 700 : 500), color: l.color, bg: l.bg ?? "", align: l.align ?? "left", upper: Boolean(l.upper), tracking: l.tracking ?? 0, shadow: l.shadow !== false, opacity: l.opacity ?? 1, bullet: Boolean(l.bullet) })),
+    layers: editable.map((l) => ({ id: l.id, kind: l.kind, role: l.role ?? "", text: l.text, x: l.x, y: l.y, w: l.w, size: l.size, font: l.font, weight: l.weight ?? (l.font === "display" ? 700 : 500), color: l.color, bg: l.bg ?? "", align: l.align ?? "left", upper: Boolean(l.upper), tracking: l.tracking ?? 0, shadow: l.shadow !== false, opacity: l.opacity ?? 1, bullet: Boolean(l.bullet), behind: Boolean(l.behind) })),
     otherPictures: ask_.pictures.slice(0, 14), brandColours: ask_.palette,
   }) });
   const out = await ask("remy", { system: SYSTEM, content, schema: Out, maxTokens: 6000 });
@@ -78,7 +80,7 @@ export async function editWithRemy(brandId: string, brand: string, ad: { hook: s
     const box = l.kind !== "text";
     return {
       id, kind: l.kind, role: l.role || old?.role || undefined, text: l.text.slice(0, 300), x: clamp(l.x, 0, 0.95), y: clamp(l.y, 0, 0.97), w: clamp(l.w, 0.08, 1 - clamp(l.x, 0, 0.95)),
-      size: Math.round(clamp(l.size, 18, 480)), font: l.font, opacity: l.opacity < 0.98 ? clamp(l.opacity, 0.08, 1) : undefined, bullet: l.bullet && !box ? true : undefined, weight: l.font === "serif" || l.font === "condensed" ? undefined : clamp(Math.round(l.weight / 100) * 100, 300, 700), color: hex(l.color, old?.color ?? "#FFFFFF"),
+      size: Math.round(clamp(l.size, 18, 480)), font: l.font, opacity: l.opacity < 0.98 ? clamp(l.opacity, 0.08, 1) : undefined, bullet: l.bullet && !box ? true : undefined, behind: l.behind && !box ? true : undefined, weight: l.font === "serif" || l.font === "condensed" ? undefined : clamp(Math.round(l.weight / 100) * 100, 300, 700), color: hex(l.color, old?.color ?? "#FFFFFF"),
       ...(box ? { bg: hex(l.bg, old?.bg ?? "#FFFFFF") } : {}), align: l.align, upper: l.upper || undefined, tracking: l.tracking ? clamp(l.tracking, 0, 0.3) : undefined, shadow: l.shadow,
     };
   });

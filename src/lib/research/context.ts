@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { summary } from "../queries/growth";
 import { getNotes } from "../ai/notes";
-import type { MarketReport, Positioning } from "./types";
+import { STRENGTH_NAME, evidenceValue, type MarketReport, type Positioning } from "./types";
 
 /**
  * Everything Kaviar knows about a product's market, in one place: the store (Shopify), live ads (Meta),
@@ -77,4 +77,30 @@ export async function researchSignals(brandId: string): Promise<ResearchSignal[]
     evidence: [["Needs", s.need], ["Say", s.angle], ["Targeting", [s.reach.ages, s.reach.gender === "All" ? "" : s.reach.gender, s.reach.interests.slice(0, 3).join(", ")].filter(Boolean).join(" · ")], ["For", r.subject || "the whole brand"]] as [string, string][],
     use: s.angle, why: `${s.why}${r.positioning?.primary === s.name ? " — the primary buyer in the positioning" : ""}`, product: r.subject,
   }))).sort((a, b) => Number(b.why.includes("primary buyer")) - Number(a.why.includes("primary buyer")));
+}
+
+/**
+ * Tests ready to build, straight from the research: each buyer group Iris found becomes a hypothetical audience with the messages to
+ * try on it — from the test plan's cells, the group's own angle and the positioning pillars — and the hypothesis the test would settle.
+ */
+export type ReadyTest = { key: string; name: string; primary: boolean; who: string; targeting: string; product: string; size: string | null; hypothesis: string | null; strength: string | null; messages: string[]; visual: string; why: string };
+export async function readyTests(brandId: string): Promise<ReadyTest[]> {
+  const R = schema.marketResearch;
+  const rows = await db.select({ id: R.id, subject: R.subject, report: R.report, positioning: R.positioning, plan: R.plan, evidence: R.evidence }).from(R)
+    .where(and(eq(R.brandId, brandId), eq(R.market, "US"))).orderBy(desc(R.updatedAt)).limit(6);
+  const same = (a: string, b: string) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return Boolean(x && y) && (x === y || x.includes(y) || y.includes(x)); };
+  const short = (t: string) => t.trim().replace(/\s+/g, " ").replace(/[.]$/, "").slice(0, 90);
+  return rows.flatMap((r) => (r.report?.segments ?? []).filter((s) => s.status !== "rejected").map((s) => {
+    const cells = (r.plan?.cells ?? []).filter((c) => c.on !== false && same(c.segment, s.name));
+    const pool = [...cells.map((c) => c.angle), s.angle, ...(r.positioning?.pillars ?? []).map((p) => p.message || p.title)].map(short).filter(Boolean);
+    const messages = pool.filter((m, i) => pool.findIndex((x) => x.toLowerCase() === m.toLowerCase()) === i).slice(0, 4);
+    const hyp = (r.plan?.hypotheses ?? []).find((h) => cells.some((c) => c.hypothesisId === h.id)) ?? null;
+    const size = (r.evidence ?? []).find((e) => e.kind === "audience_size" && same(e.subject, s.name));
+    return {
+      key: `seg:${r.id.slice(0, 8)}:${s.id}`, name: s.name, primary: r.positioning?.primary === s.name || s.priority === "Primary", who: s.who.slice(0, 200),
+      targeting: [s.reach.ages, s.reach.gender === "All" ? "" : s.reach.gender, s.reach.interests.slice(0, 3).join(", ")].filter(Boolean).join(" · "), product: r.subject,
+      size: size ? `${evidenceValue(size)} on Meta` : null, hypothesis: (hyp?.claim ?? cells[0]?.hypothesis ?? "").slice(0, 220) || null, strength: hyp ? STRENGTH_NAME[hyp.strength] : null,
+      messages, visual: (cells[0]?.visual ?? "").slice(0, 200), why: s.why.slice(0, 220),
+    };
+  })).filter((t) => t.messages.length >= 2).sort((a, b) => Number(b.primary) - Number(a.primary)).slice(0, 3);
 }

@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ffmpegPath, run } from "../creative/cut";
 import { readAssets } from "@/lib/assets/storage";
+import { MASK_W, subjectMask, type Mask } from "../creative/cutout";
 
 /** What the panel sees: images as base64 blocks, small enough to send to many agents in one test. */
 export type Img = { media: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string };
@@ -125,6 +126,41 @@ export async function thumbnail(buf: Buffer, mime: string, width = 480): Promise
     const f = join(dir, "v.mp4"), out = join(dir, "t.jpg");
     await writeFile(f, buf);
     await run(bin, ["-hide_banner", "-y", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", `scale='min(${width},iw)':-2`, "-q:v", "4", out], 60_000);
+    return await readFile(out);
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}
+
+/** The photo's subject mask (product, hands, props against the backdrop), from a small copy of the picture. */
+export async function subjectOf(buf: Buffer): Promise<{ mask: Mask; w: number; h: number } | null> {
+  const size = await imageSize(buf);
+  if (!size) return null;
+  const mw = MASK_W, mh = Math.max(8, Math.round((MASK_W * size.h) / size.w));
+  const dir = await mkdtemp(join(tmpdir(), "aud-m-"));
+  try {
+    const bin = await ffmpegPath();
+    const inp = join(dir, "in"), out = join(dir, "s.rgba");
+    await writeFile(inp, buf);
+    await run(bin, ["-hide_banner", "-y", "-i", inp, "-vf", `scale=${mw}:${mh}:flags=area`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgba", out], 30_000);
+    const px = await readFile(out);
+    return px.length >= mw * mh * 4 ? { mask: subjectMask(px, mw, mh), w: size.w, h: size.h } : null;
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}
+
+/** The photo with its backdrop made see-through (a PNG up to 1080 wide): drawn over type, it puts the type behind the product. */
+export async function cutoutPng(buf: Buffer): Promise<Buffer | null> {
+  const s = await subjectOf(buf);
+  if (!s) return null;
+  const dir = await mkdtemp(join(tmpdir(), "aud-k-"));
+  try {
+    const bin = await ffmpegPath();
+    const inp = join(dir, "in"), mask = join(dir, "m.gray"), out = join(dir, "cut.png");
+    await writeFile(inp, buf);
+    await writeFile(mask, Buffer.from(Uint8Array.from(s.mask.a, (v) => Math.round(v * 255))));
+    const tw = Math.min(1080, s.w), th = Math.round((tw * s.h) / s.w);
+    await run(bin, ["-hide_banner", "-y", "-i", inp, "-f", "rawvideo", "-pix_fmt", "gray", "-s", `${s.mask.w}x${s.mask.h}`, "-i", mask,
+      "-filter_complex", `[0]scale=${tw}:${th}[p];[1]scale=${tw}:${th}:flags=bilinear[m];[p][m]alphamerge`, "-frames:v", "1", out], 45_000);
     return await readFile(out);
   } catch { return null; }
   finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
