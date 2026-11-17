@@ -344,7 +344,7 @@ export const brandAssets = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },

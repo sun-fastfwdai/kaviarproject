@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
     "/brands/[slug]/creative/[batch]": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
     "/brands/[slug]/creative/editor": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
     "/brands/[slug]/research": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
+    // Large pictures are sent as JPEGs and thumbnails are made on the fly.
+    "/api/assets/[id]": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   // A native binary: load it from node_modules at runtime instead of bundling it.
   serverExternalPackages: ["ffmpeg-static"],

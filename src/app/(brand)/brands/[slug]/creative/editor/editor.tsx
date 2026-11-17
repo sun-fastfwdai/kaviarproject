@@ -186,7 +186,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
 
   const tile = (url: string, label: string, on: () => void, badge?: string) => (
     <button key={url} type="button" onClick={on} title={label} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: d.image === url ? "2px solid var(--ink)" : "1px solid var(--line)", padding: 0, cursor: "pointer", background: "var(--tray)" }}>
-      <img src={url} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <img src={url.startsWith("/api/assets/") ? `${url}?w=360` : url} alt={label} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       {badge && <span className="pill" style={{ position: "absolute", left: 4, bottom: 4, height: 16, fontSize: 9.5 }}>{badge}</span>}
     </button>
   );

@@ -1,4 +1,5 @@
 import "server-only";
+import { keepInStorage } from "../assets/storage";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -114,6 +115,7 @@ export async function cutAd(brandId: string, memberId: string, input: CutInput):
       meta: { ai: true, prompt: input.title.slice(0, 500), product: input.product ?? undefined, seconds: total, engine: "Kaviar · final cut", sound: input.sound },
       createdBy: memberId,
     }).returning({ id: A.id });
+    await keepInStorage(row.id);
     return { id: row.id, seconds: total };
   } finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }

@@ -119,6 +119,15 @@ export async function hfUpload(data: Buffer | Uint8Array, contentType: string): 
 }
 
 /** Download a finished output before it expires. */
+/** A generated picture, kept small: 2K PNGs (5–7 MB) are stored as high-quality JPEGs so they open fast and fit a response. */
+export async function hfImage(url: string): Promise<{ data: Buffer; mime: string }> {
+  const img = await hfDownload(url);
+  if (!img.mime.startsWith("image/") || img.data.length <= 3_000_000) return img;
+  const { toJpeg } = await import("../audience/media");
+  const jpg = await toJpeg(img.data, 2400);
+  return jpg ? { data: jpg, mime: "image/jpeg" } : img;
+}
+
 export async function hfDownload(url: string): Promise<{ data: Buffer; mime: string }> {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`Couldn’t download the result (${r.status}).`);

@@ -6,7 +6,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { DEFAULT_VIDEO, HF_PHOTO, VIDEO_MODELS, hfDownload, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
+import { keepInStorage } from "../assets/storage";
+import { DEFAULT_VIDEO, HF_PHOTO, VIDEO_MODELS, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { ShotPlan } from "../db/schema";
 import { marketContext } from "../research/context";
@@ -130,7 +131,7 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
     const url = r.out?.images?.[0]?.url;
     if (!url) { error = r.error ?? "No image came back."; continue; }
     try {
-      const img = await hfDownload(url);
+      const img = await hfImage(url);
       const [row] = await db.insert(schema.brandAssets).values({
         brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · shoot`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
         meta: { ai: true, prompt: input.prompt.slice(0, 500), product: input.product, engine: "Higgsfield · Marketing Studio", ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
@@ -172,7 +173,7 @@ export async function editShot(brandId: string, memberId: string, assetId: strin
         aspect_ratio: kind === "extend" ? "9:16" : size ? nearestRatio(size.w / size.h) : "3:4", resolution: "2k", quality: "high", enhance_prompt: false }, 150_000);
       const out = r.out?.images?.[0]?.url;
       if (!out) return { error: r.error ?? "No image came back." };
-      const img = await hfDownload(out);
+      const img = await hfImage(out);
       const price = (await hfPrices().catch(() => null))?.photo;
       const [row] = await db.insert(schema.brandAssets).values({
         brandId, kind: "imagery", name: `${(a.meta.product ?? "Product").slice(0, 40)} · ${e.label.toLowerCase()}`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
@@ -310,6 +311,7 @@ export async function finishVideoJob(brandId: string, memberId: string, job: Vid
     brandId, kind: "video", name: `${(job.product ?? "Product").slice(0, 40)} · clip`, mime: v.mime.startsWith("video/") ? v.mime : "video/mp4", size: v.data.byteLength, data: v.data,
     meta: { ai: true, prompt: job.prompt, product: job.product ?? undefined, seconds: job.seconds, engine: `Higgsfield · ${VIDEO_MODELS[model].name}`, sound: job.sound, job: job.id, ...(job.scene ? { scene: job.scene } : {}), ...(job.voice ? { voice: job.voice } : {}), ...(cost != null ? { cost } : {}) }, createdBy: memberId,
   }).returning({ id: A.id });
+  await keepInStorage(row.id);
   return { id: row.id };
 }
 
@@ -324,7 +326,7 @@ export async function makeCharacter(brandId: string, memberId: string, input: { 
       const r = await hfRun(HF_PHOTO, { prompt, aspect_ratio: "16:9", resolution: "2k", quality: "high", enhance_prompt: false }, 150_000);
       const url = r.out?.images?.[0]?.url;
       if (!url) return { error: r.error ?? "No sheet came back." };
-      img = await hfDownload(url); engine = "Higgsfield · Marketing Studio";
+      img = await hfImage(url); engine = "Higgsfield · Marketing Studio";
       cost = (await hfPrices().catch(() => null))?.photo;
     } else {
       const r = await generateImage({ model: gateway.imageModel(SHOOT_MODEL), prompt, aspectRatio: "16:9", maxRetries: 1 });
