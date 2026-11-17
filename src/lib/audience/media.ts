@@ -100,3 +100,18 @@ export async function videoFrames(brandId: string, assetId: string): Promise<{ a
   } catch { return []; }
   finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }
+
+/** The average colour of part of a picture (fractions x, y, w, h) — to choose dark or light type over it. */
+export async function avgColor(buf: Buffer, box: { x: number; y: number; w: number; h: number }): Promise<{ r: number; g: number; b: number } | null> {
+  const dir = await mkdtemp(join(tmpdir(), "aud-c-"));
+  try {
+    const bin = await ffmpegPath();
+    const inp = join(dir, "in"), out = join(dir, "c.rgb");
+    await writeFile(inp, buf);
+    const f = (n: number) => Math.min(1, Math.max(0, n)).toFixed(4);
+    await run(bin, ["-hide_banner", "-y", "-i", inp, "-vf", `crop=iw*${f(box.w)}:ih*${f(box.h)}:iw*${f(box.x)}:ih*${f(box.y)},scale=1:1:flags=area`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", out], 30_000);
+    const px = await readFile(out);
+    return px.length >= 3 ? { r: px[0], g: px[1], b: px[2] } : null;
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}

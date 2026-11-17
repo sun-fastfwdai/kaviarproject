@@ -37,6 +37,8 @@ export async function brandContext(brandId: string) {
     select p.title, p.image_url as "imageUrl", (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as "price"
     from shop_products p where p.brand_id = ${brandId} and coalesce(p.status, 'ACTIVE') = 'ACTIVE' and p.image_url is not null
     order by p.total_inventory desc nulls last limit 40`)).rows as { title: string; imageUrl: string; price: number | null }[];
+  // A brand without Shopify yet (a prospect onboarded from its website): use the catalogue Iris read off the site.
+  if (!products.length) for (const p of b.onboarding?.catalog?.products ?? []) if (p.images[0]) products.push({ title: p.title, imageUrl: p.images[0], price: p.variants[0]?.price ?? null });
   const rejected = (await db.execute(sql`select hook, note from ads where brand_id = ${brandId} and status = 'rejected' and note is not null order by updated_at desc limit 8`)).rows as { hook: string; note: string }[];
   // What Iris learned from live ads and past reviews — Remy follows it in every new batch.
   const [n] = (await db.execute(sql`select body from agent_notes where brand_id = ${brandId} and key = 'insights'`)).rows as { body: { lessons?: { dimension: string; lesson: string; strength: string }[] } }[];
@@ -123,7 +125,9 @@ export async function redoAd(adId: string): Promise<boolean> {
     schema: AdOut,
   });
   if (!out) return false;
-  await db.update(schema.ads).set({ ...out, product: out.product || null, imageUrl: imageFor(ctx.products, out.product, ad.position) ?? ad.imageUrl, status: "review", edited: false, note: null, updatedAt: new Date() }).where(eq(schema.ads.id, adId));
+  // New copy: the old card no longer matches it, so the ad goes back to its product photo until it's designed again.
+  const photo = imageFor(ctx.products, out.product, ad.position) ?? (ad.design?.card && ad.imageUrl === ad.design.card ? ad.design.image : ad.imageUrl);
+  await db.update(schema.ads).set({ ...out, product: out.product || null, imageUrl: photo, design: null, status: "review", edited: false, note: null, updatedAt: new Date() }).where(eq(schema.ads.id, adId));
   return true;
 }
 

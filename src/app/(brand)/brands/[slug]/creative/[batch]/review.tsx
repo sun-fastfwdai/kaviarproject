@@ -1,8 +1,8 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { redo, saveAd, setAdStatus, variations } from "../actions";
-import { AdArt, FormatLabel, PhonePreview, type AdView } from "@/components/ad-creative";
+import { designCards, redo, saveAd, setAdStatus, variations } from "../actions";
+import { AdArt, FormatLabel, PhonePreview, isCard, type AdView } from "@/components/ad-creative";
 import { AgentFace } from "@/components/agent";
 import { Icon } from "@/components/icon";
 import { CopyButton } from "@/components/copy";
@@ -43,7 +43,7 @@ function Editor({ slug, ad, onDone }: { slug: string; ad: AdView; onDone: () => 
   );
 }
 
-export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: string; ads: AdView[]; codes: string[] }) {
+export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string; brand: string; ads: AdView[]; codes: string[]; batchId: string }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [sel, setSel] = useState(ads[0]?.id ?? null);
@@ -59,6 +59,11 @@ export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: 
   const ad = ads.find((a) => a.id === sel) ?? ads[0];
   const checks = useMemo(() => (ad ? ottoChecks(ad, codes) : []), [ad, codes]);
   const approved = ads.filter((a) => a.status === "approved");
+  // While Remy designs cards, refresh every few seconds so each one appears as it's done.
+  const designing = ads.filter((a) => a.design?.pending).length;
+  useEffect(() => { if (!designing) return; const t = setInterval(() => router.refresh(), 4000); return () => clearInterval(t); }, [designing, router]);
+  const statics = ads.filter((a) => a.status !== "rejected" && (a.format === "static" || a.format === "carousel"));
+  const undesigned = statics.filter((a) => !isCard(a) && !a.design?.pending);
   const run = (fn: () => Promise<unknown>, done?: string) => start(async () => { setMsg(null); const r = (await fn()) as { error?: string } | undefined; if (r?.error) setMsg(r.error); else if (done) setMsg(done); router.refresh(); });
 
   if (!ad) return <div className="sm i3" style={{ padding: 24 }}>No ads in this batch yet.</div>;
@@ -74,6 +79,9 @@ export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: 
             ))}
           </div>
           <span className="fill" />
+          {designing > 0
+            ? <span className="row g6 xs i2"><Icon name="spinner" size={12} className="spin" />Remy is designing {designing} card{designing === 1 ? "" : "s"} — shooting each product, Otto checks the label</span>
+            : undesigned.length > 0 && <button type="button" className="btn sm dark" disabled={busy} onClick={() => run(() => designCards(slug, batchId, undesigned.map((a) => a.id)), "Remy is designing the cards — about a minute.")}><Icon name="sparkle" size={12} color="#fff" />Design {undesigned.length} static card{undesigned.length === 1 ? "" : "s"}</button>}
           <span className="xs i3">{counts.approved + counts.rejected} of {counts.all} reviewed</span>
           <div style={{ width: 120, height: 4, borderRadius: 99, background: "var(--tray-2)" }}><div style={{ width: `${((counts.approved + counts.rejected) / Math.max(1, counts.all)) * 100}%`, height: 4, borderRadius: 99, background: "var(--ink)" }} /></div>
         </div>
@@ -145,6 +153,7 @@ export function BatchReview({ slug, brand, ads, codes }: { slug: string; brand: 
             <a className="btn sm" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="image" size={12} />Design</a>
             <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => redo(slug, ad.id), "Remy rewrote it.")}><Icon name="refresh" size={12} />Redo</button>
             <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => variations(slug, ad.id), "Remy added 3 variations.")}><Icon name="layers" size={12} />Variations</button>
+            {(ad.format === "static" || ad.format === "carousel") && <button type="button" className="btn sm" disabled={busy || Boolean(ad.design?.pending)} onClick={() => run(() => designCards(slug, batchId, [ad.id]), "Remy is designing a new card.")} style={{ gridColumn: "1 / -1" }}><Icon name="sparkle" size={12} />{isCard(ad) ? "Design a new card" : "Design the card"}</button>}
           </div>
           {busy && <span className="row g6 xs i3"><Icon name="spinner" size={12} className="spin" />Working…</span>}
           <span className="xs i3" style={{ textAlign: "center" }}>Reject asks why — Remy learns from every answer</span>

@@ -10,6 +10,7 @@ import { runResearch } from "@/lib/research/run";
 import { adLibraryToken, competitorAds, libError, pruneAdCopies } from "@/lib/research/adlib";
 import { readShot } from "@/lib/research/shots";
 import { createTestBatch } from "@/lib/creative/remy";
+import { designBatch, markDesigning } from "@/lib/creative/design";
 import { MARKETS, marketName, type Decision, type ManualAd, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
 
 const R = schema.marketResearch;
@@ -149,6 +150,9 @@ export async function buildTestAds(slug: string, id: string): Promise<Result> {
     budget: row.plan!.budget.perDay ? `Budget: about $${row.plan!.budget.perDay}/day for ${row.plan!.budget.days} days.` : "", cells,
   });
   if (!batch) return { error: "Remy couldn’t write the ads right now — try again in a minute." };
+  // Static ads are cards: Remy designs each one (a styled product shot that shows the message, with the type on it) while the batch opens.
+  await markDesigning(batch);
+  after(() => designBatch(brand.id, batch, me.id).then((r) => { if (r.error) console.error("design cards", batch, r.error); }));
   redirect(`/brands/${slug}/creative/${batch}`);
 }
 

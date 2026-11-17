@@ -14,8 +14,11 @@ const SIZES: Size[] = [
   { key: "4x5", label: "4:5", w: 1080, h: 1350, note: "Feed" },
   { key: "1x1", label: "1:1", w: 1080, h: 1080, note: "Feed · right column" },
 ];
-const SERIF = "Georgia, 'Times New Roman', serif";
-const SANS = "Inter, -apple-system, 'Helvetica Neue', sans-serif";
+// The same faces the server draws finished cards with (public/fonts), so the Editor and the PNG match.
+const SERIF = "'DM Serif Display', Georgia, serif";
+const SANS = "Poppins, Inter, -apple-system, 'Helvetica Neue', sans-serif";
+const face = (f: Layer["font"]) => (f === "serif" ? SERIF : SANS);
+const FACES = ["500 20px Poppins", "600 20px Poppins", "700 20px Poppins", "400 20px 'DM Serif Display'"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 export type EditorAd = { id: string; batchId: string; hook: string; primaryText: string; headline: string; cta: string; offer: string; imageUrl: string | null; status: string; design: AdDesign | null };
@@ -49,6 +52,7 @@ const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => { cons
 
 /** Draw the design at full Meta size and return a PNG blob. */
 async function render(d: AdDesign, s: Size): Promise<Blob> {
+  await Promise.all(FACES.map((f) => document.fonts.load(f).catch(() => undefined)));
   const c = document.createElement("canvas");
   c.width = s.w; c.height = s.h;
   const ctx = c.getContext("2d")!;
@@ -70,7 +74,7 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
       try { const img = await load(l.src); const h = (w / img.width) * img.height; ctx.drawImage(img, x, y, w, h); } catch { /* skip */ }
       continue;
     }
-    ctx.font = `${l.weight ?? 400} ${l.size}px ${l.font === "serif" ? SERIF : SANS}`;
+    ctx.font = `${l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500)} ${l.size}px ${face(l.font)}`;
     ctx.textBaseline = "top";
     const lines = wrap(ctx, l.text, l.kind === "text" ? w : w - l.size);
     const lh = l.size * 1.15;
@@ -84,7 +88,7 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
       ctx.textAlign = "left";
     } else {
       ctx.fillStyle = l.color;
-      ctx.shadowColor = "rgba(0,0,0,.3)"; ctx.shadowBlur = 16;
+      if (l.shadow !== false) { ctx.shadowColor = "rgba(0,0,0,.3)"; ctx.shadowBlur = 16; }
       lines.forEach((t, i) => ctx.fillText(t, l.align === "center" ? x + (w - ctx.measureText(t).width) / 2 : x, y + i * lh));
       ctx.shadowBlur = 0;
     }
@@ -112,8 +116,8 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
           const fs = l.size * scale;
           const box = l.kind === "button" || l.kind === "badge";
           return (
-            <div key={l.id} onPointerDown={start} style={{ ...common, width: l.kind === "badge" ? "auto" : `${l.w * 100}%`, maxWidth: `${l.w * 100}%`, fontFamily: l.font === "serif" ? SERIF : SANS, fontSize: fs, lineHeight: 1.15, fontWeight: l.weight ?? 400, color: l.color,
-              textAlign: box ? "center" : l.align ?? "left", ...(box ? { background: l.bg, borderRadius: l.kind === "button" ? 999 : 4, padding: `${fs * 0.35}px ${fs * 0.6}px` } : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }), whiteSpace: "pre-wrap" }}>
+            <div key={l.id} onPointerDown={start} style={{ ...common, width: l.kind === "badge" ? "auto" : `${l.w * 100}%`, maxWidth: `${l.w * 100}%`, fontFamily: face(l.font), fontSize: fs, lineHeight: 1.15, fontWeight: l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500), color: l.color,
+              textAlign: box ? "center" : l.align ?? "left", ...(box ? { background: l.bg, borderRadius: l.kind === "button" ? 999 : 4, padding: `${fs * 0.35}px ${fs * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }), whiteSpace: "pre-wrap" }}>
               {l.text || (l.kind === "text" ? brand : "")}
             </div>
           );
@@ -269,7 +273,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
             {layer.kind !== "logo" && <>
               <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={3} value={layer.text} onChange={(e) => upd(layer.id, { text: e.target.value })} style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 13 }} /></div>
               <div className="row g6">
-                <div className="seg">{(["serif", "sans"] as const).map((f) => <button key={f} type="button" className={`o${layer.font === f ? " on" : ""}`} onClick={() => upd(layer.id, { font: f })} style={{ fontFamily: f === "serif" ? SERIF : SANS }}>{f === "serif" ? "Serif" : "Sans"}</button>)}</div>
+                <div className="seg">{(["display", "serif", "sans"] as const).map((f) => <button key={f} type="button" className={`o${layer.font === f ? " on" : ""}`} onClick={() => upd(layer.id, { font: f })} style={{ fontFamily: face(f), fontWeight: f === "display" ? 700 : 500 }}>{f === "serif" ? "Serif" : f === "display" ? "Bold" : "Sans"}</button>)}</div>
                 <label className="chip" style={{ height: 30 }}>Size<input type="number" min={18} max={160} value={layer.size} onChange={(e) => upd(layer.id, { size: Number(e.target.value) || 30 })} style={{ width: 48, border: 0, outline: 0, font: "inherit" }} /></label>
               </div>
               <div className="col g4"><span className="xs i3">Colour</span>

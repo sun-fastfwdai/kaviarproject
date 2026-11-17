@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
     "/brands/[slug]/creative/shoots": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
     // Audience test shrinks ad pictures and pulls frames from videos with the same ffmpeg.
     "/brands/[slug]/audience": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // Ad cards: Remy's designed static ads are drawn on the server with these fonts; ffmpeg reads the photo's colours.
+    "/brands/[slug]/creative/[batch]": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
+    "/brands/[slug]/creative/editor": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
+    "/brands/[slug]/research": ["./node_modules/ffmpeg-static/ffmpeg", "./src/lib/creative/fonts/**"],
   },
   // A native binary: load it from node_modules at runtime instead of bundling it.
   serverExternalPackages: ["ffmpeg-static"],

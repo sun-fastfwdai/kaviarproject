@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
@@ -11,6 +12,7 @@ import { buildSignals } from "@/lib/signals/build";
 import { createBatch, moreVariations, redoAd } from "@/lib/creative/remy";
 import { researchSignals } from "@/lib/research/context";
 import type { AdDesign } from "@/lib/db/schema";
+import { designBatch, markDesigning, rerenderCard } from "@/lib/creative/design";
 
 export type State = { error?: string; at?: number } | undefined;
 const fail = (error: string): State => ({ error, at: Date.now() });
@@ -99,11 +101,27 @@ export async function deleteBatch(slug: string, batchId: string): Promise<void> 
 
 /** Save the Editor's layout. The first text layer becomes the ad's hook, and the background its image. */
 export async function saveDesign(slug: string, adId: string, design: AdDesign): Promise<State> {
-  await ownAd(slug, adId);
+  const brand = await ownAd(slug, adId);
   if (!Array.isArray(design.layers) || design.layers.length > 30) return fail("That layout can’t be saved.");
   const layers = design.layers.map((l) => ({ ...l, text: String(l.text ?? "").slice(0, 300), x: Math.min(1, Math.max(0, Number(l.x))), y: Math.min(1, Math.max(0, Number(l.y))), w: Math.min(1, Math.max(0.05, Number(l.w))), size: Math.min(200, Math.max(0, Number(l.size))) }));
   const image = design.image && /^(https:\/\/|\/api\/assets\/)/.test(design.image) ? design.image : null;
   const head = layers.find((l) => l.kind === "text")?.text;
-  await db.update(schema.ads).set({ design: { image, overlay: Math.min(0.9, Math.max(0, Number(design.overlay) || 0)), layers }, imageUrl: image, ...(head ? { hook: head.slice(0, 120) } : {}), edited: true, updatedAt: new Date() }).where(eq(schema.ads.id, adId));
+  const clean: AdDesign = { image, overlay: Math.min(0.9, Math.max(0, Number(design.overlay) || 0)), layers: layers.map((l) => ({ ...l, font: l.font === "serif" || l.font === "display" ? l.font : "sans" })), ...(design.layout ? { layout: design.layout === "left" ? "left" : "top" } : {}) };
+  // The ad's picture becomes the finished card (photo + type), drawn on the server with the same fonts as the Editor.
+  const card = await rerenderCard(brand.id, adId, clean);
+  await db.update(schema.ads).set({ design: { ...clean, card }, imageUrl: card ?? image, ...(head ? { hook: head.slice(0, 120) } : {}), edited: true, updatedAt: new Date() }).where(eq(schema.ads.id, adId));
+  return undefined;
+}
+
+/** Remy designs static ad cards for the batch (or the ads given): a styled product shot that shows each message, with the type laid on it. */
+export async function designCards(slug: string, batchId: string, adIds?: string[]): Promise<State> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  if (!aiReady()) return fail("Remy needs the Claude API key.");
+  const [b] = await db.select({ id: schema.adBatches.id }).from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brand.id)));
+  if (!b) return fail("Batch not found.");
+  const n = await markDesigning(batchId, adIds);
+  if (!n) return fail("No ads to design.");
+  after(() => designBatch(brand.id, batchId, me.id, adIds).then((r) => { if (r.error) console.error("design cards", batchId, r.error); }));
   return undefined;
 }

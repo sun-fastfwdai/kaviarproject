@@ -1,3 +1,8 @@
+/* Ad faces: the Editor draws with the same fonts the server renders finished cards with. */
+@font-face { font-family: "Poppins"; src: url("/fonts/Poppins-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("/fonts/Poppins-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("/fonts/Poppins-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "DM Serif Display"; src: url("/fonts/DMSerifDisplay-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 /* ==========================================================================
    KAVIAR — Design system v2
    Direction: calm editorial chrome (Relume) + product-first canvas (Instant).

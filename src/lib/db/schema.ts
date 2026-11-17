@@ -367,8 +367,10 @@ export const agentNotes = pgTable(
 
 // ---------------------------------------------------------------- Creative studio: batches of ads Remy writes from a signal or an idea
 export type AdStatus = "review" | "approved" | "rejected";
-export type Layer = { id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans"; color: string; bg?: string; weight?: number; align?: "left" | "center"; src?: string };
-export type AdDesign = { image: string | null; overlay: number; layers: Layer[] };
+/** An Editor layer. Sizes are px at 1080 wide; x, y, w are fractions of the artboard. `display` is the bold ad face; `shadow: false` for dark type on light photos. */
+export type Layer = { id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display"; color: string; bg?: string; weight?: number; align?: "left" | "center"; src?: string; shadow?: boolean };
+/** `card` is the finished PNG (a brand asset URL) Remy designed from these layers; `pending` while it's being made. */
+export type AdDesign = { image: string | null; overlay: number; layers: Layer[]; card?: string | null; pending?: boolean; layout?: "top" | "left" };
 export const adBatches = pgTable(
   "ad_batches",
   {

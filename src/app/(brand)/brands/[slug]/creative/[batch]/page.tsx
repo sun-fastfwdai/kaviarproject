@@ -10,7 +10,7 @@ import { StudioBar, reviewCount } from "../tabs";
 import { BatchReview } from "./review";
 
 export const metadata = { title: "Creative studio · Batch" };
-export const maxDuration = 120;
+export const maxDuration = 800; // Remy designs the cards in the background (photo shoots + checks)
 
 export default async function BatchPage({ params }: PageProps<"/brands/[slug]/creative/[batch]">) {
   const { slug, batch: id } = await params;
@@ -52,7 +52,7 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
           </div>
         </div>
       </div>
-      <BatchReview slug={slug} brand={brand.name} ads={ads} codes={codes} />
+      <BatchReview slug={slug} brand={brand.name} ads={ads} codes={codes} batchId={batch.id} />
     </>
   );
 }
