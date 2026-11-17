@@ -19,8 +19,8 @@ import { REGIONS, copyOf, isLayout, layoutDesign, toneFor, type CardCopy, type L
 const CardOut = z.object({
   cards: z.array(z.object({
     ad: z.number().describe("The ad's number"),
-    layout: z.enum(["bold", "bigword", "benefits", "statement", "editorial", "luxe", "minimal", "caption"]).describe("The layout whose type areas fall on calm, empty parts of this ad's photo"),
-    word: z.string().describe("ONE evocative word of 3–7 letters that names the benefit or feeling (GLOW, CALM, CLEAR, SOFT) — used by the Big word layout"),
+    layout: z.enum(["bold", "bigword", "benefits", "statement", "poster", "chips", "stack", "editorial", "luxe", "minimal", "caption"]).describe("The layout whose type areas fall on calm, empty parts of this ad's photo"),
+    word: z.string().describe("ONE evocative word of 3–7 letters that names the benefit or feeling (GLOW, CALM, CLEAR, SOFT, SHIELD) — the giant word of the bigword and stack layouts"),
     benefits: z.array(z.string()).describe("3 short proofs, 2–4 words each, true to the product and the ad copy (e.g. 'Centella & allantoin', 'No harsh acids', 'Made for adult skin')"),
     headline: z.string().describe("2–5 words, the message itself — a promise, a 'Why this …?' question, or a number hook. Under 28 characters"),
     subline: z.string().describe("Under 14 words: what makes the headline true"),
@@ -34,6 +34,9 @@ const SYSTEM = `You are Remy, Kaviar's creative director, finishing static Meta 
 - Subline: one plain sentence that makes the headline believable. Tagline: the payoff, 2–5 words. Note: an optional small line.
 - For the statement layout the headline may be a playful provocation that the subline resolves — never a false or negative claim about the product.
 - For the benefits layout: tagline continues the headline as its second line; note is three words separated by " · " (e.g. "Calm · Clear · Comfortable").
+- For the poster layout: headline is 2–3 punchy words set huge in capitals ("Sunscreen Day", "Calm Skin Club") — 16 characters at most; subline is one short line under it, 8 words at most ("Go ultra-light. Go essence.").
+- For the chips layout: headline is 2–3 words in white ("Golden Hour"); tagline sits under it on a colour chip — the product or the promise in 2–4 words ("Glow Sunscreen"); subline is a short human line near the bottom ("Play on till the sun's gone"); note sits under that on a chip — the proof in 3–5 words ("8 hrs UV protection").
+- For the stack layout: three tiers of capitals — headline is a 2–3 word lead-in that the word completes ("Your Daily"), word is the one huge word ("SHIELD"), tagline says what it is in 2–3 words ("Gel SPF50+"). The lead-in must not contain the word.
 - Every card says something different, each true to its ad's hook and copy.
 - Use only claims the brand, its positioning and the ad copy already make. Never invent quotes, reviews, numbers, awards, discounts or medical effects.
 - You are shown each photo. For every card pick the layout whose type lands on calm, empty parts of ITS photo — never over the product's label or a face:
@@ -41,6 +44,9 @@ const SYSTEM = `You are Remy, Kaviar's creative director, finishing static Meta 
   · bigword — ONE giant see-through word across the top, two short labels beside the product, the message at the bottom. Poster-like; needs an empty top 38% and space beside the product.
   · benefits — serif headline (its second line, the tagline, in the accent colour), three caps words (the note), a ticked list of the benefits down the left, a button. Informative; needs a clean left half with the product on the right.
   · statement — a huge stacked statement filling the top (a provocation or bold claim, e.g. "Don't Buy This Serum"), the twist in the subline ("Unless you want calm, clear skin."), three ticked proofs along the bottom. Needs an empty top 45%.
+  · poster — ONE giant capital headline across the bottom with a short line under it, brand in the top-left corner. For a person-and-product shot; needs a plain bottom 28% (floor, ground).
+  · chips — white headline top-left with a colour chip under it, a short claim and a chip bottom-left. Sunny lifestyle shots; needs open sky or plain colour down the left side.
+  · stack — a lead-in, one huge serif word and a third line, centred across the top; a small line and the brand along the bottom. Close portraits; needs a plain top 36%.
   · editorial — large serif headline top-left with small caps under it. Beauty and lifestyle; needs a clean top-left.
   · luxe — brand name at the top, light-and-bold caps headline in the bottom third. Premium, fragrance, portraits; needs a calm lower third.
   · minimal — one quiet serif line at the top, brand at the bottom. A confident single thought; needs a plain top.
@@ -67,7 +73,7 @@ const photoOf = (a: { imageUrl: string | null; design: AdDesign | null }) => (a.
 /** Draw the card for a design, save it as the ad's picture and drop the card it replaces. */
 async function drawCard(brandId: string, memberId: string | null, ad: { id: string; product: string | null; design: AdDesign | null }, design: AdDesign): Promise<string> {
   const png = await renderDesign(brandId, design);
-  const [asset] = await saveAsset({ brandId, kind: "imagery", name: `${(ad.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png, meta: { ai: true, product: ad.product ?? undefined, edit: "card" }, createdBy: memberId });
+  const [asset] = await saveAsset({ brandId, kind: "imagery", name: `${(ad.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png, meta: { ai: true, product: ad.product ?? undefined, edit: "card", ...(design.look ? { look: design.look } : {}) }, createdBy: memberId });
   const card = `/api/assets/${asset.id}`, old = cardId(ad.design?.card);
   await db.update(A).set({ design: { ...design, card, pending: false }, imageUrl: card, updatedAt: new Date() }).where(eq(A.id, ad.id));
   if (old) await deleteAssets(and(eq(schema.brandAssets.id, old), eq(schema.brandAssets.brandId, brandId))).catch(() => undefined);
@@ -78,7 +84,7 @@ async function drawCard(brandId: string, memberId: string | null, ad: { id: stri
  * Lay out the static ads of a batch as cards over their photos (after Shoots sends the photos). One call to Remy for the words and the
  * layout; then each card is drawn. `layout` forces a layout; otherwise Remy picks one for the set.
  */
-export async function layoutBatch(brandId: string, batchId: string, memberId: string | null, adIds?: string[], layout?: LayoutKey, shotFor?: LayoutKey): Promise<{ made: number; error?: string }> {
+export async function layoutBatch(brandId: string, batchId: string, memberId: string | null, adIds?: string[], layout?: LayoutKey, shotFor?: LayoutKey, look?: string): Promise<{ made: number; error?: string }> {
   const [batch] = await db.select().from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brandId)));
   const ads = (await db.select().from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : []))))
     .filter((a) => a.status !== "rejected" && (a.format === "static" || a.format === "carousel")).sort((x, y) => x.position - y.position);
@@ -110,6 +116,7 @@ export async function layoutBatch(brandId: string, batchId: string, memberId: st
   const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
   const accentHex = palette.find((p) => /accent/i.test(p.role))?.hex;
   const accent = accentHex && /^#[0-9a-f]{6}$/i.test(accentHex) && hexLum(accentHex) < 0.62 ? accentHex : undefined;
+  const chip = accentHex && /^#[0-9a-f]{6}$/i.test(accentHex) ? accentHex : undefined; // chips carry their own text colour, so any accent works
   let made = 0;
   for (const [i, a] of ads.entries()) {
     const c = out.cards.find((x) => x.ad === i + 1) ?? out.cards[i];
@@ -119,7 +126,7 @@ export async function layoutBatch(brandId: string, batchId: string, memberId: st
       const photo = photoOf(a);
       const key: LayoutKey = layout ?? byPhoto.get(photo ?? "") ?? (isLayout(c.layout) ? c.layout : "bold");
       byPhoto.set(photo ?? "", key);
-      await drawCard(brandId, memberId, a, layoutDesign(key, copy, { ...(await tonesFor(brandId, photo, key, ink)), accent }, photo));
+      await drawCard(brandId, memberId, a, { ...layoutDesign(key, copy, { ...(await tonesFor(brandId, photo, key, ink)), accent, chip }, photo), ...(look ? { look } : {}) });
       made++;
     } catch (e) { console.error("layout card", a.id, (e as Error).message); }
   }
@@ -139,5 +146,5 @@ export async function relayout(brandId: string, key: LayoutKey, current: AdDesig
   const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
   const inkHex = b?.onboarding?.analysis?.palette?.find((p) => /text/i.test(p.role))?.hex;
   const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
-  return layoutDesign(key, copyOf(current, ad, brand), await tonesFor(brandId, current.image, key, ink), current.image);
+  return { ...layoutDesign(key, copyOf(current, ad, brand), await tonesFor(brandId, current.image, key, ink), current.image), ...(current.look ? { look: current.look } : {}) };
 }

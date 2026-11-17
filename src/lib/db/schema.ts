@@ -345,7 +345,7 @@ export const brandAssets = pgTable(
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
     thumb: bytea("thumb"), // a small JPEG (480 px) for lists, made once
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; look?: string; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -381,6 +381,7 @@ export type Layer = {
 export type AdDesign = {
   image: string | null; overlay: number; layers: Layer[]; overlayTop?: number; card?: string | null; pending?: boolean; layout?: string;
   copy?: { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string; word?: string; benefits?: string[] }; video?: string | null;
+  look?: string; // the ad look its photo was shot in — the card becomes that style's example in the picker
 };
 export const adBatches = pgTable(
   "ad_batches",

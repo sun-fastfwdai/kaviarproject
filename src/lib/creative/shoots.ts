@@ -46,16 +46,17 @@ export async function writeShotPrompt(brandId: string, input: PromptIn): Promise
     marketContext(brandId, input.product || null),
   ]);
   const look = adLook(input.scene);
-  const words = look ? 95 : { short: 30, medium: 55, detailed: 85 }[input.length];
+  const words = look ? (look.person ? 120 : 100) : { short: 30, medium: 55, detailed: 85 }[input.length];
   const out = await ask("remy", {
     system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
 If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
 When there is a person (a character, or a UGC scene), also write voiceLine: what they say to camera in a short clip — first person, casual, under 16 words, about why they reach for this product; no medical or guaranteed claims, no prices or discounts. Otherwise voiceLine is "".
 When adLook is given, the photo is the background of a designed static ad, shot like a studio campaign: follow its art direction exactly — surface, props, camera angle, light — and its room-for-type rule, stating plainly which part of the frame stays empty and plain. Build ONE colour story and name the backdrop colour: from the brand palette if there is one, else from this product's packaging — and when the packaging is neutral (white, silver, grey, black), choose a soft, appetising tint that suits the formula and its hero ingredient rather than grey. Never a grey-on-grey picture. The product is the hero: sharp, correctly lit, label readable. Portrait 4:5. Show only ingredients, textures and claims the product truly has.
+adLook.camera is the photographer's brief — lens, camera position and light: state it in the prompt in plain photographic terms, because it is what makes this look (a wide lens close to the product, a view from directly above, a low angle against the sky). When adLook.withPerson is true and no character is given, cast the model yourself: a woman or man the primary buyer would see as themselves on a good day (age and style from who will see the ad), and describe their look, hair, outfit in the colour story, pose, expression and exactly where the product is in relation to the lens and their face. Real skin, natural hands with five fingers, one person only. Even in a person's hand or at an angle, the product keeps its true proportions and its label faces the camera, readable.
 Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
     content: JSON.stringify({
       brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
-      adLook: look ? { artDirection: look.direction, roomForType: look.room } : null, brandColours: (b?.onboarding?.analysis?.palette ?? []).map((c) => `${c.role}: ${c.hex}`),
+      adLook: look ? { artDirection: look.direction, camera: look.camera, roomForType: look.room, withPerson: Boolean(look.person) } : null, brandColours: (b?.onboarding?.analysis?.palette ?? []).map((c) => `${c.role}: ${c.hex}`),
       brandKit: { look: b?.onboarding?.profile?.palette?.value, tone: b?.onboarding?.profile?.tone?.value, rules: input.brandRules, follow: input.strict ? "strictly" : "loosely" },
       whoWillSeeIt: input.signal ? { signal: input.signal.data, data: input.signal.value, evidence: input.signal.evidence } : null,
       teamRules: input.rules, whatWinsForThisBrand: input.lessons,
@@ -215,7 +216,7 @@ export async function checkShot(brandId: string, assetId: string, referenceUrl: 
   const [a] = await readAssets(eq(schema.brandAssets.id, assetId));
   if (!a || !a.mime.startsWith("image/")) return null;
   const out = await ask("otto", {
-    system: "You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. Be strict: brands get complaints when a product looks different from what arrives.",
+    system: "You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. Be strict about the product itself: brands get complaints when a product looks different from what arrives. The pose is free — the product may be tilted, lying down, held in a hand, partly behind a finger, much larger or smaller, or stretched by a wide lens close to it: that is the photographer's choice, not a fault. Judge whether it is the SAME product: same pack type and proportions, same cap or closure, same label design, wording and colours. People, hands and props are not added text.",
     content: [
       { type: "text", text: `Reference: the real product “${product}”.` },
       { type: "image", source: { type: "url", url: referenceUrl } },

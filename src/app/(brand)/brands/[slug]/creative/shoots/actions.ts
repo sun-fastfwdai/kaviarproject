@@ -137,7 +137,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   }
   if (!done) return { error: "Nothing to send yet — run the flow first." };
   // Static ads become cards: Remy writes the words for each picture and lays them out, ready to refine in the Editor.
-  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout).catch(() => ({ made: 0 }))).made : 0;
+  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name).catch(() => ({ made: 0 }))).made : 0;
   return { done, cards, firstAd: list[0].id };
 }
 

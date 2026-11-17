@@ -22,6 +22,7 @@ import { StudioCtx, ShootCanvasNode, WireEdge, Tag, Thumb, Tile, agoFrom, asset,
 import { ShootBar } from "./bar";
 import { reviewCount } from "../tabs";
 import { Icon } from "@/components/icon";
+import { LookGallery } from "@/components/look-art";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
 import type { PromptIn } from "@/lib/creative/shoots";
@@ -70,6 +71,7 @@ function MenuItem({ icon, children, onClick, href }: { icon: Parameters<typeof I
 type Props = {
   slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; planned?: "static" | "video" | "ugc" | "full" | null; savedAt: string | null; savedBy: string | null;
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
+  examples?: Record<string, string>;
   engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
   batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
 };
@@ -82,6 +84,16 @@ const PLANNED: Record<"static" | "video" | "ugc" | "full", string> = {
   ugc: "Remy laid out the UGC pipeline from your plan: your creator holds the product, then talks to camera. Pick the person, press Run flow, then send the clips to the batch.",
   full: "Remy laid out the full-ad pipeline from your plan: Storyboard → scene clips → Final cut. Write the storyboard, render the scenes, then send the finished ad to the batch.",
 };
+
+/** The scene picker: plain scenes as pills; the static ad looks as a gallery of pictures, product-only and with a person. */
+function ScenePick({ value, onChange, examples }: { value: string; onChange: (v: string) => void; examples?: Record<string, string> }) {
+  return <>{SCENE_GROUPS.map(([g, list]) => (
+    <div key={g} className="col g4" style={{ paddingBottom: 4 }}>
+      <span className="xs i3">{g}</span>
+      {g === "Static ad looks" ? <LookGallery value={value} examples={examples} onPick={onChange} min={62} blurbs={false} /> : <Pills label={`Scene · ${g}`} value={value} options={list.map((x) => [x, x])} onChange={onChange} />}
+    </div>
+  ))}</>;
+}
 
 export function ShootStudio(props: Props) {
   return <ReactFlowProvider><Studio {...props} /></ReactFlowProvider>;
@@ -1049,7 +1061,7 @@ function Studio(props: Props) {
               style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
           </Field>
           <Field label="Scene" sub={isUgc(c.scene) && !inc(flow, n.id).some((x) => x.type === "character") ? "UGC scene — wire a Character in to keep the same person in every shot" : undefined}>
-            {SCENE_GROUPS.map(([g, list]) => <div key={g} className="col g4" style={{ paddingBottom: 4 }}><span className="xs i3">{g}</span><Pills label={`Scene · ${g}`} value={c.scene} options={list.map((x) => [x, x])} onChange={(v) => patchNode(n.id, { scene: v })} /></div>)}
+            <ScenePick value={c.scene} examples={props.examples} onChange={(v) => patchNode(n.id, { scene: v })} />
           </Field>
           <Field label="Length"><Pills label="Length" value={c.length} options={[["short", "Short"], ["medium", "Medium"], ["detailed", "Detailed"]]} onChange={(v) => patchNode(n.id, { length: v })} /></Field>
           {c.segments && c.prompt === joinSegs(c.segments) && <div className="col" style={{ flexShrink: 0 }}>
@@ -1063,7 +1075,7 @@ function Studio(props: Props) {
 
         {n.type === "photo" && <>
             <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="sparkle" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>
-            <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? SCENE_GROUPS.map(([g, list]) => <div key={g} className="col g4" style={{ paddingBottom: 4 }}><span className="xs i3">{g}</span><Pills label={`Scene · ${g}`} value={cfgOf(nPrompt).scene} options={list.map((x) => [x, x])} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /></div>) : <span className="xs i3">—</span>}</Field>
+            <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>
             <div className="row g6" style={{ flexShrink: 0 }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [4, "× 4"]]} onChange={(v) => patchNode(n.id, { n: v })} /></div>
             {(nMine.length > 0 || nEarlier.length > 0) && <Field label={focusShot ? "Selected photo" : "Pick a photo to edit or design"}>
               {focusShot && focusShot.kind === "image" && <div className="col g6">

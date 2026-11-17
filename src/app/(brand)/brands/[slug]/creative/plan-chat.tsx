@@ -5,6 +5,8 @@ import { buildPipeline, planTurn } from "./actions";
 import { Icon, type IconName } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { PlanBrief, PlanFormat, PlanReply, PlanTurn } from "@/lib/creative/planner";
+import { adLook, lookNamed, shortLook } from "@/lib/creative/layouts";
+import { LookArt, LookGallery } from "@/components/look-art";
 
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
 
@@ -13,7 +15,7 @@ const short = (t: string, n = 46) => (t.length > n ? `${t.slice(0, n - 1)}…` :
 const FORMAT: Record<PlanFormat, { name: string; icon: IconName; time: string; steps: (b: PlanBrief) => [string, string][] }> = {
   static: { name: "Static image ads", icon: "image", time: "about 2 minutes to shoot", steps: (b) => [
     ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Brand kit", "Tone and rules from the brand profile"],
-    ["Prompt", `Remy writes the ${b.adLook.replace("Ad look · ", "")} look for this product`], ["Photo", `× ${Math.min(4, b.count)} · 4:5, real product locked`], ["Check", "Otto: label, shape, colours, no stray text"],
+    ["Prompt", `Remy briefs the ${shortLook(b.adLook)} shot: set, lens, light and where the type goes`], ["Photo", `× ${Math.min(4, b.count)} · 4:5, real product locked${adLook(b.adLook)?.person ? ", a model cast to match the buyer" : ""}`], ["Check", "Otto: same product, label, colours, no stray text"],
     ["Editor", `${b.count} designed cards — one message each, type laid out for the photo`], ["Ads", "Review, audience test, set up the test"]] },
   video: { name: "Product video", icon: "video", time: "3–6 minutes a clip", steps: (b) => [
     ["Product", b.product || "The whole range"], ["Buyer data", short(b.audience)], ["Brand kit", "Tone and rules from the brand profile"], ["Prompt", "Remy writes the scene"],
@@ -27,7 +29,7 @@ const FORMAT: Record<PlanFormat, { name: string; icon: IconName; time: string; s
 };
 
 /** Board 17's Plan as a conversation: say what you want, Remy asks what's missing, then lays out the pipeline it will set up in Shoots. */
-export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { slug: string; brand: string; plans: PlanCard[]; research?: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string }) {
+export function PlanChat({ slug, brand, plans, research = [], aiOk, base, examples = {} }: { slug: string; brand: string; plans: PlanCard[]; research?: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string; examples?: Record<string, string> }) {
   const [turns, setTurns] = useState<(PlanTurn & { show?: string })[]>([]); // `show` is what the bubble says; `text` is what Remy reads back
   const [reply, setReply] = useState<PlanReply | null>(null);
   const [picks, setPicks] = useState<Record<number, string>>({});
@@ -95,6 +97,10 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                 {reply.questions.map((q, i) => (
                   <div key={i} className="col g6">
                     <span className="sm w5 i1">{q.text}</span>
+                    {/style|look/i.test(q.text) && q.options.some((o) => lookNamed(o)) ? (
+                      // Every ad style as a picture: Remy's pick is marked, any of them can be tapped.
+                      <LookGallery pick={lookNamed(q.options[0])?.name} value={picks[i] ? lookNamed(picks[i])?.name : null} examples={examples} onPick={(name) => pick(i, shortLook(name))} />
+                    ) : (
                     <div className="row g6" style={{ flexWrap: "wrap" }}>
                       {q.options.map((o, j) => (
                         <button key={o} type="button" onClick={() => pick(i, o)} className="row g6 sm hv-card"
@@ -103,6 +109,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                         </button>
                       ))}
                     </div>
+                    )}
                   </div>
                 ))}
                 <span className="xs i3">Tap an answer, or type your own below.</span>
@@ -120,9 +127,10 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   <span className="col fill" style={{ minWidth: 0 }}><span className="sm w5">The plan · {brief.count} {f.name.toLowerCase()}</span><span className="xs i3 ell">{brief.why}</span></span>
                 </div>
                 <div className="col" style={{ padding: "4px 16px" }}>
-                  {([["Product", brief.product || "The whole range"], ["For", brief.audience], ["Messages to test", null], ["Look", `${brief.adLook ? `${brief.adLook.replace("Ad look · ", "")} — ` : ""}${brief.look}`]] as const).map(([k, v]) => (
+                  {([["Product", brief.product || "The whole range"], ["For", brief.audience], ["Messages to test", null], ["Look", `${brief.adLook ? `${shortLook(brief.adLook)}${adLook(brief.adLook)?.person ? " · with a person" : ""} — ` : ""}${brief.look}`]] as const).map(([k, v]) => (
                     <div key={k} className="row top g12" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
                       <span className="xs i3" style={{ width: 110, flexShrink: 0, lineHeight: "20px" }}>{k}</span>
+                      {k === "Look" && adLook(brief.adLook) && <span style={{ width: 52, aspectRatio: "4 / 5", borderRadius: 6, overflow: "hidden", flexShrink: 0, boxShadow: "0 0 0 1px var(--line)" }}><LookArt look={adLook(brief.adLook)!} example={examples[brief.adLook]} /></span>}
                       {v != null ? <span className="sm i1 fill" style={{ lineHeight: "20px" }}>{v}</span>
                         : <span className="col g2 fill">{brief.angles.map((a, i) => <span key={a} className="sm i1" style={{ lineHeight: "20px" }}><span className="i3 tnum">{i + 1}</span>&ensp;{a}</span>)}</span>}
                     </div>

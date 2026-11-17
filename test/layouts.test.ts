@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AD_LOOKS, LAYOUTS, copyOf, layoutDesign, toneFor } from "@/lib/creative/layouts";
+import { AD_LOOKS, LAYOUTS, LOOK_GROUPS, copyOf, isLayout, layoutDesign, lookNamed, toneFor } from "@/lib/creative/layouts";
 
 const copy = { headline: "Why This Eye Balm?", subline: "The balm that helps tired eyes look brighter and more awake.", tagline: "One swipe delivers.", note: "Your quick fix.", brand: "Hey Bud", cta: "Shop now", word: "Glow", benefits: ["Brightens tired eyes", "One swipe", "No sting"] };
 const light = toneFor(0.9), dark = toneFor(0.2);
@@ -39,6 +39,30 @@ describe("layoutDesign", () => {
     expect(d.overlayTop).toBe(0);
     expect(d.overlay).toBeGreaterThan(0);
   });
+  it("sets the poster headline as one or two rows that fit the width", () => {
+    const one = layoutDesign("poster", { ...copy, headline: "Sunscreen Day" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
+    expect(one.map((l) => l.text)).toEqual(["Sunscreen Day"]);
+    expect(one[0].size * 13 * 0.47).toBeLessThanOrEqual(0.92 * 1080);
+    const two = layoutDesign("poster", { ...copy, headline: "Calm Skin, No Burn" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
+    expect(two.map((l) => l.text)).toEqual(["Calm Skin,", "No Burn"]);
+    expect(two[1].y).toBeGreaterThan(two[0].y);
+    expect(two[1].y * 1350 + two[1].size).toBeLessThan(1350 - 40);
+  });
+  it("puts the chips layout's key words on chips that carry their own text colour", () => {
+    const d = layoutDesign("chips", copy, { top: dark, bottom: dark, chip: "#F59B1C" }, null);
+    const chips = d.layers.filter((l) => l.kind === "badge");
+    expect(chips.map((l) => l.role)).toEqual(["tagline", "note"]);
+    expect(chips.every((l) => l.bg === "#F59B1C" && l.color === "#1C1B19")).toBe(true);
+    expect(layoutDesign("chips", copy, { top: dark, bottom: dark, chip: "#123456" }, null).layers.find((l) => l.kind === "badge")!.color).toBe("#FFFFFF");
+  });
+  it("stacks a lead-in, one huge word and a third line without overlap", () => {
+    const d = layoutDesign("stack", { ...copy, headline: "Your Daily", word: "Shield", tagline: "Gel SPF50+" }, { top: dark, bottom: dark }, null);
+    const [lead, word, tag] = ["headline", "word", "tagline"].map((r) => d.layers.find((l) => l.role === r)!);
+    expect(word.text).toBe("SHIELD");
+    expect(word.size).toBeGreaterThan(lead.size * 2);
+    expect(word.y * 1350).toBeGreaterThanOrEqual(lead.y * 1350 + lead.size);
+    expect(tag.y * 1350).toBeGreaterThanOrEqual(word.y * 1350 + word.size);
+  });
   it("splits the luxe headline into a light line and a bold line", () => {
     const heads = layoutDesign("luxe", { ...copy, headline: "New Year New Skin" }, { top: dark, bottom: dark }, null).layers.filter((l) => l.role === "headline");
     expect(heads.map((l) => l.text)).toEqual(["New Year", "New Skin"]);
@@ -64,5 +88,19 @@ describe("copyOf", () => {
 describe("ad looks", () => {
   it("each names a layout that exists and says where the type goes", () => {
     for (const l of AD_LOOKS) { expect(LAYOUTS.some((x) => x.key === l.layout)).toBe(true); expect(l.room.length).toBeGreaterThan(20); }
+  });
+});
+
+describe("ad looks", () => {
+  it("offers product-only and with-a-person styles, each composed for a real layout", () => {
+    for (const g of LOOK_GROUPS) expect(AD_LOOKS.filter((l) => l.group === g).length).toBeGreaterThanOrEqual(6);
+    expect(new Set(AD_LOOKS.map((l) => l.key)).size).toBe(AD_LOOKS.length);
+    for (const l of AD_LOOKS) { expect(isLayout(l.layout)).toBe(true); expect(Boolean(l.person)).toBe(l.group === "With a person"); expect(l.camera.length).toBeGreaterThan(30); }
+  });
+  it("finds a look from a tapped answer or a typed sentence", () => {
+    expect(lookNamed("Sky hold")?.key).toBe("sky");
+    expect(lookNamed("Which ad style? Reach to camera")?.key).toBe("reach");
+    expect(lookNamed("Ad look · Big word")?.key).toBe("bigword");
+    expect(lookNamed("something else")).toBeNull();
   });
 });

@@ -14,6 +14,7 @@ import { NeedsSource, SidePanel } from "@/components/ui";
 import { BatchArt, EmptyState } from "@/components/empty";
 import { StudioBar, reviewCount } from "./tabs";
 import { PlanChat } from "./plan-chat";
+import { lookExamples } from "@/lib/creative/looks";
 import { researchSignals } from "@/lib/research/context";
 
 export const metadata = { title: "Creative studio" };
@@ -65,7 +66,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
         <section className="scroll col" style={{ padding: tab === "plan" ? 0 : "20px 24px", gap: 16 }}>
           {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
           {tab === "plan" ? (
-            <PlanChat slug={slug} base={base} brand={brand.name} hasMeta={Boolean(conns.meta)} aiOk={aiReady()}
+            <PlanChat slug={slug} base={base} brand={brand.name} hasMeta={Boolean(conns.meta)} aiOk={aiReady()} examples={await lookExamples(brand.id)}
               plans={plans.map((p) => ({ key: p.key, title: p.data, why: `${p.why ?? p.value} — ${p.use.toLowerCase()}.`, evidence: p.evidence, href: `${base}/signals/${p.key}` }))}
               research={research.slice(0, 3).map((r) => ({ key: r.key, title: r.data, why: `${r.why} Say: ${r.use}`, evidence: r.evidence.filter(([k]) => k === "Targeting" || k === "For"), href: `${base}/research?product=${encodeURIComponent(r.product)}&tab=position` }))} />
           ) : (<>

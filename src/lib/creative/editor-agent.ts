@@ -22,7 +22,7 @@ const LayerOut = z.object({
 const Out = z.object({
   say: z.string().describe("One or two short sentences to the team: what you changed, or why you didn't"),
   action: z.enum(["edit", "layout", "none"]).describe("edit: change layers / picture / scrims; layout: switch the whole ad to one of the layouts; none: nothing to change"),
-  layout: z.enum(["bold", "bigword", "benefits", "statement", "editorial", "luxe", "minimal", "caption", "keep"]),
+  layout: z.enum(["bold", "bigword", "benefits", "statement", "poster", "chips", "stack", "editorial", "luxe", "minimal", "caption", "keep"]),
   layers: z.array(LayerOut).describe("For action edit: every text, button and badge layer after the change, unchanged ones included"),
   image: z.string().describe("'keep', or the url of one of the pictures listed"),
   overlayTop: z.number().describe("Darkening behind type at the top, 0–0.7"), overlay: z.number().describe("Darkening at the bottom, 0–0.7"),

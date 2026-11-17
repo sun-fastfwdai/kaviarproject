@@ -7,6 +7,7 @@ import { buildSignals } from "@/lib/signals/build";
 import { researchSignals } from "@/lib/research/context";
 import { shootEngines, shootsThisMonth } from "@/lib/creative/shoots";
 import { ShootStudio } from "./studio";
+import { lookExamples } from "@/lib/creative/looks";
 import { TEMPLATES, applyPreset, asFlow, defaultFlow, flowSignal, fullAdFlow, staticFlow, ugcFlow, videoFlow } from "./flow";
 
 export const metadata = { title: "Creative studio · Shoots" };
@@ -74,7 +75,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const savedBy = saved?.updatedBy ? (await db.select({ name: schema.members.name }).from(schema.members).where(eq(schema.members.id, saved.updatedBy)))[0]?.name ?? null : null;
 
   return (
-    <ShootStudio slug={slug} base={base} brand={brand.name} currency={brand.currency} autoRun={autoRun}
+    <ShootStudio slug={slug} base={base} brand={brand.name} currency={brand.currency} autoRun={autoRun} examples={await lookExamples(brand.id)}
       initial={flow} preset={preset} planned={sp.plan === "1" && layout ? layout : null} savedAt={saved?.updatedAt.toISOString() ?? null} savedBy={savedBy}
       characters={characters.map((c) => ({ id: c.id, name: c.name, description: c.meta.character?.description ?? "", uploaded: Boolean(c.meta.character?.uploaded), at: c.createdAt.toISOString() }))}
       engines={engines} voices={voices.map((v) => ({ id: v.id, name: v.name, seconds: v.meta.seconds ?? null, by: v.meta.consent?.by ?? null }))} perImage={engines.perImage} perVideoSecond={engines.perVideoSecond} month={month} toReview={batches.reduce((a, b) => a + b.review, 0)}

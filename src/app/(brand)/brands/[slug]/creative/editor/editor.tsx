@@ -170,6 +170,9 @@ const WIRE: Record<LayoutKey, [number, number, number, number, boolean][]> = {
   bigword: [[8, 6, 84, 22, false], [8, 48, 22, 4, true], [70, 58, 22, 4, true], [24, 84, 52, 5, true], [32, 92, 36, 2.5, false]],
   benefits: [[8, 8, 46, 6, true], [8, 16, 40, 6, false], [8, 30, 4, 4, true], [15, 30.5, 30, 3, false], [8, 38, 4, 4, true], [15, 38.5, 26, 3, false], [8, 46, 4, 4, true], [15, 46.5, 32, 3, false], [8, 87, 26, 6, true]],
   statement: [[10, 6, 80, 10, true], [16, 18, 68, 10, true], [22, 30, 56, 10, true], [28, 43, 44, 2.5, false], [8, 92, 24, 3, false], [38, 92, 24, 3, false], [68, 92, 24, 3, false]],
+  poster: [[8, 6, 24, 2.5, false], [6, 72, 88, 17, true], [22, 92, 56, 2.5, false]],
+  chips: [[8, 6, 24, 2.5, false], [8, 12, 46, 8, true], [8, 23, 36, 6, false], [8, 82, 40, 3, true], [8, 88, 34, 5, false]],
+  stack: [[30, 6, 40, 4, false], [12, 12, 76, 15, true], [32, 29, 36, 4, false], [8, 92, 36, 2.5, false], [68, 92, 24, 2.5, false]],
   editorial: [[8, 8, 52, 10, true], [8, 20, 40, 10, true], [8, 34, 34, 2.5, false], [8, 90, 36, 3, false]],
   luxe: [[32, 7, 36, 2.5, false], [22, 70, 56, 6, false], [16, 78, 68, 6, true], [30, 88, 40, 2.5, false]],
   minimal: [[18, 9, 64, 5, true], [28, 16, 44, 5, true], [36, 92, 28, 2.5, false]],
@@ -200,7 +203,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
   const nameOf = (l: Layer) => (l.role ? l.role.charAt(0).toUpperCase() + l.role.slice(1) : l.kind === "text" ? "Text" : l.kind === "button" ? "Button" : l.kind === "badge" ? "Badge" : "Logo");
   /** Switch layout: the ad's words stay, the type moves and picks light or dark for the photo under it. */
   const applyLayout = async (key: LayoutKey, image: string | null = d.image) => {
-    const next = await laidOut(key, copyOf(d, ad, brand), image);
+    const next = { ...(await laidOut(key, copyOf(d, ad, brand), image)), ...(d.look ? { look: d.look } : {}) };
     set({ ...next, layers: [...next.layers, ...logosOf(d)], card: d.card });
     setSel(null);
   };
