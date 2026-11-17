@@ -57,20 +57,28 @@ const ages = (s: string) => {
   return { age_min: Math.min(65, Math.max(18, lo)), age_max: Math.min(65, Math.max(18, hi)) };
 };
 type Interest = { id: string; name: string };
-async function interestsFor(names: string[], token: string, cache: Map<string, Interest | null>): Promise<Interest[]> {
-  const out: Interest[] = [];
-  for (const raw of names.slice(0, 5)) {
-    const q = raw.trim().slice(0, 60), k = q.toLowerCase();
-    if (!q) continue;
-    if (!cache.has(k)) {
-      const r = await metaGet<{ data?: { id: string; name: string }[] }>("search", { type: "adinterest", q, limit: "3" }, token).catch(() => null);
-      const hit = r?.data?.find((x) => x.name.toLowerCase() === k) ?? r?.data?.[0];
-      cache.set(k, hit ? { id: hit.id, name: hit.name } : null);
-    }
-    const i = cache.get(k);
-    if (i && !out.some((x) => x.id === i.id)) out.push(i);
+type Candidate = Interest & { topic: string; path: string };
+/** Meta's own interests that could match a buyer group's interest words (Meta's search is loose: "acne" also finds a fashion label). */
+async function candidates(terms: string[], token: string): Promise<Candidate[]> {
+  const out = new Map<string, Candidate>();
+  for (const raw of [...new Set(terms.map((t) => t.trim().slice(0, 60)).filter(Boolean))].slice(0, 24)) {
+    const r = await metaGet<{ data?: { id: string; name: string; topic?: string; path?: string[] }[] }>("search", { type: "adinterest", q: raw, limit: "5" }, token).catch(() => null);
+    for (const x of r?.data ?? []) out.set(x.id, { id: x.id, name: x.name, topic: x.topic ?? "", path: (x.path ?? []).join(" > ") });
   }
-  return out;
+  return [...out.values()];
+}
+/** Which of Meta's interests truly describe each buyer group — chosen by meaning, so a look-alike name never sizes the wrong audience. */
+async function matchInterests(segments: Segment[], pool: Candidate[], category: string | null): Promise<Map<string, Interest[]>> {
+  const by = new Map<string, Interest[]>();
+  if (!pool.length) return by;
+  const out = await ask("cleo", {
+    system: "Match buyer groups to Meta ad interests. For each buyer group, pick the interests from the list that genuinely describe what those shoppers are into, for sizing the audience. Reject anything that only shares a word (e.g. 'Acne Studios' is a fashion label, not acne care; a music genre is not K-beauty). Pick 1–4 per group, or none if nothing fits — a smaller correct set beats a bigger wrong one.",
+    content: JSON.stringify({ category, buyerGroups: segments.map((s) => ({ name: s.name, who: s.who, need: s.need, interestWords: s.reach.interests })), metaInterests: pool.map((c) => ({ id: c.id, name: c.name, topic: c.topic, path: c.path })) }),
+    schema: z.object({ groups: z.array(z.object({ name: z.string(), interestIds: z.array(z.string()) })) }), maxTokens: 1500,
+  });
+  const known = new Map(pool.map((c) => [c.id, c]));
+  for (const g of out?.groups ?? []) by.set(g.name, [...new Set(g.interestIds)].filter((id) => known.has(id)).slice(0, 4).map((id) => ({ id, name: known.get(id)!.name })));
+  return by;
 }
 
 type Range = { lo: number; hi: number };
@@ -91,12 +99,14 @@ async function audienceSize(act: string, token: string, spec: Record<string, unk
   return null;
 }
 
-async function audiences(row: Row, segments: Segment[], note: (s: string) => void): Promise<Draft[]> {
+async function audiences(row: Row, all: Segment[], category: string | null, note: (s: string) => void): Promise<Draft[]> {
   const acct = await metaAccount(row.brandId);
+  const segments = all.slice(0, 6);
   if (!acct || !segments.length) return [];
-  const out: Draft[] = [], cache = new Map<string, Interest | null>();
-  for (const s of segments.slice(0, 6)) {
-    const interests = await interestsFor(s.reach.interests, acct.token, cache);
+  const out: Draft[] = [];
+  const matched = await matchInterests(segments, await candidates(segments.flatMap((s) => s.reach.interests), acct.token), category).catch(() => new Map<string, Interest[]>());
+  for (const s of segments) {
+    const interests = matched.get(s.name) ?? [];
     const spec = {
       geo_locations: { countries: [row.market] }, ...ages(s.reach.ages), ...(s.reach.gender === "Women" ? { genders: [2] } : s.reach.gender === "Men" ? { genders: [1] } : {}),
       ...(interests.length ? { flexible_spec: [{ interests }] } : {}),
@@ -106,7 +116,7 @@ async function audiences(row: Row, segments: Segment[], note: (s: string) => voi
     const who = `${s.reach.gender === "All" ? "People" : s.reach.gender} ${spec.age_min}–${spec.age_max}${spec.age_max === 65 ? "+" : ""} in ${marketName(row.market)}`;
     out.push({
       kind: "audience_size", source: "Meta audience estimate", quality: "platform_estimate", subject: s.name, metric: "People Meta can reach with this targeting", value: r.lo, high: r.hi, unit: "people", period: today(),
-      note: interests.length ? `${who} interested in ${interests.map((i) => i.name).join(", ")}` : `${who} — none of the interests matched one of Meta’s, so this is everyone of that age and gender`,
+      note: interests.length ? `${who} interested in ${interests.map((i) => i.name).join(", ")}` : `${who} — no Meta interest truly matches this group, so this is everyone of that age and gender`,
     });
   }
   if (!out.length) note("Meta didn’t return audience sizes");
@@ -182,7 +192,7 @@ export async function gatherEvidence(row: Row, report: MarketReport, rivals: Riv
   const notes: string[] = [];
   const [a, b2, c] = await Promise.all([
     own(row).catch(() => [] as Draft[]),
-    audiences(row, segments, (s) => notes.push(s)).catch((e) => { console.error("audiences", e); return [] as Draft[]; }),
+    audiences(row, segments, b?.category ?? null, (s) => notes.push(s)).catch((e) => { console.error("audiences", e); return [] as Draft[]; }),
     b ? searches(row, report, b, (s) => notes.push(s)).catch(() => [] as Draft[]) : Promise.resolve([] as Draft[]),
   ]);
   const all = [...b2, ...c, ...a, ...competitors(rivals, read, row.market)];
