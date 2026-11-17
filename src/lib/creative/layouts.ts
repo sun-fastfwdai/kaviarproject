@@ -37,7 +37,7 @@ export const toneFor = (lum: number | null, ink = "#1C1B19"): Tone =>
  */
 export const AD_LOOKS: { name: string; direction: string; room: string; layout: LayoutKey }[] = [
   { name: "Ad look · Texture swatch", layout: "bold",
-    direction: "Top-down studio flat lay. The product lies at a slight angle on a thick, glossy smear of its own texture (cream, gel, balm or serum) in the formula's real colour, on a seamless matte backdrop in ONE soft colour taken from the packaging. Soft overhead light, one gentle natural shadow, nothing else in frame.",
+    direction: "Top-down studio flat lay. The product lies at a slight angle on a thick, glossy smear of its own texture (cream, gel, balm or serum) in the formula's real colour, on a seamless matte backdrop in ONE soft colour — taken from the packaging, or, when the packaging is white, silver, grey or black, a gentle tint that suits the formula and its hero ingredient (sage, blush, butter, sky, peach). Soft overhead light, one gentle natural shadow, nothing else in frame.",
     room: "Product and swatch fill the lower two-thirds; the top third is empty backdrop for a headline, and a thin calm strip stays free along the bottom." },
   { name: "Ad look · Colour studio", layout: "editorial",
     direction: "A monochrome beauty studio in ONE saturated colour drawn from the product — backdrop, light spill and styling all in that hue. A hand with natural nails presents the product, label square to camera; behind it, softly out of focus, a model turns her face into warm light. Glowing skin, shallow depth of field, premium campaign finish.",
