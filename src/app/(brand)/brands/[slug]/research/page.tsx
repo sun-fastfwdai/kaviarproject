@@ -27,7 +27,7 @@ export default async function ResearchPage({ params, searchParams }: PageProps<"
   const [r] = await db.select({ ...getTableColumns(R), stale: sql<boolean>`(${R.status} = 'running' and ${R.updatedAt} < now() - interval '15 minutes')` })
     .from(R).where(and(eq(R.brandId, brand.id), eq(R.subject, subject), eq(R.market, market)));
   const row: ResearchRow | null = r ? {
-    id: r.id, status: r.status, stale: Boolean(r.stale), steps: r.steps, report: r.report, rivals: r.rivals, manual: r.manual,
+    id: r.id, status: r.status, stale: Boolean(r.stale), steps: r.steps, report: r.report, rivals: r.rivals, manual: r.manual, evidence: r.evidence ?? [],
     adsRead: r.adsRead, plan: r.plan, positioning: r.positioning, error: r.error, updatedAt: r.updatedAt.toISOString(), startedAt: r.startedAt?.toISOString() ?? null, finishedAt: r.finishedAt?.toISOString() ?? null,
   } : null;
   const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Market research" }];

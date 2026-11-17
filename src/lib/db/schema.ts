@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Onboarding } from "../onboarding/types";
-import type { AdsRead, ManualAd, MarketReport, Positioning, RivalAds, Step, TestPlan } from "../research/types";
+import type { AdsRead, Evidence, ManualAd, MarketReport, Positioning, RivalAds, Step, TestPlan } from "../research/types";
 import type { Calibration, PanelBody, PanelKind, Persona, Reaction, TestItem, TestResult, TestSource } from "../audience/types";
 import {
   bigint,
@@ -547,6 +547,7 @@ export const marketResearch = pgTable(
     rivals: jsonb("rivals").$type<RivalAds[]>().notNull().default([]),
     manual: jsonb("manual").$type<ManualAd[]>().notNull().default([]),
     adsRead: jsonb("ads_read").$type<AdsRead>(),
+    evidence: jsonb("evidence").$type<Evidence[]>().notNull().default([]), // measured numbers the findings and hypotheses stand on
     plan: jsonb("plan").$type<TestPlan>(),
     positioning: jsonb("positioning").$type<Positioning>(),
     error: text("error"),

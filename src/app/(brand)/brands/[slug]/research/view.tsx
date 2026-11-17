@@ -9,10 +9,10 @@ import { PositionTab } from "./position";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { EmptyState } from "@/components/empty";
-import { MARKETS, marketName, type AdsRead, type ManualAd, type MarketReport, type Positioning, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
+import { MARKETS, marketName, type AdsRead, type Evidence, type ManualAd, type MarketReport, type Positioning, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
 
 export type ResearchRow = {
-  id: string; status: "running" | "done" | "error"; stale: boolean; steps: Step[]; report: MarketReport | null; rivals: RivalAds[]; manual: ManualAd[];
+  id: string; status: "running" | "done" | "error"; stale: boolean; steps: Step[]; report: MarketReport | null; rivals: RivalAds[]; manual: ManualAd[]; evidence: Evidence[];
   adsRead: AdsRead | null; plan: TestPlan | null; positioning: Positioning | null; error: string | null; updatedAt: string; startedAt: string | null; finishedAt: string | null;
 };
 type Tab = "position" | "market" | "ads" | "plan";
@@ -68,7 +68,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
           </div>
           {report && (
             <div className="row g16" style={{ flexShrink: 0 }}>
-              {([[report.sources.length, "sources"], [report.segments.length, "buyer groups"], [report.competitors.length, "competitors"], [row?.adsRead?.creatives ?? counts.ads, "ads read"], [counts.plan, "tests"]] as const).filter(([n]) => n > 0).map(([n, l]) => (
+              {([[report.sources.length, "sources"], [report.segments.length, "buyer groups"], [report.competitors.length, "competitors"], [row?.evidence.length ?? 0, "numbers measured"], [row?.adsRead?.creatives ?? counts.ads, "ads read"], [counts.plan, "tests"]] as const).filter(([n]) => n > 0).map(([n, l]) => (
                 <span key={l} className="row g6" style={{ alignItems: "baseline" }}><b className="tnum" style={{ fontSize: 15, fontWeight: 600 }}>{n}</b><span className="xs i3">{l}</span></span>
               ))}
             </div>
@@ -109,7 +109,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
               ))}
             </div>
             {tab === "position" && <PositionTab key={row.positioning?.at ?? "none"} slug={slug} id={row.id} pos={row.positioning} running={running} />}
-            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} currency={currency} onAds={() => go({ tab: "ads" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
+            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
             {tab === "ads" && <AdsTab slug={slug} id={row.id} row={row} market={market} hasMeta={hasMeta} running={running} />}
             {tab === "plan" && <PlanTab slug={slug} id={row.id} row={row} running={running} onMarket={() => go({ tab: "market" })} />}
           </>

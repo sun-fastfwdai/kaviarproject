@@ -71,8 +71,39 @@ export type AdsRead = {
   gaps: { id: string; text: string; why: string; status?: Decision }[];
 };
 
-export type TestCell = { id: string; segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string; on: boolean };
-export type TestPlan = { summary: string; cells: TestCell[]; budget: { perDay: number; days: number; note: string }; at: string };
+export type TestCell = { id: string; segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string; on: boolean; hypothesisId?: string };
+export type TestPlan = { summary: string; cells: TestCell[]; budget: { perDay: number; days: number; note: string }; at: string; hypotheses?: Hypothesis[] };
+
+/**
+ * A number from the real world, with where it came from — what findings and hypotheses stand on.
+ * measured: read directly (Shopify orders, ad counts, days running). platform_estimate: the platform's own estimate (Meta audience size,
+ * Google search volume). calculated: Kaviar's arithmetic on those (a share, a median, a year-on-year change).
+ */
+export type EvidenceQuality = "measured" | "platform_estimate" | "calculated";
+export type EvidenceSource = "Shopify" | "Meta Ads" | "Meta audience estimate" | "Meta Ad Library" | "Google search volume";
+export type Evidence = {
+  id: string; kind: "store" | "ads" | "audience_size" | "competitor_ads" | "search_volume";
+  metric: string; subject: string; value: number; high?: number; unit: string; change?: { pct: number; over: "YoY" };
+  source: EvidenceSource; quality: EvidenceQuality; period?: string; at: string; link?: string; note?: string;
+};
+export const QUALITY_NAME: Record<EvidenceQuality, string> = { measured: "Measured", platform_estimate: "Platform estimate", calculated: "Calculated" };
+/** "9.8M–11.5M people", "$251", "41%" — an evidence value as people read it. */
+export const evidenceValue = (e: Evidence) => {
+  const n = (v: number) => (e.unit === "$" ? `$${v >= 1000 ? Math.round(v).toLocaleString("en-US") : +v.toFixed(2)}` : e.unit === "%" ? `${+v.toFixed(1)}%` : e.unit === "×" ? `${+v.toFixed(2)}×`
+    : v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${Math.round(v / 1e3)}K` : Math.round(v).toLocaleString("en-US"));
+  const unit = ["$", "%", "×"].includes(e.unit) ? "" : ` ${e.unit}`;
+  return `${n(e.value)}${e.high != null && e.high !== e.value ? `–${n(e.high)}` : ""}${unit}`;
+};
+/** One line a model or a person can read: "E7 · Meta audience estimate (platform estimate): Adult hormonal-acne women — 9.8M–11.5M people". */
+export const evidenceLine = (e: Evidence) => `${e.id} · ${e.source} (${QUALITY_NAME[e.quality].toLowerCase()}): ${e.subject} — ${e.metric}: ${evidenceValue(e)}${e.change ? `, ${e.change.pct >= 0 ? "+" : ""}${e.change.pct}% ${e.change.over}` : ""}${e.period ? ` (${e.period})` : ""}${e.note ? ` — ${e.note}` : ""}`;
+
+/** A claim the Meta test can confirm or refute, with the evidence for and against it. `strength` is set by Kaviar from the evidence, not by the model. */
+export type Hypothesis = {
+  id: string; claim: string; about: "demand" | "segment" | "angle" | "price";
+  evidence: { id: string; reads: string; stance: "for" | "against" }[];
+  strength: "measured" | "mixed" | "assumed"; confirmIf: string; refuteIf: string;
+};
+export const STRENGTH_NAME: Record<Hypothesis["strength"], string> = { measured: "Backed by data", mixed: "Partly backed", assumed: "Assumption to test" };
 
 /** Where a positioning line comes from: the store, live ads, the web research, competitors' ads, or the brand profile. */
 export type DataSource = "shopify" | "meta" | "research" | "ads" | "brand";
@@ -88,14 +119,14 @@ export type Positioning = {
   status?: "accepted"; edited?: boolean; at: string;
 };
 
-export type StepKey = "context" | "search" | "write" | "adlib" | "read" | "position" | "plan";
+export type StepKey = "context" | "search" | "write" | "measure" | "adlib" | "read" | "position" | "plan";
 export type Step = { key: StepKey; label: string; state: "waiting" | "running" | "done" | "error"; note?: string; ms?: number };
 export const STEP_LABEL: Record<StepKey, string> = {
-  context: "Read the brand and product", search: "Search the market", write: "Write up the findings",
+  context: "Read the brand and product", search: "Search the market", write: "Write up the findings", measure: "Measure it with real numbers",
   adlib: "Pull competitors’ ads from the Meta Ad Library", read: "Read their messaging", position: "Position the product with all the data", plan: "Plan the message test",
 };
-export type Part = "market" | "ads" | "position" | "plan";
-export const PART_STEPS: Record<Part, StepKey[]> = { market: ["context", "search", "write"], ads: ["adlib", "read"], position: ["position"], plan: ["plan"] };
+export type Part = "market" | "measure" | "ads" | "position" | "plan";
+export const PART_STEPS: Record<Part, StepKey[]> = { market: ["context", "search", "write"], measure: ["measure"], ads: ["adlib", "read"], position: ["position"], plan: ["plan"] };
 
 export const MARKETS: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"]];
 export const marketName = (m: string) => MARKETS.find(([k]) => k === m)?.[1] ?? m;

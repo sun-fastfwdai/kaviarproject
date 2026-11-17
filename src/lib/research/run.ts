@@ -6,7 +6,8 @@ import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { adLibraryToken, competitorAds, libError, pruneAdCopies, samePage } from "./adlib";
 import { metaLessons, storeFacts } from "./context";
-import { PART_STEPS, STEP_LABEL, marketName, type AdsRead, type DataSource, type LibAd, type ManualAd, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
+import { gatherEvidence } from "./evidence";
+import { PART_STEPS, STEP_LABEL, evidenceLine, marketName, type Evidence, type Hypothesis, type AdsRead, type DataSource, type LibAd, type ManualAd, type MarketReport, type Part, type Positioning, type RivalAds, type Src, type Step, type StepKey, type TestPlan } from "./types";
 import { readAssets } from "@/lib/assets/storage";
 
 const R = schema.marketResearch;
@@ -232,7 +233,7 @@ const PositionOut = z.object({
   next: z.array(z.string()).describe("2–3 things to test or find out next"),
 });
 
-async function positionProduct(row: Row, report: MarketReport | null, read: AdsRead | null): Promise<Positioning> {
+async function positionProduct(row: Row, report: MarketReport | null, read: AdsRead | null, evidence: Evidence[] = []): Promise<Positioning> {
   if (!report) throw new Error("Run the market research first — positioning builds on it.");
   const [b] = await db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, row.brandId));
   const profile = b.onboarding?.profile ? Object.fromEntries(Object.entries(b.onboarding.profile).map(([k, v]) => [k, v.value])) : null;
@@ -248,6 +249,7 @@ async function positionProduct(row: Row, report: MarketReport | null, read: AdsR
         competitors: report.competitors.map((c) => ({ name: c.name, price: c.price, positioning: c.positioning, weakness: c.weakness })),
         opportunities: report.opportunities.map((o) => ({ text: o.text, decision: o.status ?? "open" })),
       },
+      measuredEvidence: evidence.map(evidenceLine),
       competitorAds: read ? { angles: read.angles.map(angleLine(read)), hooks: read.hooks, offers: read.offers, positioning: read.positioning, gaps: read.gaps.map((g) => ({ text: g.text, decision: g.status ?? "open" })) } : "not read yet",
     }),
     schema: PositionOut, maxTokens: 8000,
@@ -271,24 +273,43 @@ const PlanOut = z.object({
     visual: z.string().describe("A static, product-focused image — no people, not UGC"), metric: z.string().describe("The result that says 'this message works', e.g. CTR ≥ 1.5%"),
   })),
   budget: z.object({ perDay: z.number().describe("Total USD per day across all cells"), days: z.number(), note: z.string() }),
+  hypotheses: z.array(z.object({
+    claim: z.string().describe("One testable sentence, e.g. 'For <buyer>, <message A> beats <message B> as the lead message'"),
+    about: z.enum(["demand", "segment", "angle", "price"]),
+    evidence: z.array(z.object({ id: z.string().describe("An evidence id from the list, e.g. E7"), reads: z.string().describe("What that number says about the claim, under 16 words"), stance: z.enum(["for", "against"]) })).describe("Every record that bears on the claim, including ones against it. Empty if nothing measured supports it"),
+    cells: z.array(z.number()).describe("The numbers (1-based) of the cells that test it"),
+    confirmIf: z.string().describe("The result that confirms it — relative to another cell, with a minimum sample, e.g. 'link CTR at least 1.25× cell 1's, with 50+ link clicks each'"),
+    refuteIf: z.string().describe("The result that refutes it"),
+  })).describe("2–5 hypotheses that the cells test"),
 });
 
-async function planTest(row: Row, report: MarketReport | null, read: AdsRead | null, pos: Positioning | null = null): Promise<TestPlan> {
+async function planTest(row: Row, report: MarketReport | null, read: AdsRead | null, pos: Positioning | null = null, evidence: Evidence[] = []): Promise<TestPlan> {
   if (!report) throw new Error("Run the market research first — the plan builds on its buyers and gaps.");
   const segments = report.segments.filter((s) => s.status !== "rejected");
   const out = await ask("iris", {
-    system: `You are Iris, Kaviar's research analyst. Plan a first message test for a brand new to the ${marketName(row.market)} market. Use static image ads only — product-focused, no people, not UGC — because they are cheap to make and test the message, not the production. 4 to 8 cells: each tests one buyer segment × one message angle; reuse the same angles across segments so results compare. Prefer the accepted buyers and the gaps competitors leave open. Budget: about 10–15 USD a day per cell for 5–7 days unless the evidence says otherwise.`,
+    system: `You are Iris, Kaviar's research analyst. Plan a first message test for a brand new to the ${marketName(row.market)} market. Use static image ads only — product-focused, no people, not UGC — because they are cheap to make and test the message, not the production. 4 to 8 cells: each tests one buyer segment × one message angle; reuse the same angles across segments so results compare. Prefer the accepted buyers and the gaps competitors leave open. Budget: about 10–15 USD a day per cell for 5–7 days unless the evidence says otherwise. Then state the 2–5 hypotheses the cells test. Ground each in measuredEvidence: cite the ids of every record that bears on it, for and against, and say in a few words what each number shows. Never cite a number that isn't in measuredEvidence; a hypothesis with no measured support is still worth testing — leave its evidence empty and it will be marked as an assumption. Fix what result confirms and what refutes each one before the test runs: compare cells with each other (not against a fixed benchmark) and name a minimum sample.`,
     content: JSON.stringify({
       product: row.subject || "the brand's range", summary: report.summary, demand: report.demand.verdict, price: report.price,
       buyers: segments.map((s) => ({ name: s.name, accepted: s.status === "accepted", who: s.who, need: s.need, angle: s.angle, ages: s.reach.ages, gender: s.reach.gender, interests: s.reach.interests })),
       opportunities: report.opportunities.filter((o) => o.status !== "rejected").map((o) => o.text),
       competitorAngles: read ? read.angles.map(angleLine(read)) : [], gaps: read?.gaps.filter((g) => g.status !== "rejected").map((g) => g.text) ?? [],
       positioning: pos ? { statement: pos.statement, primaryBuyer: pos.primary, pillarsToTestAsAngles: pos.pillars.map((p) => `${p.title}: ${p.message}`), avoid: pos.avoid } : null,
+      measuredEvidence: evidence.map(evidenceLine),
     }),
-    schema: PlanOut, maxTokens: 8000,
+    schema: PlanOut, maxTokens: 10000,
   });
   if (!out?.cells.length) throw new Error("Iris couldn’t plan the test — try again.");
-  return { summary: out.summary, cells: out.cells.slice(0, 9).map((c) => ({ id: uid(), ...c, on: true })), budget: { perDay: Math.max(0, Math.round(out.budget.perDay)), days: Math.max(1, Math.round(out.budget.days)), note: out.budget.note }, at: new Date().toISOString() };
+  const cells: TestPlan["cells"] = out.cells.slice(0, 9).map((c) => ({ id: uid(), ...c, on: true }));
+  // Strength comes from the evidence, not from the model: two or more records from two or more sources is "backed by data".
+  const byId = new Map(evidence.map((e) => [e.id, e]));
+  const hypotheses: Hypothesis[] = out.hypotheses.slice(0, 5).map((h) => {
+    const ev = h.evidence.filter((x) => byId.has(x.id)).slice(0, 6).map((x) => ({ id: x.id, reads: x.reads.slice(0, 160), stance: x.stance }));
+    const pro = ev.filter((x) => x.stance === "for"), sources = new Set(pro.map((x) => byId.get(x.id)!.source));
+    const id = uid();
+    for (const n of h.cells) { const c = cells[n - 1]; if (c && !c.hypothesisId) c.hypothesisId = id; }
+    return { id, claim: h.claim.slice(0, 240), about: h.about, evidence: ev, strength: pro.length >= 2 && sources.size >= 2 ? "measured" : pro.length ? "mixed" : "assumed", confirmIf: h.confirmIf.slice(0, 240), refuteIf: h.refuteIf.slice(0, 240) };
+  });
+  return { summary: out.summary, cells, hypotheses, budget: { perDay: Math.max(0, Math.round(out.budget.perDay)), days: Math.max(1, Math.round(out.budget.days)), note: out.budget.note }, at: new Date().toISOString() };
 }
 
 // ---------------------------------------------------------------- the run
@@ -299,7 +320,7 @@ export async function runResearch(id: string, parts: Part[]): Promise<void> {
   const steps: Step[] = parts.flatMap((p) => PART_STEPS[p]).map((key) => ({ key, label: STEP_LABEL[key], state: "waiting" as const }));
   await save(id, { status: "running", steps, error: null, startedAt: new Date(), finishedAt: null });
   const step = tracker(id, steps);
-  let report = row.report, rivals = row.rivals, read = row.adsRead, pos = row.positioning;
+  let report = row.report, rivals = row.rivals, read = row.adsRead, pos = row.positioning, evidence = row.evidence ?? [];
   try {
     if (parts.includes("market")) {
       const ctx = await step("context", async (note) => { const c = await contextFor(row.brandId, row.subject); note(c.product ? c.product.title : `${c.catalog.length} products`); return c; });
@@ -317,15 +338,23 @@ export async function runResearch(id: string, parts: Part[]): Promise<void> {
         await save(id, { adsRead: read });
       } catch { /* the step shows the error */ }
     }
+    if (parts.includes("measure") && report) {
+      // Real numbers behind the findings: the store's own results, Meta's audience sizes, competitors' ads counted, search volume when connected.
+      try {
+        const [now] = await db.select({ rivals: R.rivals, adsRead: R.adsRead }).from(R).where(eq(R.id, id));
+        evidence = await step("measure", (note) => gatherEvidence(row, report!, now?.rivals ?? rivals, now?.adsRead ?? read, note));
+        await save(id, { evidence });
+      } catch { /* the step shows the error; the plan runs on what there is */ }
+    }
     if (parts.includes("position")) {
       // An edited positioning is the team's: keep it unless they ask Iris for a new one (re-running "position" alone).
       if (!pos?.edited || parts.length === 1) {
-        pos = await step("position", async (note) => { const p = await positionProduct(row, report, read); note(`For ${p.primary} · ${p.pillars.length} pillars`); return p; });
+        pos = await step("position", async (note) => { const p = await positionProduct(row, report, read, evidence); note(`For ${p.primary} · ${p.pillars.length} pillars`); return p; });
         await save(id, { positioning: pos });
       }
     }
     if (parts.includes("plan")) {
-      const plan = await step("plan", async (note) => { const p = await planTest({ ...row, rivals }, report, read, pos); note(`${p.cells.length} ads to test`); return p; });
+      const plan = await step("plan", async (note) => { const p = await planTest({ ...row, rivals }, report, read, pos, evidence); note(`${p.cells.length} ads to test · ${p.hypotheses?.length ?? 0} hypotheses`); return p; });
       await save(id, { plan });
     }
     await save(id, { status: "done", finishedAt: new Date() });

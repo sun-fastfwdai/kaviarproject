@@ -1,0 +1,1 @@
+ALTER TABLE "market_research" ADD COLUMN "evidence" jsonb DEFAULT '[]'::jsonb NOT NULL;

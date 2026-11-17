@@ -26,7 +26,7 @@ async function own(slug: string, id: string) {
 const busy = (row: typeof R.$inferSelect) => row.status === "running" && Date.now() - row.updatedAt.getTime() < 15 * 60_000;
 
 /** Start (or re-run) research for a product and market. Runs in the background; the page polls while it says "running". */
-export async function startResearch(slug: string, subject: string, market: string, parts: Part[] = ["market", "ads", "position", "plan"]): Promise<Result & { id?: string }> {
+export async function startResearch(slug: string, subject: string, market: string, parts: Part[] = ["market", "ads", "measure", "position", "plan"]): Promise<Result & { id?: string }> {
   const me = await requireMember();
   if (!aiReady()) return { error: "Iris needs the Claude API key." };
   if (!MARKETS.some(([k]) => k === market)) return { error: "Pick a market." };
@@ -35,7 +35,7 @@ export async function startResearch(slug: string, subject: string, market: strin
   const [row] = await db.insert(R).values({ brandId: brand.id, subject: sub, market, createdBy: me.id })
     .onConflictDoUpdate({ target: [R.brandId, R.subject, R.market], set: { updatedAt: new Date() } }).returning();
   if (busy(row) && row.steps.length) return { id: row.id };
-  const want = parts.filter((p) => ["market", "ads", "position", "plan"].includes(p));
+  const want = parts.filter((p) => ["market", "ads", "measure", "position", "plan"].includes(p));
   if (!row.report && !want.includes("market")) want.unshift("market");
   await db.update(R).set({ status: "running", error: null, updatedAt: new Date() }).where(eq(R.id, row.id));
   after(() => runResearch(row.id, want));

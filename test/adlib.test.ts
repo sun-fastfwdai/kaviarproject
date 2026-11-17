@@ -77,3 +77,20 @@ describe("Ad Library helpers", () => {
     expect(libError(new Error("Meta API: Invalid parameter (100)")).blocked).toBeUndefined();
   });
 });
+
+describe("evidence", () => {
+  it("compares the latest three months of searches with the same three a year before", async () => {
+    const { yearOnYear } = await import("@/lib/research/evidence");
+    const months = Array.from({ length: 24 }, (_, i) => ({ year: 2026 - Math.floor(i / 12), month: 12 - (i % 12), search_volume: i < 12 ? 1500 : 1000 }));
+    expect(yearOnYear(months)).toBe(50);
+    expect(yearOnYear(months.slice(0, 10))).toBeNull();
+  });
+  it("prints values the way people read them", async () => {
+    const { evidenceValue } = await import("@/lib/research/types");
+    const e = { id: "E1", kind: "audience_size" as const, metric: "", subject: "", source: "Meta audience estimate" as const, quality: "platform_estimate" as const, at: "" };
+    expect(evidenceValue({ ...e, value: 9_800_000, high: 11_500_000, unit: "people" })).toBe("9.8M–11.5M people");
+    expect(evidenceValue({ ...e, value: 251, unit: "$" })).toBe("$251");
+    expect(evidenceValue({ ...e, value: 41, unit: "%" })).toBe("41%");
+    expect(evidenceValue({ ...e, value: 1.95, unit: "×" })).toBe("1.95×");
+  });
+});

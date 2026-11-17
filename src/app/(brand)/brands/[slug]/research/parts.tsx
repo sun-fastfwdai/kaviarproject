@@ -5,8 +5,9 @@ import { buildTestAds, decide, rerun, toggleCell } from "./actions";
 import type { ResearchRow } from "./view";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
+import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { Decide, Figures, Found, Line, Section, Tone } from "./bits";
-import { type Decision, type MarketReport, type Src } from "@/lib/research/types";
+import { QUALITY_NAME, STRENGTH_NAME, evidenceValue, type Decision, type Evidence, type MarketReport, type Src } from "@/lib/research/types";
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u.slice(0, 30); } };
 const VERDICT: Record<string, "green" | "blue" | "amber" | "red"> = { Strong: "green", Growing: "blue", Niche: "amber", Weak: "red" };
@@ -25,7 +26,7 @@ function useDecisions(slug: string, id: string) {
 }
 
 /** One buyer group: who they are and what to say in a line; open it for the rest. */
-function Segment({ s, all, st, onSet }: { s: MarketReport["segments"][number]; all: Src[]; st?: Decision; onSet: (v: Decision | null) => void }) {
+function Segment({ s, all, st, onSet, size }: { s: MarketReport["segments"][number]; all: Src[]; st?: Decision; onSet: (v: Decision | null) => void; size?: Evidence }) {
   const [open, setOpen] = useState(false);
   const reach = [s.reach.gender === "All" ? "All genders" : s.reach.gender, s.reach.ages].filter(Boolean).join(" ");
   return (
@@ -38,6 +39,7 @@ function Segment({ s, all, st, onSet }: { s: MarketReport["segments"][number]; a
         <span className="col g2 fill" style={{ minWidth: 0 }}>
           <span className="sm i1" style={{ lineHeight: "20px" }}>{s.who}</span>
           <span className="xs i2" style={{ lineHeight: "17px" }}><span className="i3">Say </span>“{s.angle}”</span>
+          {size && <span className="row g6 xs i2" style={{ lineHeight: "17px" }} title={size.note}><MetaLogo size={11} /><b className="w6 i1 tnum">{evidenceValue(size)}</b> on Meta with this targeting<span className="i3">· Meta’s estimate{size.value < 500_000 ? " · small for a test" : ""}</span></span>}
         </span>
         <span style={{ flexShrink: 0, paddingTop: 2 }}><Found ids={s.sources} all={all} /></span>
         <Decide status={st} onSet={onSet} />
@@ -54,7 +56,42 @@ function Segment({ s, all, st, onSet }: { s: MarketReport["segments"][number]; a
 }
 
 // ---------------------------------------------------------------- Market
-export function MarketTab({ slug, id, report, currency, onAds }: { slug: string; id: string; report: MarketReport; currency: string; onAds: () => void }) {
+/** The numbers the findings stand on: each read from a real source, with what kind of number it is. */
+function EvidenceList({ slug, id, evidence, running }: { slug: string; id: string; evidence: Evidence[]; running: boolean }) {
+  const router = useRouter();
+  const [all, setAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const measure = async () => { setBusy(true); setErr(null); try { const r = await rerun(slug, id, ["measure"]); if (r.error) setErr(r.error); router.refresh(); } finally { setBusy(false); } };
+  const sources = [...new Set(evidence.map((e) => e.source))];
+  const shown = all ? evidence : evidence.slice(0, 10);
+  return (
+    <Section title="Measured" right={<>
+      {evidence.length ? `${evidence.length} numbers from ${sources.join(", ")}` : "nothing measured yet"}
+      {err && <span className="c-amber">{err}</span>}
+      <button type="button" className="lnk i2 row g4" disabled={busy || running} onClick={measure}>{busy || running ? <Icon name="spinner" size={11} className="spin" /> : <Icon name="refresh" size={11} />}{evidence.length ? "Measure again" : "Measure now"}</button>
+    </>}>
+      {!evidence.length && <Line>Real numbers behind the findings — the store’s own results, how many people Meta can reach in each buyer group, and competitors’ ads counted. Press Measure now.</Line>}
+      {shown.map((e) => (
+        <div key={e.id} className="row top g16" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+          <span className="xs i3 tnum" style={{ width: 26, flexShrink: 0, lineHeight: "20px" }}>{e.id}</span>
+          <span className="col g2 fill" style={{ minWidth: 0 }}>
+            <span className="sm i1" style={{ lineHeight: "20px" }}><b className="w6 tnum">{evidenceValue(e)}</b>{e.change && <span className={e.change.pct >= 0 ? "c-green" : "c-amber"}> {e.change.pct >= 0 ? "+" : ""}{e.change.pct}% {e.change.over}</span>} <span className="i2">· {e.metric}</span></span>
+            <span className="xs i3 ell" title={e.note}>{e.subject}{e.note ? ` — ${e.note}` : ""}</span>
+          </span>
+          <span className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}>
+            <span className="row g6 xs i2" style={{ whiteSpace: "nowrap" }}>{e.source === "Shopify" ? <ShopifyLogo size={11} /> : e.source.startsWith("Meta") ? <MetaLogo size={11} /> : <Icon name="search" size={11} color="#8B8883" />}
+              {e.link ? <a className="lnk" href={e.link} target="_blank" rel="noreferrer">{e.source}</a> : e.source}</span>
+            <span className="xs i3" style={{ whiteSpace: "nowrap" }}>{QUALITY_NAME[e.quality]}{e.period ? ` · ${e.period}` : ""}</span>
+          </span>
+        </div>
+      ))}
+      {evidence.length > 10 && <button type="button" className="lnk xs i2" style={{ alignSelf: "flex-start", padding: "8px 0" }} onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${evidence.length}`}</button>}
+    </Section>
+  );
+}
+
+export function MarketTab({ slug, id, report, currency, onAds, evidence, running }: { slug: string; id: string; report: MarketReport; currency: string; onAds: () => void; evidence: Evidence[]; running: boolean }) {
   const d = useDecisions(slug, id);
   const S = report.sources;
   const TREND: Record<string, [string, "green" | "ink" | "amber"]> = { rising: ["Rising", "green"], steady: ["Steady", "ink"], fading: ["Fading", "amber"] };
@@ -71,8 +108,10 @@ export function MarketTab({ slug, id, report, currency, onAds }: { slug: string;
         {report.demand.signals.map((s, i) => <Line key={i} label={i ? "" : "Signals"} from={<Found ids={s.sources} all={S} />}><Figures text={s.text} /></Line>)}
       </Section>
 
+      <EvidenceList slug={slug} id={id} evidence={evidence} running={running} />
+
       <Section title="Who buys it" right={`${report.segments.length} groups${accepted ? ` · ${accepted} accepted` : ""} · the test plan uses the ones you don’t reject`}>
-        {report.segments.map((s) => <Segment key={s.id} s={s} all={S} st={d.of(s.id, s.status)} onSet={(v) => d.set("segment", s.id, v)} />)}
+        {report.segments.map((s) => <Segment key={s.id} s={s} all={S} st={d.of(s.id, s.status)} onSet={(v) => d.set("segment", s.id, v)} size={evidence.find((e) => e.kind === "audience_size" && e.subject === s.name)} />)}
       </Section>
 
       <Section title="Competitors" right={<button type="button" className="lnk i2 row g4" onClick={onAds}>See their ads<Icon name="arrow-r" size={11} /></button>}>
@@ -138,6 +177,27 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
           <span className="xs i3">Static product ads first: cheap to make, so the budget tests the message. When one wins, make UGC clips for it in Shoots.</span>
         </span>
       </div>
+      {plan.hypotheses && plan.hypotheses.length > 0 && (
+        <Section title="Hypotheses" right={`${plan.hypotheses.filter((h) => h.strength === "measured").length} of ${plan.hypotheses.length} backed by data · the test confirms or refutes each`}>
+          {plan.hypotheses.map((h, i) => (
+            <div key={h.id} className="row top g16" style={{ padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
+              <span className="sm w5 i3 tnum" style={{ width: 26, flexShrink: 0, lineHeight: "20px" }}>H{i + 1}</span>
+              <span className="col g6 fill" style={{ minWidth: 0 }}>
+                <span className="sm w5 i1" style={{ lineHeight: "20px" }}>{h.claim}</span>
+                {h.evidence.map((x) => { const e = row.evidence.find((y) => y.id === x.id); return e && (
+                  <span key={x.id} className="row top g8 xs" style={{ lineHeight: "17px" }}>
+                    <span className={x.stance === "for" ? "c-green" : "c-amber"} style={{ width: 44, flexShrink: 0 }}>{x.stance === "for" ? "For" : "Against"}</span>
+                    <span className="i2 fill"><b className="w6 i1 tnum">{evidenceValue(e)}</b> {x.reads} <span className="i3">· {x.id} · {e.source}, {QUALITY_NAME[e.quality].toLowerCase()}</span></span>
+                  </span>); })}
+                {!h.evidence.length && <span className="xs i3">Nothing measured supports this yet — the test is the evidence.</span>}
+                <span className="xs i2" style={{ lineHeight: "17px" }}><span className="i3">Confirmed if </span>{h.confirmIf}</span>
+                <span className="xs i2" style={{ lineHeight: "17px" }}><span className="i3">Refuted if </span>{h.refuteIf}</span>
+              </span>
+              <Tone c={h.strength === "measured" ? "green" : h.strength === "mixed" ? "amber" : "ink"}>{STRENGTH_NAME[h.strength]}</Tone>
+            </div>
+          ))}
+        </Section>
+      )}
       <Section title="Message test" right={`${chosen.length} of ${plan.cells.length} cells on · one ad set each`}>
         <div className="row g16 xs i3" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
           <span style={{ width: 16, flexShrink: 0 }} /><span style={{ width: 190, flexShrink: 0 }}>Buyer × message</span><span className="fill">Hypothesis</span><span className="fill">Ad idea</span><span style={{ width: 170, flexShrink: 0 }}>It works if</span>
@@ -145,7 +205,7 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
         {plan.cells.map((c) => (
           <label key={c.id} className="row top g16" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)", cursor: "pointer", opacity: on(c) ? 1 : 0.45 }}>
             <span style={{ width: 16, flexShrink: 0, paddingTop: 3 }}><input type="checkbox" checked={on(c)} onChange={() => { setOff((x) => ({ ...x, [c.id]: on(c) })); void toggleCell(slug, id, c.id).then(() => router.refresh()); }} style={{ accentColor: "#121212", margin: 0 }} /></span>
-            <span className="col g2" style={{ width: 190, flexShrink: 0, minWidth: 0 }}><span className="sm w5 i1" style={{ lineHeight: "20px" }}>{c.segment}</span><span className="xs i2" style={{ lineHeight: "17px" }}>{c.angle}</span><span className="xs i3" style={{ lineHeight: "16px", paddingTop: 2 }}>{c.audience}</span></span>
+            <span className="col g2" style={{ width: 190, flexShrink: 0, minWidth: 0 }}><span className="sm w5 i1" style={{ lineHeight: "20px" }}>{c.segment}{c.hypothesisId && plan.hypotheses ? <span className="xs w4 i3"> · tests H{plan.hypotheses.findIndex((h) => h.id === c.hypothesisId) + 1}</span> : null}</span><span className="xs i2" style={{ lineHeight: "17px" }}>{c.angle}</span><span className="xs i3" style={{ lineHeight: "16px", paddingTop: 2 }}>{c.audience}</span></span>
             <span className="xs i2 fill" style={{ lineHeight: "17px" }}>{c.hypothesis}</span>
             <span className="col g2 fill" style={{ minWidth: 0 }}><span className="xs w5 i1" style={{ lineHeight: "17px" }}>“{c.hook}”</span><span className="xs i3" style={{ lineHeight: "16px" }}>{c.visual}</span></span>
             <span className="xs i2" style={{ width: 170, flexShrink: 0, lineHeight: "17px" }}><Figures text={c.metric} /></span>

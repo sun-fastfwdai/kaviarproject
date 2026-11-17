@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { db, schema } from "../db";
+import { schema } from "../db";
 import { ask } from "../ai/client";
 import { imageSize, toJpeg } from "../audience/media";
 import type { LibAd } from "./types";
