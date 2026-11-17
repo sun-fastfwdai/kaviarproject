@@ -13,6 +13,7 @@ import { cutAd } from "@/lib/creative/cut";
 import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
 import { hfReady } from "@/lib/creative/higgsfield";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
+import { layoutBatch } from "@/lib/creative/design";
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
 export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ out?: PromptOut; error?: string }> {
@@ -109,18 +110,34 @@ export async function pollVideo(slug: string, job: VideoJob): Promise<{ id?: str
 }
 
 /** Send photos to a batch (they become its ads' photos, in order) or keep them in brand assets. */
-export async function sendShots(slug: string, ids: string[], batchId: string | null): Promise<{ done?: number; firstAd?: string; error?: string }> {
-  await requireMember();
+export async function sendShots(slug: string, ids: string[], batchId: string | null, clipIds: string[] = []): Promise<{ done?: number; firstAd?: string; cards?: number; error?: string }> {
+  const me = await requireMember();
   const brand = await getBrand(slug);
-  const own = await db.select({ id: schema.brandAssets.id }).from(schema.brandAssets).where(and(eq(schema.brandAssets.brandId, brand.id), inArray(schema.brandAssets.id, ids.slice(0, 20)), sql`${schema.brandAssets.mime} like 'image/%'`));
-  if (!batchId) return { done: own.length };
-  const list = await db.select({ id: schema.ads.id }).from(schema.ads).where(and(eq(schema.ads.batchId, batchId), eq(schema.ads.brandId, brand.id), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position));
+  const A = schema.brandAssets;
+  const mine = await db.select({ id: A.id, mime: A.mime }).from(A).where(and(eq(A.brandId, brand.id), inArray(A.id, [...ids, ...clipIds].slice(0, 40))));
+  const photos = ids.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("image/")));
+  const clips = clipIds.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("video/")));
+  if (!batchId) return { done: photos.length + clips.length };
+  const list = await db.select({ id: schema.ads.id, format: schema.ads.format }).from(schema.ads).where(and(eq(schema.ads.batchId, batchId), eq(schema.ads.brandId, brand.id), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position));
+  if (!list.length) return { error: "That batch has no ads to fill." };
+  const videoAds = list.filter((a) => a.format === "video" || a.format === "ugc");
+  // Clips go to the video ads; photos to the rest (to every ad when there are no clips). With fewer photos than ads the photos repeat —
+  // a message test keeps the picture and changes the words.
+  const stills = clips.length ? list.filter((a) => !videoAds.includes(a)) : list;
   let done = 0;
-  for (let i = 0; i < Math.min(list.length, own.length); i++) {
-    await db.update(schema.ads).set({ imageUrl: `/api/assets/${own[i].id}`, design: null, updatedAt: new Date() }).where(eq(schema.ads.id, list[i].id));
+  for (const [i, a] of (clips.length ? videoAds : []).entries()) {
+    const clip = clips[i % clips.length];
+    await db.update(schema.ads).set({ imageUrl: `/api/assets/${clip}?w=480`, design: { image: null, overlay: 0, layers: [], video: `/api/assets/${clip}` }, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
     done++;
   }
-  return { done, firstAd: list[0]?.id };
+  if (photos.length) for (const [i, a] of stills.entries()) {
+    await db.update(schema.ads).set({ imageUrl: `/api/assets/${photos[i % photos.length]}`, design: null, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
+    done++;
+  }
+  if (!done) return { error: "Nothing to send yet — run the flow first." };
+  // Static ads become cards: Remy writes the words for each picture and lays them out, ready to refine in the Editor.
+  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id).catch(() => ({ made: 0 }))).made : 0;
+  return { done, cards, firstAd: list[0].id };
 }
 
 export async function deleteShot(slug: string, id: string): Promise<void> {

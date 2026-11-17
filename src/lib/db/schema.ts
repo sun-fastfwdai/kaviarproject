@@ -368,10 +368,19 @@ export const agentNotes = pgTable(
 
 // ---------------------------------------------------------------- Creative studio: batches of ads Remy writes from a signal or an idea
 export type AdStatus = "review" | "approved" | "rejected";
-/** An Editor layer. Sizes are px at 1080 wide; x, y, w are fractions of the artboard. `display` is the bold ad face; `shadow: false` for dark type on light photos. */
-export type Layer = { id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display"; color: string; bg?: string; weight?: number; align?: "left" | "center"; src?: string; shadow?: boolean };
-/** `card` is the finished PNG (a brand asset URL) Remy designed from these layers; `pending` while it's being made. */
-export type AdDesign = { image: string | null; overlay: number; layers: Layer[]; card?: string | null; pending?: boolean; layout?: "top" | "left" };
+/** An Editor layer. Sizes are px at 1080 wide; x, y, w are fractions of the artboard. `display` is the bold ad face; `role` says which part of the ad's copy it carries. */
+export type Layer = {
+  id: string; kind: "text" | "button" | "badge" | "logo"; text: string; x: number; y: number; w: number; size: number; font: "serif" | "sans" | "display"; color: string;
+  bg?: string; weight?: number; align?: "left" | "center" | "right"; src?: string; shadow?: boolean; tracking?: number; upper?: boolean; role?: string;
+};
+/**
+ * An ad's design: the photo (or clip) from Shoots with type layers on it. `overlay` / `overlayTop` darken the bottom / top behind type.
+ * `card` is the finished PNG drawn from the layers; `pending` while it's being made; `copy` and `layout` let the Editor switch layouts.
+ */
+export type AdDesign = {
+  image: string | null; overlay: number; layers: Layer[]; overlayTop?: number; card?: string | null; pending?: boolean; layout?: string;
+  copy?: { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string }; video?: string | null;
+};
 export const adBatches = pgTable(
   "ad_batches",
   {

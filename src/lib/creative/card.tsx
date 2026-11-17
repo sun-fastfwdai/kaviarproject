@@ -11,16 +11,16 @@ import { loadImage } from "../audience/media";
  * with the same fonts: Poppins for sans and display type, DM Serif Display for serif.
  */
 const DIR = join(process.cwd(), "src/lib/creative/fonts");
-let fonts: Promise<{ name: string; data: ArrayBuffer; weight: 400 | 500 | 600 | 700; style: "normal" }[]> | null = null;
+let fonts: Promise<{ name: string; data: ArrayBuffer; weight: 300 | 400 | 500 | 600 | 700; style: "normal" }[]> | null = null;
 const loadFonts = () => (fonts ??= Promise.all([
-  ["Poppins", "Poppins-Medium.ttf", 500], ["Poppins", "Poppins-SemiBold.ttf", 600], ["Poppins", "Poppins-Bold.ttf", 700], ["DM Serif Display", "DMSerifDisplay-Regular.ttf", 400],
+  ["Poppins", "Poppins-Light.ttf", 300], ["Poppins", "Poppins-Medium.ttf", 500], ["Poppins", "Poppins-SemiBold.ttf", 600], ["Poppins", "Poppins-Bold.ttf", 700], ["DM Serif Display", "DMSerifDisplay-Regular.ttf", 400],
 ].map(async ([name, file, weight]) => {
   const b = await readFile(join(DIR, file as string));
-  return { name: name as string, data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, weight: weight as 400 | 500 | 600 | 700, style: "normal" as const };
+  return { name: name as string, data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, weight: weight as 300 | 400 | 500 | 600 | 700, style: "normal" as const };
 })));
 
 const family = (l: Layer) => (l.font === "serif" ? "DM Serif Display" : "Poppins");
-const weight = (l: Layer) => (l.font === "serif" ? 400 : Math.min(700, Math.max(500, Math.round((l.weight ?? (l.font === "display" ? 700 : 500)) / 100) * 100)));
+const weight = (l: Layer) => (l.font === "serif" ? 400 : (() => { const w = Math.round((l.weight ?? (l.font === "display" ? 700 : 500)) / 100) * 100; return w <= 300 ? 300 : w <= 500 ? 500 : w >= 700 ? 700 : 600; })());
 
 export const SIZES = { "4x5": { w: 1080, h: 1350 }, "1x1": { w: 1080, h: 1080 }, "9x16": { w: 1080, h: 1920 } } as const;
 
@@ -34,16 +34,18 @@ export async function renderDesign(brandId: string, d: AdDesign, size: keyof typ
     (
       <div style={{ width: W, height: H, display: "flex", position: "relative", backgroundImage: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }}>
         {bgUri && <img src={bgUri} width={W} height={H} alt="" style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} />}
-        {d.overlay > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,${d.overlay}) 100%)` }} />}
+        {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)` }} />}
+        {d.overlay > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)` }} />}
         {d.layers.map((l, i) => {
           const left = l.x * W, top = l.y * H, width = l.w * W;
           if (l.kind === "logo") { const src = uri(logos[i]); return src ? <img key={l.id} src={src} alt="" style={{ position: "absolute", left, top, width }} /> : null; }
           const box = l.kind === "button" || l.kind === "badge";
-          const center = box || l.align === "center";
+          const al = box ? "center" : l.align ?? "left";
           return (
             <div key={l.id} style={{
-              position: "absolute", left, top, ...(l.kind === "badge" ? { maxWidth: width } : { width }), display: "flex", justifyContent: center ? "center" : "flex-start",
-              fontFamily: family(l), fontWeight: weight(l), fontSize: l.size, lineHeight: 1.15, color: l.color, textAlign: center ? "center" : "left", letterSpacing: l.font === "display" ? "-0.02em" : "normal",
+              position: "absolute", left, top, ...(l.kind === "badge" ? { maxWidth: width } : { width }), display: "flex", justifyContent: al === "center" ? "center" : al === "right" ? "flex-end" : "flex-start",
+              fontFamily: family(l), fontWeight: weight(l), fontSize: l.size, lineHeight: 1.15, color: l.color, textAlign: al, textTransform: l.upper ? "uppercase" : "none",
+              letterSpacing: l.tracking ? l.tracking * l.size : l.font === "display" && !l.upper ? -0.02 * l.size : 0,
               ...(box ? { backgroundColor: l.bg ?? "#fff", borderRadius: l.kind === "button" ? 999 : 4, padding: `${l.size * 0.35}px ${l.size * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }),
             }}>{l.text}</div>
           );

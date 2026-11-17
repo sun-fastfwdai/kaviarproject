@@ -10,7 +10,6 @@ import { runResearch } from "@/lib/research/run";
 import { adLibraryToken, competitorAds, libError, pruneAdCopies } from "@/lib/research/adlib";
 import { readShot } from "@/lib/research/shots";
 import { createTestBatch } from "@/lib/creative/remy";
-import { designBatch, markDesigning } from "@/lib/creative/design";
 import { MARKETS, marketName, type Decision, type ManualAd, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
@@ -151,10 +150,8 @@ export async function buildTestAds(slug: string, id: string): Promise<Result> {
     budget: row.plan!.budget.perDay ? `Budget: about $${row.plan!.budget.perDay}/day for ${row.plan!.budget.days} days.` : "", cells,
   });
   if (!batch) return { error: "Remy couldn’t write the ads right now — try again in a minute." };
-  // Static ads are cards: Remy designs each one (a styled product shot that shows the message, with the type on it) while the batch opens.
-  await markDesigning(batch);
-  after(() => designBatch(brand.id, batch, me.id).then((r) => { if (r.error) console.error("design cards", batch, r.error); }));
-  redirect(`/brands/${slug}/creative/${batch}`);
+  // The test's visuals are made in Shoots: the static pipeline is laid out for this batch, and its output opens in the Editor as cards.
+  redirect(`/brands/${slug}/creative/shoots?batch=${batch}&layout=static&n=${cells.length}&plan=1${row.subject ? `&product=${encodeURIComponent(row.subject)}` : ""}`);
 }
 
 /** The team edits the positioning (statement, pillars) or accepts it — agents write from it either way; an edited one is kept on re-runs. */

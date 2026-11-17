@@ -58,7 +58,7 @@ const KIND_RULE: Record<BatchKind, string> = {
   ugc: "Every ad is a UGC creator video (format \"ugc\"): a real-sounding person talking to camera.",
   mixed: "Mix formats: static, video and UGC.",
 };
-export async function createBatch(brandId: string, memberId: string, input: { signal?: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] }; idea?: string; count?: number; kind?: BatchKind }): Promise<string | null> {
+export async function createBatch(brandId: string, memberId: string, input: { signal?: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] }; idea?: string; count?: number; kind?: BatchKind; direction?: string }): Promise<string | null> {
   const kind: BatchKind = input.kind ?? "mixed";
   const [ctx, market] = await Promise.all([brandContext(brandId), marketContext(brandId, null)]);
   const count = Math.min(9, Math.max(3, input.count ?? 6));
@@ -68,7 +68,7 @@ export async function createBatch(brandId: string, memberId: string, input: { si
       brand: ctx.brand,
       catalog: ctx.products.map((p) => ({ title: p.title, price: p.price })),
       ...(input.signal ? { signal: input.signal } : { idea: input.idea }),
-      write: `${count} ads`, formats: KIND_RULE[kind],
+      write: `${count} ads`, formats: KIND_RULE[kind], ...(input.direction ? { planAgreedWithTheTeam: input.direction } : {}),
       lessonsFromRejectedAds: ctx.rejected,
       whatWinsForThisBrand: ctx.lessons,
       market,

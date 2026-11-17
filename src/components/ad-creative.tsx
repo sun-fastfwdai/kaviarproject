@@ -4,7 +4,7 @@ import { Icon } from "./icon";
 export type AdView = {
   id: string; format: string; hook: string; primaryText: string; headline: string; cta: string; offer: string;
   product: string | null; imageUrl: string | null; why: string; status: "review" | "approved" | "rejected"; note: string | null; edited: boolean;
-  design?: { card?: string | null; pending?: boolean } | null;
+  design?: { card?: string | null; pending?: boolean; video?: string | null } | null;
 };
 /** A finished card already carries its type: show it as it is. */
 export const isCard = (ad: AdView) => Boolean(ad.design?.card && ad.imageUrl === ad.design.card);
@@ -13,10 +13,12 @@ const serif = "Georgia, 'Times New Roman', serif";
 
 /** The creative itself: the brand's product photo with Remy's hook on it, like boards 17a and 19b. */
 export function AdArt({ ad, brand, ratio = "4 / 5", big = false, bare: bareIn = false }: { ad: AdView; brand: string; ratio?: string; big?: boolean; bare?: boolean }) {
-  const card = isCard(ad), bare = bareIn || card;
+  const card = isCard(ad), bare = bareIn || card || (big && Boolean(ad.design?.video));
   return (
     <div style={{ position: "relative", aspectRatio: ratio, width: "100%", overflow: "hidden", background: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }}>
       {ad.imageUrl && <img src={ad.imageUrl} alt={ad.product ?? ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+      {/* A clip from Shoots plays in the big preview. */}
+      {big && ad.design?.video && <video src={ad.design.video} poster={ad.imageUrl ?? undefined} controls playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />}
       {!card && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.55) 100%)" }} />}
       {ad.design?.pending && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(251,249,246,.78)", backdropFilter: "blur(2px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, color: "#55534F", fontSize: big ? 12 : 10.5, fontWeight: 500 }}>

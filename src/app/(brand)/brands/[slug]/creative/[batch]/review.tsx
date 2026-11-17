@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { designCards, redo, saveAd, setAdStatus, variations } from "../actions";
+import { redo, saveAd, setAdStatus, variations } from "../actions";
 import { AdArt, FormatLabel, PhonePreview, isCard, type AdView } from "@/components/ad-creative";
 import { AgentFace } from "@/components/agent";
 import { Icon } from "@/components/icon";
@@ -80,8 +80,8 @@ export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string
           </div>
           <span className="fill" />
           {designing > 0
-            ? <span className="row g6 xs i2"><Icon name="spinner" size={12} className="spin" />Remy is designing {designing} card{designing === 1 ? "" : "s"} — shooting each product, Otto checks the label</span>
-            : undesigned.length > 0 && <button type="button" className="btn sm dark" disabled={busy} onClick={() => run(() => designCards(slug, batchId, undesigned.map((a) => a.id)), "Remy is designing the cards — about a minute.")}><Icon name="sparkle" size={12} color="#fff" />Design {undesigned.length} static card{undesigned.length === 1 ? "" : "s"}</button>}
+            ? <span className="row g6 xs i2"><Icon name="spinner" size={12} className="spin" />Remy is laying out {designing} card{designing === 1 ? "" : "s"}</span>
+            : undesigned.length > 0 && <a className="btn sm dark" href={`/brands/${slug}/creative/shoots?batch=${batchId}&layout=static`}><Icon name="image" size={12} color="#fff" />Make the visuals in Shoots · {undesigned.length} to go</a>}
           <span className="xs i3">{counts.approved + counts.rejected} of {counts.all} reviewed</span>
           <div style={{ width: 120, height: 4, borderRadius: 99, background: "var(--tray-2)" }}><div style={{ width: `${((counts.approved + counts.rejected) / Math.max(1, counts.all)) * 100}%`, height: 4, borderRadius: 99, background: "var(--ink)" }} /></div>
         </div>
@@ -150,10 +150,9 @@ export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <button type="button" className="btn sm" disabled={busy} onClick={() => setEditing(true)}><Icon name="pencil" size={12} />Edit text</button>
-            <a className="btn sm" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="image" size={12} />Design</a>
+            <a className="btn sm" href={`/brands/${slug}/creative/editor?ad=${ad.id}`}><Icon name="brush" size={12} />Open in Editor</a>
             <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => redo(slug, ad.id), "Remy rewrote it.")}><Icon name="refresh" size={12} />Redo</button>
             <button type="button" className="btn sm" disabled={busy} onClick={() => run(() => variations(slug, ad.id), "Remy added 3 variations.")}><Icon name="layers" size={12} />Variations</button>
-            {(ad.format === "static" || ad.format === "carousel") && <button type="button" className="btn sm" disabled={busy || Boolean(ad.design?.pending)} onClick={() => run(() => designCards(slug, batchId, [ad.id]), "Remy is designing a new card.")} style={{ gridColumn: "1 / -1" }}><Icon name="sparkle" size={12} />{isCard(ad) ? "Design a new card" : "Design the card"}</button>}
           </div>
           {busy && <span className="row g6 xs i3"><Icon name="spinner" size={12} className="spin" />Working…</span>}
           <span className="xs i3" style={{ textAlign: "center" }}>Reject asks why — Remy learns from every answer</span>

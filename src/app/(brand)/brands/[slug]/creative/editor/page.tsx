@@ -47,7 +47,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/b
       <Editor key={ad.id} slug={slug} brand={brand.name}
         ad={{ id: ad.id, batchId: ad.batchId, hook: ad.hook, primaryText: ad.primaryText, headline: ad.headline, cta: ad.cta, offer: ad.offer, imageUrl: ad.imageUrl, status: ad.status, design: ad.design }}
         ads={siblings} palette={palette} products={(products.rows as { title: string; url: string }[])}
-        media={assets.filter((a) => a.kind === "imagery").map((a) => ({ name: a.name, url: url(a.id), ai: Boolean((a.meta as { ai?: boolean }).ai) }))}
+        media={assets.filter((a) => a.kind === "imagery" && (a.meta as { edit?: string }).edit !== "card").map((a) => ({ name: a.name, url: url(a.id), ai: Boolean((a.meta as { ai?: boolean }).ai) }))}
         logos={assets.filter((a) => a.kind === "logo").map((a) => ({ name: a.name, url: url(a.id) }))}
         otherHooks={siblings.filter((s) => s.id !== ad.id).map((s) => s.hook)} />
     </>

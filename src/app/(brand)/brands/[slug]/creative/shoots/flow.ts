@@ -1,5 +1,6 @@
 import type { IconName } from "@/components/icon";
 import type { ShootEdge, ShootFlow, ShootFlowV1, ShootNode, ShootNodeCfg, ShootSource } from "@/lib/db/schema";
+import { AD_LOOKS } from "@/lib/creative/layouts";
 
 /** Board 17c colours: node categories (Cleo · Remy · Otto) and the four inputs a prompt phrase can come from. */
 export const SEL = "#1AA7C8";
@@ -71,6 +72,8 @@ export const FIELDS: Record<string, string[]> = {
 export const SCENE_GROUPS: [string, string[]][] = [
   ["Product", ["In hand", "On a vanity", "Bathroom shelf", "Flat lay", "Morning window light", "Studio"]],
   ["UGC · with a person", ["Selfie talking to camera", "Holding it up to camera", "Unboxing at home", "Get ready with me", "Applying it in the mirror", "Couch testimonial", "Car review", "Morning routine"]],
+  // Art-directed looks for static ads: the photo is composed with calm space for the type the Editor lays over it.
+  ["Static ad looks", AD_LOOKS.map((l) => l.name)],
 ];
 export const SCENES = SCENE_GROUPS.flatMap(([, x]) => x);
 export const isUgc = (scene: string) => SCENE_GROUPS[1][1].includes(scene);
@@ -137,6 +140,13 @@ function boardGraph(cfg: Partial<Record<NodeKey, ShootNodeCfg>>, off: string[] =
   return { v: 2, nodes, edges, last: null };
 }
 export const defaultFlow = (template: string | null, product: string | null): ShootFlow => boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product } }, ["reference", "character"]);
+
+/** Static ads: inputs → Prompt → Photo (4:5, composed with room for the headline) → Otto's check → Send to the batch, which opens in the Editor as laid-out cards. */
+export const staticFlow = (template: string | null, product: string | null, n = 4, look: string | null = null): ShootFlow =>
+  boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product }, prompt: { ...DEFAULTS.prompt, scene: AD_LOOKS.find((l) => l.name === look)?.name ?? AD_LOOKS[0].name, length: "detailed" }, photo: { ...DEFAULTS.photo, aspect: "4:5", n: Math.min(4, Math.max(1, n)) } }, ["reference", "character", "video", "sound"]);
+/** A product clip: the same inputs, a start photo, then the Video node. */
+export const videoFlow = (template: string | null, product: string | null, seconds = 10): ShootFlow =>
+  boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product }, photo: { ...DEFAULTS.photo, aspect: "9:16", n: 1 }, video: { ...DEFAULTS.video, seconds } }, ["reference", "character"]);
 
 /** UGC video: a person (Character) holds the product in a vertical selfie photo, then talks to camera in a clip with a voice line. */
 export function ugcFlow(template: string | null, product: string | null, characterId: string | null = null): ShootFlow {

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveDesign, setAdStatus } from "../actions";
+import { askEditor, saveDesign, setAdStatus } from "../actions";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { AdDesign, Layer } from "@/lib/db/schema";
+import { LAYOUTS, REGIONS, copyOf, isLayout, layoutDesign, toneFor, type Box, type CardCopy, type LayoutKey } from "@/lib/creative/layouts";
 
 type Size = { key: string; label: string; w: number; h: number; note: string };
 const SIZES: Size[] = [
@@ -18,20 +19,15 @@ const SIZES: Size[] = [
 const SERIF = "'DM Serif Display', Georgia, serif";
 const SANS = "Poppins, Inter, -apple-system, 'Helvetica Neue', sans-serif";
 const face = (f: Layer["font"]) => (f === "serif" ? SERIF : SANS);
-const FACES = ["500 20px Poppins", "600 20px Poppins", "700 20px Poppins", "400 20px 'DM Serif Display'"];
+const FACES = ["300 20px Poppins", "500 20px Poppins", "600 20px Poppins", "700 20px Poppins", "400 20px 'DM Serif Display'"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 export type EditorAd = { id: string; batchId: string; hook: string; primaryText: string; headline: string; cta: string; offer: string; imageUrl: string | null; status: string; design: AdDesign | null };
 
+/** A new ad opens in the Bold layout over its picture — white type on soft scrims until the photo has been read for light or dark type. */
 export function defaultDesign(ad: EditorAd, brand: string): AdDesign {
-  const layers: Layer[] = [
-    { id: uid(), kind: "text", text: ad.hook, x: 0.07, y: 0.6, w: 0.86, size: 84, font: "serif", color: "#FFFFFF" },
-    { id: uid(), kind: "text", text: ad.headline, x: 0.07, y: 0.76, w: 0.8, size: 36, font: "sans", color: "#FFFFFF", weight: 500 },
-    { id: uid(), kind: "text", text: brand, x: 0.07, y: 0.88, w: 0.4, size: 34, font: "sans", color: "#FFFFFF", weight: 700 },
-    { id: uid(), kind: "button", text: ad.cta, x: 0.62, y: 0.865, w: 0.31, size: 32, font: "sans", color: "#121212", bg: "#FFFFFF", weight: 600, align: "center" },
-  ];
-  if (ad.offer && !/no offer/i.test(ad.offer)) layers.push({ id: uid(), kind: "badge", text: ad.offer.slice(0, 28), x: 0.07, y: 0.07, w: 0.5, size: 30, font: "sans", color: "#121212", bg: "#FFFFFF", weight: 700 });
-  return { image: ad.imageUrl, overlay: 0.5, layers };
+  if (ad.design?.video) return ad.design;
+  return layoutDesign("bold", copyOf(null, ad, brand), { top: toneFor(null), bottom: toneFor(null) }, ad.imageUrl);
 }
 
 /** Text lines wrapped to a width, the same way in the editor and in the exported PNG. */
@@ -49,13 +45,36 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
 }
 
 const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const weightOf = (l: Layer) => (l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500));
+const spacingOf = (l: Layer) => (l.tracking ? l.tracking * l.size : l.font === "display" && !l.upper ? -0.02 * l.size : 0);
+
+/** How bright the photo is under a patch of the 4:5 artboard (0 dark – 1 light), to choose light or dark type. Null when the photo can't be read. */
+async function brightness(src: string | null, box: Box): Promise<number | null> {
+  if (!src) return 0.9;
+  try {
+    const img = await load(src);
+    const c = document.createElement("canvas"); c.width = c.height = 8;
+    const ctx = c.getContext("2d")!;
+    const r = Math.max(1080 / img.width, 1350 / img.height), ox = (1080 - img.width * r) / 2, oy = (1350 - img.height * r) / 2;
+    ctx.drawImage(img, (box.x * 1080 - ox) / r, (box.y * 1350 - oy) / r, (box.w * 1080) / r, (box.h * 1350) / r, 0, 0, 8, 8);
+    const px = ctx.getImageData(0, 0, 8, 8).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+    return sum / (64 * 255);
+  } catch { return null; }
+}
+/** A layout applied to this ad's words over this photo. */
+async function laidOut(key: LayoutKey, copy: CardCopy, image: string | null): Promise<AdDesign> {
+  const [t, b] = await Promise.all([brightness(image, REGIONS[key].top), brightness(image, REGIONS[key].bottom)]);
+  return layoutDesign(key, copy, { top: toneFor(t), bottom: toneFor(b) }, image);
+}
 
 /** Draw the design at full Meta size and return a PNG blob. */
 async function render(d: AdDesign, s: Size): Promise<Blob> {
   await Promise.all(FACES.map((f) => document.fonts.load(f).catch(() => undefined)));
   const c = document.createElement("canvas");
   c.width = s.w; c.height = s.h;
-  const ctx = c.getContext("2d")!;
+  const ctx = c.getContext("2d")! as CanvasRenderingContext2D & { letterSpacing?: string };
   const g0 = ctx.createLinearGradient(0, 0, s.w, s.h); g0.addColorStop(0, "#EDE9E2"); g0.addColorStop(1, "#D9D3C7");
   ctx.fillStyle = g0; ctx.fillRect(0, 0, s.w, s.h);
   if (d.image) {
@@ -65,21 +84,22 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
       ctx.drawImage(img, (s.w - img.width * r) / 2, (s.h - img.height * r) / 2, img.width * r, img.height * r);
     } catch { /* keep the plain background */ }
   }
-  const g = ctx.createLinearGradient(0, s.h * 0.35, 0, s.h);
-  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${d.overlay})`);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, s.w, s.h);
+  if ((d.overlayTop ?? 0) > 0) { const g = ctx.createLinearGradient(0, 0, 0, s.h * 0.46); g.addColorStop(0, `rgba(0,0,0,${d.overlayTop})`); g.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = g; ctx.fillRect(0, 0, s.w, s.h * 0.46); }
+  if (d.overlay > 0) { const g = ctx.createLinearGradient(0, s.h * 0.48, 0, s.h); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${d.overlay})`); ctx.fillStyle = g; ctx.fillRect(0, s.h * 0.48, s.w, s.h * 0.52); }
   for (const l of d.layers) {
     const x = l.x * s.w, y = l.y * s.h, w = l.w * s.w;
     if (l.kind === "logo" && l.src) {
       try { const img = await load(l.src); const h = (w / img.width) * img.height; ctx.drawImage(img, x, y, w, h); } catch { /* skip */ }
       continue;
     }
-    ctx.font = `${l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500)} ${l.size}px ${face(l.font)}`;
+    ctx.font = `${weightOf(l)} ${l.size}px ${face(l.font)}`;
+    ctx.letterSpacing = `${spacingOf(l)}px`;
     ctx.textBaseline = "top";
-    const lines = wrap(ctx, l.text, l.kind === "text" ? w : w - l.size);
+    const txt = l.upper ? l.text.toUpperCase() : l.text;
+    const lines = wrap(ctx, txt, l.kind === "text" ? w : w - l.size);
     const lh = l.size * 1.15;
     if (l.kind === "button" || l.kind === "badge") {
-      const bw = l.kind === "button" ? w : Math.min(w, ctx.measureText(l.text).width + l.size * 1.2);
+      const bw = l.kind === "button" ? w : Math.min(w, ctx.measureText(txt).width + l.size * 1.2);
       const bh = lh * lines.length + l.size * 0.7;
       ctx.fillStyle = l.bg ?? "#fff";
       ctx.beginPath(); ctx.roundRect(x, y, bw, bh, l.kind === "button" ? bh / 2 : 10); ctx.fill();
@@ -89,13 +109,14 @@ async function render(d: AdDesign, s: Size): Promise<Blob> {
     } else {
       ctx.fillStyle = l.color;
       if (l.shadow !== false) { ctx.shadowColor = "rgba(0,0,0,.3)"; ctx.shadowBlur = 16; }
-      lines.forEach((t, i) => ctx.fillText(t, l.align === "center" ? x + (w - ctx.measureText(t).width) / 2 : x, y + i * lh));
+      lines.forEach((t, i) => { const tw = ctx.measureText(t).width; ctx.fillText(t, l.align === "center" ? x + (w - tw) / 2 : l.align === "right" ? x + w - tw : x, y + i * lh + l.size * 0.07); });
       ctx.shadowBlur = 0;
     }
   }
   return new Promise((res) => c.toBlob((b) => res(b!), "image/png"));
 }
 
+const STRIPES = "repeating-linear-gradient(45deg, rgba(235,122,60,.10) 0 6px, transparent 6px 12px)";
 function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; s: Size; scale: number; sel: string | null; onSelect: (id: string | null) => void; onMove: (id: string, x: number, y: number) => void; brand: string }) {
   const W = s.w * scale, H = s.h * scale;
   const drag = useRef<{ id: string; sx: number; sy: number; lx: number; ly: number } | null>(null);
@@ -106,9 +127,11 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
         onPointerMove={(e) => { const g = drag.current; if (!g) return; onMove(g.id, Math.min(0.98, Math.max(0, g.lx + (e.clientX - g.sx) / W)), Math.min(0.98, Math.max(0, g.ly + (e.clientY - g.sy) / H))); }}
         onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}
         style={{ position: "relative", width: W, height: H, overflow: "hidden", borderRadius: 8, background: "linear-gradient(160deg,#EDE9E2,#D9D3C7)", boxShadow: "0 0 0 1px var(--line), 0 6px 20px rgba(18,18,18,.08)", touchAction: "none", userSelect: "none" }}>
-        {d.image && <img src={d.image} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />}
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,${d.overlay}) 100%)`, pointerEvents: "none" }} />
-        {s.key === "9x16" && <><div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "14%", background: "repeating-linear-gradient(45deg, rgba(235,122,60,.08) 0 6px, transparent 6px 12px)", pointerEvents: "none" }} /><div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "20%", background: "repeating-linear-gradient(45deg, rgba(235,122,60,.08) 0 6px, transparent 6px 12px)", pointerEvents: "none" }} /></>}
+        {d.video ? <video src={d.video} muted loop autoPlay playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+          : d.image && <img src={d.image} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />}
+        {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)`, pointerEvents: "none" }} />}
+        {d.overlay > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)`, pointerEvents: "none" }} />}
+        {s.key === "9x16" && <><div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "14%", background: STRIPES, pointerEvents: "none" }} /><div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "20%", background: STRIPES, pointerEvents: "none" }} /></>}
         {d.layers.map((l) => {
           const common: React.CSSProperties = { position: "absolute", left: `${l.x * 100}%`, top: `${l.y * 100}%`, cursor: "move", outline: sel === l.id ? "1.5px solid #1AA7C8" : "none", outlineOffset: 2 };
           const start = (e: React.PointerEvent) => { e.stopPropagation(); onSelect(l.id); drag.current = { id: l.id, sx: e.clientX, sy: e.clientY, lx: l.x, ly: l.y }; };
@@ -116,7 +139,8 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
           const fs = l.size * scale;
           const box = l.kind === "button" || l.kind === "badge";
           return (
-            <div key={l.id} onPointerDown={start} style={{ ...common, width: l.kind === "badge" ? "auto" : `${l.w * 100}%`, maxWidth: `${l.w * 100}%`, fontFamily: face(l.font), fontSize: fs, lineHeight: 1.15, fontWeight: l.font === "serif" ? 400 : l.weight ?? (l.font === "display" ? 700 : 500), color: l.color,
+            <div key={l.id} onPointerDown={start} style={{ ...common, width: l.kind === "badge" ? "auto" : `${l.w * 100}%`, maxWidth: `${l.w * 100}%`, fontFamily: face(l.font), fontSize: fs, lineHeight: 1.15, fontWeight: weightOf(l), color: l.color,
+              letterSpacing: spacingOf(l) * scale, textTransform: l.upper ? "uppercase" : "none",
               textAlign: box ? "center" : l.align ?? "left", ...(box ? { background: l.bg, borderRadius: l.kind === "button" ? 999 : 4, padding: `${fs * 0.35}px ${fs * 0.6}px` } : l.shadow === false ? {} : { textShadow: "0 1px 8px rgba(0,0,0,.3)" }), whiteSpace: "pre-wrap" }}>
               {l.text || (l.kind === "text" ? brand : "")}
             </div>
@@ -127,6 +151,15 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand }: { d: AdDesign; 
   );
 }
 
+/** A layout as a tiny wireframe: where its type sits on the card. [x, y, w, h, strong] in % of the card. */
+const WIRE: Record<LayoutKey, [number, number, number, number, boolean][]> = {
+  bold: [[14, 8, 72, 9, true], [26, 21, 48, 3, false], [28, 84, 44, 5, true], [34, 92, 32, 2.5, false]],
+  editorial: [[8, 8, 52, 10, true], [8, 20, 40, 10, true], [8, 34, 34, 2.5, false], [8, 90, 36, 3, false]],
+  luxe: [[32, 7, 36, 2.5, false], [22, 70, 56, 6, false], [16, 78, 68, 6, true], [30, 88, 40, 2.5, false]],
+  minimal: [[18, 9, 64, 5, true], [28, 16, 44, 5, true], [36, 92, 28, 2.5, false]],
+  caption: [[8, 8, 50, 5, true], [8, 16, 40, 2.5, false], [8, 20, 34, 2.5, false], [8, 80, 44, 3.5, true], [8, 87, 24, 6, true]],
+};
+
 export function Editor({ slug, brand, ad, ads, palette, products, media, logos, otherHooks }: {
   slug: string; brand: string; ad: EditorAd; ads: { id: string; hook: string }[]; palette: string[];
   products: { title: string; url: string }[]; media: { name: string; url: string; ai: boolean }[]; logos: { name: string; url: string }[]; otherHooks: string[];
@@ -134,13 +167,50 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
   const router = useRouter();
   const [d, setD] = useState<AdDesign>(() => ad.design ?? defaultDesign(ad, brand));
   const [sel, setSel] = useState<string | null>(d.layers[0]?.id ?? null);
-  const [panel, setPanel] = useState<"text" | "products" | "media" | "logos" | "elements">("text");
+  const [panel, setPanel] = useState<"layouts" | "text" | "products" | "media" | "logos" | "elements">("layouts");
+  const [chat, setChat] = useState<{ who: "you" | "remy"; text: string; undo?: AdDesign; shoots?: boolean }[]>([]);
+  const [ask, setAsk] = useState("");
+  const [asking, setAsking] = useState(false);
+  const thread = useRef<HTMLDivElement>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, start] = useTransition();
   const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const layer = d.layers.find((l) => l.id === sel) ?? null;
   const set = (next: AdDesign) => { setD(next); setDirty(true); };
+  const [opened] = useState(d); // the design as the ad opened, to tell whether anything changed since
+  const isClip = Boolean(d.video);
+  const logosOf = (x: AdDesign) => x.layers.filter((l) => l.kind === "logo");
+  const nameOf = (l: Layer) => (l.role ? l.role.charAt(0).toUpperCase() + l.role.slice(1) : l.kind === "text" ? "Text" : l.kind === "button" ? "Button" : l.kind === "badge" ? "Badge" : "Logo");
+  /** Switch layout: the ad's words stay, the type moves and picks light or dark for the photo under it. */
+  const applyLayout = async (key: LayoutKey, image: string | null = d.image) => {
+    const next = await laidOut(key, copyOf(d, ad, brand), image);
+    set({ ...next, layers: [...next.layers, ...logosOf(d)], card: d.card });
+    setSel(null);
+  };
+  /** A new photo behind the ad: a laid-out ad is laid out again for it, so the type stays readable. */
+  const pickImage = (url: string) => { if (isLayout(d.layout)) void applyLayout(d.layout, url); else set({ ...d, image: url }); };
+  const askRemy = async (text: string) => {
+    const q = text.trim();
+    if (!q || asking) return;
+    setAsk(""); setAsking(true);
+    const before = d;
+    setChat((c) => [...c, { who: "you", text: layer ? `${nameOf(layer)} — ${q}` : q }]);
+    try {
+      const r = await askEditor(slug, ad.id, d, q, sel, chat.slice(-6).map((m) => `${m.who === "you" ? "Team" : "Remy"}: ${m.text}`));
+      if (r.design) { set(r.design); if (sel && !r.design.layers.some((l) => l.id === sel)) setSel(null); }
+      setChat((c) => [...c, { who: "remy", text: r.say, undo: r.design ? before : undefined, shoots: r.shoots }]);
+    } catch { setChat((c) => [...c, { who: "remy", text: "I couldn’t make that change just now — try again." }]); }
+    setAsking(false);
+  };
+  // A new ad: read the photo once to choose light or dark type (until then it shows white type on soft scrims).
+  useEffect(() => {
+    if (ad.design) return;
+    let live = true;
+    void laidOut("bold", copyOf(null, ad, brand), ad.imageUrl).then((n) => { if (live) setD((cur) => (cur === opened ? n : cur)); });
+    return () => { live = false; };
+  }, [ad, brand, opened]);
+  useEffect(() => { thread.current?.scrollTo({ top: thread.current.scrollHeight }); }, [chat, asking]);
   const upd = (id: string, patch: Partial<Layer>) => set({ ...d, layers: d.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
   const add = (l: Omit<Layer, "id">) => { const n = { ...l, id: uid() }; set({ ...d, layers: [...d.layers, n] }); setSel(n.id); };
   const remove = (id: string) => { set({ ...d, layers: d.layers.filter((l) => l.id !== id) }); setSel(null); };
@@ -178,7 +248,7 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
   const head = d.layers.find((l) => l.kind === "text");
   const checks: [string, boolean][] = [
     ["Text inside 9:16 safe zones", d.layers.filter((l) => l.kind !== "logo").every((l) => l.y >= 0.14 && l.y <= 0.8 || l.kind === "badge" && l.y < 0.14 && l.y > 0.02)],
-    ["Has a button or call to action", d.layers.some((l) => l.kind === "button")],
+    ["One clear headline (60 px or more)", d.layers.some((l) => l.kind === "text" && l.size >= 60)],
     ["Uses a product photo", Boolean(d.image)],
     ["Headline under 8 words", !head || head.text.trim().split(/\s+/).length <= 8],
     ["Readable — text size 28 px or more", d.layers.filter((l) => l.kind !== "logo").every((l) => l.size >= 28)],
@@ -215,12 +285,24 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <aside className="row stretch" style={{ width: 300, flexShrink: 0, borderRight: "1px solid var(--line)" }}>
           <div className="col g4" style={{ width: 64, padding: "10px 6px", borderRight: "1px solid var(--line)", background: "var(--tray)" }}>
-            {([["text", "Text", "file"], ["products", "Products", "box"], ["media", "Media", "image"], ["logos", "Logos", "pencil"], ["elements", "Elements", "layers"]] as const).map(([k, l, i]) => (
+            {([["layouts", "Layouts", "squares"], ["text", "Text", "file"], ["products", "Products", "box"], ["media", "Media", "image"], ["logos", "Logos", "pencil"], ["elements", "Elements", "layers"]] as const).map(([k, l, i]) => (
               <button key={k} type="button" onClick={() => setPanel(k)} className="col g2" style={{ alignItems: "center", padding: "8px 0", borderRadius: 8, background: panel === k ? "#fff" : "transparent", boxShadow: panel === k ? "0 0 0 1px var(--line)" : "none", cursor: "pointer" }}>
                 <Icon name={i} size={16} /><span style={{ fontSize: 10 }}>{l}</span></button>
             ))}
           </div>
           <div className="col g8 fill" style={{ padding: 12, overflowY: "auto", minWidth: 0 }}>
+            {panel === "layouts" && <>
+              <span className="sm w5">Layouts</span>
+              <span className="xs i3" style={{ lineHeight: "16px" }}>{isClip ? "This ad is a clip — its picture and captions are made in Shoots." : "Your words stay; the type moves and picks light or dark for the photo under it."}</span>
+              {!isClip && LAYOUTS.map((l) => (
+                <button key={l.key} type="button" onClick={() => void applyLayout(l.key)} className="row g10" style={{ padding: 8, borderRadius: 10, textAlign: "left", background: "#fff", cursor: "pointer", boxShadow: d.layout === l.key ? "0 0 0 1.5px var(--ink)" : "0 0 0 1px var(--line)" }}>
+                  <span style={{ position: "relative", width: 52, height: 65, borderRadius: 5, background: "linear-gradient(160deg,#E7E2DA,#CFC8BB)", flexShrink: 0, overflow: "hidden" }}>
+                    {WIRE[l.key].map(([x, y, w, h, strong], i) => <span key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`, borderRadius: 2, background: strong ? "#121212" : "rgba(18,18,18,.42)" }} />)}
+                  </span>
+                  <span className="col g2 fill" style={{ minWidth: 0 }}><span className="xs w5 i1">{l.name}</span><span className="xs i3" style={{ lineHeight: "15px" }}>{l.hint}</span></span>
+                </button>
+              ))}
+            </>}
             {panel === "text" && <>
               <span className="sm w5">Text</span>
               <button type="button" className="card" onClick={() => add({ kind: "text", text: "Add a headline", x: 0.07, y: 0.5, w: 0.86, size: 72, font: "serif", color: "#FFFFFF" })} style={{ padding: 10, textAlign: "left", fontFamily: SERIF, fontSize: 18, cursor: "pointer" }}>Add a headline</button>
@@ -234,12 +316,12 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
             </>}
             {panel === "products" && <>
               <span className="sm w5">Products</span><span className="xs i3">Real photos from Shopify. Click to use as the background.</span>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>{products.map((p) => tile(p.url, p.title, () => set({ ...d, image: p.url })))}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>{products.map((p) => tile(p.url, p.title, () => pickImage(p.url)))}</div>
               {products.length === 0 && <span className="xs i3">No product photos synced yet.</span>}
             </>}
             {panel === "media" && <>
               <span className="sm w5">Media</span><span className="xs i3">Brand imagery and photos made in Shoots.</span>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>{media.map((m) => tile(m.url, m.name, () => set({ ...d, image: m.url }), m.ai ? "AI" : undefined))}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>{media.map((m) => tile(m.url, m.name, () => pickImage(m.url), m.ai ? "AI" : undefined))}</div>
               {media.length === 0 && <span className="xs i3">Nothing yet. <Link className="lnk" href={`/brands/${slug}/creative/shoots`}>Make photos in Shoots</Link>.</span>}
             </>}
             {panel === "logos" && <>
@@ -266,7 +348,8 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
           <p className="xs i3" style={{ textAlign: "center" }}>Drag any layer. The striped bands on 9:16 are where Reels covers text.</p>
         </div>
 
-        <aside className="col g10" style={{ width: 290, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: 14, overflowY: "auto" }}>
+        <aside className="col" style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--line)", minHeight: 0 }}>
+          <div className="col g10 fill" style={{ padding: 14, overflowY: "auto", minHeight: 0 }}>
           {layer ? <>
             <span className="row between"><span className="sm w5">Layer · {layer.kind === "text" ? "Text" : layer.kind === "button" ? "Button" : layer.kind === "badge" ? "Badge" : "Logo"}</span>
               <button type="button" className="btn quiet sm" onClick={() => remove(layer.id)}><Icon name="x" size={12} />Remove</button></span>
@@ -282,6 +365,12 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
                 <div className="row g6">{colors.map((c) => <button key={c} type="button" onClick={() => upd(layer.id, { bg: c })} aria-label={`fill ${c}`} style={{ width: 22, height: 22, borderRadius: 6, background: c, border: layer.bg === c ? "2px solid #1AA7C8" : "1px solid var(--line-2)", cursor: "pointer" }} />)}</div></div>}
               <label className="col g4"><span className="xs i3">Width · {Math.round(layer.w * 100)}%</span><input type="range" min={0.15} max={0.95} step={0.01} value={layer.w} onChange={(e) => upd(layer.id, { w: Number(e.target.value) })} /></label>
             </>}
+            {layer.kind === "text" && <div className="row g6" style={{ flexWrap: "wrap" }}>
+              <div className="seg">{(["left", "center", "right"] as const).map((a) => <button key={a} type="button" className={`o${(layer.align ?? "left") === a ? " on" : ""}`} onClick={() => upd(layer.id, { align: a })}>{a === "left" ? "Left" : a === "center" ? "Centre" : "Right"}</button>)}</div>
+              <button type="button" className={`chip${layer.upper ? "" : " dash"}`} style={{ height: 30 }} onClick={() => upd(layer.id, { upper: !layer.upper, tracking: layer.upper ? undefined : layer.tracking ?? 0.08 })}>CAPS</button>
+              {layer.font === "sans" && <div className="seg">{([[300, "Light"], [500, "Regular"], [600, "Semi"]] as const).map(([w, n]) => <button key={w} type="button" className={`o${(layer.weight ?? 500) === w ? " on" : ""}`} onClick={() => upd(layer.id, { weight: w })}>{n}</button>)}</div>}
+              <button type="button" className={`chip${layer.shadow === false ? " dash" : ""}`} style={{ height: 30 }} onClick={() => upd(layer.id, { shadow: layer.shadow === false })}>Shadow</button>
+            </div>}
             {layer.kind === "logo" && <label className="col g4"><span className="xs i3">Size · {Math.round(layer.w * 100)}%</span><input type="range" min={0.1} max={0.6} step={0.01} value={layer.w} onChange={(e) => upd(layer.id, { w: Number(e.target.value) })} /></label>}
             {layer.kind === "text" && otherHooks.length > 0 && <>
               <span className="row g6 xs i3" style={{ paddingTop: 6 }}><AgentFace kind="builder" size={14} />Remy’s other hooks</span>
@@ -289,11 +378,53 @@ export function Editor({ slug, brand, ad, ads, palette, products, media, logos, 
                 <div key={h} className="row between g6 xs" style={{ padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8 }}><span className="i1">{h}</span><button type="button" className="btn quiet sm" onClick={() => upd(layer.id, { text: h })}>Use</button></div>
               ))}
             </>}
-          </> : <span className="xs i3">Select a layer on any size to edit it.</span>}
+          </> : isClip ? <span className="xs i2" style={{ lineHeight: "17px" }}>This ad is a clip from Shoots. Check it in each size here; its picture, captions and end card are made in Shoots.</span> : <>
+            <span className="sm w5">The whole ad</span>
+            <span className="xs i3" style={{ lineHeight: "16px" }}>Click any element to edit it — or ask Remy below. Darken the photo behind white type:</span>
+            <label className="col g4"><span className="xs i3">Behind the top · {Math.round((d.overlayTop ?? 0) * 100)}%</span><input type="range" min={0} max={0.7} step={0.02} value={d.overlayTop ?? 0} onChange={(e) => set({ ...d, overlayTop: Number(e.target.value) })} /></label>
+            <label className="col g4"><span className="xs i3">Behind the bottom · {Math.round(d.overlay * 100)}%</span><input type="range" min={0} max={0.7} step={0.02} value={d.overlay} onChange={(e) => set({ ...d, overlay: Number(e.target.value) })} /></label>
+          </>}
           <div className="col g6" style={{ padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 10, marginTop: 6 }}>
             <span className="row g8"><AgentFace kind="qa" size={16} /><span className="sm w5 fill">Otto checks</span><span className="xs i3">{checks.filter(([, ok]) => ok).length} / {checks.length}</span></span>
             {checks.map(([k, ok]) => <span key={k} className={`row g6 xs ${ok ? "i2" : "c-amber"}`}><Icon name={ok ? "check-circle" : "warning-circle"} size={13} weight={ok ? "fill" : "regular"} color={ok ? "#1F8A5B" : "#B7791F"} />{k}</span>)}
           </div>
+          </div>
+          {!isClip && (
+            <div className="col g8" style={{ padding: 12, borderTop: "1px solid var(--line)", background: "#fff" }}>
+              {(chat.length > 0 || asking) && (
+                <div ref={thread} className="col g8" style={{ maxHeight: 210, overflowY: "auto" }}>
+                  {chat.map((m, i) => m.who === "you"
+                    ? <div key={i} className="row" style={{ justifyContent: "flex-end" }}><span className="xs" style={{ maxWidth: "88%", padding: "7px 10px", borderRadius: "12px 12px 3px 12px", background: "var(--ink)", color: "#fff", lineHeight: "17px" }}>{m.text}</span></div>
+                    : <div key={i} className="row top g6"><AgentFace kind="builder" size={18} />
+                        <span className="col g4 fill" style={{ minWidth: 0 }}><span className="xs i1" style={{ lineHeight: "17px" }}>{m.text}</span>
+                          {(m.undo || m.shoots) && <span className="row g10">
+                            {m.undo && <button type="button" className="lnk xs i3" onClick={() => { set(m.undo!); setChat((c) => c.map((x, j) => (j === i ? { ...x, undo: undefined, text: `${x.text} (undone)` } : x))); }}>Undo</button>}
+                            {m.shoots && <Link className="lnk xs" href={`/brands/${slug}/creative/shoots?batch=${ad.batchId}`}>Open Shoots</Link>}
+                          </span>}
+                        </span>
+                      </div>)}
+                  {asking && <div className="row g6 xs i3"><AgentFace kind="builder" size={18} mood="focus" /><Icon name="spinner" size={12} className="spin" />Remy is looking at the ad…</div>}
+                </div>
+              )}
+              {chat.length === 0 && !asking && (
+                <div className="row g4" style={{ flexWrap: "wrap" }}>
+                  {(layer ? ["Make it bigger", "Shorter wording", "Make it stand out more"] : ["Try another layout", "Make the headline stand out", "Make it feel more premium"]).map((t) => (
+                    <button key={t} type="button" className="xs i2" onClick={() => void askRemy(t)} style={{ height: 24, padding: "0 9px", borderRadius: 99, boxShadow: "0 0 0 1px var(--line)", background: "var(--tray)" }}>{t}</button>
+                  ))}
+                </div>
+              )}
+              <form onSubmit={(e) => { e.preventDefault(); void askRemy(ask); }} className="col g6" style={{ padding: "8px 10px", borderRadius: 12, boxShadow: "0 0 0 1px var(--line-2)" }}>
+                {layer && <span className="row g4"><span className="pill blue" style={{ height: 20, fontSize: 10.5, maxWidth: "100%" }}><span className="ell">Changing: {nameOf(layer)}{layer.text ? ` · “${layer.text.slice(0, 22)}${layer.text.length > 22 ? "…" : ""}”` : ""}</span>
+                  <button type="button" aria-label="Change the whole ad instead" onClick={() => setSel(null)} style={{ display: "inline-flex" }}><Icon name="x" size={10} /></button></span></span>}
+                <textarea value={ask} onChange={(e) => setAsk(e.target.value)} rows={2} maxLength={600} disabled={asking} placeholder={layer ? "Ask Remy to change this element…" : "Ask Remy to change this ad…"}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void askRemy(ask); } }}
+                  style={{ border: 0, outline: 0, resize: "none", font: "inherit", fontSize: 12.5, lineHeight: "18px", width: "100%", background: "transparent" }} />
+                <div className="row g6"><span className="row g4 xs i3 fill"><AgentFace kind="builder" size={14} />Remy{layer ? " · this element" : " · whole ad"}</span>
+                  <button type="submit" aria-label="Ask Remy" disabled={asking || ask.trim().length < 2} style={{ width: 26, height: 26, borderRadius: 99, background: ask.trim().length >= 2 && !asking ? "var(--ink)" : "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon name="arrow-up" size={12} color={ask.trim().length >= 2 && !asking ? "#fff" : "#8B8883"} /></button></div>
+              </form>
+            </div>
+          )}
         </aside>
       </div>
     </div>

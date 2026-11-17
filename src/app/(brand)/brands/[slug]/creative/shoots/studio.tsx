@@ -68,13 +68,21 @@ function MenuItem({ icon, children, onClick, href }: { icon: Parameters<typeof I
 }
 
 type Props = {
-  slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; savedAt: string | null; savedBy: string | null;
+  slug: string; base: string; brand: string; currency: string; autoRun: boolean; initial: ShootFlow; preset: boolean; planned?: "static" | "video" | "ugc" | "full" | null; savedAt: string | null; savedBy: string | null;
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
   engines: { photo: string; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
   batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
 };
 
 /** Board 17c · Shoots: a real node canvas — drag nodes, draw and remove wires, and Run flow follows the wires. */
+/** Arriving from Plan: what Remy set up, and what happens next. */
+const PLANNED: Record<"static" | "video" | "ugc" | "full", string> = {
+  static: "Remy laid out the static-ad pipeline from your plan: Prompt → Photos → Otto’s check. Press Run flow, then send the photos to the Editor — each ad opens there as a designed card.",
+  video: "Remy laid out the video pipeline from your plan: a start photo, then the clip. Press Run flow; the clips go to the batch’s ads when you send them.",
+  ugc: "Remy laid out the UGC pipeline from your plan: your creator holds the product, then talks to camera. Pick the person, press Run flow, then send the clips to the batch.",
+  full: "Remy laid out the full-ad pipeline from your plan: Storyboard → scene clips → Final cut. Write the storyboard, render the scenes, then send the finished ad to the batch.",
+};
+
 export function ShootStudio(props: Props) {
   return <ReactFlowProvider><Studio {...props} /></ReactFlowProvider>;
 }
@@ -91,7 +99,7 @@ function Studio(props: Props) {
   const [selEdge, setSelEdge] = useState<string | null>(null);
   const [tool, setTool] = useState<"select" | "hand">("select");
   const [status, setStatus] = useState<Record<string, RunState>>({});
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(props.planned ? PLANNED[props.planned] : null);
   const [saved, setSaved] = useState<{ at: string | null; by: string | null; saving: boolean }>({ at: props.savedAt, by: props.savedBy, saving: false });
   const [query, setQuery] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
@@ -251,6 +259,11 @@ function Studio(props: Props) {
     return { photos: uniq(photos).filter((x) => byId.has(x)), clips: uniq(clips).filter((x) => byId.has(x)) };
   };
   const pickedFor = (sid: string) => { const n = find(flow, sid); if (!n) return []; const c = cfgOf(n); return c.picked ? c.picked.filter((x) => byId.has(x)) : sendItems(sid).photos; };
+  // The run's output is ready and a batch is waiting for it: offer the next step right in the status bar.
+  const toEditor = (() => {
+    for (const S of flow.nodes.filter((x) => x.type === "send" && cfgOf(x).send)) { const it = sendItems(S.id), k = pickedFor(S.id).length + it.clips.length; if (k) return { id: S.id, n: k }; }
+    return null;
+  })();
   const changedOf = (did: string) => { const n = find(flow, did); if (!n) return false; const c = cfgOf(n), sig = signalOf(flow, did); return Boolean(c.rerun && c.value && sig?.value && sig.value !== c.value); };
 
   const firstProduct = flow.nodes.find((n) => n.type === "product");
@@ -575,9 +588,12 @@ function Studio(props: Props) {
     const n = find(flowRef.current, sid);
     if (!n) return;
     const c = cfgOf(n), picked = pickedFor(sid), target = batches.find((b) => b.id === c.send);
-    const r = await sendShots(slug, picked, c.send);
+    if (c.send) setMsg("Sending to the Editor — Remy is laying out each ad…");
+    const r = await sendShots(slug, picked, c.send, sendItems(sid).clips);
     if (c.send && r.done) setSent((s) => ({ ...s, [sid]: { batch: c.send!, ad: r.firstAd ?? null } }));
-    setMsg(r.error ?? (c.send ? `${r.done} photo${r.done === 1 ? " is" : "s are"} now the ads’ photos in “${target?.title}”.` : `${r.done} photo${r.done === 1 ? "" : "s"} kept in brand assets — they’re in the Editor’s Media panel.`));
+    setMsg(r.error ?? (c.send ? `${r.done} ad${r.done === 1 ? "" : "s"} in “${target?.title}” ${r.done === 1 ? "has its" : "have their"} visuals${r.cards ? ` — ${r.cards} laid out as cards` : ""}. Opening the Editor…` : `${r.done} file${r.done === 1 ? "" : "s"} kept in brand assets — they’re in the Editor’s Media panel.`));
+    // The pipeline's output goes to the Editor: refine each ad there, then review in Ads.
+    if (c.send && r.done && r.firstAd) { router.push(`${base}/creative/editor?ad=${r.firstAd}`); return; }
     router.refresh();
   });
   const design = (id: string) => startNav(() => designFromShot(slug, id));
@@ -823,6 +839,7 @@ function Studio(props: Props) {
                   : flow.last ? <span className="xs i2"><span className="w5 i1">Last run:</span> {flow.last.photos} photo{flow.last.photos === 1 ? "" : "s"}{flow.last.clips ? ` + ${flow.last.clips} clip${flow.last.clips === 1 ? "" : "s"}` : ""} · {flow.last.flagged ? `${flow.last.flagged} flagged by Otto` : "all passed Otto"} · {usd(flow.last.cost)}</span>
                   : <span className="xs i2"><span className="w5 i1">Not run yet:</span> Run flow follows the wires · about {usd(cost)}</span>}
                 {anyChanged && !busy && <button type="button" className="btn sm" onClick={runFlow}><Icon name="refresh" size={11} />The number changed — run again</button>}
+                {!busy && toEditor && <button type="button" className="btn sm dark" onClick={() => send(toEditor.id)}><Icon name="arrow-r" size={11} color="#fff" />Send {toEditor.n} to the Editor</button>}
               </div>
             </Panel>
             {flow.nodes.length === 0 && (

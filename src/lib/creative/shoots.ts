@@ -11,6 +11,7 @@ import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./
 import type { ShotPlan } from "../db/schema";
 import { marketContext } from "../research/context";
 import { readAssets, saveAsset } from "@/lib/assets/storage";
+import { adLook } from "./layouts";
 
 /** FLUX Kontext keeps the real product from the reference photo and builds the scene around it. */
 export const SHOOT_MODEL = "bfl/flux-kontext-pro";
@@ -44,14 +45,17 @@ export async function writeShotPrompt(brandId: string, input: PromptIn): Promise
     db.select({ name: schema.brands.name, category: schema.brands.category, onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId)),
     marketContext(brandId, input.product || null),
   ]);
-  const words = { short: 30, medium: 55, detailed: 85 }[input.length];
+  const look = adLook(input.scene);
+  const words = look ? 95 : { short: 30, medium: 55, detailed: 85 }[input.length];
   const out = await ask("remy", {
     system: `You are Remy, Kaviar's creative agent. Write one prompt for an image model that edits a product photo: it keeps the product exactly as in the reference (shape, label, colour) and places it in a new scene for a Meta ad. Describe setting, light, props, hands if any, camera angle and mood in about ${words} words. No text, no logos, no watermarks in the image.
 If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
 When there is a person (a character, or a UGC scene), also write voiceLine: what they say to camera in a short clip — first person, casual, under 16 words, about why they reach for this product; no medical or guaranteed claims, no prices or discounts. Otherwise voiceLine is "".
+When adLook is given, the photo is the background of a designed static ad, shot like a studio campaign: follow its art direction exactly — surface, props, camera angle, light — and its room-for-type rule, stating plainly which part of the frame stays empty and plain. Build ONE colour story: name the backdrop colour, taken from this product's packaging or the brand palette (tone on tone, or a single complement). The product is the hero: sharp, correctly lit, label readable. Portrait 4:5. Show only ingredients, textures and claims the product truly has.
 Split the prompt into consecutive phrases and tag each with the input it came from: product (the product itself), character (the person), data (who will see the ad, from the data signal and its rules), brand (the brand's look and rules), wins (lessons on what already sells), none (glue words). The phrases joined in order must read as one natural prompt. Also return the rules for how the data signal shapes the scene: keep the team's rules if given, otherwise write 3, each under 9 words.`,
     content: JSON.stringify({
       brand: b?.name, category: b?.category, product: input.product, scene: input.scene,
+      adLook: look ? { artDirection: look.direction, roomForType: look.room } : null, brandColours: (b?.onboarding?.analysis?.palette ?? []).map((c) => `${c.role}: ${c.hex}`),
       brandKit: { look: b?.onboarding?.profile?.palette?.value, tone: b?.onboarding?.profile?.tone?.value, rules: input.brandRules, follow: input.strict ? "strictly" : "loosely" },
       whoWillSeeIt: input.signal ? { signal: input.signal.data, data: input.signal.value, evidence: input.signal.evidence } : null,
       teamRules: input.rules, whatWinsForThisBrand: input.lessons,

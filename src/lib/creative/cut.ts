@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, schema } from "../db";
+import { schema } from "../db";
 import { END_SECONDS, captionChunks } from "./story";
 import { readAssets, saveAsset } from "@/lib/assets/storage";
 

@@ -7,7 +7,7 @@ import { buildSignals } from "@/lib/signals/build";
 import { researchSignals } from "@/lib/research/context";
 import { shootEngines, shootsThisMonth } from "@/lib/creative/shoots";
 import { ShootStudio } from "./studio";
-import { TEMPLATES, applyPreset, asFlow, defaultFlow } from "./flow";
+import { TEMPLATES, applyPreset, asFlow, defaultFlow, flowSignal, fullAdFlow, staticFlow, ugcFlow, videoFlow } from "./flow";
 
 export const metadata = { title: "Creative studio · Shoots" };
 // Photos take 10–30 s each, clips 1–3 min.
@@ -20,6 +20,9 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const sp = await searchParams;
   const autoRun = sp.run === "1";
   // Handoff from Plan / a batch: ?batch=<id>&signal=<key>&product=<title> presets the flow for this visit (then it's saved).
+  // From Plan: ?layout=static|video|ugc|full lays the pipeline out for what the batch is made of (n ads, clip seconds).
+  const layout = sp.layout === "static" || sp.layout === "video" || sp.layout === "ugc" || sp.layout === "full" ? sp.layout : null;
+  const planN = Math.min(9, Math.max(1, Number(sp.n) || 4)), planSecs = Math.min(30, Math.max(5, Number(sp.secs) || 10));
   const want = { batch: typeof sp.batch === "string" && /^[0-9a-f-]{36}$/i.test(sp.batch) ? sp.batch : null, signal: typeof sp.signal === "string" ? sp.signal : null, product: typeof sp.product === "string" ? sp.product : null };
   const brand = await getBrand(slug);
   const base = `/brands/${slug}`;
@@ -53,7 +56,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const ob = brand.onboarding ?? {};
   let flow = saved ? asFlow(saved.flow) : defaultFlow(signals.find((s) => TEMPLATES[s.key])?.key ?? null, list[0]?.url ?? null);
   let allBatches = batches;
-  const preset = Boolean(want.batch || want.signal || want.product);
+  const preset = Boolean(want.batch || want.signal || want.product || layout);
   if (preset) {
     const [b] = want.batch ? await db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal,
       n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected')::int`, review: sql<number>`0`,
@@ -62,13 +65,17 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
     if (b && !batches.some((x) => x.id === b.id)) allBatches = [b, ...batches];
     const name = (want.product ?? b?.product ?? "").toLowerCase();
     const match = name ? list.find((p) => p.title.toLowerCase() === name) ?? list.find((p) => name.includes(p.title.toLowerCase()) || p.title.toLowerCase().includes(name)) : null;
+    if (layout) {
+      const template = want.signal ?? b?.signal ?? flowSignal(flow), product = match?.url ?? list[0]?.url ?? null, person = characters[0]?.id ?? null;
+      flow = layout === "static" ? staticFlow(template, product, planN, typeof sp.look === "string" ? sp.look : null) : layout === "video" ? videoFlow(template, product, planSecs) : layout === "ugc" ? ugcFlow(template, product, person) : fullAdFlow(template, product, person);
+    }
     flow = applyPreset(flow, { template: want.signal ?? b?.signal ?? null, batch: b?.id ?? null, product: match?.url ?? null });
   }
   const savedBy = saved?.updatedBy ? (await db.select({ name: schema.members.name }).from(schema.members).where(eq(schema.members.id, saved.updatedBy)))[0]?.name ?? null : null;
 
   return (
     <ShootStudio slug={slug} base={base} brand={brand.name} currency={brand.currency} autoRun={autoRun}
-      initial={flow} preset={preset} savedAt={saved?.updatedAt.toISOString() ?? null} savedBy={savedBy}
+      initial={flow} preset={preset} planned={sp.plan === "1" && layout ? layout : null} savedAt={saved?.updatedAt.toISOString() ?? null} savedBy={savedBy}
       characters={characters.map((c) => ({ id: c.id, name: c.name, description: c.meta.character?.description ?? "", uploaded: Boolean(c.meta.character?.uploaded), at: c.createdAt.toISOString() }))}
       engines={engines} voices={voices.map((v) => ({ id: v.id, name: v.name, seconds: v.meta.seconds ?? null, by: v.meta.consent?.by ?? null }))} perImage={engines.perImage} perVideoSecond={engines.perVideoSecond} month={month} toReview={batches.reduce((a, b) => a + b.review, 0)}
       batches={allBatches.map(({ id, title, n, signal }) => ({ id, title, n, signal }))} signals={signals}

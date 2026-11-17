@@ -2,165 +2,132 @@ import "server-only";
 import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
-import { ask } from "../ai/client";
-import type { AdDesign, Layer } from "../db/schema";
-import { avgColor, loadImage } from "../audience/media";
+import { ask, type Block } from "../ai/client";
+import type { AdDesign } from "../db/schema";
+import { avgColor, loadImage, toJpeg } from "../audience/media";
+import { deleteAssets, saveAsset } from "../assets/storage";
 import { marketContext } from "../research/context";
 import { brandContext } from "./remy";
-import { checkShot, shoot } from "./shoots";
 import { renderDesign } from "./card";
-import { deleteAssets, saveAsset } from "@/lib/assets/storage";
+import { REGIONS, copyOf, isLayout, layoutDesign, toneFor, type CardCopy, type LayoutKey, type Tone } from "./layouts";
 
 /**
- * Static ad cards that test one message each: a big headline that IS the message, a short line that explains it, a small payoff at the
- * bottom, over a styled product shot that shows the message (texture, ingredients, a moment of use). The shot is made from the real
- * product photo and checked by Otto; the type is laid out in the Editor's layers (still editable there) and rendered to a PNG.
+ * Static ad cards. Shoots makes the photo; here Remy writes the words that go ON the picture (a headline that is the message, a line
+ * that makes it true, a payoff), picks a layout that suits the brand, and Kaviar lays the type on the photo and draws the finished card.
+ * Every layer stays editable in the Editor.
  */
 const CardOut = z.object({
-  look: z.string().describe("One shared look for the set — surfaces, palette, light — so the cards read as one campaign"),
   cards: z.array(z.object({
     ad: z.number().describe("The ad's number"),
+    layout: z.enum(["bold", "editorial", "luxe", "minimal", "caption"]).describe("The layout whose type areas fall on calm, empty parts of this ad's photo"),
     headline: z.string().describe("2–5 words, the message itself — a promise, a 'Why this …?' question, or a number hook. Under 28 characters"),
     subline: z.string().describe("Under 14 words: what makes the headline true"),
     tagline: z.string().describe("2–5 words: the payoff, e.g. 'One swipe delivers.'"),
     note: z.string().describe("Under 10 words under the tagline; empty if not needed"),
-    scene: z.string().describe("The photo brief that SHOWS this message: surface, texture swatch or ingredients, props, light, angle, where the product sits. 30–60 words"),
-    layout: z.enum(["top", "left"]).describe("top: centred type over a clean upper third; left: type on the left, product to the right"),
   })),
 });
 
-const SYSTEM = `You are Remy, Kaviar's creative director, designing static Meta ad cards for a message test — the modern DTC carousel style: each card tests ONE message for one buyer.
-- Headline: the message in 2–5 words, big. A promise ("One Balm. Multiple Fixes."), a question ("Why This Eye Balm?") or a number hook ("50? Build Collagen."). Title Case, no full stop unless it's two short sentences.
-- Subline: one plain sentence that makes the headline believable. Tagline: the payoff, 2–5 words. Note: optional small line.
-- Photo: a styled product shot that shows the message — a swatch of the product's texture, the ingredients, flowers for a scent, a hand using it. Calm, premium, one product, real.
+const SYSTEM = `You are Remy, Kaviar's creative director, finishing static Meta ad cards for a message test — the modern DTC style: each card tests ONE message for one buyer, over an art-directed product photo from the shoot. You write the words that sit ON the picture and choose where they sit.
+- Headline: the message in 2–5 words. A promise ("One Balm. Multiple Fixes."), a question ("Why This Eye Balm?") or a number hook. Title Case; no full stop unless it is two short sentences.
+- Subline: one plain sentence that makes the headline believable. Tagline: the payoff, 2–5 words. Note: an optional small line.
+- Every card says something different, each true to its ad's hook and copy.
 - Use only claims the brand, its positioning and the ad copy already make. Never invent quotes, reviews, numbers, awards, discounts or medical effects.
-- Every card in the set says something different. Write in the brand's voice for the ad's buyer.`;
+- You are shown each photo. For every card pick the layout whose type lands on calm, empty parts of ITS photo — never over the product's label or a face:
+  · bold — big centred headline across the top, payoff centred at the bottom. Punchy DTC; needs a clean top third.
+  · editorial — large serif headline top-left with small caps under it. Beauty and lifestyle; needs a clean top-left.
+  · luxe — brand name at the top, light-and-bold caps headline in the bottom third. Premium, fragrance, portraits; needs a calm lower third.
+  · minimal — one quiet serif line at the top, brand at the bottom. A confident single thought; needs a plain top.
+  · caption — caps title and a short paragraph top-left, a button bottom-left. Informative, ingredient-led; needs a clean left side.
+  Cards that share a photo use the same layout, so the words are the only thing that changes.`;
 
-const lum = (c: { r: number; g: number; b: number }) => (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255;
-const isHex = (s?: string) => Boolean(s && /^#[0-9a-f]{6}$/i.test(s));
-const hexLum = (h: string) => lum({ r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) });
+const lum = (c: { r: number; g: number; b: number } | null) => (c ? (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255 : null);
+const hexLum = (h: string) => lum({ r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) })!;
 
-/** Greedy word wrap by an average glyph width — enough to stack the layers without overlap. */
-const lines = (text: string, widthPx: number, size: number, k: number) => {
-  const per = Math.max(4, Math.floor(widthPx / (size * k)));
-  let n = 1, cur = 0;
-  for (const w of text.split(/\s+/)) { if (cur && cur + 1 + w.length > per) { n++; cur = w.length; } else cur += (cur ? 1 : 0) + w.length; }
-  return n;
-};
-const uid = () => Math.random().toString(36).slice(2, 9);
-
-/** The type for one card, placed for its layout and coloured for the photo under it. */
-export function cardLayers(c: { headline: string; subline: string; tagline: string; note: string; layout: "top" | "left" }, o: { serif: boolean; top: string; bottom: string; topShadow: boolean; bottomShadow: boolean }, W = 1080, H = 1350): Layer[] {
-  const left = c.layout === "left";
-  const x = left ? 0.07 : 0.08, w = left ? 0.62 : 0.84, align = left ? "left" as const : "center" as const;
-  const font = o.serif ? "serif" as const : "display" as const, k = o.serif ? 0.5 : 0.56;
-  const len = c.headline.length;
-  const size = Math.round((len <= 14 ? 108 : len <= 22 ? 96 : len <= 32 ? 84 : 72) * (o.serif ? 1.08 : 1));
-  const y0 = 0.055;
-  const headH = lines(c.headline, w * W, size, k) * size * 1.15;
-  const subX = left ? x : 0.14, subW = left ? w : 0.72;
-  const out: Layer[] = [
-    { id: uid(), kind: "text", text: c.headline, x, y: y0, w, size, font, color: o.top, weight: 700, align, shadow: o.topShadow },
-    { id: uid(), kind: "text", text: c.subline, x: subX, y: (y0 * H + headH + 30) / H, w: subW, size: 34, font: "sans", color: o.top, weight: 500, align, shadow: o.topShadow },
-  ];
-  const noteH = c.note ? lines(c.note, 0.76 * W, 30, 0.52) * 30 * 1.15 + 8 : 0;
-  const tagY = H - 64 - noteH - 48 * 1.15;
-  out.push({ id: uid(), kind: "text", text: c.tagline, x: left ? x : 0.08, y: tagY / H, w: left ? w : 0.84, size: 48, font: "display", color: o.bottom, weight: 700, align, shadow: o.bottomShadow });
-  if (c.note) out.push({ id: uid(), kind: "text", text: c.note, x: left ? x : 0.12, y: (tagY + 48 * 1.15 + 8) / H, w: left ? w : 0.76, size: 30, font: "sans", color: o.bottom, weight: 500, align, shadow: o.bottomShadow });
-  return out;
+/** Light or dark type for a layout's two type areas, read from the photo. */
+async function tonesFor(brandId: string, image: string | null, key: LayoutKey, ink: string): Promise<{ top: Tone; bottom: Tone }> {
+  const img = image ? await loadImage(brandId, image).catch(() => null) : null;
+  if (!img) return { top: toneFor(0.9, ink), bottom: toneFor(0.9, ink) }; // no photo: the soft light background
+  const buf = Buffer.from(img.data, "base64"), r = REGIONS[key];
+  const [t, b] = await Promise.all([avgColor(buf, r.top), avgColor(buf, r.bottom)]);
+  return { top: toneFor(lum(t), ink), bottom: toneFor(lum(b), ink) };
 }
 
 const A = schema.ads;
-/** Mark ads as being designed, so the batch shows it and polls. */
-export async function markDesigning(batchId: string, adIds?: string[]) {
-  const ads = await db.select({ id: A.id, design: A.design, imageUrl: A.imageUrl }).from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : [])));
-  await Promise.all(ads.map((a) => db.update(A).set({ design: { ...(a.design ?? { image: a.imageUrl, overlay: 0, layers: [] }), pending: true } }).where(eq(A.id, a.id))));
-  return ads.length;
+const cardId = (url?: string | null) => /^\/api\/assets\/([0-9a-f-]{36})$/i.exec(url ?? "")?.[1] ?? null;
+/** The photo behind an ad: its design's picture, or its own picture when that isn't a finished card. */
+const photoOf = (a: { imageUrl: string | null; design: AdDesign | null }) => (a.design?.card && a.imageUrl === a.design.card ? a.design.image : a.imageUrl);
+
+/** Draw the card for a design, save it as the ad's picture and drop the card it replaces. */
+async function drawCard(brandId: string, memberId: string | null, ad: { id: string; product: string | null; design: AdDesign | null }, design: AdDesign): Promise<string> {
+  const png = await renderDesign(brandId, design);
+  const [asset] = await saveAsset({ brandId, kind: "imagery", name: `${(ad.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png, meta: { ai: true, product: ad.product ?? undefined, edit: "card" }, createdBy: memberId });
+  const card = `/api/assets/${asset.id}`, old = cardId(ad.design?.card);
+  await db.update(A).set({ design: { ...design, card, pending: false }, imageUrl: card, updatedAt: new Date() }).where(eq(A.id, ad.id));
+  if (old) await deleteAssets(and(eq(schema.brandAssets.id, old), eq(schema.brandAssets.brandId, brandId))).catch(() => undefined);
+  return card;
 }
 
-/** Remy designs a card for each ad in the batch (or the ads given); each finished card replaces the ad's picture. */
-export async function designBatch(brandId: string, batchId: string, memberId: string | null, adIds?: string[]): Promise<{ made: number; error?: string }> {
+/**
+ * Lay out the static ads of a batch as cards over their photos (after Shoots sends the photos). One call to Remy for the words and the
+ * layout; then each card is drawn. `layout` forces a layout; otherwise Remy picks one for the set.
+ */
+export async function layoutBatch(brandId: string, batchId: string, memberId: string | null, adIds?: string[], layout?: LayoutKey): Promise<{ made: number; error?: string }> {
   const [batch] = await db.select().from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brandId)));
-  const ads = (await db.select().from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : [])))).filter((a) => a.status !== "rejected");
-  const clear = async (ids: string[]) => {
-    for (const a of ads.filter((x) => ids.includes(x.id))) await db.update(A).set({ design: a.design ? { ...a.design, pending: false } : null }).where(eq(A.id, a.id));
-  };
-  if (!batch || !ads.length) { await clear(ads.map((a) => a.id)); return { made: 0, error: "No ads to design." }; }
-  try {
-    const ctx = await brandContext(brandId);
-    const market = await marketContext(brandId).catch(() => null);
-    const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
-    const palette = b?.onboarding?.analysis?.palette ?? [];
-    const fontName = b?.onboarding?.analysis?.font?.name ?? "";
-    const serif = /serif|didot|garamond|bodoni|playfair|caslon|times|baskerville|cormorant|canela|freight/i.test(fontName) && !/sans/i.test(fontName);
-    const out = await ask("remy", {
-      system: SYSTEM,
-      content: JSON.stringify({
-        brand: ctx.brand, buyers: batch.audience, brief: batch.brief,
-        positioning: market?.positioning ? { statement: market.positioning.statement, pillars: market.positioning.pillars, voice: market.positioning.voice, avoid: market.positioning.stayAwayFrom } : null,
-        colours: palette.map((p) => `${p.role}: ${p.hex}`),
-        ads: ads.map((a, i) => ({ ad: i + 1, product: a.product, hook: a.hook, primaryText: a.primaryText, headline: a.headline, offer: a.offer, why: a.why })),
-      }),
-      schema: CardOut, maxTokens: 6000,
-    });
-    if (!out) throw new Error("Remy couldn’t design the cards — try again.");
-    const ink = palette.find((p) => /text/i.test(p.role))?.hex;
-    const dark = isHex(ink) && hexLum(ink!) < 0.3 ? ink! : "#1C1B19";
-    let made = 0;
-    await Promise.all(ads.map(async (a, i) => {
-      const card = out.cards.find((c) => c.ad === i + 1) ?? out.cards[i];
-      const product = ctx.products.find((p) => p.title === a.product) ?? ctx.products.find((p) => p.imageUrl === a.imageUrl) ?? null;
-      const photo = product?.imageUrl ?? (a.imageUrl && !a.imageUrl.startsWith("/api/assets/") ? a.imageUrl : null);
-      try {
-        if (!card) throw new Error("no card");
-        // The scene, shot from the real product photo with room for the type; Otto checks it and it's shot again once if the product changed.
-        let scene: string | null = null;
-        if (photo) {
-          const room = card.layout === "top"
-            ? "Compose for a 4:5 ad: keep the top third of the frame clean, soft and plain (no objects) for a headline, and the bottom sixth calm; the product sits in the middle."
-            : "Compose for a 4:5 ad: keep the left half of the upper 40% plain for a headline; the product sits right of centre, lower in the frame.";
-          for (let t = 0; t < 2 && !scene; t++) {
-            const r = await shoot(brandId, memberId, { product: a.product ?? product?.title ?? "the product", imageUrl: photo, prompt: `${card.scene}\n${room}\nThe whole set: ${out.look}`, aspect: "4:5", n: 1 });
-            const id = r.ids[0];
-            if (!id) break;
-            const ok = await checkShot(brandId, id, photo, a.product ?? product?.title ?? "the product");
-            if (!ok || (ok.labelMatches && ok.shapeExact && ok.noTextOrWatermark)) scene = `/api/assets/${id}`;
-            else await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brandId)));
-          }
-        }
-        const bg = scene ?? photo ?? null;
-        // Dark or light type, from the photo under it.
-        const img = bg ? await loadImage(brandId, bg) : null;
-        const buf = img ? Buffer.from(img.data, "base64") : null;
-        const topBox = card.layout === "top" ? { x: 0.08, y: 0.03, w: 0.84, h: 0.3 } : { x: 0.05, y: 0.03, w: 0.55, h: 0.38 };
-        const [tc, bc] = buf ? await Promise.all([avgColor(buf, topBox), avgColor(buf, { x: 0.08, y: 0.8, w: 0.84, h: 0.17 })]) : [null, null];
-        const pick = (c: { r: number; g: number; b: number } | null) => (c && lum(c) < 0.55 ? { color: "#FFFFFF", shadow: true } : { color: dark, shadow: false });
-        const t = pick(tc), btm = pick(bc);
-        const design: AdDesign = { image: bg, overlay: 0, layers: cardLayers(card, { serif, top: t.color, bottom: btm.color, topShadow: t.shadow, bottomShadow: btm.shadow }), layout: card.layout };
-        const png = await renderDesign(brandId, design);
-        const [asset] = await saveAsset({
-          brandId, kind: "imagery", name: `${(a.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png,
-          meta: { ai: true, prompt: card.scene.slice(0, 500), product: a.product ?? undefined, edit: "card" }, createdBy: memberId,
-        });
-        await db.update(A).set({ design: { ...design, card: `/api/assets/${asset.id}`, pending: false }, imageUrl: `/api/assets/${asset.id}`, updatedAt: new Date() }).where(eq(A.id, a.id));
-        made++;
-      } catch (e) {
-        console.error("design card", a.id, (e as Error).message);
-        await db.update(A).set({ design: a.design ? { ...a.design, pending: false } : null }).where(eq(A.id, a.id));
-      }
-    }));
-    return { made };
-  } catch (e) {
-    await clear(ads.map((a) => a.id));
-    return { made: 0, error: (e as Error).message.slice(0, 160) };
+  const ads = (await db.select().from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : []))))
+    .filter((a) => a.status !== "rejected" && (a.format === "static" || a.format === "carousel")).sort((x, y) => x.position - y.position);
+  if (!batch || !ads.length) return { made: 0 };
+  const [ctx, market, [b]] = await Promise.all([brandContext(brandId), marketContext(brandId).catch(() => null), db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId))]);
+  const palette = b?.onboarding?.analysis?.palette ?? [];
+  // Remy sees the photos (each once), so the type goes where each picture has room for it.
+  const photos = [...new Set(ads.map((a) => photoOf(a)).filter((x): x is string => Boolean(x)))].slice(0, 5);
+  const seen: Block[] = [];
+  for (const [i, url] of photos.entries()) {
+    const img = await loadImage(brandId, url).catch(() => null);
+    const small = img ? await toJpeg(Buffer.from(img.data, "base64"), 640).catch(() => null) : null;
+    if (small) seen.push({ type: "text", text: `Photo ${i + 1}:` }, { type: "image", source: { type: "base64", media_type: "image/jpeg", data: small.toString("base64") } });
   }
+  const out = await ask("remy", {
+    system: SYSTEM,
+    content: [...seen, { type: "text", text: JSON.stringify({
+      brand: ctx.brand, buyers: batch.audience, brief: batch.brief,
+      positioning: market?.positioning ? { statement: market.positioning.statement, pillars: market.positioning.pillars, voice: market.positioning.voice, avoid: market.positioning.stayAwayFrom } : null,
+      ads: ads.map((a, i) => ({ ad: i + 1, photo: photos.indexOf(photoOf(a) ?? "") + 1 || null, product: a.product, hook: a.hook, primaryText: a.primaryText, headline: a.headline, offer: a.offer })),
+    }) }],
+    schema: CardOut, maxTokens: 5000,
+  });
+  if (!out) return { made: 0, error: "Remy couldn’t write the cards — open an ad in the Editor to lay it out by hand." };
+  // One layout per photo: the first card's choice for that photo stands for all cards that share it.
+  const byPhoto = new Map<string, LayoutKey>();
+  const inkHex = palette.find((p) => /text/i.test(p.role))?.hex;
+  const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
+  let made = 0;
+  for (const [i, a] of ads.entries()) {
+    const c = out.cards.find((x) => x.ad === i + 1) ?? out.cards[i];
+    if (!c) continue;
+    try {
+      const copy: CardCopy = { headline: c.headline, subline: c.subline, tagline: c.tagline, note: c.note, brand: ctx.brand.name, cta: a.cta };
+      const photo = photoOf(a);
+      const key: LayoutKey = layout ?? byPhoto.get(photo ?? "") ?? (isLayout(c.layout) ? c.layout : "bold");
+      byPhoto.set(photo ?? "", key);
+      await drawCard(brandId, memberId, a, layoutDesign(key, copy, await tonesFor(brandId, photo, key, ink), photo));
+      made++;
+    } catch (e) { console.error("layout card", a.id, (e as Error).message); }
+  }
+  return { made };
 }
 
-/** Re-render a card after the team edits its layers in the Editor. */
-export async function rerenderCard(brandId: string, adId: string, design: AdDesign): Promise<string | null> {
-  try {
-    const png = await renderDesign(brandId, design);
-    const [asset] = await saveAsset({ brandId, kind: "imagery", name: "Ad card · edited", mime: "image/png", size: png.length, data: png, meta: { ai: true, edit: "card" } });
-    return `/api/assets/${asset.id}`;
-  } catch (e) { console.error("rerender card", adId, (e as Error).message); return null; }
+/** Re-draw one ad's card after its layers change in the Editor. Returns the new card, or null when it couldn't be drawn. */
+export async function redrawCard(brandId: string, memberId: string | null, adId: string, design: AdDesign): Promise<string | null> {
+  const [ad] = await db.select({ id: A.id, product: A.product, design: A.design }).from(A).where(and(eq(A.id, adId), eq(A.brandId, brandId)));
+  if (!ad) return null;
+  try { return await drawCard(brandId, memberId, ad, design); }
+  catch (e) { console.error("redraw card", adId, (e as Error).message); return null; }
+}
+
+/** A layout applied to an ad on the server — used by the Editor's agent, which can't sample the photo itself. */
+export async function relayout(brandId: string, key: LayoutKey, current: AdDesign, ad: { hook: string; headline: string; cta: string; offer: string }, brand: string): Promise<AdDesign> {
+  const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const inkHex = b?.onboarding?.analysis?.palette?.find((p) => /text/i.test(p.role))?.hex;
+  const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
+  return layoutDesign(key, copyOf(current, ad, brand), await tonesFor(brandId, current.image, key, ink), current.image);
 }
