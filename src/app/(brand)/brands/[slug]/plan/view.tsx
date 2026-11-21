@@ -179,7 +179,7 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
                 <div key={a.title} className="card col g6" style={{ padding: 14 }}>
                   <span className="row g6"><Icon name={a.tone === "warn" ? "warning" : "sparkle"} size={13} color={a.tone === "warn" ? "#B4832A" : "#1AA7C8"} /><span className="sm w5 i1">{a.title}</span></span>
                   <span className="xs i2" style={{ lineHeight: "17px" }}>{a.why}</span>
-                  {a.href && <Link className="lnk xs" href={a.href}>{a.label}<Icon name="arrow-r" size={10} /></Link>}
+                  {a.href && <Link className="lnk xs row g4" href={a.href} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>{a.label}<Icon name="arrow-r" size={10} /></Link>}
                 </div>))}
             </div>
           </div>}

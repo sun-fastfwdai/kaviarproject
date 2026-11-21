@@ -25,7 +25,8 @@ export async function savedPlan(brandId: string): Promise<SavedPlan | null> {
 export async function savePlan(brandId: string, body: SavedPlan): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(N).where(and(eq(N.brandId, brandId), eq(N.key, KEY)));
-    await tx.insert(N).values({ brandId, key: KEY, body } as typeof N.$inferInsert);
+    // Notes written by agents carry a hash of the facts they were written from; this one is the team's own choices.
+    await tx.insert(N).values({ brandId, key: KEY, body, factsHash: "team", model: "team" } as unknown as typeof N.$inferInsert);
   });
 }
 
