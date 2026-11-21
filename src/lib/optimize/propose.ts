@@ -123,7 +123,9 @@ export async function ensureWeek(brand: { id: string; timezone: string; currency
   return week;
 }
 
-async function judge(brand: { id: string; timezone: string; currency: string }) {
+/** Judge applied changes on real orders, a week or so after. Returns the ones that got a verdict on this pass. */
+export async function judge(brand: { id: string; timezone: string; currency: string }): Promise<{ title: string; verdict: "worked" | "didnt" }[]> {
+  const out: { title: string; verdict: "worked" | "didnt" }[] = [];
   const due = await db.select().from(schema.optimizeChanges).where(and(eq(schema.optimizeChanges.brandId, brand.id), eq(schema.optimizeChanges.status, "applied")));
   const camps = await campaignsWindow(brand.id, brand.timezone);
   for (const c of due) {
@@ -141,5 +143,7 @@ async function judge(brand: { id: string; timezone: string; currency: string }) 
       result = { verdict: now >= base * 0.95 ? "worked" : "didnt", detail: `${r1(base)}× → ${r1(now)}× verified`, checkedAt: new Date().toISOString() };
     } else result = { verdict: "worked", detail: "Done", checkedAt: new Date().toISOString() };
     await db.update(schema.optimizeChanges).set({ result }).where(eq(schema.optimizeChanges.id, c.id));
+    if (result.verdict !== "too-early") out.push({ title: c.title, verdict: result.verdict });
   }
+  return out;
 }

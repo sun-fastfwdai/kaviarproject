@@ -12,7 +12,7 @@ export const FLOW = [
   ["create", "creative", "Creative studio", "Make the ads"],
   ["test", "audience", "Audience test", "Look-alike shoppers pick the winner"],
   ["launch", "run", "Run ads", "Put the winner live"],
-  ["learn", "performance", "Results", "See what sold, then improve"],
+  ["learn", "performance", "Results", "See what sold — Autopilot keeps improving it"],
 ] as const;
 export type FlowKey = (typeof FLOW)[number][0];
 export type FlowStep = { key: FlowKey; path: string; label: string; what: string; done: boolean; note: string };
@@ -30,7 +30,7 @@ export async function flowState(brandId: string): Promise<FlowStep[]> {
     (select count(*) from ads where brand_id = ${brandId} and status = 'approved')::int as approved,
     (select count(*) from audience_tests where brand_id = ${brandId} and purpose = 'test' and status = 'done')::int as tests,
     (select count(distinct ad_id) from meta_insights_daily where brand_id = ${brandId} and date > current_date - 30 and impressions > 0)::int as live,
-    (select count(*) from optimize_changes where brand_id = ${brandId} and status = 'proposed')::int as proposed`)).rows as {
+    (select count(*) from optimize_changes where brand_id = ${brandId} and status = 'proposed' and week > current_date - 7)::int as proposed`)).rows as {
     research: number; orders: boolean; plan: { approvedAt?: string; budget?: number } | null; batches: number; review: number; approved: number; tests: number; live: number; proposed: number;
   }[];
   const note: Record<FlowKey, [boolean, string]> = {
@@ -42,4 +42,12 @@ export async function flowState(brandId: string): Promise<FlowStep[]> {
     learn: [r.live > 0 && r.proposed === 0, r.proposed ? `${plural(r.proposed, "change")} to decide` : r.live ? `${plural(r.live, "ad")} with results` : "No results yet"],
   };
   return FLOW.map(([key, path, label, what]) => ({ key, path, label, what, done: note[key][0], note: note[key][1] }));
+}
+
+/** The only numbers the sidebar shows: things waiting for the brand — ads to review, and changes Autopilot found this week. */
+export async function waiting(brandId: string): Promise<{ review: number; changes: number }> {
+  const [r] = (await db.execute(sql`select
+    (select count(*) from ads where brand_id = ${brandId} and status = 'review')::int as review,
+    (select count(*) from optimize_changes where brand_id = ${brandId} and status = 'proposed' and week > current_date - 7)::int as changes`)).rows as { review: number; changes: number }[];
+  return r ?? { review: 0, changes: 0 };
 }

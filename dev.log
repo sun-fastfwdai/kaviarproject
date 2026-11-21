@@ -35,3 +35,46 @@ Check the render method of `LinkComponent`. It was passed a child from BrandSide
  GET /brands/jmella-sample/signals 200 in 780ms (next.js: 293ms, proxy.ts: 1.1ms, generate-params: 321ms, application-code: 165ms)
  GET /brands/jmella-sample/audience 200 in 533ms (next.js: 56ms, proxy.ts: 1.6ms, generate-params: 333ms, application-code: 143ms)
  GET /brands/jmella-sample/run 200 in 409ms (next.js: 25ms, proxy.ts: 1.5ms, generate-params: 286ms, application-code: 96ms)
+✓ Compiled in 222ms
+✓ Compiled in 774ms
+✓ Compiled in 735ms
+✓ Compiled in 1324ms
+ GET /login 200 in 1394ms (next.js: 1323ms, proxy.ts: 7ms, application-code: 64ms)
+ GET /brands/jmella-sample/performance 200 in 533ms (next.js: 131ms, proxy.ts: 2ms, generate-params: 1.3ms, application-code: 399ms)
+ POST /brands/jmella-sample/performance 200 in 157ms (next.js: 3ms, proxy.ts: 4ms, generate-params: 1.0ms, application-code: 148ms)
+  └─ ƒ checkNow("jmella-sample") in 42ms src/app/(brand)/brands/[slug]/optimize/actions.ts
+ GET /brands/jmella-sample/performance 200 in 120ms (next.js: 3ms, proxy.ts: 8ms, generate-params: 0.0ms, application-code: 109ms)
+ POST /brands/jmella-sample/performance 200 in 171ms (next.js: 4ms, proxy.ts: 2ms, generate-params: 1.5ms, application-code: 163ms)
+  └─ ƒ setMode("jmella-sample", "protect") in 20ms src/app/(brand)/brands/[slug]/optimize/actions.ts
+ GET /brands/jmella-sample/performance 200 in 118ms (next.js: 7ms, proxy.ts: 5ms, generate-params: 0.0ms, application-code: 107ms)
+ GET /brands/jmella-sample/optimize 200 in 158ms (next.js: 48ms, proxy.ts: 1.1ms, generate-params: 1.1ms, application-code: 107ms)
+ GET /brands/jmella-sample/performance 200 in 319ms (next.js: 2ms, proxy.ts: 1.6ms, generate-params: 1.0ms, application-code: 314ms)
+Error: Route "/brands/[slug]/optimize": Could not validate `instant` because an error prevented the target segment from rendering.
+    at ignore-listed frames {
+  [cause]: Error: NEXT_REDIRECT
+      at OptimizePage (src/app/(brand)/brands/[slug]/optimize/page.tsx:6:11)
+    4 | export default async function OptimizePage({ params }: PageProps<"/brands/[slug]/optimize">) {
+    5 |   const { slug } = await params;
+  > 6 |   redirect(`/brands/${slug}/performance#autopilot`);
+      |           ^
+    7 | }
+    8 | {
+    environmentName: 'Prefetch',
+    digest: 'NEXT_REDIRECT;replace;/brands/jmella-sample/performance#autopilot;307;'
+  }
+}
+ GET /brands/jmella-sample/today 200 in 158ms (next.js: 26ms, proxy.ts: 3ms, generate-params: 1.0ms, application-code: 128ms)
+ GET /api/assets/e342107f-bb93-4831-ad56-42600770d53c 200 in 47ms (next.js: 17ms, proxy.ts: 2ms, application-code: 28ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 59ms (next.js: 24ms, proxy.ts: 2ms, application-code: 33ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c 200 in 73ms (next.js: 30ms, proxy.ts: 2ms, application-code: 41ms)
+✓ Compiled in 12ms
+ GET /login 200 in 93ms (next.js: 36ms, proxy.ts: 7ms, application-code: 50ms)
+ GET /brands/jmella-sample/performance 200 in 373ms (next.js: 16ms, proxy.ts: 2ms, generate-params: 1.2ms, application-code: 353ms)
+ GET /brands/jmella-sample/opportunities 200 in 298ms (next.js: 73ms, proxy.ts: 2ms, generate-params: 1.4ms, application-code: 222ms)
+ GET /brands/jmella-sample/plan 200 in 178ms (next.js: 36ms, proxy.ts: 1.5ms, generate-params: 1.2ms, application-code: 140ms)
+ GET /brands/jmella-sample/creative 200 in 214ms (next.js: 65ms, proxy.ts: 2ms, generate-params: 1.2ms, application-code: 146ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 43ms (next.js: 10ms, proxy.ts: 2ms, application-code: 30ms)
+ GET /brands/jmella-sample/audience 200 in 186ms (next.js: 45ms, proxy.ts: 1.2ms, generate-params: 1.0ms, application-code: 138ms)
+ GET /brands/jmella-sample/run 200 in 151ms (next.js: 32ms, proxy.ts: 1.7ms, generate-params: 1.2ms, application-code: 116ms)
+ GET /brands/jmella-sample/research 200 in 151ms (next.js: 29ms, proxy.ts: 3ms, generate-params: 1.1ms, application-code: 119ms)
+ GET /brands/jmella-sample/signals 200 in 205ms (next.js: 47ms, proxy.ts: 1.3ms, generate-params: 1.6ms, application-code: 155ms)

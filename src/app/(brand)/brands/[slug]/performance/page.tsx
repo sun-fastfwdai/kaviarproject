@@ -4,12 +4,17 @@ import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { noteHref, TONE } from "@/lib/ai/note-links";
 import type { IconName } from "@/components/icon";
 import { getBrand, getConnections } from "@/lib/queries/brands";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { db, schema } from "@/lib/db";
 import { planData } from "@/lib/growth/plan-data";
+import { getPilot, runLine, watching } from "@/lib/growth/autopilot";
+import { ensureWeek, thisWeek } from "@/lib/optimize/propose";
+import { AutopilotPanel, type PilotChange } from "./autopilot";
 import { adProducts, campaigns, channels, daily, summary, utmHealth } from "@/lib/queries/growth";
 import { parseRange } from "@/lib/queries/common";
 import { products } from "@/lib/queries/shop";
 import { CHANNEL_COLOR, CHANNEL_LABEL } from "@/lib/sync/attribution";
-import { money, num, pct, roas } from "@/lib/format";
+import { ago, money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { LoopStrip } from "@/components/loop-strip";
 import { Icon } from "@/components/icon";
@@ -17,7 +22,7 @@ import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { ChartLegend, SalesChart } from "@/components/sales-chart";
 import { IrisHeader, NeedsSource, Note, RangeTabs, roasTone, SidePanel, Stat, StatStrip } from "@/components/ui";
 
-export const metadata = { title: "Performance" };
+export const metadata = { title: "Results" };
 
 export default async function PerformancePage({ params, searchParams }: PageProps<"/brands/[slug]/performance">) {
   const { slug } = await params;
@@ -45,6 +50,19 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const pd = await planData(brand.id, cur ?? "USD").catch(() => null);
   const margin = pd?.margin.value ?? pd?.saved?.margin ?? 0.6, breakEven = 1 / margin, adProfit = s.metaRevenue * margin - s.spend;
   const pays = hasMeta && (verified ?? 0) >= breakEven, toScale = best.find((c) => c.v >= breakEven && c.spend >= 50) ?? null, toStop = [...best].reverse().find((c) => c.v < breakEven && c.spend >= 50) ?? null;
+  // Autopilot: this week's changes (worked out now if today's check hasn't run yet), older ones still to switch or judge, and its log.
+  const week = await ensureWeek(brand).catch(() => thisWeek(brand.timezone));
+  const C = schema.optimizeChanges;
+  const [pilot, now, older, watched, record] = await Promise.all([
+    getPilot(brand.id),
+    db.select().from(C).where(and(eq(C.brandId, brand.id), eq(C.week, week))),
+    db.select().from(C).where(and(eq(C.brandId, brand.id), lt(C.week, week), inArray(C.status, ["approved", "applied"]))).orderBy(desc(C.week), desc(C.appliedAt)).limit(8),
+    watching(brand.id),
+    db.execute(sql`select count(*) filter (where status = 'applied')::int as applied, count(*) filter (where result->>'verdict' in ('worked', 'didnt'))::int as judged,
+      count(*) filter (where result->>'verdict' = 'worked')::int as worked from optimize_changes where brand_id = ${brand.id}`).then((r) => (r.rows as { applied: number; judged: number; worked: number }[])[0]),
+  ]);
+  const pilotChanges: PilotChange[] = [...now, ...older].map((c) => ({ id: c.id, kind: c.kind, title: c.title, why: c.why, before: c.before, after: c.after, status: c.status,
+    byKaviar: c.status === "approved" && c.decidedBy == null, signal: c.target.signal ?? null, verdict: c.result?.verdict ?? null, detail: c.result?.detail ?? null }));
   const notes = await getNotes(brand.id);
   const ai = notes.performance?.insights;
   after(() => refreshNotes(brand.id, ["performance"]));
@@ -58,8 +76,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g8"><h1 className="h1">Results</h1>
-              <div className="seg" style={{ alignSelf: "flex-start" }}><Link className="o on" href={`/brands/${slug}/performance`}>What sold</Link><Link className="o" href={`/brands/${slug}/optimize`}>This week’s changes</Link></div></div>
+            <div className="col g4"><h1 className="h1">Results</h1><p className="sm i3">What your ads did, and what Kaviar is doing about it.</p></div>
             <RangeTabs base={`/brands/${slug}/performance`} days={days} />
           </div>
 
@@ -70,8 +87,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
                 <span className="w5" style={{ fontSize: 16, color: pays ? "#1F7A52" : "#B4532A" }}>{pays ? `Your ads made about ${money(adProfit, cur)} in ${days} days` : `Your ads lost about ${money(-adProfit, cur)} in ${days} days`}</span>
                 <span className="xs i2">Every $1 of ads brought back ${(verified ?? 0).toFixed(2)} in Shopify orders · break-even is ${breakEven.toFixed(2)} at a {pct(margin)} margin{pd?.margin.from === "none" ? " (assumed — set yours in Spend plan)" : ""}</span>
               </span>
-              {toStop && <Link className="btn sm" href={`/brands/${slug}/optimize`} title={`${roas(toStop.v)} on ${money(toStop.spend, cur)}`}>Stop {toStop.name.slice(0, 26)}</Link>}
-              {toScale && <Link className="btn dark sm" href={`/brands/${slug}/optimize`} title={`${roas(toScale.v)} on ${money(toScale.spend, cur)}`}>Scale {toScale.name.slice(0, 26)}</Link>}
+              {toStop && <Link className="btn sm" href="#autopilot" title={`${roas(toStop.v)} on ${money(toStop.spend, cur)}`}>Stop {toStop.name.slice(0, 26)}</Link>}
+              {toScale && <Link className="btn dark sm" href="#autopilot" title={`${roas(toScale.v)} on ${money(toScale.spend, cur)}`}>Scale {toScale.name.slice(0, 26)}</Link>}
             </div>
           ) : (
             <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
@@ -79,6 +96,10 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               <Link className="btn dark sm" href={`/brands/${slug}/plan`}>Open Spend plan<Icon name="arrow-r" size={12} color="#fff" /></Link>
             </div>
           )}
+
+          <AutopilotPanel slug={slug} mode={pilot.mode} canAct={pilot.canAct} week={week} watched={watched} record={record} changes={pilotChanges}
+            last={pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null}
+            runs={pilot.runs.slice(0, 6).map((r) => ({ when: ago(new Date(r.at)), ...runLine(r) }))} />
 
           <StatStrip>
             <Stat label="Revenue" source="shopify" value={money(s.revenue, cur)} note={delta == null ? `last ${days} days` : `${delta >= 0 ? "+" : ""}${pct(delta)} vs prior ${days}d`} tone={delta != null && delta >= 0 ? "up" : undefined} />

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { Action, Today } from "@/lib/growth/today";
+import { MODES } from "@/lib/growth/pilot";
 import { makeAds } from "../plan/actions";
 
 /**
@@ -101,6 +102,16 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
             })}
           </div>
         </div>
+
+        {/* ---- working in the background */}
+        <Link href={`${base}/performance#autopilot`} className="row g12 hv-card" style={{ padding: "12px 16px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite", flexShrink: 0 }} />
+          <span className="sm w5 i1" style={{ flexShrink: 0 }}>Autopilot</span>
+          <span className="pill" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>{MODES[t.pilot.mode].name}</span>
+          <span className="xs i3 ell fill">{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · watching {t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"} and ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`} every morning</span>
+          <span className={`pill ${t.pilot.waiting ? "amber" : "green"}`} style={{ height: 22, fontSize: 11, flexShrink: 0 }}>{t.pilot.waiting ? `${t.pilot.waiting} change${t.pilot.waiting === 1 ? "" : "s"} waiting` : "Nothing to decide"}</span>
+          <Icon name="arrow-r" size={12} color="#8B8883" />
+        </Link>
 
         {err && <span className="xs c-amber">{err}</span>}
 

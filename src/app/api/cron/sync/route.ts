@@ -4,6 +4,7 @@ import { safeEqual } from "@/lib/crypto";
 import { runScheduledSync } from "@/lib/sync/run";
 import { purgePendingBrands } from "@/lib/brands/remove";
 import { moveToStorage } from "@/lib/assets/storage";
+import { runAutopilotAll } from "@/lib/growth/autopilot";
 
 /** Hourly (vercel.json). Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. */
 export async function GET(req: NextRequest) {
@@ -14,7 +15,9 @@ export async function GET(req: NextRequest) {
   const result = await runScheduledSync();
   // Files saved before storage was switched on: move a few each hour until none are left in the database.
   const filesLeft = await moveToStorage(null, 120_000).catch(() => null);
-  return NextResponse.json({ ok: true, brands: Object.keys(result).length, purged, filesLeft, result });
+  // After the data is fresh: each brand's one Autopilot check of the day (it skips brands already checked today).
+  const autopilot = await runAutopilotAll().catch(() => null);
+  return NextResponse.json({ ok: true, brands: Object.keys(result).length, purged, filesLeft, autopilot, result });
 }
 
 export const maxDuration = 800;

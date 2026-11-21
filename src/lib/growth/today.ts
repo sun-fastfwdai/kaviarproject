@@ -3,6 +3,9 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { levelOf, plan, ratesFrom, type Plan } from "./plan";
 import { flowState, type FlowKey, type FlowStep } from "./flow";
+import { getPilot, watching } from "./autopilot";
+import type { Mode, Run } from "./pilot";
+import { ago } from "../format";
 import { planData, type PlanData } from "./plan-data";
 
 /**
@@ -16,6 +19,7 @@ export type Today = {
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
+  pilot: { mode: Mode; last: string | null; watched: Run["watched"]; waiting: number; toSwitch: number };
 };
 const STEP: Partial<Record<Action["group"], FlowKey>> = { Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
 
@@ -33,8 +37,9 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const base = `/brands/${slug}`, currency = brand.currency ?? "USD";
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const B = schema.adBatches;
-  const [flow, pics, d, batches, tested, changes] = await Promise.all([
-    flowState(brand.id),
+  const [flow, pilot, watched, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
+    flowState(brand.id), getPilot(brand.id), watching(brand.id),
+    db.execute(sql`select count(*)::int as n from optimize_changes where brand_id = ${brand.id} and status = 'approved'`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
     // A few of the ads themselves, so "review" and "test" show what is waiting rather than describe it.
     db.execute(sql`select a.batch_id as batch, a.status, a.image_url as url from ads a join ad_batches b on b.id = a.batch_id where b.brand_id = ${brand.id} and a.status in ('review', 'approved') and a.image_url is not null order by b.created_at desc, a.position limit 60`)
       .then((r) => r.rows as { batch: string; status: string; url: string }[]).catch(() => []),
@@ -44,7 +49,7 @@ export async function today(brand: { id: string; currency: string | null }, slug
       approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(30),
     db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
     db.select({ id: schema.optimizeChanges.id, kind: schema.optimizeChanges.kind, title: schema.optimizeChanges.title, why: schema.optimizeChanges.why, before: schema.optimizeChanges.before, after: schema.optimizeChanges.after })
-      .from(schema.optimizeChanges).where(and(eq(schema.optimizeChanges.brandId, brand.id), eq(schema.optimizeChanges.status, "proposed"))).orderBy(desc(schema.optimizeChanges.week)).limit(4).catch(() => []),
+      .from(schema.optimizeChanges).where(and(eq(schema.optimizeChanges.brandId, brand.id), eq(schema.optimizeChanges.status, "proposed"), sql`${schema.optimizeChanges.week} > current_date - 7`)).orderBy(desc(schema.optimizeChanges.createdAt)).limit(20).catch(() => []),
   ]);
   const { p, budget, days } = planFor(d), [lo, mid, hi] = p.total, approved = Boolean(d.saved?.approvedAt);
   const a: Action[] = [];
@@ -73,7 +78,11 @@ export async function today(brand: { id: string; currency: string | null }, slug
   if (toLaunch.length) a.push({ key: `launch:${toLaunch[0].id}`, group: "Launch", who: "analyst", title: "Put the winner live", why: `${toLaunch[0].title} — tested, with a winner chosen.`, cta: "Set it up", href: `${base}/run` });
 
   // Improve: this week's proposed changes to what is running.
-  for (const c of changes) a.push({ key: `change:${c.id}`, group: "Improve", who: "analyst", title: c.title, why: c.why, effect: c.before && c.after ? `${c.before} → ${c.after}` : undefined, cta: "Decide", href: `${base}/optimize`, urgent: c.kind === "pause" });
+  // One line, however many Autopilot found — the list stays short and the detail is on Results.
+  const lead = changes.find((c) => c.kind === "pause") ?? changes[0];
+  if (changes.length === 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: lead.title, why: lead.why, effect: lead.before && lead.after ? `${lead.before} → ${lead.after}` : undefined, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause" });
+  else if (changes.length > 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: `Decide ${changes.length} changes Autopilot found`, why: `${lead.title} — and ${changes.length - 1} more.`, effect: lead.kind === "pause" ? "Stops a loss" : undefined, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause" });
+  if (toSwitch > 0) a.push({ key: "switch", group: "Improve", who: "analyst", title: `Switch ${toSwitch} decided change${toSwitch === 1 ? "" : "s"} in Meta`, why: "Decided already. Kaviar can’t change your Meta ads itself yet — about a minute each.", cta: "See them", href: `${base}/performance#autopilot` });
 
   // Set up: the inputs that make the numbers real.
   if (d.margin.from === "none") a.push({ key: "margin", group: "Set up", who: "analyst", title: "Tell us your margin", why: "Profit is assuming 60% until you set it.", effect: "Unlocks real profit", cta: "Set it", href: `${base}/plan` });
@@ -93,5 +102,6 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
   const sells = p.rows[0]?.c.product ?? null;
   return { actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
+    pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
 }

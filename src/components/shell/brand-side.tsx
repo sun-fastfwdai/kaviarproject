@@ -5,6 +5,7 @@ import { SearchBox } from "./search";
 import { searchItems } from "./search-items";
 import { Icon } from "../icon";
 import { NavLink } from "./nav-link";
+import { waiting } from "@/lib/growth/flow";
 import { BrandThumb, MemberFoot, Wordmark } from "./parts";
 import { RailLink, SideSwitch } from "./side-switch";
 import Link from "next/link";
@@ -13,12 +14,12 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const { slug } = await params;
   const member = await requireMember();
   const brand = await getBrand(slug);
-  const [thumb, all] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex()]);
+  const [thumb, all, wait] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex(), waiting(brand.id).catch(() => ({ review: 0, changes: 0 }))]);
   const base = `/brands/${slug}`;
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
     [base, "Overview", "home"], [`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`],
-    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/opportunities`, "Opportunities", "globe", `${base}/opportunities`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
-    [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Results", "chart-bar", `${base}/performance`],
+    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/opportunities`, "Opportunities", "target", `${base}/opportunities`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/creative`, "Creative studio", "sparkle", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
+    [`${base}/run`, "Run ads", "play", `${base}/run`], [`${base}/performance`, "Results", "trend-up", `${base}/performance`],
   ];
   const rail = (
     <aside className="col" style={{ width: 60, flexShrink: 0, alignItems: "center", padding: "14px 0 12px", gap: 12 }} aria-label="Navigation">
@@ -51,11 +52,13 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>
         <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" />
-        {/* The six steps, numbered: the order is the product. Research and signals live inside Opportunities; Optimize inside Results. */}
-        {([["opportunities", "Opportunities", ["research", "signals"]], ["plan", "Spend plan", []], ["creative", "Creative studio", []], ["audience", "Audience test", []], ["run", "Run ads", []], ["performance", "Results", ["optimize"]]] as [string, string, string[]][]).map(([path, label, also], i) => (
-          <NavLink key={path} href={`${base}/${path}`} also={also.map((x) => `${base}/${x}`)} label={label}
-            icon={<span key="n" aria-hidden style={{ width: 18, height: 18, borderRadius: 99, boxShadow: "inset 0 0 0 1.2px currentColor", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 600, opacity: 0.75 }}>{i + 1}</span>} />
-        ))}
+        {/* The six steps in order. A number here always means "this many things are waiting for you" — never a step number. */}
+        <NavLink href={`${base}/opportunities`} also={[`${base}/research`, `${base}/signals`]} icon={<Icon name="target" />} label="Opportunities" />
+        <NavLink href={`${base}/plan`} icon={<Icon name="chart-bar" />} label="Spend plan" />
+        <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" count={wait.review || undefined} />
+        <NavLink href={`${base}/audience`} icon={<Icon name="users-three" />} label="Audience test" />
+        <NavLink href={`${base}/run`} icon={<Icon name="play" />} label="Run ads" />
+        <NavLink href={`${base}/performance`} also={[`${base}/optimize`]} icon={<Icon name="trend-up" />} label="Results" count={wait.changes || undefined} />
         <div style={{ height: 1, background: "var(--line)", margin: "6px 8px" }} />
         <NavLink href={`${base}/meta`} icon={<Icon name="megaphone" />} label="Meta Ads" />
         <NavLink href={`${base}/shopify`} icon={<Icon name="bag" />} label="Shopify data" />
