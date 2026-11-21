@@ -10,6 +10,7 @@ import type { Candidate, History } from "./plan";
 export type PlanData = {
   currency: string; history: History | null; margin: { value: number | null; from: "costs" | "saved" | "none"; withCost: number; variants: number };
   hero: { title: string; price: number; stock: number; sold30: number; coverDays: number | null } | null;
+  products: { title: string; price: number; stock: number; sold30: number }[];
   orders: { count: number; aov: number | null; tagged: number; buyers: number; repeaters: number; lapsed: number };
   candidates: Candidate[]; saved: SavedPlan | null; hasResearch: boolean;
 };
@@ -74,6 +75,6 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
   return {
     currency, history: h && h.days > 0 ? h : null,
     margin: { value: fromCosts ? k.margin : saved?.margin ?? null, from: fromCosts ? "costs" : saved?.margin ? "saved" : "none", withCost: k.with_cost, variants: k.variants },
-    hero, orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0,
+    hero, products: products.slice(0, 8).map((x) => ({ title: x.title, price: x.price!, stock: x.stock, sold30: x.sold30 })), orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0,
   };
 }

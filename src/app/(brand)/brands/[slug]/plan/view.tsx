@@ -36,8 +36,15 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
   const [ctr, setCtr] = useState(own.ctr[1]);
   const [cvr, setCvr] = useState(own.cvr.cold[1]);
   const [open, setOpen] = useState(false);
+  // Which product the ads sell, and what an order is worth: the brand can try a dearer product or a bundle and watch break-even move.
+  const first = data.candidates[0], [product, setProduct] = useState(first?.product ?? data.products[0]?.title ?? "");
+  const chosen = data.products.find((x) => x.title === product) ?? null;
+  const [order, setOrder] = useState(first?.price ?? chosen?.price ?? 0);
+  const pick = (title: string) => { const x = data.products.find((y) => y.title === title); setProduct(title); if (x) setOrder(x.price); };
+  const candidates = useMemo(() => data.candidates.map((c) => ({ ...c, product: chosen?.title ?? c.product, price: order > 0 ? order : c.price, stock: chosen ? chosen.stock : c.stock })), [data.candidates, chosen, order]);
   const [saving, start] = useTransition();
   const [approved, setApproved] = useState<string | null>(s.approvedAt ? `${s.by ?? "The team"} · ${new Date(s.approvedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : null);
+  const field: React.CSSProperties = { border: 0, outline: 0, background: "transparent", font: "inherit", width: "100%" };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: data.currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const repeat = data.orders.buyers >= 50 ? Math.min(0.5, data.orders.repeaters / data.orders.buyers) : 0;
 
@@ -46,7 +53,7 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
     const scale = (t: Tri, v: number): Tri => [(t[0] / t[1]) * v, v, (t[2] / t[1]) * v], k = cvr / own.cvr.cold[1];
     return { cpm: scale(own.cpm, cpm), ctr: scale(own.ctr, ctr), cvr: { cold: scale(own.cvr.cold, cvr), lookalike: scale(own.cvr.lookalike, own.cvr.lookalike[1] * k), warm: scale(own.cvr.warm, own.cvr.warm[1] * k) } };
   }, [own, cpm, ctr, cvr]);
-  const p = useMemo(() => plan({ budget, days, goal, discount, margin, repeat, rates, candidates: data.candidates }), [budget, days, goal, discount, margin, repeat, rates, data.candidates]);
+  const p = useMemo(() => plan({ budget, days, goal, discount, margin, repeat, rates, candidates }), [budget, days, goal, discount, margin, repeat, rates, candidates]);
   const [lo, mid, hi] = p.total, pays = mid.profit >= 0, edited = cpm !== own.cpm[1] || ctr !== own.ctr[1] || cvr !== own.cvr.cold[1];
 
   // What to do next — at most three, each from a number above.
@@ -56,11 +63,12 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
   if (data.hero?.coverDays != null && data.hero.coverDays < 60) actions.push({ tone: "warn", title: `${data.hero.title}: about ${data.hero.coverDays} days of stock`, why: `${data.hero.stock.toLocaleString("en-US")} units at ${data.hero.sold30} sold in the last 30 days. Ads will shorten that — reorder before scaling.` });
   if (p.tooSmall) actions.push({ tone: "warn", title: `This budget is too small to learn from`, why: `One audience needs about ${usd(p.minToLearn)} to give a result you can read. Below that, a good ad and a bad one look the same.` });
   else if (p.unfunded.length) actions.push({ tone: "info", title: `Test ${p.cells} audience${p.cells === 1 ? "" : "s"} first, not ${p.cells + p.unfunded.length}`, why: `Each needs about ${usd(p.minToLearn)} to give a readable result. Spread thinner, none of them would.` });
+  if (!pays && p.needCvr != null && p.needCvr > rates.cvr.cold[1]) { const need = Math.ceil((order * p.needCvr / rates.cvr.cold[1]) / 5) * 5; actions.unshift({ tone: "warn", title: `Sell a bigger order — about ${usd(need)}`, why: `At ${usd(order)} an order, ads can’t pay back at these rates. A set or bundle near ${usd(need)} would break even on the same clicks.` }); }
   if (discount > 0) actions.push({ tone: "info", title: `${Math.round(discount * 100)}% off needs ${Number.isFinite(ordersNeeded(margin, discount)) ? `${ordersNeeded(margin, discount).toFixed(1)}×` : "more than any number of"} the orders`, why: `To earn the same profit as full price. Break-even ROAS rises to ${p.breakEven.toFixed(2)}×.` });
   if (data.orders.count >= 10 && data.orders.tagged / data.orders.count < 0.5) actions.push({ tone: "info", title: "Tag every ad link", why: `${data.orders.tagged} of ${data.orders.count} orders can be traced to a campaign. Tagged links let results be matched to real orders.` });
 
   const approve = () => start(async () => { const r = await approvePlan(slug, { margin, budget, days, goal, discount }, true); if (r.ok) setApproved("You · just now"); });
-  const field: React.CSSProperties = { border: 0, outline: 0, background: "transparent", font: "inherit", width: "100%" };
+
   return (
     <div className="scroll" style={{ padding: "22px 24px 40px" }}>
       <div className="col g4" style={{ marginBottom: 18 }}>
@@ -79,6 +87,14 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
               {[500, 1500, 3000, 5000].map((b) => <button key={b} type="button" className="chip" onClick={() => setBudget(b)} style={{ height: 26, ...(budget === b ? { background: "var(--ink)", color: "#fff" } : {}) }}>{usd(b)}</button>)}
               {p.suggested != null && p.suggested !== budget && <button type="button" className="lnk xs" onClick={() => setBudget(p.suggested!)} title="The budget that earns the most at the likely rates — past it, the next dollar stops paying">Kaviar suggests {usd(p.suggested)}</button>}
             </div></div>
+          {data.products.length > 0 && <div className="col g6"><span className="xs i3">Product to advertise · what one order is worth</span>
+            <div className="row g8">
+              <select value={product} onChange={(e) => pick(e.target.value)} aria-label="Product to advertise" className="input fill" style={{ font: "inherit", fontSize: 13, minWidth: 0 }}>
+                {data.products.map((x) => <option key={x.title} value={x.title}>{x.title} — ${Math.round(x.price)}</option>)}
+              </select>
+              <div className="input" style={{ width: 96, flexShrink: 0 }}><span className="i3">$</span><input type="number" min={1} value={Math.round(order) || ""} onChange={(e) => setOrder(Math.max(0, Number(e.target.value)))} aria-label="Order value" style={field} /></div>
+            </div>
+            <span className="xs i3">{data.orders.aov ? <>Your average order is {usd(data.orders.aov)}{Math.abs(data.orders.aov - order) > 1 ? <> · <button type="button" className="lnk" onClick={() => setOrder(Math.round(data.orders.aov!))}>use it</button></> : null}. </> : null}Try a set or a bundle to see what a bigger order does.</span></div>}
           <div className="col g6"><span className="xs i3">Period</span>
             <div className="seg">{([[14, "2 weeks"], [28, "4 weeks"], [56, "8 weeks"]] as const).map(([d, n]) => <button key={d} type="button" className={`o${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{n}</button>)}</div></div>
           <div className="col g6"><span className="xs i3">Margin — what is left of the price after making the product</span>
