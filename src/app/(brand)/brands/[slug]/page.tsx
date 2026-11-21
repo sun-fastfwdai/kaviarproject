@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { brandThumb, getBrand, getConnections } from "@/lib/queries/brands";
 import { campaigns, daily, summary, utmHealth } from "@/lib/queries/growth";
 import { signalData } from "@/lib/queries/signals";
+import { today } from "@/lib/growth/today";
 import { runs, webhookCount } from "@/lib/queries/sync";
 import { ago, daysUntil, money, num, pct, roas } from "@/lib/format";
 import { Bar, BrandThumb } from "@/components/shell/parts";
@@ -74,6 +75,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   const hasSales = live(conns.shopify);
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
 
+  const todo = await today({ id: brand.id, currency: brand.currency ?? null }, slug, conns).catch(() => ({ actions: [], later: [], plan: null, currency: cur }));
   // “Needs the team”: real follow-ups from the data, most urgent first.
   const needs: { agent: Agent | null; title: string; sub: string; cta: string; href: string }[] = [];
   if (conns.shopify?.status === "needs_reauth") needs.push({ agent: "catalog", title: "Reconnect Shopify", sub: "The store stopped accepting Kaviar’s access · Cleo", cta: "Reconnect", href: `${base}/integrations` });
@@ -183,14 +185,15 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
             </div>
           )}
 
-          <Panel title="Needs the team" link={["Data sync", `${base}/sync`]}>
-            {needs.length === 0 ? (
-              <div className="row g10" style={{ padding: "10px 0" }}><AgentFace kind="catalog" size={20} mood="happy" /><span className="sm i3">Nothing waiting. Both sources are in sync.</span></div>
-            ) : needs.map((n, i) => (
-              <div key={i} className="row g12" style={{ padding: "10px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
-                {n.agent ? <AgentFace kind={n.agent} size={22} /> : <Icon name="clock" size={18} />}
-                <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{n.title}</span><span className="xs i3 ell">{n.sub}</span></div>
-                <Link href={n.href} className="btn sm">{n.cta}</Link>
+          {/* The same decisions as Growth › Today — one list, wherever the team looks. */}
+          <Panel title="For you today" link={[`All ${todo.actions.length + todo.later.length}`, `${base}/today`]}>
+            {todo.actions.length === 0 ? (
+              <div className="row g10" style={{ padding: "10px 0" }}><AgentFace kind="catalog" size={20} mood="happy" /><span className="sm i3">Nothing needs you. Kaviar is watching stock, ads and orders.</span></div>
+            ) : todo.actions.slice(0, 3).map((n, i) => (
+              <div key={n.key} className="row g12" style={{ padding: "10px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+                <AgentFace kind={n.who} size={22} mood={n.urgent ? "worried" : "happy"} />
+                <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{n.title}</span><span className="xs i3 ell">{n.why}</span></div>
+                <Link href={n.href ?? `${base}/today`} className="btn sm">{n.cta}</Link>
               </div>
             ))}
           </Panel>
