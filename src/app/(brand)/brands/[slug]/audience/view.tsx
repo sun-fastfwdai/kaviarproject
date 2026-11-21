@@ -59,10 +59,20 @@ export function AudienceView({ slug, brand, kind, own, hasMeta, panels, tests, t
         <div className="row between top g16">
           <div className="col g4" style={{ minWidth: 0 }}>
             <h1 className="h1">Audience test</h1>
-            <p className="sm i3" style={{ maxWidth: 680 }}>Show ads to {PANEL_SIZE} small agents built to behave like {kind === "yours" ? `${brand}’s audience` : "typical shoppers for this kind of product"} — and read why they’d stop, tap or scroll past, before any budget goes to Meta.</p>
+            <p className="sm i3" style={{ maxWidth: 680 }}>{PANEL_SIZE} look-alike shoppers of {kind === "yours" ? brand : "this kind of product"} pick the winner before you spend.</p>
           </div>
           {panel?.panel && !building && <span className="chip" style={{ flexShrink: 0 }} suppressHydrationWarning><AgentFace kind="analyst" size={16} />Panel built by Iris · {panel.finishedAt ? day(panel.finishedAt) : day(panel.panel.at)}</span>}
         </div>
+        {(() => { const w = tests.find((x) => x.kind === kind && x.status === "done" && x.winner); return w ? (
+          <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: "#E7F4EC", boxShadow: "0 0 0 1px #BFE0CC" }}>
+            <span style={{ width: 32, height: 32, borderRadius: 99, background: "#1F7A52", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="check" size={16} color="#fff" /></span>
+            <span className="col fill" style={{ minWidth: 0 }}>
+              <span className="w5 ell" style={{ fontSize: 16, color: "#1F7A52" }}>Winner: {w.winner}</span>
+              <span className="xs i2 ell">{w.title} · best of {w.items} ads{w.top != null ? ` · scored ${w.top}` : ""}</span>
+            </span>
+            <Link className="btn sm" href={`/brands/${slug}/audience?test=${w.id}`}>See why</Link>
+            <Link className="btn dark sm" href={`/brands/${slug}/run`}>Put it live<Icon name="arrow-r" size={12} color="#fff" /></Link>
+          </div>) : null; })()}
 
         <div className="row g8" style={{ flexWrap: "wrap" }}>
           <Combo chip label="Panel" prefix="Panel" value={kind} menuWidth={340} onChange={(v) => router.replace(`${path}?panel=${v}`, { scroll: false })} options={[

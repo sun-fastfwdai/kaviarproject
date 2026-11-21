@@ -37,9 +37,6 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
     getNotes(brand.id),
   ]);
   const worked = past.filter((c) => c.result?.verdict === "worked").length;
-  const decided = changes.filter((c) => c.status !== "proposed").length;
-  const steps = [["Mon 09:00", "Kaviar reads the data"], ["Mon", "Agents propose changes"], ["Tue", "Approve or skip"], ["Tue", "Apply on Meta"], ["Next Mon", "Checks if it worked"]];
-  const stepNow = changes.some((c) => c.status === "applied") ? 3 : decided ? 2 : 1;
   const line = notes.performance?.insights?.[0];
 
   return (
@@ -48,16 +45,8 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px 0", gap: 14 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Optimize & repeat</h1><p className="sm i3">Once a week: look at what really sold, fix what isn’t working, and check next week if it helped.</p></div>
+            <div className="col g4"><h1 className="h1">Optimize & repeat</h1><p className="sm i3">This week’s changes. Approve or skip — nothing changes on Meta until you do.</p></div>
             <span className="chip"><Icon name="calendar" size={13} />Week of {new Date(`${week}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
-          </div>
-          <div className="row" style={{ padding: "10px 14px", border: "1px solid var(--line)", borderRadius: 12 }}>
-            {steps.map(([d, t], i) => (
-              <div key={t} className="row g8 fill">
-                <span style={{ width: 14, height: 14, borderRadius: 99, flexShrink: 0, background: i < stepNow ? "var(--green)" : "#fff", border: i < stepNow ? 0 : `1.5px solid ${i === stepNow ? "var(--ink)" : "var(--line-2)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>{i < stepNow && <Icon name="check" size={9} color="#fff" weight="bold" />}</span>
-                <span className="col"><span className="xs i3">{d}</span><span className={`xs ${i === stepNow ? "w5 i1" : "i2"}`}>{t}</span></span>
-              </div>
-            ))}
           </div>
           <div className="row top g10" style={{ padding: "12px 14px", background: "var(--blue-bg)", borderRadius: 12 }}>
             <AgentFace kind="analyst" size={20} />
@@ -75,23 +64,13 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
         <SidePanel>
           <div className="col g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="sm w5">Did last week’s changes work?</span>
-            <span className="xs i3">Checked against Shopify orders, not Meta’s own count.</span>
-            {past.map((c) => (
+                        {past.map((c) => (
               <div key={c.id} className="row between g8" style={{ paddingTop: 6, borderTop: "1px solid var(--line)" }}>
                 <span className="col" style={{ minWidth: 0 }}><span className="xs w5 i1 ell">{c.title}</span><span className="xs i3">{c.result?.detail ?? "—"}</span></span>
                 <span className={`pill ${c.result?.verdict === "worked" ? "green" : c.result?.verdict === "didnt" ? "amber" : ""}`} style={{ height: 20, fontSize: 10.5 }}>{c.result?.verdict === "worked" ? "Worked" : c.result?.verdict === "didnt" ? "Didn’t" : "Too early"}</span>
               </div>
             ))}
             {past.length === 0 && <span className="xs i3">Approve and apply a change — next Monday Kaviar checks whether it helped.</span>}
-          </div>
-          <div className="col g6" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
-            <span className="sm w5">Who decides what</span>
-            {[["Budgets, pause / resume", "Kaviar proposes"], ["Creatives, audiences", "Kaviar drafts"], ["Anything goes live", "a person approves"]].map(([k, v]) => (
-              <div key={k} className="row between xs" style={{ paddingTop: 4 }}><span className="i2">{k}</span><span className="i3">{v}</span></div>
-            ))}
-          </div>
-          <div className="row top g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
-            <Icon name="repeat" size={14} /><span className="xs i2" style={{ lineHeight: "17px" }}>Next Monday the results go back into <Link className="lnk w5 i1" href={`${base}/signals`}>Ad signals</Link> and the loop starts again.</span>
           </div>
         </SidePanel>
       </div>

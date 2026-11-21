@@ -4,6 +4,7 @@ import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { noteHref, TONE } from "@/lib/ai/note-links";
 import type { IconName } from "@/components/icon";
 import { getBrand, getConnections } from "@/lib/queries/brands";
+import { planData } from "@/lib/growth/plan-data";
 import { adProducts, campaigns, channels, daily, summary, utmHealth } from "@/lib/queries/growth";
 import { parseRange } from "@/lib/queries/common";
 import { products } from "@/lib/queries/shop";
@@ -23,7 +24,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const days = parseRange((await searchParams).days);
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Performance" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Results" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="sales next to ad spend" /></div></>);
 
   const tz = brand.timezone, cur = brand.currency;
@@ -40,6 +41,10 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
   const weak = best.filter((c) => c.v < 1 && c.spend >= 100);
   const tagged = health.metaOrders ? health.withAd / health.metaOrders : 0;
+  // The verdict: did the ads make money? Margin comes from product costs, else the figure the team gave, else 60%.
+  const pd = await planData(brand.id, cur ?? "USD").catch(() => null);
+  const margin = pd?.margin.value ?? pd?.saved?.margin ?? 0.6, breakEven = 1 / margin, adProfit = s.metaRevenue * margin - s.spend;
+  const pays = hasMeta && (verified ?? 0) >= breakEven, toScale = best.find((c) => c.v >= breakEven && c.spend >= 50) ?? null, toStop = [...best].reverse().find((c) => c.v < breakEven && c.spend >= 50) ?? null;
   const notes = await getNotes(brand.id);
   const ai = notes.performance?.insights;
   after(() => refreshNotes(brand.id, ["performance"]));
@@ -53,9 +58,26 @@ export default async function PerformancePage({ params, searchParams }: PageProp
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Performance</h1><p className="sm i3">Shopify sales and Meta Ads side by side, joined in one place.</p></div>
+            <div className="col g4"><h1 className="h1">Results</h1><p className="sm i3">What your ads really did, counted in Shopify orders.</p></div>
             <RangeTabs base={`/brands/${slug}/performance`} days={days} />
           </div>
+
+          {hasMeta ? (
+            <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: pays ? "#E7F4EC" : "#FBECE5", boxShadow: `0 0 0 1px ${pays ? "#BFE0CC" : "#F1CDBE"}` }}>
+              <span style={{ width: 32, height: 32, borderRadius: 99, background: pays ? "#1F7A52" : "#B4532A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={pays ? "check" : "warning"} size={16} color="#fff" /></span>
+              <span className="col fill" style={{ minWidth: 0 }}>
+                <span className="w5" style={{ fontSize: 16, color: pays ? "#1F7A52" : "#B4532A" }}>{pays ? `Your ads made about ${money(adProfit, cur)} in ${days} days` : `Your ads lost about ${money(-adProfit, cur)} in ${days} days`}</span>
+                <span className="xs i2">Every $1 of ads brought back ${(verified ?? 0).toFixed(2)} in Shopify orders · break-even is ${breakEven.toFixed(2)} at a {pct(margin)} margin{pd?.margin.from === "none" ? " (assumed — set yours in Spend plan)" : ""}</span>
+              </span>
+              {toStop && <Link className="btn sm" href={`/brands/${slug}/optimize`} title={`${roas(toStop.v)} on ${money(toStop.spend, cur)}`}>Stop {toStop.name.slice(0, 26)}</Link>}
+              {toScale && <Link className="btn dark sm" href={`/brands/${slug}/optimize`} title={`${roas(toScale.v)} on ${money(toScale.spend, cur)}`}>Scale {toScale.name.slice(0, 26)}</Link>}
+            </div>
+          ) : (
+            <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+              <span className="col fill"><span className="w5 i1" style={{ fontSize: 16 }}>No ads ran in the last {days} days</span><span className="xs i3">{money(s.revenue, cur)} came in without ad spend.</span></span>
+              <Link className="btn dark sm" href={`/brands/${slug}/plan`}>Open Spend plan<Icon name="arrow-r" size={12} color="#fff" /></Link>
+            </div>
+          )}
 
           <StatStrip>
             <Stat label="Revenue" source="shopify" value={money(s.revenue, cur)} note={delta == null ? `last ${days} days` : `${delta >= 0 ? "+" : ""}${pct(delta)} vs prior ${days}d`} tone={delta != null && delta >= 0 ? "up" : undefined} />

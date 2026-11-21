@@ -34,8 +34,8 @@ export default async function SignalPage({ params }: PageProps<"/brands/[slug]/s
   const s = rows[i];
   const usable = s.status === "in-use" || s.status === "ready";
   const batches = await db.select({ id: schema.adBatches.id, title: schema.adBatches.title, createdAt: schema.adBatches.createdAt,
-    n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id})::int`,
-    approved: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status = 'approved')::int` })
+    n: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id")::int`,
+    approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` })
     .from(schema.adBatches).where(and(eq(schema.adBatches.brandId, brand.id), eq(schema.adBatches.signal, key))).orderBy(desc(schema.adBatches.createdAt));
   const prev = rows[i - 1], next = rows[i + 1];
 

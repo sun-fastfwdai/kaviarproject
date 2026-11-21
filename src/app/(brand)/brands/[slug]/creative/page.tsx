@@ -38,10 +38,10 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   const [d, notes, batches] = await Promise.all([
     signalData(brand.id, brand.timezone), getNotes(brand.id),
     db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal, createdAt: schema.adBatches.createdAt,
-      n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id})::int`,
-      review: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status = 'review')::int`,
-      approved: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status = 'approved')::int`,
-      image: sql<string | null>`(select a.image_url from ads a where a.batch_id = ${schema.adBatches.id} and a.image_url is not null order by a.position limit 1)` })
+      n: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id")::int`,
+      review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
+      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int`,
+      image: sql<string | null>`(select a.image_url from ads a where a.batch_id = "ad_batches"."id" and a.image_url is not null order by a.position limit 1)` })
       .from(schema.adBatches).where(eq(schema.adBatches.brandId, brand.id)).orderBy(desc(schema.adBatches.createdAt)).limit(40),
   ]);
   const rows = buildSignals(base, brand, d, notes).filter((r) => r.status === "ready" || r.status === "in-use");

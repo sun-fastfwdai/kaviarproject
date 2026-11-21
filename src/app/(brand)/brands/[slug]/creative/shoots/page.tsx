@@ -36,8 +36,8 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
       .where(and(eq(A.brandId, brand.id), sql`(${A.meta}->>'ai')::boolean`, sql`${A.kind} <> 'character'`)).orderBy(desc(A.createdAt)).limit(150),
     shootsThisMonth(brand.id),
     db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal,
-      n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected')::int`,
-      review: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status = 'review')::int` })
+      n: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status <> 'rejected')::int`,
+      review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int` })
       .from(schema.adBatches).where(eq(schema.adBatches.brandId, brand.id)).orderBy(desc(schema.adBatches.createdAt)).limit(12),
     signalData(brand.id, brand.timezone), getNotes(brand.id),
     db.select().from(schema.shootFlows).where(eq(schema.shootFlows.brandId, brand.id)),
@@ -60,8 +60,8 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const preset = Boolean(want.batch || want.signal || want.product || layout);
   if (preset) {
     const [b] = want.batch ? await db.select({ id: schema.adBatches.id, title: schema.adBatches.title, signal: schema.adBatches.signal,
-      n: sql<number>`(select count(*) from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected')::int`, review: sql<number>`0`,
-      product: sql<string | null>`(select a.product from ads a where a.batch_id = ${schema.adBatches.id} and a.status <> 'rejected' order by a.position limit 1)` })
+      n: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status <> 'rejected')::int`, review: sql<number>`0`,
+      product: sql<string | null>`(select a.product from ads a where a.batch_id = "ad_batches"."id" and a.status <> 'rejected' order by a.position limit 1)` })
       .from(schema.adBatches).where(and(eq(schema.adBatches.id, want.batch), eq(schema.adBatches.brandId, brand.id))) : [];
     if (b && !batches.some((x) => x.id === b.id)) allBatches = [b, ...batches];
     const name = (want.product ?? b?.product ?? "").toLowerCase();
