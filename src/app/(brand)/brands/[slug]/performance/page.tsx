@@ -24,6 +24,7 @@ import { ChartLegend, SalesChart } from "@/components/sales-chart";
 import { IrisHeader, NeedsSource, Note, RangeTabs, roasTone, SidePanel, Stat, StatStrip } from "@/components/ui";
 
 export const metadata = { title: "Results" };
+export const maxDuration = 300; // applying a change on Meta can wait out its rate limit
 
 export default async function PerformancePage({ params, searchParams }: PageProps<"/brands/[slug]/performance">) {
   const { slug } = await params;

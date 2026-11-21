@@ -91,7 +91,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4">
               <h1 className="h1">Integrations</h1>
-              <p className="lead">What the store connects to, and who has to act. Kaviar never edits orders, products or ads; themes it installs stay drafts until a person publishes.</p>
+              <p className="lead">What the store connects to, and who has to act. Kaviar never edits orders or products, and changes ads only where you approve or allow it in Autopilot; themes it installs stay drafts until a person publishes.</p>
             </div>
             <div className="row">
               <div className="kpi"><span className="v">{rows.filter((r) => live(r.conn)).length}</span><span className="xs i3">Connected</span></div>
@@ -142,7 +142,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
             )}
           </div>
           <StoreApps slug={slug} brand={brand.name} shop={conns.shopify?.externalId ?? null} state={brand.integrations ?? {}} />
-          <p className="xs i3">Kaviar copies orders with their line items, totals, refunds and UTMs; products, stock and cost; customers as ids, order counts and spend — never names, emails or addresses. From Meta it reads campaigns, ads and daily results, and can’t change any ad.</p>
+          <p className="xs i3">Kaviar copies orders with their line items, totals, refunds and UTMs; products, stock and cost; customers as ids, order counts and spend — never names, emails or addresses. From Meta it reads campaigns, ads and daily results. It changes an ad only when you have allowed it and the change is approved, or covered by your Autopilot setting.</p>
         </div>
       </div>
     </>

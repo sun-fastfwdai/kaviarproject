@@ -39,7 +39,7 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
         {conn ? (
           <>
             <Check ok={conn.status === "connected" || conn.status === "sample"} label={conn.status === "needs_reauth" ? "Reconnect needed" : "Connected through the Kaviar app"} value={conn.connectedAt ? `since ${dateTime(conn.connectedAt).split(" · ")[0]}` : undefined} />
-            <Check ok={conn.scopes.length > 0} label="Read-only access granted" value={`${conn.scopes.length} scopes`} />
+            <Check ok={conn.scopes.length > 0} label={conn.scopes.includes("ads_management") ? "Access granted · may change ads you approve" : "Read-only access granted"} value={`${conn.scopes.length} scopes`} />
             {extra}
             <Check ok={lastSync ? true : null} label="Last sync" value={ago(lastSync)} />
             <div className="row g4" style={{ flexWrap: "wrap", paddingTop: 8 }}>
@@ -58,7 +58,7 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
         )}
       </div>
       <div className="row between" style={{ padding: "10px 16px", borderTop: "1px solid var(--line)" }}>
-        <span className="xs i3">Read-only · Kaviar never edits this source</span>
+        <span className="xs i3">{conn?.scopes.includes("ads_management") ? "Changes only what you approve or allow in Autopilot" : "Read-only · Kaviar never edits this source"}</span>
         <Link className="lnk xs w5 i1 row g4" href={conn ? `/brands/${slug}/${provider}` : `/brands/${slug}/integrations`}>{conn ? `Explore ${provider === "shopify" ? "Shopify" : "Meta"} data` : "Connect"}<Icon name="arrow-r" size={12} /></Link>
       </div>
     </div>

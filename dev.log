@@ -100,3 +100,4 @@ Error: Route "/brands/[slug]/optimize": Could not validate `instant` because an 
  GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976?w=480 200 in 61ms (next.js: 28ms, proxy.ts: 9ms, application-code: 25ms)
  GET /api/assets/651b95dd-686f-4000-818b-63bdcaa87c34?w=480 200 in 707ms (next.js: 7ms, proxy.ts: 8ms, application-code: 693ms)
  GET /brands/jmella-sample/performance 200 in 304ms (next.js: 8ms, proxy.ts: 1.2ms, generate-params: 1.1ms, application-code: 293ms)
+✓ Compiled in 27ms

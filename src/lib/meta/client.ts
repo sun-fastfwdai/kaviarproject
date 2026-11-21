@@ -52,12 +52,18 @@ export async function metaGetAll<T>(path: string, params: Record<string, string>
   return out;
 }
 
-/** A write on the Graph API: POST to change an object, DELETE to remove one. One attempt — a failed change is reported, never retried blind. */
+/**
+ * A write on the Graph API: POST to change an object, DELETE to remove one. Meta allows this app only about one change every thirty
+ * seconds, so a rate-limit answer is waited out and tried again (twice at most). Any other failure is reported, never retried blind.
+ */
 export async function metaWrite<T = { success?: boolean; id?: string }>(method: "POST" | "DELETE", path: string, params: Record<string, string>, token: string): Promise<T> {
-  const body = new URLSearchParams({ ...params, access_token: token, appsecret_proof: hmacHex(env.meta().appSecret, token) });
-  const res = await fetch(`${graphBase()}/${path.replace(/^\//, "")}`, { method, body, cache: "no-store" });
-  const out = (await res.json()) as T & MetaError;
-  if (out.error?.code === 190 || out.error?.code === 102) throw new MetaAuthError(out.error.message);
-  if (out.error || !res.ok) throw new Error(`Meta API: ${out.error?.message ?? res.statusText} (${out.error?.code ?? res.status})`);
-  return out;
+  for (let attempt = 0; ; attempt++) {
+    const body = new URLSearchParams({ ...params, access_token: token, appsecret_proof: hmacHex(env.meta().appSecret, token) });
+    const res = await fetch(`${graphBase()}/${path.replace(/^\//, "")}`, { method, body, cache: "no-store" });
+    const out = (await res.json()) as T & MetaError;
+    if (out.error?.code === 190 || out.error?.code === 102) throw new MetaAuthError(out.error.message);
+    if (out.error && RATE_LIMIT.has(out.error.code) && attempt < 2) { await sleep(32_000); continue; }
+    if (out.error || !res.ok) throw new Error(`Meta API: ${out.error?.message ?? res.statusText} (${out.error?.code ?? res.status})`);
+    return out;
+  }
 }
