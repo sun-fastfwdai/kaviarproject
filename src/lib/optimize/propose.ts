@@ -3,9 +3,9 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { rows, SALE } from "../queries/common";
 import { signalData } from "../queries/signals";
-import type { ChangeKind } from "../db/schema";
+import type { ChangeKind, ChangeTarget } from "../db/schema";
 
-type Camp = { id: string; name: string; status: string | null; budget: number | null; spend7: number; rev7: number; orders7: number; spend30: number; rev30: number };
+type Camp = { id: string; name: string; status: string | null; budget: number | null; spend7: number; rev7: number; orders7: number; spend30: number; rev30: number; metaRev7: number };
 type AdWeek = { id: string; name: string; campaign: string | null; w: number; impr: number; clicks: number; spend: number };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -22,7 +22,8 @@ async function campaignsWindow(brandId: string, tz: string) {
   return rows<Camp>(sql`
     with ins as (
       select campaign_id,
-        sum(spend) filter (where date >= (now() at time zone ${tz})::date - 7) as s7, sum(spend) as s30
+        sum(spend) filter (where date >= (now() at time zone ${tz})::date - 7) as s7, sum(spend) as s30,
+        sum(purchase_value) filter (where date >= (now() at time zone ${tz})::date - 7) as mv7
       from meta_insights_daily where brand_id = ${brandId} and date >= (now() at time zone ${tz})::date - 30 group by 1
     ),
     v as (
@@ -34,7 +35,7 @@ async function campaignsWindow(brandId: string, tz: string) {
     )
     select c.id, c.name, c.effective_status as "status", c.daily_budget::float8 as "budget",
       coalesce(ins.s7, 0)::float8 as "spend7", coalesce(v.r7, 0)::float8 as "rev7", coalesce(v.n7, 0)::int as "orders7",
-      coalesce(ins.s30, 0)::float8 as "spend30", coalesce(v.r30, 0)::float8 as "rev30"
+      coalesce(ins.s30, 0)::float8 as "spend30", coalesce(v.r30, 0)::float8 as "rev30", coalesce(ins.mv7, 0)::float8 as "metaRev7"
     from meta_campaigns c left join ins on ins.campaign_id = c.id left join v on v.cid = c.id
     where c.brand_id = ${brandId} and coalesce(ins.s30, 0) > 0 order by ins.s7 desc nulls last`);
 }
@@ -50,7 +51,7 @@ async function adWeeks(brandId: string, tz: string) {
     group by 1, 2, 3, 4`);
 }
 
-type Proposal = { key: string; kind: ChangeKind; title: string; why: string; before: string; after: string; target: Record<string, unknown> };
+type Proposal = { key: string; kind: ChangeKind; title: string; why: string; before: string; after: string; target: ChangeTarget };
 
 /** Turn this week's numbers into concrete changes, each with a before → after and a reason in numbers. */
 export async function propose(brand: { id: string; timezone: string; currency: string }): Promise<Proposal[]> {
@@ -63,7 +64,7 @@ export async function propose(brand: { id: string; timezone: string; currency: s
   // Pause what loses money on real orders.
   for (const c of scored.filter((c) => c.v < 0.8 && c.spend7 >= 50)) {
     out.push({ key: `pause:${c.id}`, kind: "pause", title: `Pause ${c.name}`, why: `${r1(c.v)}× verified on ${fmt(c.spend7, cur)} this week — ${c.orders7} Shopify orders. It costs more than it brings in.`,
-      before: `running · ${fmt(c.spend7 / 7, cur)}/day`, after: "paused", target: { campaignId: c.id, baseline: c.v } });
+      before: `running · ${fmt(c.spend7 / 7, cur)}/day`, after: "paused", target: { campaignId: c.id, baseline: c.v, sure: roas(c.metaRev7, c.spend7) < 1 } });
   }
   // Shift budget from the weakest to the strongest.
   const best = scored[0], worst = scored[scored.length - 1];
@@ -72,10 +73,10 @@ export async function propose(brand: { id: string; timezone: string; currency: s
     out.push({ key: `shift:${worst.id}:${best.id}`, kind: "shift", title: `Move ${fmt(move, cur)}/day to ${best.name}`,
       why: `${best.name} returns ${r1(best.v)}× vs ${r1(worst.v)}× for ${worst.name}, on real Shopify orders.`,
       before: `${worst.name.split(" ")[0]} ${fmt(worst.budget ?? worst.spend7 / 7, cur)}`, after: `${fmt(Math.max(0, (worst.budget ?? worst.spend7 / 7) - move), cur)} · ${best.name.split(" ")[0]} ${fmt((best.budget ?? best.spend7 / 7) + move, cur)}`,
-      target: { campaignId: best.id, baseline: best.v } });
+      target: { campaignId: best.id, baseline: best.v, fromCampaignId: worst.id, share: worst.budget ? move / worst.budget : undefined, sure: Boolean(worst.budget && best.budget) && roas(worst.metaRev7, worst.spend7) < roas(best.metaRev7, best.spend7) } });
   } else if (best && best.v >= 2 && best.orders7 >= 5) {
     out.push({ key: `scale:${best.id}`, kind: "scale", title: `Scale ${best.name} by 20%`, why: `${r1(best.v)}× verified with ${best.orders7} orders this week — room to spend more.`,
-      before: `${fmt(best.budget ?? best.spend7 / 7, cur)}/day`, after: `${fmt((best.budget ?? best.spend7 / 7) * 1.2, cur)}/day`, target: { campaignId: best.id, baseline: best.v } });
+      before: `${fmt(best.budget ?? best.spend7 / 7, cur)}/day`, after: `${fmt((best.budget ?? best.spend7 / 7) * 1.2, cur)}/day`, target: { campaignId: best.id, baseline: best.v, sure: true } });
   }
   // Refresh creatives whose CTR fell three weeks running.
   const byAd = new Map<string, AdWeek[]>();
@@ -97,7 +98,7 @@ export async function propose(brand: { id: string; timezone: string; currency: s
     const camp = active.find((c) => c.name.toLowerCase().includes(word));
     out.push({ key: `hold:${x.title}`, kind: "hold", title: camp ? `Pause ${camp.name} — ${x.title} is selling out` : `Keep ${x.title} out of ads`,
       why: x.inventory <= 0 ? `${x.title} is out of stock — Meta can’t see that.` : `Only ${x.inventory} left, about ${Math.round(x.daysOfStock)} days at this pace.`,
-      before: camp ? "running" : "in ad rotation", after: "paused until restocked", target: { campaignId: camp?.id, product: x.title } });
+      before: camp ? "running" : "in ad rotation", after: "paused until restocked", target: { campaignId: camp?.id, product: x.title, sure: true } });
   }
   // Test a ready signal nobody is using yet.
   const used = new Set(((await db.execute(sql`select distinct signal from ad_batches where brand_id = ${brand.id} and signal is not null`)).rows as { signal: string }[]).map((r) => r.signal));

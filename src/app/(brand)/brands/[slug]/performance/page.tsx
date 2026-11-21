@@ -4,6 +4,7 @@ import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { noteHref, TONE } from "@/lib/ai/note-links";
 import type { IconName } from "@/components/icon";
 import { getBrand, getConnections } from "@/lib/queries/brands";
+import { requireMember } from "@/lib/auth";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { planData } from "@/lib/growth/plan-data";
@@ -27,6 +28,7 @@ export const metadata = { title: "Results" };
 export default async function PerformancePage({ params, searchParams }: PageProps<"/brands/[slug]/performance">) {
   const { slug } = await params;
   const days = parseRange((await searchParams).days);
+  const me = await requireMember();
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Results" }];
@@ -62,7 +64,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
       count(*) filter (where result->>'verdict' = 'worked')::int as worked from optimize_changes where brand_id = ${brand.id}`).then((r) => (r.rows as { applied: number; judged: number; worked: number }[])[0]),
   ]);
   const pilotChanges: PilotChange[] = [...now, ...older].map((c) => ({ id: c.id, kind: c.kind, title: c.title, why: c.why, before: c.before, after: c.after, status: c.status,
-    byKaviar: c.status === "approved" && c.decidedBy == null, signal: c.target.signal ?? null, verdict: c.result?.verdict ?? null, detail: c.result?.detail ?? null }));
+    byKaviar: c.status === "approved" && c.decidedBy == null, signal: c.target.signal ?? null, verdict: c.result?.verdict ?? null, detail: c.result?.detail ?? null,
+    onMeta: c.status === "applied" ? c.target.applied?.note ?? null : null, failed: c.status === "approved" ? c.target.applyError ?? null : null }));
   const notes = await getNotes(brand.id);
   const ai = notes.performance?.insights;
   after(() => refreshNotes(brand.id, ["performance"]));
@@ -97,7 +100,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
             </div>
           )}
 
-          <AutopilotPanel slug={slug} mode={pilot.mode} canAct={pilot.canAct} week={week} watched={watched} record={record} changes={pilotChanges}
+          <AutopilotPanel slug={slug} mode={pilot.mode} owner={me.role === "owner"} week={week}
+            access={{ connected: pilot.connected, granted: pilot.granted, canAct: pilot.canAct, test: pilot.test ? { ok: pilot.test.ok, steps: pilot.test.steps } : null }} watched={watched} record={record} changes={pilotChanges}
             last={pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null}
             runs={pilot.runs.slice(0, 6).map((r) => ({ when: ago(new Date(r.at)), ...runLine(r) }))} />
 

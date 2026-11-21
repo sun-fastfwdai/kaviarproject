@@ -4,6 +4,7 @@ import { encrypt } from "@/lib/crypto";
 import { env } from "@/lib/env";
 import { listAdAccounts, metaExchangeCode } from "@/lib/meta/oauth";
 import { runBrandSync } from "@/lib/sync/run";
+import { grantedScopes } from "@/lib/meta/apply";
 import { finishOAuth } from "@/lib/oauth-state";
 
 export async function GET(req: NextRequest) {
@@ -13,10 +14,11 @@ export async function GET(req: NextRequest) {
   const back = (path: string) => NextResponse.redirect(new URL(`/brands/${st.slug}/${path}`, req.url));
   if (q.get("error") || !q.get("code")) return back("integrations?error=denied");
 
-  let token: string, expiresAt: Date | null, accounts;
+  let token: string, expiresAt: Date | null, accounts, granted: string[];
   try {
     ({ token, expiresAt } = await metaExchangeCode(q.get("code")!));
     accounts = await listAdAccounts(token);
+    granted = await grantedScopes(token).catch(() => env.meta().scopes); // what the person really allowed, not what was asked for
   } catch (e) {
     console.error("meta oauth", e);
     return back("integrations?error=token");
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
     status: one ? ("connected" as const) : ("choose_account" as const),
     externalId: one?.id ?? null,
     displayName: one?.name ?? null,
-    scopes: env.meta().scopes,
+    scopes: granted,
     accessToken: encrypt(token),
     refreshToken: null,
     accessExpiresAt: expiresAt,

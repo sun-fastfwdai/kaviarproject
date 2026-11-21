@@ -82,7 +82,7 @@ function ShopifyModal({ slug, shop, reconnect, scopes, ready, onClose }: { slug:
 function MetaModal({ slug, ready, onClose }: { slug: string; ready: boolean; onClose: () => void }) {
   return (
     <Modal icon={<MetaLogo size={18} />} title="Connect Meta Ads" sub="Log in with Facebook as someone who can see the brand’s ad account." onClose={onClose}
-      footer={<><span className="xs i3 fill">Read-only · ads_read</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
+      footer={<><span className="xs i3 fill">Reads your ads · changes only what you approve</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
         {ready ? <a className="btn dark" href={`/api/meta/connect?brand=${slug}`}>Continue with Facebook →</a> : <button className="btn dark" disabled>Continue with Facebook →</button>}</>}>
       <div className="col g8">
         {["Campaigns, ads and their thumbnails", "Daily spend, impressions, clicks and purchases per ad", "Refreshed every hour; the last 7 days are re-read as Meta updates them"].map((t) => (

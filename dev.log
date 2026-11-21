@@ -78,3 +78,16 @@ Error: Route "/brands/[slug]/optimize": Could not validate `instant` because an 
  GET /brands/jmella-sample/run 200 in 151ms (next.js: 32ms, proxy.ts: 1.7ms, generate-params: 1.2ms, application-code: 116ms)
  GET /brands/jmella-sample/research 200 in 151ms (next.js: 29ms, proxy.ts: 3ms, generate-params: 1.1ms, application-code: 119ms)
  GET /brands/jmella-sample/signals 200 in 205ms (next.js: 47ms, proxy.ts: 1.3ms, generate-params: 1.6ms, application-code: 155ms)
+✓ Compiled in 554ms
+✓ Compiled in 111ms
+✓ Compiled in 42ms
+ GET /login 200 in 692ms (next.js: 624ms, proxy.ts: 7ms, application-code: 61ms)
+ GET /brands/jmella-sample/performance 200 in 496ms (next.js: 34ms, proxy.ts: 1.8ms, generate-params: 1.3ms, application-code: 460ms)
+ GET /brands/jmella-sample/opportunities 200 in 206ms (next.js: 21ms, proxy.ts: 4ms, generate-params: 1.2ms, application-code: 180ms)
+ GET /brands/jmella-sample/plan 200 in 188ms (next.js: 19ms, proxy.ts: 1.5ms, generate-params: 11ms, application-code: 157ms)
+ GET /brands/jmella-sample/creative 200 in 149ms (next.js: 7ms, proxy.ts: 1.3ms, generate-params: 1.1ms, application-code: 140ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 42ms (next.js: 10ms, proxy.ts: 2ms, application-code: 29ms)
+ GET /brands/jmella-sample/audience 200 in 132ms (next.js: 9ms, proxy.ts: 1.1ms, generate-params: 1.0ms, application-code: 121ms)
+ GET /brands/jmella-sample/run 200 in 133ms (next.js: 9ms, proxy.ts: 1.9ms, generate-params: 1.8ms, application-code: 120ms)
+ GET /brands/jmella-sample/research 200 in 122ms (next.js: 14ms, proxy.ts: 3ms, generate-params: 1.0ms, application-code: 104ms)
+ GET /brands/jmella-sample/signals 200 in 159ms (next.js: 11ms, proxy.ts: 3ms, generate-params: 1.3ms, application-code: 143ms)

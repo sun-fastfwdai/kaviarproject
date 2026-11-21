@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { MODES, type Mode } from "@/lib/growth/pilot";
-import { checkNow, decide, setMode } from "../optimize/actions";
+import { accessTest, checkNow, decide, setMode, undo } from "../optimize/actions";
 
 /**
  * Autopilot, on the Results screen: Kaviar checks the ads, orders and stock every morning and works out what to change. Top (dark):
@@ -15,10 +15,12 @@ import { checkNow, decide, setMode } from "../optimize/actions";
 export type PilotChange = {
   id: string; kind: string; title: string; why: string; before: string; after: string; status: string; byKaviar: boolean;
   signal: string | null; verdict: "worked" | "didnt" | "too-early" | null; detail: string | null;
+  onMeta: string | null; failed: string | null; // what Kaviar changed on Meta itself, or why its try failed
 };
+export type PilotAccess = { connected: boolean; granted: boolean; canAct: boolean; test: { ok: boolean; steps: { name: string; ok: boolean; note?: string }[] } | null };
 export type PilotRun = { when: string; line: string; good: boolean };
 type Props = {
-  slug: string; mode: Mode; canAct: boolean; last: string | null; week: string;
+  slug: string; mode: Mode; access: PilotAccess; owner: boolean; last: string | null; week: string;
   watched: { campaigns: number; ads: number; products: number };
   record: { applied: number; judged: number; worked: number };
   changes: PilotChange[]; runs: PilotRun[];
@@ -40,7 +42,9 @@ function Fact({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: 
   );
 }
 
-export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched, record, changes, runs }: Props) {
+export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, watched, record, changes, runs }: Props) {
+  const canAct = access.canAct;
+  const [err, setErr] = useState<string | null>(null);
   const router = useRouter(), base = `/brands/${slug}`;
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
         <span style={{ width: 32, height: 32, borderRadius: 10, background: `${tone}14`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={icon} size={15} color={tone} /></span>
         <div className="col g2 fill" style={{ minWidth: 0 }}>
           <span className="row g8"><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: tone, flexShrink: 0 }}>{label}</span><span className="sm w5 i1 ell">{c.title}</span></span>
-          <span className="xs ell" title={c.why}><span className="i3" style={{ textDecoration: "line-through" }}>{c.before}</span> <span className="c-green w5">→ {c.after}</span><span className="i3"> · {c.why}</span></span>
+          <span className="xs ell" title={c.why}><span className="i3" style={{ textDecoration: "line-through" }}>{c.before}</span> <span className="c-green w5">→ {c.after}</span><span className="i3"> · {c.onMeta ? `${c.onMeta} by Kaviar · ` : ""}{c.why}</span></span>
         </div>
         <div className="row g6" style={{ width: 232, justifyContent: "flex-end", flexShrink: 0 }}>
           {c.status === "proposed" && <>
@@ -75,11 +79,13 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
             <button type="button" className="btn quiet sm" disabled={busy} onClick={() => act([c.id], "skipped")}>Skip</button>
           </>}
           {c.status === "approved" && <>
-            <span className="pill" style={{ height: 22, fontSize: 11, ...(c.byKaviar ? { background: "#121212", color: "#fff" } : {}) }}>{c.byKaviar ? "Kaviar decided" : "You approved"}</span>
+            {c.failed ? <span className="xs ell" style={{ maxWidth: 120, color: "#B4532A" }} title={c.failed}>Meta refused</span>
+              : <span className="pill" style={{ height: 22, fontSize: 11, ...(c.byKaviar ? { background: "#121212", color: "#fff" } : {}) }}>{c.byKaviar ? "Kaviar decided" : "You approved"}</span>}
             <button type="button" className="btn sm" disabled={busy} onClick={() => act([c.id], "applied")}>Done in Meta</button>
           </>}
           {c.status === "applied" && <>
-            <span className="xs i3 ell" style={{ maxWidth: 130 }} title={c.detail ?? ""}>{c.detail}</span>
+            {c.onMeta ? <button type="button" className="btn quiet sm" disabled={busy} title={c.onMeta} onClick={() => go(c.id, async () => { const r = await undo(slug, c.id); setErr(r.error ?? null); })}>Undo</button>
+              : <span className="xs i3 ell" style={{ maxWidth: 130 }} title={c.detail ?? ""}>{c.detail}</span>}
             <span className={`pill ${c.verdict === "worked" ? "green" : c.verdict === "didnt" ? "amber" : ""}`} style={{ height: 22, fontSize: 11 }}>{c.verdict === "worked" ? "Worked" : c.verdict === "didnt" ? "Didn’t work" : "Checking"}</span>
           </>}
           {c.status === "skipped" && <button type="button" className="btn quiet sm" disabled={busy} onClick={() => act([c.id], "proposed")}>Undo</button>}
@@ -109,7 +115,7 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
         <div className="row g20" style={{ position: "relative", marginTop: 18, flexWrap: "wrap" }}>
           <Fact k="Watching" v={watched.campaigns ? `${watched.campaigns} campaign${watched.campaigns === 1 ? "" : "s"}` : `${watched.products} products`} sub={watched.campaigns ? `${watched.ads} ads · stock on ${watched.products} products` : "No ads live yet"} />
           <Fact k="Waiting for you" v={String(open.length)} sub={open.length ? "Decide below" : "Nothing to decide"} tone={open.length ? "#FFD27A" : undefined} />
-          <Fact k="To switch in Meta" v={String(decided.length)} sub={decided.length ? "Decided — one minute each" : "All done"} />
+          <Fact k={canAct ? "Changed on Meta" : "To switch in Meta"} v={String(canAct ? record.applied : decided.length)} sub={canAct ? (decided.length ? `${decided.length} left for you to switch` : "Applied by Kaviar") : decided.length ? "Decided — one minute each" : "All done"} />
           <Fact k="Changes that worked" v={record.judged ? `${record.worked} of ${record.judged}` : "—"} sub={record.judged ? "Judged on Shopify orders" : record.applied ? `${record.applied} made · too early to tell` : "None made yet"} tone={record.judged && record.worked * 2 >= record.judged ? "#6EE7A8" : undefined} />
         </div>
 
@@ -123,7 +129,16 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
             </div>
           </div>
           <span style={{ fontSize: 13, color: "rgba(255,255,255,.85)" }}>{MODES[mode].line}</span>
-          {!canAct && <span className="row g6" style={{ fontSize: 11.5, color: DIM }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Kaviar can read your Meta ads but not change them yet, so each decided change is switched by you in Ads Manager.</span>}
+          {canAct ? <span className="row g6" style={{ fontSize: 11.5, color: "#8BE8B4" }}><Icon name="check" size={11} color="#8BE8B4" />Kaviar changes Meta itself the moment a change is decided: it pauses campaigns and moves daily budgets. Each change is logged below and can be undone.</span>
+            : !access.connected ? null
+            : !access.granted ? <span className="row g8" style={{ fontSize: 11.5, color: DIM, flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Kaviar can read your Meta ads but not change them, so each decided change is switched by you in Ads Manager.
+                <a href={`/api/meta/connect?brand=${slug}`} style={{ color: "#fff", textDecoration: "underline" }}>Let Kaviar change ads</a></span>
+            : <span className="col g6" style={{ fontSize: 11.5, color: DIM }}>
+                <span className="row g8" style={{ flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Permission is granted. One check is left: Kaviar makes a paused, empty test campaign, changes it and deletes it. Nothing is spent.
+                  {owner && <button type="button" disabled={busy} onClick={() => go("test", () => accessTest(slug))} style={{ height: 26, padding: "0 12px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 12, fontWeight: 500 }}>{doing === "test" ? "Testing…" : access.test ? "Run the test again" : "Run the access test"}</button>}</span>
+                {access.test && !access.test.ok && access.test.steps.map((x) => <span key={x.name} className="row g6" style={{ color: x.ok ? DIM : "#FFB59B" }}><Icon name={x.ok ? "check" : "warning"} size={10} color={x.ok ? "rgba(255,255,255,.55)" : "#FFB59B"} />{x.name}{x.note ? ` — ${x.note}` : ""}</span>)}
+              </span>}
+          {err && <span style={{ fontSize: 11.5, color: "#FFB59B" }}>{err}</span>}
         </div>
       </div>
 
@@ -134,7 +149,7 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
           {open.map(Row)}
         </>}
         {decided.length > 0 && <>
-          <Head t="Decided · switch these in Meta" n={decided.length}><button type="button" className="btn sm" onClick={sheet}><Icon name="download" size={12} />Checklist</button></Head>
+          <Head t={canAct ? "Decided · these are switched by hand" : "Decided · switch these in Meta"} n={decided.length}><button type="button" className="btn sm" onClick={sheet}><Icon name="download" size={12} />Checklist</button></Head>
           {decided.map(Row)}
         </>}
         {done.length > 0 && <>

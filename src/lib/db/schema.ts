@@ -426,6 +426,16 @@ export const ads = pgTable(
 
 // ---------------------------------------------------------------- Optimize & repeat: weekly changes the agents propose, the team approves, and Kaviar checks a week later
 export type ChangeKind = "hold" | "shift" | "refresh" | "pause" | "scale" | "add";
+/**
+ * What a change points at. `sure` marks one Kaviar may decide alone (two sources agree, or the fact is stock). `fromCampaignId` and
+ * `share` say where a budget move comes from and how much of that budget. `applied` is what Kaviar changed on Meta — with the values
+ * before, so it can be undone — and `applyError` why a try failed.
+ */
+export type ChangeTarget = {
+  campaignId?: string; adId?: string; signal?: string; product?: string; baseline?: number;
+  sure?: boolean; fromCampaignId?: string; share?: number;
+  applied?: { at: string; note: string; prev: { id: string; field: "status" | "daily_budget"; value: string }[] }; applyError?: string;
+};
 export type ChangeStatus = "proposed" | "approved" | "skipped" | "applied";
 export const optimizeChanges = pgTable(
   "optimize_changes",
@@ -439,7 +449,7 @@ export const optimizeChanges = pgTable(
     why: text("why").notNull(),
     before: text("before").notNull(),
     after: text("after").notNull(),
-    target: jsonb("target").$type<{ campaignId?: string; adId?: string; signal?: string; product?: string; baseline?: number }>().notNull().default({}),
+    target: jsonb("target").$type<ChangeTarget>().notNull().default({}),
     status: text("status").$type<ChangeStatus>().notNull().default("proposed"),
     decidedBy: uuid("decided_by").references(() => members.id, { onDelete: "set null" }),
     decidedAt: tz("decided_at"),
