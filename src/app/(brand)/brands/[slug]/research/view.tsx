@@ -9,13 +9,14 @@ import { PositionTab } from "./position";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { EmptyState } from "@/components/empty";
-import { MARKETS, marketName, type AdsRead, type Evidence, type ManualAd, type MarketReport, type Positioning, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
+import Link from "next/link";
+import { MARKETS, STRENGTH_NAME, evidenceValue, marketName, type AdsRead, type Evidence, type ManualAd, type MarketReport, type Positioning, type RivalAds, type Step, type TestPlan } from "@/lib/research/types";
 
 export type ResearchRow = {
   id: string; status: "running" | "done" | "error"; stale: boolean; steps: Step[]; report: MarketReport | null; rivals: RivalAds[]; manual: ManualAd[]; evidence: Evidence[];
   adsRead: AdsRead | null; plan: TestPlan | null; positioning: Positioning | null; error: string | null; updatedAt: string; startedAt: string | null; finishedAt: string | null;
 };
-type Tab = "position" | "market" | "ads" | "plan";
+type Tab = "summary" | "position" | "market" | "ads" | "plan";
 
 export const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`; };
 export const ago = (iso: string, now: number) => { const m = Math.round((now - Date.parse(iso)) / 60_000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -104,10 +105,11 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
         {row && (report || row.rivals.length || row.plan) && (
           <>
             <div className="tabs" style={{ marginTop: 4 }}>
-              {([["position", "Positioning", 0], ["market", "Market", report ? report.segments.length + report.competitors.length : 0], ["ads", "Competitor ads", counts.ads], ["plan", "Test plan", counts.plan]] as const).map(([k, l, n]) => (
+              {([["summary", "Summary", 0], ["position", "Positioning", 0], ["market", "Market", report ? report.segments.length + report.competitors.length : 0], ["ads", "Competitor ads", counts.ads], ["plan", "Test plan", counts.plan]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" className={`tab${tab === k ? " on" : ""}`} onClick={() => go({ tab: k })}>{l}{n ? <span className="n">{n}</span> : null}</button>
               ))}
             </div>
+            {tab === "summary" && <Summary slug={slug} row={row} onOpen={(k) => go({ tab: k })} />}
             {tab === "position" && <PositionTab key={row.positioning?.at ?? "none"} slug={slug} id={row.id} pos={row.positioning} running={running} />}
             {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
             {tab === "ads" && <AdsTab slug={slug} id={row.id} row={row} market={market} hasMeta={hasMeta} running={running} />}
@@ -115,7 +117,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
           </>
         )}
       </section>
-      {row && (report || row.plan) && <Rail tab={tab === "position" ? "market" : tab} row={row} currency={currency} own={own} />}
+      {row && (report || row.plan) && tab !== "summary" && <Rail tab={tab === "position" ? "market" : tab} row={row} currency={currency} own={own} />}
     </div>
   );
 }
@@ -158,6 +160,50 @@ function ResearchArt() {
           <span style={{ height: 4, borderRadius: 2, background: "var(--tray-2)" }}><span style={{ display: "block", height: 4, width: `${w}%`, borderRadius: 2, background: c as string }} /></span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The research in one screen: the positioning in a sentence, who to sell to (with Meta's audience size), what to test and how sure we
+ * are — and the way into the plan. Everything behind it is one tab away.
+ */
+function Summary({ slug, row, onOpen }: { slug: string; row: ResearchRow; onOpen: (t: Tab) => void }) {
+  const base = `/brands/${slug}`, segs = (row.report?.segments ?? []).filter((x) => x.status !== "rejected").slice(0, 4), hyps = (row.plan?.hypotheses ?? []).slice(0, 3);
+  const same = (a: string, b: string) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return Boolean(x && y) && (x === y || x.includes(y) || y.includes(x)); };
+  const size = (name: string) => { const e = row.evidence.find((x) => x.kind === "audience_size" && same(x.subject, name)); return e ? evidenceValue(e) : null; };
+  const ads = row.rivals.reduce((n, r) => n + (r.ads?.length ?? 0), 0) + row.manual.length;
+  const head = (t: string, k: Tab, n?: string) => <div className="row between"><span className="sm w5">{t}</span><button type="button" className="lnk xs i3" onClick={() => onOpen(k)}>{n ?? "All the detail"}</button></div>;
+  return (
+    <div className="col g14" style={{ maxWidth: 900 }}>
+      {row.positioning?.statement && <div className="card col g10" style={{ padding: 18 }}>
+        {head("Your position", "position")}
+        <span style={{ fontSize: 19, lineHeight: "28px", fontWeight: 500, letterSpacing: "-0.01em" }}>{row.positioning.statement}</span>
+      </div>}
+      {segs.length > 0 && <div className="card col g4" style={{ padding: "16px 18px" }}>
+        {head("Who to sell to", "market")}
+        {segs.map((x) => (
+          <div key={x.id} className="row g12" style={{ padding: "11px 0", borderTop: "1px solid var(--line)" }}>
+            <span className="col g2 fill" style={{ minWidth: 0 }}>
+              <span className="row g8"><span className="sm w5 i1">{x.name}</span>{(row.positioning?.primary === x.name || x.priority === "Primary") && <span className="pill green" style={{ height: 18, fontSize: 10 }}>Primary</span>}</span>
+              <span className="xs i2 ell" title={x.angle}>Say: {x.angle}</span>
+            </span>
+            {size(x.name) && <span className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}><span className="sm w5 tnum">{size(x.name)}</span><span className="xs i3">on Meta</span></span>}
+          </div>))}
+      </div>}
+      {hyps.length > 0 && <div className="card col g4" style={{ padding: "16px 18px" }}>
+        {head("What to test first", "plan", "The test plan")}
+        {hyps.map((h) => (
+          <div key={h.id} className="row top g12" style={{ padding: "11px 0", borderTop: "1px solid var(--line)" }}>
+            <span className="sm i1 fill" style={{ lineHeight: "20px" }}>{h.claim}</span>
+            <span className={`pill${h.strength === "measured" ? " green" : ""}`} style={{ height: 20, fontSize: 10.5, flexShrink: 0 }}>{STRENGTH_NAME[h.strength]}</span>
+          </div>))}
+      </div>}
+      <div className="row g10" style={{ padding: 14, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+        <span className="col fill"><span className="sm w5 i1">Turn this into a plan</span><span className="xs i3">{segs.length} buyer group{segs.length === 1 ? "" : "s"}{ads ? ` · ${ads} competitor ads read` : ""} · these audiences are already in your Spend plan</span></span>
+        {ads > 0 && <button type="button" className="btn" onClick={() => onOpen("ads")}>Competitor ads</button>}
+        <Link className="btn dark" href={`${base}/plan`}>Open Spend plan<Icon name="arrow-r" size={12} color="#fff" /></Link>
+      </div>
     </div>
   );
 }

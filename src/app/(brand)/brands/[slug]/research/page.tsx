@@ -22,7 +22,7 @@ export default async function ResearchPage({ params, searchParams }: PageProps<"
   ]);
   const subject = typeof sp.product === "string" ? sp.product.slice(0, 200) : list[0]?.subject ?? "";
   const market = typeof sp.market === "string" ? sp.market : list.find((l) => l.subject === subject)?.market ?? "US";
-  const tab = sp.tab === "ads" || sp.tab === "plan" || sp.tab === "market" || sp.tab === "position" ? sp.tab : "position";
+  const tab = sp.tab === "ads" || sp.tab === "plan" || sp.tab === "market" || sp.tab === "position" ? sp.tab : "summary"; // opens on the short version
   // A run that hasn't saved anything for 15 minutes was cut off (deploy, timeout): offer to run it again.
   const [r] = await db.select({ ...getTableColumns(R), stale: sql<boolean>`(${R.status} = 'running' and ${R.updatedAt} < now() - interval '15 minutes')` })
     .from(R).where(and(eq(R.brandId, brand.id), eq(R.subject, subject), eq(R.market, market)));

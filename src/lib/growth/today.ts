@@ -67,7 +67,8 @@ export async function today(brand: { id: string; currency: string | null }, slug
 
   // Set up: the inputs that make the numbers real.
   if (d.margin.from === "none") a.push({ key: "margin", group: "Set up", who: "analyst", title: "Tell us your margin", why: "Profit is assuming 60% until you set it.", effect: "Unlocks real profit", cta: "Set it", href: `${base}/plan` });
-  if (!d.history) a.push({ key: "history", group: "Set up", who: "catalog", title: "Bring in your past Meta ads", why: "Without them every number is a scenario, not your results.", effect: "Unlocks forecasts", cta: "Connect", href: `${base}/integrations` });
+  const emptyAccount = conns.meta?.status === "connected" && d.metaCampaigns === 0;
+  if (!d.history) a.push({ key: "history", group: "Set up", who: "catalog", title: emptyAccount ? "Connect the ad account your ads ran on" : "Bring in your past Meta ads", why: emptyAccount ? "The Meta account connected here has no campaigns in it." : "Without them every number is a scenario, not your results.", effect: "Unlocks forecasts", cta: emptyAccount ? "Change account" : "Connect", href: `${base}/integrations` });
   if (!d.hasResearch) a.push({ key: "research", group: "Set up", who: "analyst", title: "Find your buyer groups", why: "Iris researches who buys and what to say to them.", effect: "Unlocks audiences", cta: "Run research", href: `${base}/research` });
 
   // Urgent first; then finish what is already in hand (review, test, launch) before deciding and making more.

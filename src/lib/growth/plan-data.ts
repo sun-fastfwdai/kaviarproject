@@ -12,7 +12,7 @@ export type PlanData = {
   hero: { title: string; price: number; stock: number; sold30: number; coverDays: number | null } | null;
   products: { title: string; price: number; stock: number; sold30: number }[];
   orders: { count: number; aov: number | null; tagged: number; buyers: number; repeaters: number; lapsed: number };
-  candidates: Candidate[]; saved: SavedPlan | null; hasResearch: boolean;
+  candidates: Candidate[]; saved: SavedPlan | null; hasResearch: boolean; metaCampaigns: number;
 };
 export type SavedPlan = { product?: string; order?: number; margin?: number; budget?: number; days?: number; goal?: "profit" | "revenue" | "customers"; discount?: number; approvedAt?: string; by?: string };
 const KEY = "spend-plan";
@@ -32,7 +32,7 @@ export async function savePlan(brandId: string, body: SavedPlan): Promise<void> 
 
 export async function planData(brandId: string, currency: string): Promise<PlanData> {
   const rows = <T,>(r: { rows: unknown[] }) => r.rows as T[];
-  const [prod, ord, cust, hist, costs, research, saved] = await Promise.all([
+  const [prod, ord, cust, hist, costs, research, saved, camps] = await Promise.all([
     db.execute(sql`select p.id, p.title, coalesce(min(v.price), p.price_min)::float8 as price, coalesce(sum(v.inventory_quantity), p.total_inventory, 0)::int as stock,
         coalesce((select sum(l.quantity) from shop_order_lines l join shop_orders o on o.id = l.order_id and o.brand_id = l.brand_id
           where l.brand_id = ${brandId} and l.product_id = p.id and o.cancelled_at is null and o.created_at >= now() - interval '30 days'), 0)::int as sold30
@@ -48,6 +48,7 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
     db.select({ id: schema.marketResearch.id, subject: schema.marketResearch.subject, report: schema.marketResearch.report, positioning: schema.marketResearch.positioning, evidence: schema.marketResearch.evidence })
       .from(schema.marketResearch).where(and(eq(schema.marketResearch.brandId, brandId), eq(schema.marketResearch.market, "US"))).orderBy(desc(schema.marketResearch.updatedAt)).limit(4).catch(() => []),
     savedPlan(brandId),
+    db.execute(sql`select count(*)::int as n from meta_campaigns where brand_id = ${brandId}`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
   ]);
   const products = rows<{ id: string; title: string; price: number | null; stock: number; sold30: number }>(prod).filter((p) => (p.price ?? 0) > 0);
   const o = rows<{ count: number; aov: number | null; tagged: number }>(ord)[0] ?? { count: 0, aov: null, tagged: 0 };
@@ -76,6 +77,6 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
   return {
     currency, history: h && h.days > 0 ? h : null,
     margin: { value: fromCosts ? k.margin : saved?.margin ?? null, from: fromCosts ? "costs" : saved?.margin ? "saved" : "none", withCost: k.with_cost, variants: k.variants },
-    hero, products: products.slice(0, 8).map((x) => ({ title: x.title, price: x.price!, stock: x.stock, sold30: x.sold30 })), orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0,
+    hero, products: products.slice(0, 8).map((x) => ({ title: x.title, price: x.price!, stock: x.stock, sold30: x.sold30 })), orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0, metaCampaigns: camps,
   };
 }
