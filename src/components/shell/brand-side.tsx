@@ -44,7 +44,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
       <BrandSwitcher current={{ slug: brand.slug, name: brand.name, category: brand.category ?? (brand.isSample ? "Sample data" : null), thumb }} brands={all} />
       <SearchBox items={searchItems(all, brand)} />
       <nav className="nav">
-        <NavLink href="/brands" exact muted icon={<Icon name="chev-l" />} label="All brands" />
+        {all.length > 1 && <NavLink href="/brands" exact muted icon={<Icon name="chev-l" />} label="All brands" />}
         <div className="nav-h ell">{brand.name}</div>
         <NavLink href={base} exact icon={<Icon name="home" />} label="Overview" />
         <NavLink href={`${base}/store`} icon={<Icon name="store" />} label="Store builder" />
@@ -62,9 +62,9 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <div style={{ height: 1, background: "var(--line)", margin: "6px 8px" }} />
         <NavLink href={`${base}/meta`} icon={<Icon name="megaphone" />} label="Meta Ads" />
         <NavLink href={`${base}/shopify`} icon={<Icon name="bag" />} label="Shopify data" />
-        <NavLink href={`${base}/sync`} icon={<Icon name="database" />} label="Data sync" />
+        {!member.brands && <NavLink href={`${base}/sync`} icon={<Icon name="database" />} label="Data sync" />}
         <div className="nav-h">Workspace</div>
-        <NavLink href="/team" icon={<Icon name="users" />} label="Team" />
+        <NavLink href="/team" icon={<Icon name="users" />} label={member.brands ? "Account" : "Team"} />
       </nav>
       <MemberFoot member={member} />
     </aside>

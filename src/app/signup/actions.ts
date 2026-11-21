@@ -34,13 +34,14 @@ export async function signup(_: SignupState, form: FormData): Promise<SignupStat
       gt(schema.invites.expiresAt, sql`now()`),
       lt(schema.invites.uses, schema.invites.maxUses),
     ))
-    .returning({ role: schema.invites.role });
+    .returning({ role: schema.invites.role, brandId: schema.invites.brandId });
   if (!invite) return { ...keep, error: "This invite isn’t valid anymore. Ask an owner for a new link." };
 
   const [m] = await db
     .insert(schema.members)
-    .values({ name: p.data.name, email: p.data.email, role: invite.role, passwordHash: await hashPassword(p.data.password) })
+    .values({ name: p.data.name, email: p.data.email, role: invite.brandId ? "brand" : invite.role === "brand" ? "operator" : invite.role, passwordHash: await hashPassword(p.data.password) })
     .returning();
+  if (invite.brandId) await db.insert(schema.memberBrands).values({ memberId: m.id, brandId: invite.brandId });
   await createSession(m.id);
   redirect("/brands");
 }

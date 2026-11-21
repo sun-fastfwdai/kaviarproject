@@ -9,7 +9,7 @@ import { InviteLinkButton, InviteTeammate, RevokeInvite, RowMenu } from "./team-
 
 export const metadata = { title: "Team" };
 
-type Row = { id: string; name: string; email: string; role: string; lastActive: Date | null };
+type Row = { id: string; name: string; email: string; role: string; lastActive: Date | null; brands: string | null };
 const COLORS = ["k", "j", "u", "d"];
 const initials = (n: string) => n.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
@@ -23,21 +23,24 @@ const AGENTS: { kind: "builder" | "catalog" | "qa" | "analyst"; name: string; ro
 export default async function TeamPage() {
   const me = await requireMember();
   const owner = me.role === "owner";
-  const people = (await db.execute(sql`
-    select m.id, m.name, m.email, m.role, (select max(s.created_at) from sessions s where s.member_id = m.id) as "lastActive"
-    from members m order by m.created_at`)).rows as Row[];
+  // A brand login sees only itself here — never the team or the other brands.
+  const people = ((await db.execute(sql`
+    select m.id, m.name, m.email, m.role, (select max(s.created_at) from sessions s where s.member_id = m.id) as "lastActive",
+      (select string_agg(b.name, ', ' order by b.name) from member_brands mb join brands b on b.id = mb.brand_id where mb.member_id = m.id) as "brands"
+    from members m order by m.created_at`)).rows as Row[]).filter((p) => !me.brands || p.id === me.id);
+  const brandList = owner ? ((await db.execute(sql`select id, name from brands where deleted_at is null and onboarding_step is null order by name`)).rows as { id: string; name: string }[]) : [];
   const meInfo = { initials: initials(me.name), role: me.role };
   const links = owner ? ((await db.execute(sql`
-    select i.id, i.hint, i.role, i.uses, i.max_uses as "maxUses", i.expires_at as "expiresAt", m.name as "by"
-    from invites i left join members m on m.id = i.created_by
-    where i.revoked_at is null and i.expires_at > now() and i.uses < i.max_uses order by i.created_at desc`)).rows as { id: string; hint: string; role: string; uses: number; maxUses: number; expiresAt: Date; by: string | null }[]) : [];
+    select i.id, i.hint, i.role, i.uses, i.max_uses as "maxUses", i.expires_at as "expiresAt", m.name as "by", b.name as "brand"
+    from invites i left join members m on m.id = i.created_by left join brands b on b.id = i.brand_id
+    where i.revoked_at is null and i.expires_at > now() and i.uses < i.max_uses order by i.created_at desc`)).rows as { id: string; hint: string; role: string; uses: number; maxUses: number; expiresAt: Date; by: string | null; brand: string | null }[]) : [];
 
   return (
     <>
       <Bar crumbs={[{ label: "Operations" }, { label: "Team" }]}>
         <span className="xs i3">{people.length} {people.length === 1 ? "person" : "people"} · 4 agents</span>
-        {owner && <InviteLinkButton me={meInfo} />}
-        {owner && <InviteTeammate me={meInfo} />}
+        {owner && <InviteLinkButton me={meInfo} brands={brandList} />}
+        {owner && <InviteTeammate me={meInfo} brands={brandList} />}
       </Bar>
       <div className="scroll">
         <div className="col g24" style={{ padding: "28px 32px" }}>
@@ -46,7 +49,7 @@ export default async function TeamPage() {
               <h1 className="h1">Team</h1>
               <p className="lead">The people and agents who run every brand.</p>
             </div>
-            <div className="notice" style={{ alignItems: "center" }}><Icon name="info" size={14} />Brands don’t have seats — they approve in their own Shopify and Meta accounts.</div>
+            <div className="notice" style={{ alignItems: "center" }}><Icon name="info" size={14} />A brand login sees one brand only — not the others, and not the team.</div>
           </div>
 
           <div className="col g10">
@@ -69,8 +72,8 @@ export default async function TeamPage() {
                       <span className="xs i3 ell">{p.email}</span>
                     </div>
                   </div>
-                  <div className="td" style={{ width: 140 }}><span className="pill">{p.role === "owner" ? "Owner" : "Operator"}</span></div>
-                  <div className="td" style={{ width: 160 }}>All brands</div>
+                  <div className="td" style={{ width: 140 }}><span className="pill">{p.role === "owner" ? "Owner" : p.role === "brand" ? "Brand login" : "Operator"}</span></div>
+                  <div className="td ell" style={{ width: 160 }} title={p.brands ?? undefined}>{p.role === "brand" ? p.brands ?? "No brand" : "All brands"}</div>
                   <div className="td" style={{ width: 130 }}>{p.lastActive ? ago(p.lastActive) : <span className="i4">Not yet</span>}</div>
                   <div className="td" style={{ width: 40, justifyContent: "flex-end" }}><RowMenu id={p.id} name={p.name} email={p.email} self={p.id === me.id} me={meInfo} /></div>
                 </div>
@@ -88,7 +91,7 @@ export default async function TeamPage() {
                 {links.map((l, i) => (
                   <div key={l.id} className="row g12" style={{ padding: "10px 16px", borderTop: i ? "1px solid var(--line)" : 0 }}>
                     <span className="mono i1">…{l.hint}</span>
-                    <span className="pill" style={{ height: 22, fontSize: 11.5 }}>{l.role === "owner" ? "Owner" : "Operator"}</span>
+                    <span className="pill" style={{ height: 22, fontSize: 11.5 }}>{l.brand ? `Brand login · ${l.brand}` : l.role === "owner" ? "Owner" : "Operator"}</span>
                     <span className="sm i2 fill">{l.uses} of {l.maxUses} used · expires in {Math.max(0, daysUntil(l.expiresAt))} days{l.by ? ` · by ${l.by}` : ""}</span>
                     <RevokeInvite id={l.id} />
                   </div>

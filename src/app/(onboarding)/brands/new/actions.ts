@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
-import { requireMember } from "@/lib/auth";
+import { requireTeam } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { slugify } from "@/lib/format";
 import { resolveShopDomain } from "@/lib/shopify/resolve";
@@ -31,7 +31,7 @@ const Start = z.object({
 
 /** Creates the draft brand (or updates it) and moves on: Shopify → install, website → basics, Kaviar AI → chat. */
 export async function startBrand(_: ActionState, form: FormData): Promise<ActionState> {
-  const member = await requireMember();
+  const member = await requireTeam();
   const p = Start.safeParse(Object.fromEntries(form));
   if (!p.success) return fail("Check the form.");
   const { source } = p.data;
@@ -77,7 +77,7 @@ export async function startBrand(_: ActionState, form: FormData): Promise<Action
 }
 
 export async function sendChat(id: string, text: string): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   await chatTurn(id, text.trim().slice(0, 1000));
   return undefined;
@@ -85,7 +85,7 @@ export async function sendChat(id: string, text: string): Promise<ActionState> {
 
 /** "Use recommended path" — follow Kaviar AI's recommendation. */
 export async function followRecommendation(id: string): Promise<void> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   const ob = await readOnboarding(id);
   const path = ob.chat?.recommendation?.path ?? "website";
@@ -98,7 +98,7 @@ export async function followRecommendation(id: string): Promise<void> {
 }
 
 export async function continueFromSource(id: string): Promise<void> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   await patchOnboarding(id, {}, 2);
   redirect(`/brands/new/${id}/basics`);
@@ -108,7 +108,7 @@ const Call = z.object({ email: z.email("Add an email Jina can send the invite to
 
 /** "Book a 15-min call" — lands in Leads for the brand specialist. */
 export async function bookCall(id: string, _: ActionState, form: FormData): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   const b = await getDraft(id);
   const p = Call.safeParse(Object.fromEntries(form));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Check the form.");
@@ -122,7 +122,7 @@ export async function bookCall(id: string, _: ActionState, form: FormData): Prom
 // ---------------------------------------------------------------- Step 2 · Brand basics
 
 export async function scanBasics(id: string): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   const b = await getDraft(id);
   const ob = await readOnboarding(id);
   const url = b.website ?? (ob.shop ? `https://${ob.shop}` : null);
@@ -144,7 +144,7 @@ const BasicsIn = z.object({
 });
 
 export async function saveBasics(id: string, _: ActionState, form: FormData): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   const b = await getDraft(id);
   const p = BasicsIn.safeParse(Object.fromEntries(form));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Check the form.");
@@ -190,7 +190,7 @@ function sortKind(name: string, mime: string): AssetKind {
 }
 
 export async function uploadAssets(id: string, kind: AssetKind | "auto", form: FormData): Promise<ActionState> {
-  const member = await requireMember();
+  const member = await requireTeam();
   await getDraft(id);
   const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return fail("Pick a file to upload.");
@@ -207,13 +207,13 @@ export async function uploadAssets(id: string, kind: AssetKind | "auto", form: F
 }
 
 export async function removeAsset(id: string, assetId: string): Promise<void> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   await deleteAssets(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, id)));
 }
 
 export async function setInspiration(id: string, list: string[]): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   const clean = [...new Set(list.map((u) => toUrl(u)?.hostname.replace(/^www\./, "")).filter(Boolean) as string[])].slice(0, 8);
   if (list.length && clean.length < new Set(list).size) return fail("That doesn’t look like a website address.");
@@ -222,7 +222,7 @@ export async function setInspiration(id: string, list: string[]): Promise<Action
 }
 
 export async function continueToAnalysis(id: string): Promise<void> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   await patchOnboarding(id, {}, 4);
   redirect(`/brands/new/${id}/analysis`);
@@ -231,7 +231,7 @@ export async function continueToAnalysis(id: string): Promise<void> {
 // ---------------------------------------------------------------- Step 4 · Analysis
 
 export async function startAnalysis(id: string, again = false): Promise<void> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   const ob = await readOnboarding(id);
   if (ob.analysis && !again && (!ob.analysis.finishedAt ? Date.now() - Date.parse(ob.analysis.startedAt) < 6 * 60_000 : true)) return;
@@ -242,7 +242,7 @@ export async function startAnalysis(id: string, again = false): Promise<void> {
 // ---------------------------------------------------------------- Step 5 · Review
 
 export async function saveField(id: string, key: string, value: string): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   if (!/^[a-zA-Z]{2,24}$/.test(key)) return fail("Unknown field.");
   const v = value.trim().slice(0, 600);
@@ -253,7 +253,7 @@ export async function saveField(id: string, key: string, value: string): Promise
 }
 
 export async function irisDraftPolicy(id: string): Promise<ActionState> {
-  await requireMember();
+  await requireTeam();
   await getDraft(id);
   const text = await draftPolicy(id);
   if (!text) return fail("Iris couldn’t draft it right now. Try again in a minute.");
@@ -264,7 +264,7 @@ export async function irisDraftPolicy(id: string): Promise<ActionState> {
 }
 
 export async function finishOnboarding(id: string): Promise<void> {
-  await requireMember();
+  await requireTeam();
   const b = await getDraft(id);
   const base = slugify(b.name) || "brand";
   let slug = base === "new" ? "new-brand" : base;

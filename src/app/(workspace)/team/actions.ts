@@ -21,8 +21,16 @@ async function requireOwner() {
 const Add = z.object({
   name: z.string().trim().min(1, "Add their name").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
-  role: z.enum(["operator", "owner"]),
+  role: z.enum(["operator", "owner", "brand"]),
+  brand: z.string().uuid().optional().or(z.literal("")),
 });
+/** The brand a brand login is for — it must exist, or the request is refused. */
+async function brandFor(role: string, id: string | undefined | null): Promise<{ id: string } | null | "missing"> {
+  if (role !== "brand") return null;
+  if (!id) return "missing";
+  const [b] = await db.select({ id: schema.brands.id }).from(schema.brands).where(eq(schema.brands.id, id)).limit(1);
+  return b ?? "missing";
+}
 
 export async function addMember(_: TeamState, form: FormData): Promise<TeamState> {
   await requireOwner();
@@ -30,8 +38,11 @@ export async function addMember(_: TeamState, form: FormData): Promise<TeamState
   if (!p.success) return { error: p.error.issues[0]?.message, at: Date.now() };
   const [exists] = await db.select({ id: schema.members.id }).from(schema.members).where(eq(schema.members.email, p.data.email)).limit(1);
   if (exists) return { error: "Someone with that email is already on the team.", at: Date.now() };
+  const brand = await brandFor(p.data.role, p.data.brand);
+  if (brand === "missing") return { error: "Pick the brand this login is for.", at: Date.now() };
   const password = tempPassword();
-  await db.insert(schema.members).values({ ...p.data, passwordHash: await hashPassword(password) });
+  const [m] = await db.insert(schema.members).values({ name: p.data.name, email: p.data.email, role: p.data.role, passwordHash: await hashPassword(password) }).returning({ id: schema.members.id });
+  if (brand) await db.insert(schema.memberBrands).values({ memberId: m.id, brandId: brand.id });
   revalidatePath("/team");
   return { created: { name: p.data.name, email: p.data.email, password }, at: Date.now() };
 }
@@ -78,10 +89,12 @@ export type InviteState = { error?: string; url?: string; at?: number } | undefi
 
 export async function createInvite(_: InviteState, form: FormData): Promise<InviteState> {
   const me = await requireOwner();
-  const role = form.get("role") === "owner" ? "owner" : "operator";
+  const asked = form.get("role"), role = asked === "owner" ? "owner" : asked === "brand" ? "brand" : "operator";
+  const brand = await brandFor(role, String(form.get("brand") ?? ""));
+  if (brand === "missing") return { error: "Pick the brand this link is for.", at: Date.now() };
   const code = randomToken(18);
   await db.insert(schema.invites).values({
-    codeHash: sha256(code), hint: code.slice(-4), role, maxUses: INVITE_USES,
+    codeHash: sha256(code), hint: code.slice(-4), role, brandId: brand?.id ?? null, maxUses: INVITE_USES,
     expiresAt: new Date(Date.now() + INVITE_DAYS * 864e5), createdBy: me.id,
   });
   revalidatePath("/team");

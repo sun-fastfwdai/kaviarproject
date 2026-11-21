@@ -95,7 +95,6 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
   else if (p.unfunded.length) actions.push({ tone: "info", title: `Test ${p.cells} audience${p.cells === 1 ? "" : "s"} first, not ${p.cells + p.unfunded.length}`, why: `Each needs about ${usd(p.minToLearn)} to give a readable result. Spread thinner, none of them would.` });
   if (!pays && p.needCvr != null && p.needCvr > rates.cvr.cold[1]) { const need = Math.ceil((order * p.needCvr / rates.cvr.cold[1]) / 5) * 5; actions.unshift({ tone: "warn", title: `Sell a bigger order — about ${usd(need)}`, why: `At ${usd(order)} an order, ads can’t pay back at these rates. A set or bundle near ${usd(need)} would break even on the same clicks.` }); }
   if (discount > 0) actions.push({ tone: "info", title: `${Math.round(discount * 100)}% off needs ${Number.isFinite(ordersNeeded(margin, discount)) ? `${ordersNeeded(margin, discount).toFixed(1)}×` : "more than any number of"} the orders`, why: `To earn the same profit as full price. Break-even ROAS rises to ${p.breakEven.toFixed(2)}×.` });
-  if (data.orders.count >= 10 && data.orders.tagged / data.orders.count < 0.5) actions.push({ tone: "info", title: "Tag every ad link", why: `${data.orders.tagged} of ${data.orders.count} orders can be traced to a campaign. Tagged links let results be matched to real orders.` });
 
   // "Show a plan that pays": full price, then the smallest real order that turns the likely case positive — their average order first,
   // then each product in the catalogue. Only things that exist; if none works, say so.

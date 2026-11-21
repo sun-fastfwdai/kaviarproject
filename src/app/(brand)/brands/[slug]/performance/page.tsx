@@ -176,7 +176,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
             {sold.length === 0 ? (
               <div className="notice" style={{ margin: "0 16px 16px" }}>
                 <Icon name="info" size={14} />
-                <span>No orders carry an ad id yet. Add Kaviar’s URL parameters to every Meta ad — <Link className="lnk w5 i1" href={`/brands/${slug}/sync#tagging`}>see how</Link>. New orders show up here within the hour.</span>
+                <span>No orders carry an ad id yet. Ads set up through Kaviar are tagged on their own; their orders show up here within the hour.</span>
               </div>
             ) : (
               <>

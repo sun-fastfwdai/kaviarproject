@@ -8,6 +8,14 @@ const UserPlus = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="c
 const Key = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M216.57 39.43a80 80 0 0 0-132.66 81.35L28.69 176A15.86 15.86 0 0 0 24 187.31V216a16 16 0 0 0 16 16h32a8 8 0 0 0 8-8v-16h16a8 8 0 0 0 8-8v-16h16a8 8 0 0 0 5.66-2.34l9.56-9.57A79.7 79.7 0 0 0 160 176h.1a80 80 0 0 0 56.47-136.57M224 98.1c-1.09 34.09-29.75 61.86-63.89 61.9H160a63.7 63.7 0 0 1-23.65-4.51 8 8 0 0 0-8.84 1.68L116.69 168H96a8 8 0 0 0-8 8v16H72a8 8 0 0 0-8 8v16H40v-28.69l58.83-58.82a8 8 0 0 0 1.68-8.84A63.7 63.7 0 0 1 96 96v-.11c0-34.14 27.81-62.8 61.9-63.89A64 64 0 0 1 224 98.1M192 76a12 12 0 1 1-12-12 12 12 0 0 1 12 12" /></svg>;
 const Trash = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16M96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0m48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0" /></svg>;
 
+export type BrandPick = { id: string; name: string };
+type Role = "operator" | "owner" | "brand";
+const ROLES: [Role, string, string][] = [
+  ["operator", "Operator", "Works on every brand: data, signals, ads and stores."],
+  ["owner", "Owner", "Everything operators do, plus managing the team."],
+  ["brand", "Brand login", "Sees one brand only. No other brands, no team."],
+];
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="col g6"><span className="label">{label}</span>{children}</label>;
 }
@@ -28,7 +36,7 @@ function As({ me }: { me: { initials: string; role: string } }) {
   return <span className="row g8 xs i3 fill"><span className="av s k">{me.initials}</span>As {me.role === "owner" ? "owner" : "operator"}</span>;
 }
 
-export function InviteTeammate({ me }: { me: { initials: string; role: string } }) {
+export function InviteTeammate({ me, brands }: { me: { initials: string; role: string }; brands: BrandPick[] }) {
   const [open, setOpen] = useState(false);
   const [round, setRound] = useState(0);
   return (
@@ -36,14 +44,15 @@ export function InviteTeammate({ me }: { me: { initials: string; role: string } 
       <button className="btn dark sm" onClick={() => { setRound(round + 1); setOpen(true); }}>
         <svg width="14" height="14" viewBox="0 0 256 256" fill="#fff"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8" /></svg>Invite teammate
       </button>
-      {open && <InviteModal key={round} me={me} onClose={() => setOpen(false)} />}
+      {open && <InviteModal key={round} me={me} brands={brands} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function InviteModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
+function InviteModal({ me, brands, onClose }: { me: { initials: string; role: string }; brands: BrandPick[]; onClose: () => void }) {
   const [state, action, pending] = useActionState<TeamState, FormData>(addMember, undefined);
-  const [role, setRole] = useState<"operator" | "owner">("operator");
+  const [role, setRole] = useState<Role>("operator");
+  const [brand, setBrand] = useState(brands[0]?.id ?? "");
   if (state?.created) {
     return (
       <Modal icon={<UserPlus />} title="Teammate added" sub="Send them the password below." onClose={onClose}
@@ -53,17 +62,18 @@ function InviteModal({ me, onClose }: { me: { initials: string; role: string }; 
     );
   }
   return (
-    <Modal icon={<UserPlus />} title="Invite a teammate" sub="They get access to every brand. Kaviar creates a one-time password for them." onClose={onClose}
+    <Modal icon={<UserPlus />} title="Invite a teammate" sub="Team roles see every brand; a brand login sees one. Kaviar creates a one-time password for them." onClose={onClose}
       footer={<><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="invite" className="btn dark" disabled={pending}>{pending ? "Inviting…" : "Invite teammate"}</button></>}>
       <form id="invite" action={action} className="col g14">
         <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="brand" value={role === "brand" ? brand : ""} />
         <div className="row g12">
           <div className="fill"><Field label="Name"><div className="input"><input name="name" placeholder="Jina" required autoFocus /></div></Field></div>
           <div className="fill"><Field label="Email"><div className="input"><input name="email" type="email" placeholder="jina@kaviar.ai" required /></div></Field></div>
         </div>
         <Field label="Role">
           <div className="col g8">
-            {([["operator", "Operator", "Works on brands: data, signals, ads and stores."], ["owner", "Owner", "Everything operators do, plus managing the team."]] as const).map(([v, t, d]) => (
+            {ROLES.map(([v, t, d]) => (
               <button key={v} type="button" onClick={() => setRole(v)} className="row g10" style={{ padding: "10px 12px", borderRadius: 10, textAlign: "left", border: `1px solid ${role === v ? "var(--ink)" : "var(--line)"}`, boxShadow: role === v ? "0 0 0 1px var(--ink)" : undefined, background: "#fff" }}>
                 <span className={`radio${role === v ? " on" : ""}`} />
                 <span className="col fill"><span className="sm w5 i1">{t}</span><span className="xs i3">{d}</span></span>
@@ -71,6 +81,9 @@ function InviteModal({ me, onClose }: { me: { initials: string; role: string }; 
             ))}
           </div>
         </Field>
+        {role === "brand" && (brands.length ? <label className="col g4"><span className="label">Which brand</span>
+          <select value={brand} onChange={(e) => setBrand(e.target.value)} className="input" style={{ font: "inherit", fontSize: 13 }} aria-label="Brand">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+          : <span className="xs i3">Add a brand first.</span>)}
         {state?.error && <div key={state.at} className="notice red" role="alert">{state.error}</div>}
       </form>
     </Modal>
@@ -156,20 +169,21 @@ function PasswordModal({ me, onClose }: { me: { initials: string; role: string }
 
 const LinkIcon = () => <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M240 88.23a54.43 54.43 0 0 1-16 37L189.25 160a54.27 54.27 0 0 1-38.63 16h-.05A54.63 54.63 0 0 1 96 119.84a8 8 0 0 1 16 .45A38.62 38.62 0 0 0 150.58 160a38.4 38.4 0 0 0 27.31-11.31l34.75-34.75a38.63 38.63 0 0 0-54.63-54.63l-11 11A8 8 0 0 1 135.7 59l11-11a54.65 54.65 0 0 1 77.3 0 54.86 54.86 0 0 1 16 40.23M109 185.66l-11 11A38.4 38.4 0 0 1 70.6 208a38.63 38.63 0 0 1-27.29-65.94L78 107.31a38.63 38.63 0 0 1 66 28.4 8 8 0 0 0 7.78 8.22h.22a8 8 0 0 0 8-7.78A54.86 54.86 0 0 0 144 96a54.65 54.65 0 0 0-77.27 0L32 130.75A54.62 54.62 0 0 0 70.56 224a54.28 54.28 0 0 0 38.64-16l11-11a8 8 0 0 0-11.2-11.34" /></svg>;
 
-export function InviteLinkButton({ me }: { me: { initials: string; role: string } }) {
+export function InviteLinkButton({ me, brands }: { me: { initials: string; role: string }; brands: BrandPick[] }) {
   const [open, setOpen] = useState(false);
   const [round, setRound] = useState(0);
   return (
     <>
       <button className="btn sm" onClick={() => { setRound(round + 1); setOpen(true); }}><LinkIcon />Invite link</button>
-      {open && <InviteLinkModal key={round} me={me} onClose={() => setOpen(false)} />}
+      {open && <InviteLinkModal key={round} me={me} brands={brands} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function InviteLinkModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
+function InviteLinkModal({ me, brands, onClose }: { me: { initials: string; role: string }; brands: BrandPick[]; onClose: () => void }) {
   const [state, action, pending] = useActionState<InviteState, FormData>(createInvite, undefined);
-  const [role, setRole] = useState<"operator" | "owner">("operator");
+  const [role, setRole] = useState<Role>("operator");
+  const [brand, setBrand] = useState(brands[0]?.id ?? "");
   if (state?.url) {
     return (
       <Modal icon={<LinkIcon />} title="Invite link ready" sub="Share it privately. Anyone with the link can create an account." onClose={onClose}
@@ -180,17 +194,21 @@ function InviteLinkModal({ me, onClose }: { me: { initials: string; role: string
     );
   }
   return (
-    <Modal icon={<LinkIcon />} title="Create an invite link" sub="People who open it can create their own account and join the team." onClose={onClose}
+    <Modal icon={<LinkIcon />} title="Create an invite link" sub="People who open it create their own account — on the team, or for one brand only." onClose={onClose}
       footer={<><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="invite-link" className="btn dark" disabled={pending}>{pending ? "Creating…" : "Create link"}</button></>}>
       <form id="invite-link" action={action} className="col g8">
         <input type="hidden" name="role" value={role} />
+        <input type="hidden" name="brand" value={role === "brand" ? brand : ""} />
         <span className="label">They join as</span>
-        {([["operator", "Operator", "Works on brands: data, signals, ads and stores."], ["owner", "Owner", "Everything operators do, plus managing the team."]] as const).map(([v, t, d]) => (
+        {ROLES.map(([v, t, d]) => (
           <button key={v} type="button" onClick={() => setRole(v)} className="row g10" style={{ padding: "10px 12px", borderRadius: 10, textAlign: "left", border: `1px solid ${role === v ? "var(--ink)" : "var(--line)"}`, boxShadow: role === v ? "0 0 0 1px var(--ink)" : undefined, background: "#fff" }}>
             <span className={`radio${role === v ? " on" : ""}`} />
             <span className="col fill"><span className="sm w5 i1">{t}</span><span className="xs i3">{d}</span></span>
           </button>
         ))}
+        {role === "brand" && (brands.length ? <label className="col g4"><span className="label">Which brand</span>
+          <select value={brand} onChange={(e) => setBrand(e.target.value)} className="input" style={{ font: "inherit", fontSize: 13 }} aria-label="Brand">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+          : <span className="xs i3">Add a brand first.</span>)}
         <span className="xs i3">The link lasts 7 days and allows up to 10 sign-ups.</span>
         {state?.error && <div className="notice red">{state.error}</div>}
       </form>

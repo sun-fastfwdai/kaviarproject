@@ -1,3 +1,4 @@
+import { requireTeam } from "@/lib/auth";
 import { listLeads } from "@/lib/queries/leads";
 import { ago } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
@@ -10,6 +11,7 @@ const NEXT: Record<string, ["contacted" | "closed" | "new", string]> = { new: ["
 const TONE: Record<string, string> = { new: "blue", contacted: "amber", closed: "" };
 
 export default async function LeadsPage() {
+  await requireTeam();
   const leads = await listLeads();
   return (
     <>

@@ -28,7 +28,7 @@ export const members = pgTable("members", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
-  role: text("role").notNull().default("operator"), // owner | operator
+  role: text("role").notNull().default("operator"), // owner | operator | brand (sees only its own brands)
   passwordHash: text("password_hash").notNull(),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
@@ -314,6 +314,17 @@ export const leads = pgTable(
 );
 
 // ---------------------------------------------------------------- Invite links (owners share; people sign up with them)
+/** A brand login (role "brand") sees only the brands listed here. Owners and operators see every brand and have no rows. */
+export const memberBrands = pgTable(
+  "member_brands",
+  {
+    memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.memberId, t.brandId] })],
+);
+
 export const invites = pgTable(
   "invites",
   {
@@ -321,6 +332,7 @@ export const invites = pgTable(
     codeHash: text("code_hash").notNull().unique(), // sha256(code); the code itself only lives in the link
     hint: text("hint").notNull(), // last 4 chars, so owners can tell links apart
     role: text("role").notNull().default("operator"),
+    brandId: uuid("brand_id").references(() => brands.id, { onDelete: "cascade" }), // set: whoever signs up sees this brand only
     maxUses: integer("max_uses").notNull().default(10),
     uses: integer("uses").notNull().default(0),
     expiresAt: tz("expires_at").notNull(),

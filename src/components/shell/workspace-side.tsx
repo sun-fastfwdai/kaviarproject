@@ -34,8 +34,8 @@ export async function WorkspaceSide() {
           />
         ))}
         <div className="nav-h">Workspace</div>
-        <NavLink href="/leads" icon={<Icon name="receipt" />} label="Leads" count={leads || undefined} />
-        <NavLink href="/team" icon={<Icon name="users" />} label="Team" />
+        {!member.brands && <NavLink href="/leads" icon={<Icon name="receipt" />} label="Leads" count={leads || undefined} />}
+        <NavLink href="/team" icon={<Icon name="users" />} label={member.brands ? "Account" : "Team"} />
       </nav>
       <MemberFoot member={member} />
     </aside>

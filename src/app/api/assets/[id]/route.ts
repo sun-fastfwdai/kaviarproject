@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { getMember } from "@/lib/auth";
+import { canSee, getMember } from "@/lib/auth";
 import { thumbnail } from "@/lib/audience/media";
 import { readAssets, signedLink } from "@/lib/assets/storage";
 
@@ -20,11 +20,12 @@ const A = schema.brandAssets;
  *   smaller files are passed through, so pictures keep working in the Editor's canvas.
  */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/assets/[id]">) {
-  if (!(await getMember())) return new NextResponse("Not found", { status: 404 });
+  const me = await getMember();
+  if (!me) return new NextResponse("Not found", { status: 404 });
   const { id } = await ctx.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return new NextResponse("Not found", { status: 404 });
-  const [a] = await db.select({ id: A.id, mime: A.mime, name: A.name, size: A.size, meta: A.meta }).from(A).where(eq(A.id, id)).limit(1);
-  if (!a) return new NextResponse("Not found", { status: 404 });
+  const [a] = await db.select({ id: A.id, brandId: A.brandId, mime: A.mime, name: A.name, size: A.size, meta: A.meta }).from(A).where(eq(A.id, id)).limit(1);
+  if (!a || !canSee(me, a.brandId)) return new NextResponse("Not found", { status: 404 }); // a brand login only gets its own files
   const ext = EXT[a.mime], base = a.name.replace(/[\\/:*?"<>|\r\n]+/g, " ").trim() || "asset";
   const named = (e: string | undefined) => (e && !base.toLowerCase().endsWith(`.${e}`) ? `${base}.${e}` : base);
   const head = (mime: string, file: string, extra: Record<string, string> = {}) => ({

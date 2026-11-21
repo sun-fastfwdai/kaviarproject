@@ -3,11 +3,11 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { requireMember } from "@/lib/auth";
+import { requireTeam } from "@/lib/auth";
 import { brandFootprint, purgeBrand, retireBrand, type Footprint } from "@/lib/brands/remove";
 
 async function ownerBrand(slug: string) {
-  const me = await requireMember();
+  const me = await requireTeam();
   if (me.role !== "owner") throw new Error("Only owners can remove brands.");
   const [b] = await db.select().from(schema.brands).where(eq(schema.brands.slug, slug)).limit(1);
   if (!b || b.deletedAt) throw new Error("Brand not found.");

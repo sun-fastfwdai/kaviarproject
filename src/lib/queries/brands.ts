@@ -3,7 +3,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
-import { requireMember } from "../auth";
+import { canSee, requireMember } from "../auth";
 import { rows } from "./common";
 
 export type Brand = typeof schema.brands.$inferSelect;
@@ -16,9 +16,9 @@ export type ConnectionView = {
 };
 
 export const getBrand = cache(async (slug: string): Promise<Brand> => {
-  await requireMember();
+  const me = await requireMember();
   const [b] = await db.select().from(schema.brands).where(eq(schema.brands.slug, slug)).limit(1);
-  if (!b || b.deletedAt) notFound();
+  if (!b || b.deletedAt || !canSee(me, b.id)) notFound(); // a brand login never learns that another brand exists
   return b;
 });
 
@@ -39,8 +39,8 @@ export type BrandRow = Brand & {
 };
 
 export async function listBrands(): Promise<BrandRow[]> {
-  await requireMember();
-  return rows<BrandRow>(sql`
+  const me = await requireMember();
+  return (await rows<BrandRow>(sql`
     select b.id, b.slug, b.name, b.category, b.currency, b.timezone, b.image_url as "imageUrl", b.is_sample as "isSample", b.created_at as "createdAt",
       s.external_id as "shopDomain", s.status as "shopStatus", m.status as "metaStatus", m.display_name as "metaName",
       coalesce(r.revenue, 0)::float8 as "revenue30", coalesce(r.orders, 0)::int as "orders30",
@@ -59,7 +59,7 @@ export async function listBrands(): Promise<BrandRow[]> {
         and o.created_at >= (((now() at time zone b.timezone)::date - 29)::timestamp at time zone b.timezone)
     ) r on true
     where b.deleted_at is null and b.onboarding_step is null
-    order by b.is_sample, b.created_at desc`);
+    order by b.is_sample, b.created_at desc`)).filter((b) => canSee(me, b.id));
 }
 
 export async function brandThumb(brandId: string): Promise<string | null> {
@@ -67,21 +67,22 @@ export async function brandThumb(brandId: string): Promise<string | null> {
   return r[0]?.u ?? null;
 }
 
-export type BrandIndexItem = { slug: string; name: string; category: string | null; thumb: string | null };
+export type BrandIndexItem = { id: string; slug: string; name: string; category: string | null; thumb: string | null };
 
 /** Light list for the brand switcher and ⌘K search. */
 export const brandIndex = cache(async (): Promise<BrandIndexItem[]> => {
-  await requireMember();
-  return rows<BrandIndexItem>(sql`
-    select b.slug, b.name, b.category,
+  const me = await requireMember();
+  return (await rows<BrandIndexItem>(sql`
+    select b.id, b.slug, b.name, b.category,
       coalesce(b.image_url, (select p.image_url from shop_products p where p.brand_id = b.id and p.image_url is not null order by p.total_inventory desc nulls last limit 1)) as "thumb"
-    from brands b where b.deleted_at is null and b.onboarding_step is null order by b.name`);
+    from brands b where b.deleted_at is null and b.onboarding_step is null order by b.name`)).filter((b) => canSee(me, b.id));
 });
 
 export type DraftItem = { id: string; name: string; step: number; website: string | null; createdAt: Date };
 /** Brands still in onboarding, newest first — shown on Brands so anyone can resume them. */
 export const listDrafts = cache(async (): Promise<DraftItem[]> => {
-  await requireMember();
+  const me = await requireMember();
+  if (me.brands) return []; // brands in set-up belong to the team
   return rows<DraftItem>(sql`select id, name, onboarding_step as step, website, created_at as "createdAt" from brands
     where deleted_at is null and onboarding_step is not null order by created_at desc limit 10`);
 });

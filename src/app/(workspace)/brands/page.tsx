@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { asc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
@@ -38,6 +39,7 @@ function attention(b: BrandRow): { title: string; sub: string; cta: string; href
 
 export default async function BrandsPage() {
   const me = await requireMember();
+  if (me.brands) { const mine = await listBrands(); if (mine.length === 1) redirect(`/brands/${mine[0].slug}/today`); }
   const [brands, team, drafts] = await Promise.all([
     listBrands(),
     db.select({ name: schema.members.name }).from(schema.members).orderBy(asc(schema.members.createdAt)),

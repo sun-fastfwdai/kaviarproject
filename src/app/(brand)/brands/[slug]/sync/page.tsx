@@ -192,8 +192,8 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
           <div id="tagging" className="card" style={{ padding: "16px 18px", gap: 10 }}>
             <div className="row between">
               <div className="col g2">
-                <span className="h3">Tag every Meta ad</span>
-                <span className="sm i3">Paste these URL parameters into each ad (Ad → Destination → URL parameters). Shopify then records which ad, ad set and campaign every order came from.</span>
+                <span className="h3">Ad tagging</span>
+                <span className="sm i3">Ads set up through Kaviar carry these URL parameters on their own, so Shopify records which ad, ad set and campaign every order came from. Only ads made outside Kaviar need them pasted in (Ad → Destination → URL parameters).</span>
               </div>
               {tagged != null && <span className={`pill ${tagged >= 0.8 ? "green" : "amber"}`}>{pct(tagged)} of Meta orders tagged</span>}
             </div>

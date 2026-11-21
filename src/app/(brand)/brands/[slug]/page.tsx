@@ -71,7 +71,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   const moving = !conns.shopify && (ob.source === "website" || (ob.scan?.ok && ob.scan.platform !== "Shopify") || Boolean(ob.catalog));
   const steps = moving
     ? [false, Boolean(ob.catalog?.products.length), false, live(conns.meta)]
-    : [live(conns.shopify), synced, live(conns.meta), (tagRate ?? 0) >= 0.8];
+    : [live(conns.shopify), synced, live(conns.meta)]; // tagging ads is Kaviar's job, not a step for the brand
   const hasSales = live(conns.shopify);
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
 
@@ -83,7 +83,6 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   if (conns.meta?.status === "choose_account") needs.push({ agent: "catalog", title: "Pick the Meta ad account", sub: "Login done — choose which account is theirs", cta: "Choose", href: `${base}/integrations` });
   if (conns.meta?.status === "connected" && conns.meta.accessExpiresAt && daysUntil(conns.meta.accessExpiresAt) < 10)
     needs.push({ agent: "catalog", title: "Meta login expires soon", sub: `In ${daysUntil(conns.meta.accessExpiresAt)} days · reconnect to keep syncing`, cta: "Reconnect", href: `${base}/integrations` });
-  if (tagRate != null && tagRate < 0.8) needs.push({ agent: "analyst", title: "Tag every Meta ad", sub: `Only ${pct(tagRate)} of Meta orders name their ad · Iris`, cta: "Show how", href: `${base}/sync#tagging` });
   for (const c of best.filter((x) => x.v < 1 && x.spend >= 100).slice(0, 2))
     needs.push({ agent: "analyst", title: `${c.name} is below break-even`, sub: `${roas(c.v)} verified on ${money(c.spend, cur)} · Iris suggests new creatives`, cta: "Look", href: `${base}/performance` });
   for (const x of (sig?.stock ?? []).filter((x) => x.daysOfStock < 14).slice(0, 1))
@@ -148,8 +147,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               </> : <>
               <Step done={steps[0]} label="Connect the Shopify store" hint="Read-only access to orders, products and customers" href={`${base}/integrations`} cta="Connect" />
               <Step done={steps[1]} label="First Shopify sync" hint="Kaviar pulls order history in the background" href={`${base}/sync`} cta="Open Data sync" />
-              <Step done={steps[2]} label="Connect the Meta ad account" hint="Spend, campaigns and ads, read-only" href={`${base}/integrations`} cta="Connect" />
-              <Step done={steps[3]} label="Tag every Meta ad with Kaviar’s URL parameters" hint="So each order shows the ad that sold it" href={`${base}/sync#tagging`} cta="Show how" />
+              <Step done={steps[2]} label="Connect the Meta ad account" hint="Spend, campaigns and ads — and changes you approve" href={`${base}/integrations`} cta="Connect" />
               </>}
             </div>
           )}

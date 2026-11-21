@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { getMember } from "@/lib/auth";
+import { canSee, getMember } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { authorizeUrl, normalizeShop, verifyQueryHmac } from "@/lib/shopify/oauth";
 import { resolveShopDomain } from "@/lib/shopify/resolve";
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   let brandId: string | null = null;
   if (slug) {
     const [b] = await db.select({ id: schema.brands.id }).from(schema.brands).where(eq(schema.brands.slug, slug)).limit(1);
-    if (!b) return back("shop");
+    if (!b || !canSee(member, b.id)) return back("shop");
     brandId = b.id;
   } else {
     const [c] = await db.select({ brandId: schema.connections.brandId }).from(schema.connections)
