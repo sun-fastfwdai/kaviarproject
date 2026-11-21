@@ -20,7 +20,8 @@ function useCount(to: number) {
     let raf = 0; const t0 = performance.now();
     const tick = (t: number) => { const k = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - k, 3); setV(to * (0.55 + 0.45 * e)); if (k < 1) raf = requestAnimationFrame(tick); };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const done = setTimeout(() => setV(to), 1200); // a hidden tab pauses the animation — the real figure must still land
+    return () => { cancelAnimationFrame(raf); clearTimeout(done); };
   }, [to]);
   return v;
 }

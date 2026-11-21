@@ -220,7 +220,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
                     <span className="row g8"><span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-3)" }}>Campaign {n + 1}</span>{r.stockLimited && <span className="pill" style={{ height: 18, fontSize: 10, background: "#FBF1DC", color: "#7A5A12" }}>Limited by stock</span>}</span>
                     <span className="w5 i1 ell" style={{ fontSize: 16 }}>{r.c.name}</span>
                     <div className="col g2 xs">
-                      <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>Product</span><span className="i1 ell">{r.c.product} · {usd(order * (1 - discount))} an order</span></span>
+                      <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>Product</span><span className="i1 ell">{r.c.product} · {usd(order * (1 - discount))} {avg != null && order === avg ? "average order" : "an order"}</span></span>
                       <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>Audience</span><span className="i1 ell">{KIND[r.c.kind]}{r.c.audience ? ` · ${people(r.c.audience)} people${r.c.kind === "cold" ? " on Meta" : ""}` : ""}</span></span>
                       <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>{r.c.kind === "cold" ? "Message" : "Why"}</span><span className="i1 ell" title={r.c.why}>{r.c.why}</span></span>
                     </div>
