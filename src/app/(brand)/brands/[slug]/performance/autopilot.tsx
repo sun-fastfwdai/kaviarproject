@@ -97,8 +97,8 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
             <AgentFace kind="analyst" size={38} mood="happy" />
             <div className="col g2">
               <span className="row g8"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.25)", animation: "pulse 2.2s ease-in-out infinite" }} /><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "#8BE8B4" }}>Autopilot · on</span></span>
-              <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>Kaviar checks your ads every morning</span>
-              <span style={{ fontSize: 12.5, color: DIM }}>{last ? `Last check ${last}` : "First check runs within the hour"} · reads spend, real orders and stock, then works out what to change</span>
+              <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{watched.campaigns ? "Kaviar checks your ads every morning" : "Kaviar checks your store every morning"}</span>
+              <span style={{ fontSize: 12.5, color: DIM }}>{last ? `Last check ${last}` : "First check runs within the hour"} · {watched.campaigns ? "reads spend, real orders and stock, then works out what to change" : "reads orders and stock now, and your ads from the day one goes live"}</span>
             </div>
           </div>
           <button type="button" disabled={busy} onClick={() => go("check", () => checkNow(slug))} className="row g6" style={{ height: 34, padding: "0 14px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 12.5, flexShrink: 0 }}>
@@ -107,7 +107,7 @@ export function AutopilotPanel({ slug, mode: saved, canAct, last, week, watched,
         </div>
 
         <div className="row g20" style={{ position: "relative", marginTop: 18, flexWrap: "wrap" }}>
-          <Fact k="Watching" v={watched.campaigns ? `${watched.campaigns} campaign${watched.campaigns === 1 ? "" : "s"}` : `${watched.products} products`} sub={watched.campaigns ? `${watched.ads} ads · stock on ${watched.products} products` : "No ads live yet — stock and orders"} />
+          <Fact k="Watching" v={watched.campaigns ? `${watched.campaigns} campaign${watched.campaigns === 1 ? "" : "s"}` : `${watched.products} products`} sub={watched.campaigns ? `${watched.ads} ads · stock on ${watched.products} products` : "No ads live yet"} />
           <Fact k="Waiting for you" v={String(open.length)} sub={open.length ? "Decide below" : "Nothing to decide"} tone={open.length ? "#FFD27A" : undefined} />
           <Fact k="To switch in Meta" v={String(decided.length)} sub={decided.length ? "Decided — one minute each" : "All done"} />
           <Fact k="Changes that worked" v={record.judged ? `${record.worked} of ${record.judged}` : "—"} sub={record.judged ? "Judged on Shopify orders" : record.applied ? `${record.applied} made · too early to tell` : "None made yet"} tone={record.judged && record.worked * 2 >= record.judged ? "#6EE7A8" : undefined} />
