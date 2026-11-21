@@ -6,11 +6,13 @@ import { Icon, type IconName } from "@/components/icon";
 export type AssetRow = {
   id: string; kind: string; name: string; mime: string; size: number; at: string; by: string | null;
   ai: boolean; engine: string | null; prompt: string | null; product: string | null; seconds: number | null; cost: number | null; edit: string | null; width: number | null; height: number | null;
+  url: string | null; // a picture that lives on Shopify, not in Kaviar
 };
 
-type Cat = "all" | "photos" | "cards" | "video" | "people" | "logos" | "uploads" | "voice";
+type Cat = "all" | "shopify" | "photos" | "cards" | "video" | "people" | "logos" | "uploads" | "voice";
 const CATS: [Cat, string, IconName, (a: AssetRow) => boolean][] = [
   ["all", "All assets", "squares", () => true],
+  ["shopify", "Shopify", "bag", (a) => a.kind === "shopify"],
   ["photos", "AI photos", "sparkle", (a) => a.kind === "imagery" && a.ai && a.edit !== "card"],
   ["cards", "Ad cards", "layers", (a) => a.kind === "imagery" && a.edit === "card"],
   ["video", "Videos", "video", (a) => a.kind === "video"],
@@ -21,7 +23,7 @@ const CATS: [Cat, string, IconName, (a: AssetRow) => boolean][] = [
 ];
 const mb = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
 const when = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-const src = (a: AssetRow, w?: number) => `/api/assets/${a.id}${w ? `?w=${w}` : ""}`;
+const src = (a: AssetRow, w?: number) => (a.url ? (w ? `${a.url}${a.url.includes("?") ? "&" : "?"}width=${w}` : a.url) : `/api/assets/${a.id}${w ? `?w=${w}` : ""}`);
 const isImg = (a: AssetRow) => a.mime.startsWith("image/");
 const isVid = (a: AssetRow) => a.mime.startsWith("video/");
 
@@ -60,7 +62,7 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
       <section className="scroll col" style={{ padding: "20px 24px", gap: 14 }}>
         <div className="col g4">
           <h1 className="h1">Brand assets</h1>
-          <p className="sm i3">{assets.length} files for {brand} — uploads, photos and clips from Shoots, ad cards and store photos.</p>
+          <p className="sm i3">{assets.length} files for {brand} — your Shopify product pictures, uploads, photos and clips from Shoots, and ad cards.</p>
         </div>
         <div className="row g8">
           <div className="input" style={{ width: 280, height: 32 }}><Icon name="search" size={13} color="#8B8883" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search assets" aria-label="Search assets" style={{ border: 0, outline: 0, background: "transparent", flex: 1, font: "inherit", fontSize: 13 }} /></div>
@@ -74,12 +76,12 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
               <button key={x.id} type="button" onClick={() => setSel(x.id)} className="col g6" style={{ textAlign: "left", padding: 0, minWidth: 0 }}>
                 <span style={{ position: "relative", display: "block", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden", background: "var(--tray-2)", boxShadow: a?.id === x.id ? "0 0 0 2px var(--ink)" : "0 0 0 1px var(--line)" }}>
                   <Thumb a={x} />
-                  {x.ai && <span className="pill" style={{ position: "absolute", left: 6, bottom: 6, height: 18, fontSize: 9.5, padding: "0 6px" }}>{x.edit === "card" ? "Ad card" : "AI"}</span>}
+                  {(x.ai || x.url) && <span className="pill" style={{ position: "absolute", left: 6, bottom: 6, height: 18, fontSize: 9.5, padding: "0 6px" }}>{x.url ? "Shopify" : x.edit === "card" ? "Ad card" : "AI"}</span>}
                   {x.seconds ? <span className="xs" style={{ position: "absolute", right: 6, bottom: 6, padding: "1px 6px", borderRadius: 99, background: "rgba(0,0,0,.55)", color: "#fff" }}>{x.seconds}s</span> : null}
                 </span>
                 <span className="col" style={{ minWidth: 0 }}>
                   <span className="xs w5 i1 ell" title={x.name}>{x.name}</span>
-                  <span className="xs i3 ell">{when(x.at)} · {mb(x.size)}</span>
+                  <span className="xs i3 ell">{x.url ? `Shopify${x.product && x.product !== x.name ? ` · ${x.product}` : ""}` : `${when(x.at)} · ${mb(x.size)}`}</span>
                 </span>
               </button>
             ))}
@@ -98,16 +100,16 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
             </div>
             <div className="col g2">
               <span className="sm w5 i1" style={{ wordBreak: "break-word" }}>{a.name}</span>
-              <span className="xs i3">{a.mime.split("/")[1]?.toUpperCase()} · {mb(a.size)}{a.width && a.height ? ` · ${a.width} × ${a.height}` : ""}{a.seconds ? ` · ${a.seconds}s` : ""}</span>
+              <span className="xs i3">{a.url ? "On your Shopify store" : `${a.mime.split("/")[1]?.toUpperCase()} · ${mb(a.size)}`}{a.width && a.height ? ` · ${a.width} × ${a.height}` : ""}{a.seconds ? ` · ${a.seconds}s` : ""}</span>
             </div>
             <div className="col" style={{ borderTop: "1px solid var(--line)" }}>
-              {([["Made with", a.engine], ["Product", a.product], ["Added by", a.by ? `${a.by} · ${when(a.at)}` : when(a.at)], ["Cost", a.cost != null ? `$${a.cost.toFixed(2)}` : null]] as const).filter(([, v]) => v).map(([k, v]) => (
+              {([["Made with", a.url ? null : a.engine], ["Product", a.product], [a.url ? "Updated" : "Added by", a.url ? (a.at ? when(a.at) : null) : a.by ? `${a.by} · ${when(a.at)}` : when(a.at)], ["Cost", a.cost != null ? `$${a.cost.toFixed(2)}` : null]] as const).filter(([, v]) => v).map(([k, v]) => (
                 <div key={k} className="row top g10" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span className="xs i3" style={{ width: 72, flexShrink: 0 }}>{k}</span><span className="xs i1 fill" style={{ lineHeight: "16px" }}>{v}</span></div>
               ))}
               {a.prompt && <div className="col g4" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span className="xs i3">Prompt</span><span className="xs i2" style={{ lineHeight: "16px", maxHeight: 112, overflow: "auto" }}>{a.prompt}</span></div>}
             </div>
             <div className="row g8">
-              <a className="btn dark fill" href={`${src(a)}?download=1`} download={a.name} style={{ justifyContent: "center" }}><Icon name="download" size={13} color="#fff" />Download</a>
+              <a className="btn dark fill" href={a.url ?? `${src(a)}?download=1`} download={a.name} target={a.url ? "_blank" : undefined} rel="noreferrer" style={{ justifyContent: "center" }}><Icon name="download" size={13} color="#fff" />{a.url ? "Open full size" : "Download"}</a>
               <a className="btn" href={src(a)} target="_blank" rel="noreferrer" title="Open in a new tab"><Icon name="external" size={13} /></a>
             </div>
           </div>

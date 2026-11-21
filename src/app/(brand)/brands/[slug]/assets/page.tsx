@@ -4,6 +4,7 @@ import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
 import { Bar } from "@/components/shell/parts";
 import { moveToStorage, storageOn } from "@/lib/assets/storage";
+import { storeImages } from "@/lib/shopify/media";
 import { AssetsView, type AssetRow } from "./view";
 
 export const metadata = { title: "Brand assets" };
@@ -24,8 +25,14 @@ export default async function AssetsPage({ params, searchParams }: PageProps<"/b
   const assets: AssetRow[] = rows.map((r) => ({
     id: r.id, kind: r.kind, name: r.name, mime: r.mime, size: r.size, at: r.createdAt.toISOString(), by: r.by ?? null,
     ai: Boolean(r.meta.ai), engine: r.meta.engine ?? null, prompt: r.meta.prompt ?? null, product: r.meta.product ?? null, seconds: r.meta.seconds ?? null,
-    cost: r.meta.cost ?? null, edit: r.meta.edit ?? null, width: r.meta.width ?? null, height: r.meta.height ?? null,
+    cost: r.meta.cost ?? null, edit: r.meta.edit ?? null, width: r.meta.width ?? null, height: r.meta.height ?? null, url: null,
   }));
+  // The store's own product pictures, straight from Shopify — shown beside Kaviar's files, not copied.
+  const fromStore: AssetRow[] = (await storeImages(brand.id).catch(() => [])).map((m) => ({
+    id: `shopify:${m.id}`, kind: "shopify", name: m.alt?.trim() || m.product, mime: "image/jpeg", size: 0, at: m.at ?? "", by: null, ai: false, engine: "Shopify", prompt: null, product: m.product,
+    seconds: null, cost: null, edit: null, width: m.width, height: m.height, url: m.url,
+  }));
+  assets.push(...fromStore);
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Brand assets" }]} />
