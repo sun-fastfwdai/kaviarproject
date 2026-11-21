@@ -7,7 +7,6 @@ import { AgentFace } from "@/components/agent";
 import type { PlanBrief, PlanFormat, PlanReply, PlanTurn } from "@/lib/creative/planner";
 import { AD_LOOKS, adLook, lookNamed, shortLook } from "@/lib/creative/layouts";
 import type { ReadyTest } from "@/lib/research/context";
-import { LookArt, LookGallery } from "@/components/look-art";
 
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
 
@@ -55,15 +54,12 @@ function ReadyTestCard({ t, n, formats, examples, busy, disabled, onBuild }: { t
       </div>
       <div className="col g8" style={{ width: 318, flexShrink: 0 }}>
         <span className="row between"><span className="xs i3">Pick the ad format</span><button type="button" className="lnk xs i2" onClick={() => setAll((v) => !v)}>{all ? "Fewer" : `All ${AD_LOOKS.length} styles`}</button></span>
-        {all ? <div style={{ maxHeight: 300, overflowY: "auto", padding: 2 }}><LookGallery compact value={look} examples={examples} onPick={(name) => { setLook(name); setAll(false); }} /></div> : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-            {shown.map((name) => { const l = adLook(name)!; return (
-              <button key={name} type="button" onClick={() => setLook(name)} title={l.blurb} aria-pressed={look === name} className="col g4" style={{ padding: 0, textAlign: "left", minWidth: 0, cursor: "pointer" }}>
-                <span style={{ display: "block", width: "100%", aspectRatio: "4 / 5", borderRadius: 9, overflow: "hidden", boxShadow: look === name ? "0 0 0 2.5px var(--ink)" : "0 0 0 1px var(--line)" }}><LookArt look={l} example={examples[name]} /></span>
-                <span className="xs w5 i1 ell">{shortLook(name)}</span>
-              </button>); })}
-          </div>
-        )}
+        <div className="row g6" style={{ flexWrap: "wrap" }}>
+          {(all ? AD_LOOKS.map((l) => l.name) : shown).map((name) => (
+            <button key={name} type="button" onClick={() => setLook(name)} title={adLook(name)?.blurb} aria-pressed={look === name} className="chip"
+              style={{ height: 28, ...(look === name ? { background: "var(--ink)", color: "#fff" } : {}) }}>{shortLook(name)}</button>))}
+        </div>
+        <span className="xs i3" style={{ lineHeight: "16px" }}>{adLook(look)?.blurb}</span>
         <button type="button" className={`btn${n === 0 ? " dark" : ""}`} disabled={busy || disabled} onClick={() => onBuild(look)} style={{ justifyContent: "center" }}>
           {busy ? <Icon name="spinner" size={13} className="spin" color={n === 0 ? "#fff" : undefined} /> : <Icon name="sparkle" size={13} color={n === 0 ? "#fff" : undefined} />}{busy ? "Remy is writing the ads…" : `Build this test · 6 ${shortLook(look).toLowerCase()} ads`}</button>
       </div>
@@ -140,9 +136,8 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base, exampl
                 {reply.questions.map((q, i) => (
                   <div key={i} className="col g6">
                     <span className="sm w5 i1">{q.text}</span>
-                    {/style|look/i.test(q.text) && q.options.some((o) => lookNamed(o)) ? (
-                      // Every ad style as a picture: Remy's pick is marked, any of them can be tapped.
-                      <LookGallery suggest={q.options.map((o) => lookNamed(o)?.name).filter((x): x is string => Boolean(x))} value={picks[i] ? lookNamed(picks[i])?.name : null} examples={examples} onPick={(name) => pick(i, shortLook(name))} />
+                    {false ? (
+                      null
                     ) : (
                     <div className="row g6" style={{ flexWrap: "wrap" }}>
                       {q.options.map((o, j) => (
@@ -173,7 +168,6 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base, exampl
                   {([["Product", brief.product || "The whole range"], ["For", brief.audience], ["Messages to test", null], ["Look", `${brief.adLook ? `${shortLook(brief.adLook)}${adLook(brief.adLook)?.person ? " · with a person" : ""} — ` : ""}${brief.look}`]] as const).map(([k, v]) => (
                     <div key={k} className="row top g12" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
                       <span className="xs i3" style={{ width: 110, flexShrink: 0, lineHeight: "20px" }}>{k}</span>
-                      {k === "Look" && adLook(brief.adLook) && <span style={{ width: 52, aspectRatio: "4 / 5", borderRadius: 6, overflow: "hidden", flexShrink: 0, boxShadow: "0 0 0 1px var(--line)" }}><LookArt look={adLook(brief.adLook)!} example={examples[brief.adLook]} /></span>}
                       {v != null ? <span className="sm i1 fill" style={{ lineHeight: "20px" }}>{v}</span>
                         : <span className="col g2 fill">{brief.angles.map((a, i) => <span key={a} className="sm i1" style={{ lineHeight: "20px" }}><span className="i3 tnum">{i + 1}</span>&ensp;{a}</span>)}</span>}
                     </div>

@@ -17,7 +17,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const base = `/brands/${slug}`;
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
     [base, "Overview", "home"], [`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`],
-    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/research`, "Market research", "globe", `${base}/research`], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
+    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/research`, "Market research", "globe", `${base}/research`], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
     [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Performance", "chart-bar", `${base}/performance`],
   ];
   const rail = (
@@ -50,13 +50,15 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <NavLink href={`${base}/assets`} icon={<Icon name="image" />} label="Brand assets" />
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>
+        <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" />
         <NavLink href={`${base}/plan`} icon={<Icon name="chart-bar" />} label="Spend plan" />
+        <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" />
+        <NavLink href={`${base}/performance`} icon={<Icon name="target" />} label="Results" />
+        <div className="nav-h">Library</div>
         <NavLink href={`${base}/research`} icon={<Icon name="globe" />} label="Market research" />
         <NavLink href={`${base}/signals`} icon={<Icon name="lightning" />} label="Ad signals" />
-        <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" />
         <NavLink href={`${base}/audience`} icon={<Icon name="users-three" />} label="Audience test" />
-        <NavLink href={`${base}/run`} icon={<Icon name="target" />} label="Run ads" />
-        <NavLink href={`${base}/performance`} icon={<Icon name="chart-bar" />} label="Performance" />
+        <NavLink href={`${base}/run`} icon={<Icon name="megaphone" />} label="Run ads" />
         <NavLink href={`${base}/optimize`} icon={<Icon name="repeat" />} label="Optimize & repeat" />
         <div style={{ height: 1, background: "var(--line)", margin: "6px 8px" }} />
         <NavLink href={`${base}/meta`} icon={<Icon name="megaphone" />} label="Meta Ads" />

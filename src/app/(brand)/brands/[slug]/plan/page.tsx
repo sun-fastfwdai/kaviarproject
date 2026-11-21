@@ -4,6 +4,7 @@ import { Bar } from "@/components/shell/parts";
 import { SpendPlan } from "./view";
 
 export const metadata = { title: "Spend plan" };
+export const maxDuration = 300; // "Make the ads" has Remy write a batch before Shoots opens
 
 /** Growth · Spend plan: a budget, where it should go, and what should come back — worked out from the brand's own data. */
 export default async function PlanPage({ params }: PageProps<"/brands/[slug]/plan">) {
@@ -13,7 +14,7 @@ export default async function PlanPage({ params }: PageProps<"/brands/[slug]/pla
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Spend plan" }]} />
-      <SpendPlan slug={slug} brand={brand.name} data={data} />
+      <SpendPlan slug={slug} data={data} />
     </>
   );
 }

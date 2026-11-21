@@ -5,7 +5,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { LEVEL, levelOf, ordersNeeded, plan, ratesFrom, type Rates, type Tri } from "@/lib/growth/plan";
 import type { PlanData } from "@/lib/growth/plan-data";
-import { approvePlan } from "./actions";
+import { approvePlan, makeAds } from "./actions";
 
 /**
  * Spend plan. Left: what the brand decides — goal, budget, period, margin, offer. Right: what that works out to, recalculated on every
@@ -24,7 +24,7 @@ function Stat({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: 
   );
 }
 
-export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; data: PlanData }) {
+export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
   const base = `/brands/${slug}`, s = data.saved ?? {};
   const [goal, setGoal] = useState<"profit" | "revenue" | "customers">(s.goal ?? "profit");
   const [budget, setBudget] = useState(s.budget ?? 1500);
@@ -37,12 +37,15 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
   const [cvr, setCvr] = useState(own.cvr.cold[1]);
   const [open, setOpen] = useState(false);
   // Which product the ads sell, and what an order is worth: the brand can try a dearer product or a bundle and watch break-even move.
-  const first = data.candidates[0], [product, setProduct] = useState(first?.product ?? data.products[0]?.title ?? "");
+  const first = data.candidates[0], [product, setProduct] = useState(s.product ?? first?.product ?? data.products[0]?.title ?? "");
   const chosen = data.products.find((x) => x.title === product) ?? null;
-  const [order, setOrder] = useState(first?.price ?? chosen?.price ?? 0);
+  const [order, setOrder] = useState(s.order ?? chosen?.price ?? first?.price ?? 0);
   const pick = (title: string) => { const x = data.products.find((y) => y.title === title); setProduct(title); if (x) setOrder(x.price); };
   const candidates = useMemo(() => data.candidates.map((c) => ({ ...c, product: chosen?.title ?? c.product, price: order > 0 ? order : c.price, stock: chosen ? chosen.stock : c.stock })), [data.candidates, chosen, order]);
   const [saving, start] = useTransition();
+  const [making, setMaking] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const make = (key: string) => { setMaking(key); setErr(null); start(async () => { const r = await makeAds(slug, key); if (r?.error) { setErr(r.error); setMaking(null); } }); };
   const [approved, setApproved] = useState<string | null>(s.approvedAt ? `${s.by ?? "The team"} · ${new Date(s.approvedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : null);
   const field: React.CSSProperties = { border: 0, outline: 0, background: "transparent", font: "inherit", width: "100%" };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: data.currency, maximumFractionDigits: 0 }).format(Math.round(v));
@@ -67,13 +70,13 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
   if (discount > 0) actions.push({ tone: "info", title: `${Math.round(discount * 100)}% off needs ${Number.isFinite(ordersNeeded(margin, discount)) ? `${ordersNeeded(margin, discount).toFixed(1)}×` : "more than any number of"} the orders`, why: `To earn the same profit as full price. Break-even ROAS rises to ${p.breakEven.toFixed(2)}×.` });
   if (data.orders.count >= 10 && data.orders.tagged / data.orders.count < 0.5) actions.push({ tone: "info", title: "Tag every ad link", why: `${data.orders.tagged} of ${data.orders.count} orders can be traced to a campaign. Tagged links let results be matched to real orders.` });
 
-  const approve = () => start(async () => { const r = await approvePlan(slug, { margin, budget, days, goal, discount }, true); if (r.ok) setApproved("You · just now"); });
+  const approve = () => start(async () => { const r = await approvePlan(slug, { margin, budget, days, goal, discount, product, order }, true); if (r.ok) setApproved("You · just now"); });
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 40px" }}>
       <div className="col g4" style={{ marginBottom: 18 }}>
         <h1 className="h1">Spend plan</h1>
-        <p className="sm i3">Set a budget for {brand}. The left is what you decide; the right is what it works out to.</p>
+        <p className="sm i3">You set the budget. Kaviar works out where it goes and what comes back.</p>
       </div>
       <div className="row top g16" style={{ flexWrap: "wrap" }}>
         {/* ---- what you decide */}
@@ -162,7 +165,7 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
                   <span className="i2"><span className="i3">Revenue</span> <b className="tnum">{usd(r.out[1].revenue)}</b> <span className="i3">({usd(r.out[0].revenue)}–{usd(r.out[2].revenue)})</span></span>
                   <span className="i2"><span className="i3">Profit</span> <b className="tnum" style={{ color: r.out[1].profit >= 0 ? "#1F7A52" : "#B4532A" }}>{usd(r.out[1].profit)}</b></span>
                   <span className="fill" />
-                  <Link className="lnk row g4" href={`${base}/creative`} style={{ whiteSpace: "nowrap" }}>Make the ads<Icon name="arrow-r" size={10} /></Link>
+                  <button type="button" className="lnk row g4" disabled={making != null} onClick={() => make(r.c.key)} style={{ whiteSpace: "nowrap" }}>{making === r.c.key ? "Remy is writing the ads…" : "Make the ads"}<Icon name={making === r.c.key ? "spinner" : "arrow-r"} size={10} className={making === r.c.key ? "spin" : undefined} /></button>
                 </div>
               </div>
             ))}
@@ -172,6 +175,7 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
             </div>}
           </div>
 
+          {err && <span className="xs c-amber">{err}</span>}
           {actions.length > 0 && <div className="col g8">
             <span className="sm w5">Do next</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
@@ -185,7 +189,7 @@ export function SpendPlan({ slug, brand, data }: { slug: string; brand: string; 
           </div>}
 
           <div className="row g10" style={{ padding: 14, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-            <span className="col fill"><span className="sm w5 i1">{approved ? "Plan approved" : "Happy with this plan?"}</span><span className="xs i3">{approved ? `${approved} — make the ads for each campaign, then test them before any spend.` : "Approving saves it. Kaviar then prepares each campaign for you to review — nothing is spent yet."}</span></span>
+            <span className="col fill"><span className="sm w5 i1">{approved ? "Plan approved" : "Happy with this plan?"}</span><span className="xs i3">{approved ? `${approved} · next steps are on Today` : "Nothing is spent yet — you review every ad first."}</span></span>
             <button type="button" className="btn dark" disabled={saving || !p.rows.length} onClick={approve}>{saving ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="check" size={13} color="#fff" />}{approved ? "Approve again" : "Approve plan"}</button>
           </div>
         </div>

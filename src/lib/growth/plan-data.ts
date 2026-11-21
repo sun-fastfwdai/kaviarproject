@@ -14,7 +14,7 @@ export type PlanData = {
   orders: { count: number; aov: number | null; tagged: number; buyers: number; repeaters: number; lapsed: number };
   candidates: Candidate[]; saved: SavedPlan | null; hasResearch: boolean;
 };
-export type SavedPlan = { margin?: number; budget?: number; days?: number; goal?: "profit" | "revenue" | "customers"; discount?: number; approvedAt?: string; by?: string };
+export type SavedPlan = { product?: string; order?: number; margin?: number; budget?: number; days?: number; goal?: "profit" | "revenue" | "customers"; discount?: number; approvedAt?: string; by?: string };
 const KEY = "spend-plan";
 const N = schema.agentNotes;
 
