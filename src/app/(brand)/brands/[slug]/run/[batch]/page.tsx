@@ -5,8 +5,11 @@ import { Bar } from "@/components/shell/parts";
 import { LoopStrip } from "@/components/loop-strip";
 import { AgentFace } from "@/components/agent";
 import { TestSetup } from "../setup";
+import { metaAccess } from "@/lib/meta/apply";
 
 export const metadata = { title: "Run ads · New test" };
+
+export const maxDuration = 120;
 
 export default async function NewTestPage({ params }: PageProps<"/brands/[slug]/run/[batch]">) {
   const { slug, batch: id } = await params;
@@ -34,7 +37,8 @@ export default async function NewTestPage({ params }: PageProps<"/brands/[slug]/
         <div className="notice amber" style={{ margin: 24 }}><span>No approved ads in this batch yet. Approve at least two in Creative studio first.</span></div>
       ) : (
         <TestSetup brand={brand.name} currency={brand.currency} title={data.batch.title} audience={data.batch.audience} audienceSize={size}
-          exclude={exclude ? `${exclude[0]} (${exclude[1]})` : null} ads={approved} codes={await brandCodes(brand.id)} site={brand.website}
+          exclude={exclude ? `${exclude[0]} (${exclude[1]})` : null} ads={approved} codes={await brandCodes(brand.id)} site={brand.website ?? (conns.shopify?.externalId ? `https://${conns.shopify.externalId}` : null)}
+          slug={slug} batchId={id} canAct={(await metaAccess(brand.id)).canAct}
           metaAccount={conns.meta?.status === "connected" ? conns.meta.externalId : null} />
       )}
     </>

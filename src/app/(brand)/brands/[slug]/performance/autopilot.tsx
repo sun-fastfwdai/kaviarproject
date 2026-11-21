@@ -129,7 +129,7 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
             </div>
           </div>
           <span style={{ fontSize: 13, color: "rgba(255,255,255,.85)" }}>{MODES[mode].line}</span>
-          {canAct ? <span className="row g6" style={{ fontSize: 11.5, color: "#8BE8B4" }}><Icon name="check" size={11} color="#8BE8B4" />Kaviar changes Meta itself the moment a change is decided: it pauses campaigns and moves daily budgets. Each change is logged below and can be undone.</span>
+          {canAct ? <span className="row g6" style={{ fontSize: 11.5, color: DIM }}><Icon name="plug" size={11} color="rgba(255,255,255,.55)" />{mode === "ask" ? "When you approve a change, Kaviar makes it on Meta for you — no Ads Manager needed." : "Kaviar makes these changes on Meta itself."} Each one is listed under “What Kaviar has been doing”, with an Undo.</span>
             : !access.connected ? null
             : !access.granted ? <span className="row g8" style={{ fontSize: 11.5, color: DIM, flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Kaviar can read your Meta ads but not change them, so each decided change is switched by you in Ads Manager.
                 <a href={`/api/meta/connect?brand=${slug}`} style={{ color: "#fff", textDecoration: "underline" }}>Let Kaviar change ads</a></span>

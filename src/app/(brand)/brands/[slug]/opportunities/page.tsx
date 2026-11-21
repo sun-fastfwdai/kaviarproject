@@ -41,19 +41,19 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
   const list = [...p.rows.map((r) => ({ c: r.c, row: r })), ...p.unfunded.map((u) => ({ c: u.c, row: null }))];
   const usable = signals.filter((s) => s.status === "ready" || s.status === "in-use");
   const ads = research ? research.rivals.reduce((n, r) => n + (r.ads?.length ?? 0), 0) + research.manual.length : 0;
-  const facts: [number, string][] = ([[d.orders.count, "orders read"], [research?.report?.sources.length ?? 0, "sources"], [research?.report?.competitors.length ?? 0, "competitors"], [ads, "competitor ads"], [research?.evidence.length ?? 0, "numbers measured"]] as [number, string][]).filter(([n]) => n > 0);
+  const facts: [number, string, string][] = ([[d.orders.count, "orders read", "orders"], [research?.report?.sources.length ?? 0, "sources", "sources"], [research?.report?.competitors.length ?? 0, "competitors", "competitors"], [ads, "competitor ads", "ads"], [research?.evidence.length ?? 0, "numbers measured", "numbers"]] as [number, string, string][]).filter(([n]) => n > 0);
 
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: base }, { label: "Growth" }, { label: "Opportunities" }]}><LoopStrip base={base} brandId={brand.id} step="opportunities" /></Bar>
       <div className="scroll" style={{ padding: "22px 24px 48px" }}>
-        <div className="col g16" style={{ maxWidth: 1040 }}>
+        <div className="col g16">
           <div className="row between" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
             <div className="col g4">
               <h1 className="h1">{list.length} {list.length === 1 ? "audience" : "audiences"} worth advertising to</h1>
               <p className="sm i3">Ranked by what each should bring back. Pick one and Remy writes the ads.</p>
             </div>
-            {facts.length > 0 && <div className="row g6" style={{ flexWrap: "wrap" }}><AgentFace kind="analyst" size={18} /><span className="xs i3">Iris read</span>{facts.map(([n, l]) => <span key={l} className="chip" style={{ height: 24, fontSize: 11.5 }}><b className="tnum w5 i1">{n.toLocaleString("en-US")}</b>&nbsp;{l}</span>)}</div>}
+            {facts.length > 0 && <div className="row g6" style={{ flexWrap: "wrap" }}><AgentFace kind="analyst" size={18} /><span className="xs i3">Iris read</span>{facts.map(([n, l, k]) => <Link key={l} href={`${base}/opportunities/read?show=${k}`} className="chip hv-card" style={{ height: 24, fontSize: 11.5 }} title={`See the ${l}`}><b className="tnum w5 i1">{n.toLocaleString("en-US")}</b>&nbsp;{l}</Link>)}</div>}
           </div>
 
           {research?.positioning?.statement && <div className="row top g12" style={{ padding: "14px 16px", borderRadius: 14, background: "var(--blue-bg)" }}>

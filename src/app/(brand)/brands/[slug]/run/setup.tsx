@@ -1,14 +1,17 @@
 "use client";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
 import { AdArt, PhonePreview, type AdView } from "@/components/ad-creative";
 import { AgentFace } from "@/components/agent";
 import { Icon } from "@/components/icon";
 import { ottoChecks } from "@/lib/creative/otto";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
+import { createOnMeta } from "./[batch]/actions";
 
 type Props = {
   brand: string; currency: string; title: string; audience: string; audienceSize: number | null; exclude: string | null;
   ads: AdView[]; codes: string[]; site: string | null; metaAccount: string | null;
+  slug: string; batchId: string; canAct: boolean; // canAct: Kaviar may change this brand's ad account
 };
 
 const money = (v: number, c: string) => new Intl.NumberFormat("en-US", { style: "currency", currency: c, maximumFractionDigits: 0 }).format(v);
@@ -25,17 +28,23 @@ export function TestSetup(p: Props) {
   const [scale, setScale] = useState(1.5);
   const [stop, setStop] = useState(1);
   const [sel, setSel] = useState(p.ads[0]?.id);
+  const [making, startMake] = useTransition();
+  const [made, setMade] = useState<{ id?: string; account?: string; error?: string } | null>(null);
+  const sym = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency, maximumFractionDigits: 0 }).formatToParts(0).find((x) => x.type === "currency")?.value ?? p.currency;
+  const base = `/brands/${p.slug}`;
   const ad = p.ads.find((a) => a.id === sel) ?? p.ads[0];
   const link = p.site ? `${p.site.replace(/\/$/, "")}/?${META_URL_PARAMS}` : null;
   const adChecks = p.ads.map((a) => ottoChecks(a, p.codes).every((c) => c.ok));
-  const checks: [string, boolean][] = [
-    ["Budget is small and capped", daily * days <= 500],
-    ["UTM tags on every link", Boolean(link)],
-    ["Meta ad account connected", Boolean(p.metaAccount)],
-    ["Audience big enough (1,000+)", (p.audienceSize ?? 0) >= 1000],
-    ["Every ad passes Otto’s checks", adChecks.every(Boolean)],
-    ["At least 2 ads to compare", p.ads.length >= 2],
+  // Each check knows how it is put right: a link to where the work is, or a change made here.
+  const checks: [string, boolean, { label: string; href?: string; run?: () => void }][] = [
+    ["Budget is small and capped", daily * days <= 500, { label: "Lower the budget", run: () => setDaily(Math.max(5, Math.floor(500 / days / 5) * 5)) }],
+    ["Every link carries Kaviar’s tags", Boolean(link), { label: "Add the store’s website", href: `${base}/integrations` }],
+    ["Meta ad account connected", Boolean(p.metaAccount), { label: "Connect Meta Ads", href: `${base}/integrations` }],
+    ["Audience big enough (1,000+)", (p.audienceSize ?? 0) >= 1000, { label: "Pick a bigger audience", href: `${base}/opportunities` }],
+    ["Every ad passes Otto’s checks", adChecks.every(Boolean), { label: "Fix the flagged ads", href: `${base}/creative/${p.batchId}` }],
+    ["At least 2 ads to compare", p.ads.length >= 2, { label: "Approve one more ad", href: `${base}/creative/${p.batchId}` }],
   ];
+  const failing = checks.filter(([, ok]) => !ok);
   const sheet = useMemo(() => {
     const rows = [
       ["Campaign", name], ["Objective", "Sales · purchases"], ["Status", "Paused (turn on after review)"], ["Daily budget", money(daily, p.currency)], ["Days", String(days)], ["Max spend", money(daily * days, p.currency)],
@@ -69,7 +78,7 @@ export function TestSetup(p: Props) {
               <span className="row g8 sm w5" style={{ height: 40 }}><span className="xs i4">01</span><Icon name="megaphone" size={14} />Campaign</span>
               <Row k="Name"><input value={name} onChange={(e) => setName(e.target.value)} style={{ border: "1px solid var(--line-2)", borderRadius: 6, padding: "3px 6px", font: "inherit", fontSize: 12.5, width: 220 }} /></Row>
               <Row k="Objective">Sales · purchases</Row>
-              <Row k="Budget">{num(daily, setDaily, 5, 5)}<span className="xs i3">/ day ·</span>{num(days, setDays, 1, 3)}<span className="xs i3">days</span></Row>
+              <Row k="Budget"><span className="sm i2">{sym}</span>{num(daily, setDaily, 5, 5)}<span className="xs i3">/ day ·</span>{num(days, setDays, 1, 3)}<span className="xs i3">days</span></Row>
               <Row k="Max spend"><b className="w5">{money(daily * days, p.currency)}</b></Row>
             </div>
             <div className="card" style={{ padding: "4px 16px 4px" }}>
@@ -107,11 +116,27 @@ export function TestSetup(p: Props) {
         <div className="col g6" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
           <span className="row g8"><AgentFace kind="qa" size={18} /><span className="sm w5 fill">Otto’s pre-launch checks</span><span className="xs i3">{checks.filter(([, ok]) => ok).length} / {checks.length}</span></span>
           {checks.map(([k, ok]) => <span key={k} className={`row g6 xs ${ok ? "i2" : "c-amber"}`}><Icon name={ok ? "check-circle" : "warning-circle"} size={13} weight={ok ? "fill" : "regular"} color={ok ? "#1F8A5B" : "#B7791F"} />{k}</span>)}
+          {failing[0] && (failing[0][2].href
+            ? <Link className="btn dark sm" href={failing[0][2].href} style={{ marginTop: 6, justifyContent: "center" }}>Fix it · {failing[0][2].label}<Icon name="arrow-r" size={11} color="#fff" /></Link>
+            : <button type="button" className="btn dark sm" onClick={failing[0][2].run} style={{ marginTop: 6, justifyContent: "center" }}>Fix it · {failing[0][2].label}</button>)}
+          {failing.length > 1 && <span className="xs i3" style={{ textAlign: "center" }}>{failing.length - 1} more after that</span>}
         </div>
         <div className="fill" />
-        <span className="xs i3" style={{ lineHeight: "16px" }}>Kaviar can’t create campaigns on Meta yet — it only has read access to the ad account. Export the launch sheet and set it up in Ads Manager as a <b>paused</b> campaign.</span>
-        <button type="button" className="btn dark" onClick={download}><Icon name="download" size={14} color="#fff" />Export launch sheet</button>
-        <button type="button" className="btn" disabled title="Needs ads_management permission on the Meta app"><Icon name="megaphone" size={14} />Create on Meta · paused</button>
+        {made?.id ? (
+          <div className="col g6" style={{ padding: "12px 14px", borderRadius: 12, background: "#E7F4EC", boxShadow: "0 0 0 1px #BFE0CC" }}>
+            <span className="row g6 sm w5" style={{ color: "#1F7A52" }}><Icon name="check" size={13} color="#1F7A52" />Created on Meta · paused</span>
+            <span className="xs i2" style={{ lineHeight: "16px" }}>The campaign is there with this name and budget. It cannot spend: it is paused and has no ads yet. Add the ads from the launch sheet, then switch it on.</span>
+            <a className="lnk xs w5 row g4" target="_blank" rel="noreferrer" href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${made.account}`}>Open it in Ads Manager<Icon name="external" size={11} /></a>
+          </div>
+        ) : (
+          <span className="xs i3" style={{ lineHeight: "16px" }}>{p.canAct
+            ? <>Kaviar creates the campaign on Meta, <b>paused</b>, with this name and budget. The ads themselves are still added in Ads Manager from the launch sheet.</>
+            : <>Kaviar may not change this ad account yet. Export the launch sheet and set it up in Ads Manager as a <b>paused</b> campaign — or <Link className="lnk w5 i1" href={`${base}/performance#autopilot`}>let Kaviar change ads</Link>.</>}</span>
+        )}
+        {made?.error && <span className="xs" style={{ color: "#B4532A" }}>{made.error}</span>}
+        <button type="button" className={`btn${p.canAct && !made?.id ? "" : " dark"}`} onClick={download}><Icon name="download" size={14} color={p.canAct && !made?.id ? undefined : "#fff"} />Export launch sheet</button>
+        {!made?.id && <button type="button" className={`btn${p.canAct ? " dark" : ""}`} disabled={!p.canAct || making} onClick={() => startMake(async () => setMade(await createOnMeta(p.slug, name, daily)))}>
+          <Icon name={making ? "spinner" : "megaphone"} size={14} color={p.canAct ? "#fff" : undefined} className={making ? "spin" : undefined} />{making ? "Creating on Meta…" : "Create on Meta · paused"}</button>}
       </aside>
     </div>
   );

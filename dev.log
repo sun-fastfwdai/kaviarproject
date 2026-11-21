@@ -129,3 +129,570 @@ Error: Route "/brands/[slug]/optimize": Could not validate `instant` because an 
  GET /brands/other-test/today 200 in 143ms (next.js: 5ms, proxy.ts: 3ms, generate-params: 1.5ms, application-code: 134ms)
  GET /team 200 in 145ms (next.js: 34ms, proxy.ts: 3ms, application-code: 107ms)
  GET /team 200 in 128ms (next.js: 5ms, proxy.ts: 3ms, application-code: 121ms)
+✓ Compiled in 68ms
+✓ Compiled in 6ms
+ GET /login 200 in 145ms (next.js: 89ms, proxy.ts: 6ms, application-code: 50ms)
+ GET /brands/jmella-sample/run 200 in 207ms (next.js: 49ms, proxy.ts: 1.3ms, generate-params: 1.2ms, application-code: 156ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 123ms (next.js: 84ms, proxy.ts: 2ms, application-code: 36ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 1048ms (next.js: 486ms, proxy.ts: 1.2ms, generate-params: 398ms, application-code: 163ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 25ms (next.js: 7ms, proxy.ts: 1.9ms, application-code: 17ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+      <RedirectBoundary>
+        <RedirectErrorBoundary router={{...}}>
+          <InnerLayoutRouter url="/brands/jm..." tree={[...]} params={{slug:"jmel...", ...}} renderTree={{...}} ...>
+            <SegmentViewNode type="page" pagePath="(brand)/br...">
+              <SegmentTrieNode>
+              <NewTestPage>
+                <header>
+                <div>
+                <TestSetup brand="Jmella" currency="USD" title="Win-back ·..." audience="Custom aud..." ...>
+                  <div className="row fill s..." style={{minHeight:0}}>
+                    ...
+                      <div className="card col" style={{width:340, ...}}>
+                        <span>
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"2c1ea1...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        ...
+                    <aside className="col g12" style={{width:320, ...}}>
+                      <span>
+                      <div className="row" style={{...}}>
+                        <PhonePreview ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="9 / 16">
+                          <div style={{width:236, ...}}>
+                            <div>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="4 / 5" big={true}>
+                              <div
+                                style={{
++                                 position: "relative"
+-                                 position: "relative"
++                                 aspectRatio: "4 / 5"
++                                 width: "100%"
+-                                 width: "100%"
++                                 overflow: "hidden"
++                                 background: "linear-gradient(160deg, #EDE9E2, #D9D3C7)"
+-                                 aspect-ratio: "9 / 16"
+-                                 overflow-x: "hidden"
+-                                 overflow-y: "hidden"
+-                                 background-image: "linear-gradient(160deg, rgb(237, 233, 226), rgb(217, 211, 199))"
+-                                 background-position-x: "initial"
+-                                 background-position-y: "initial"
+-                                 background-size: "initial"
+-                                 background-repeat: "initial"
+-                                 background-attachment: "initial"
+-                                 background-origin: "initial"
+-                                 background-clip: "initial"
+-                                 background-color: "initial"
+                                }}
+                              >
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                            ...
+                      ...
+            ...
+          ...
+ 
+ GET /brands/jmella-sample/opportunities/read?show=sources 200 in 614ms (next.js: 142ms, proxy.ts: 1.2ms, generate-params: 281ms, application-code: 189ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at eval (src/lib/auth.ts:40:19)
+    at requireMember (src/lib/auth.ts:57:19)
+    at BrandSide (src/components/shell/brand-side.tsx:15:37)
+    at BrandLayout (src/app/(brand)/brands/[slug]/layout.tsx:9:9)
+  38 | export const getMember = cache(async (): Promise<Member | null> => {
+  39 |   // Brand data is per-request: never prerender anything behind the session check.
+> 40 |   await connection();
+     |                   ^
+  41 |   const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  42 |   if (!token) return null;
+  43 |   const [row] = await db
+ GET /brands/jmella-sample/opportunities/read?show=competitors 200 in 159ms (next.js: 18ms, proxy.ts: 6ms, generate-params: 2ms, application-code: 132ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at ReadPage (src/app/(brand)/brands/[slug]/opportunities/read/page.tsx:18:14)
+  16 | export default async function ReadPage({ params, searchParams }: PageProps<"/brands/[slug]/opportunities/read">) {
+  17 |   const { slug } = await params;
+> 18 |   const sp = await searchParams;
+     |              ^
+  19 |   const brand = await getBrand(slug);
+  20 |   const base = `/brands/${slug}`, cur = brand.currency ?? "USD";
+  21 |   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+ GET /brands/jmella-sample/opportunities/read?show=ads 200 in 151ms (next.js: 6ms, proxy.ts: 5ms, generate-params: 3ms, application-code: 137ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at ReadPage (src/app/(brand)/brands/[slug]/opportunities/read/page.tsx:18:14)
+  16 | export default async function ReadPage({ params, searchParams }: PageProps<"/brands/[slug]/opportunities/read">) {
+  17 |   const { slug } = await params;
+> 18 |   const sp = await searchParams;
+     |              ^
+  19 |   const brand = await getBrand(slug);
+  20 |   const base = `/brands/${slug}`, cur = brand.currency ?? "USD";
+  21 |   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+ GET /brands/jmella-sample/opportunities/read?show=numbers 200 in 157ms (next.js: 6ms, proxy.ts: 5ms, generate-params: 1.6ms, application-code: 145ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at ReadPage (src/app/(brand)/brands/[slug]/opportunities/read/page.tsx:18:14)
+  16 | export default async function ReadPage({ params, searchParams }: PageProps<"/brands/[slug]/opportunities/read">) {
+  17 |   const { slug } = await params;
+> 18 |   const sp = await searchParams;
+     |              ^
+  19 |   const brand = await getBrand(slug);
+  20 |   const base = `/brands/${slug}`, cur = brand.currency ?? "USD";
+  21 |   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+ GET /brands/jmella-sample/opportunities/read?show=orders 200 in 168ms (next.js: 5ms, proxy.ts: 4ms, generate-params: 2ms, application-code: 157ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at ReadPage (src/app/(brand)/brands/[slug]/opportunities/read/page.tsx:18:14)
+  16 | export default async function ReadPage({ params, searchParams }: PageProps<"/brands/[slug]/opportunities/read">) {
+  17 |   const { slug } = await params;
+> 18 |   const sp = await searchParams;
+     |              ^
+  19 |   const brand = await getBrand(slug);
+  20 |   const base = `/brands/${slug}`, cur = brand.currency ?? "USD";
+  21 |   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+ GET /brands/jmella-sample/opportunities/read?show=competitors 200 in 172ms (next.js: 7ms, proxy.ts: 3ms, generate-params: 7ms, application-code: 156ms)
+Error: Route "/brands/[slug]/opportunities/read": Next.js encountered uncached data during prerendering or a navigation.
+
+`fetch(...)` or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered or the navigation from being instant, leading to a slower user experience.
+
+Ways to fix this:
+  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access
+  - [cache] Cache the data access with `"use cache"` (does not apply to `connection()`)
+  - [block] Set `export const instant = false` to allow a blocking route
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic
+    at ReadPage (src/app/(brand)/brands/[slug]/opportunities/read/page.tsx:18:14)
+  16 | export default async function ReadPage({ params, searchParams }: PageProps<"/brands/[slug]/opportunities/read">) {
+  17 |   const { slug } = await params;
+> 18 |   const sp = await searchParams;
+     |              ^
+  19 |   const brand = await getBrand(slug);
+  20 |   const base = `/brands/${slug}`, cur = brand.currency ?? "USD";
+  21 |   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+ GET /brands/jmella-sample/today 200 in 160ms (next.js: 22ms, proxy.ts: 2ms, generate-params: 1.2ms, application-code: 135ms)
+ GET /api/assets/e342107f-bb93-4831-ad56-42600770d53c 200 in 33ms (next.js: 15ms, proxy.ts: 3ms, application-code: 16ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c 200 in 45ms (next.js: 12ms, proxy.ts: 2.0ms, application-code: 31ms)
+ GET /brands/jmella-sample/opportunities 200 in 239ms (next.js: 35ms, proxy.ts: 1.3ms, generate-params: 1.0ms, application-code: 202ms)
+ GET /brands/jmella-sample/performance 200 in 347ms (next.js: 15ms, proxy.ts: 1.2ms, generate-params: 1.2ms, application-code: 330ms)
+ GET /brands/jmella-sample/assets 200 in 163ms (next.js: 61ms, proxy.ts: 1.1ms, generate-params: 1.3ms, application-code: 100ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264?w=480 200 in 30ms (next.js: 11ms, proxy.ts: 3ms, application-code: 16ms)
+ GET /api/assets/e342107f-bb93-4831-ad56-42600770d53c?w=480 200 in 32ms (next.js: 13ms, proxy.ts: 4ms, application-code: 15ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976?w=480 200 in 34ms (next.js: 17ms, proxy.ts: 5ms, application-code: 12ms)
+ GET /api/assets/651b95dd-686f-4000-818b-63bdcaa87c34?w=480 200 in 35ms (next.js: 18ms, proxy.ts: 8ms, application-code: 9ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c?w=480 200 in 37ms (next.js: 15ms, proxy.ts: 5ms, application-code: 17ms)
+ GET /brands/jmella-sample/plan 200 in 145ms (next.js: 30ms, proxy.ts: 1.8ms, generate-params: 1.2ms, application-code: 112ms)
+ GET /team 200 in 131ms (next.js: 15ms, proxy.ts: 3ms, application-code: 113ms)
+✓ Compiled in 106ms
+ GET /brands/jmella-sample/run 200 in 179ms (next.js: 31ms, proxy.ts: 1.4ms, generate-params: 1.1ms, application-code: 145ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 39ms (next.js: 8ms, proxy.ts: 1.4ms, application-code: 30ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 147ms (next.js: 17ms, proxy.ts: 1.1ms, generate-params: 1.1ms, application-code: 128ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 22ms (next.js: 7ms, proxy.ts: 2ms, application-code: 13ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+      <RedirectBoundary>
+        <RedirectErrorBoundary router={{...}}>
+          <InnerLayoutRouter url="/brands/jm..." tree={[...]} params={{slug:"jmel...", ...}} renderTree={{...}} ...>
+            <SegmentViewNode type="page" pagePath="(brand)/br...">
+              <SegmentTrieNode>
+              <NewTestPage>
+                <header>
+                <div>
+                <TestSetup brand="Jmella" currency="USD" title="Win-back ·..." audience="Custom aud..." ...>
+                  <div className="row fill s..." style={{minHeight:0}}>
+                    ...
+                      <div className="card col" style={{width:340, ...}}>
+                        <span>
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"2c1ea1...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        ...
+                    <aside className="col g12" style={{width:320, ...}}>
+                      <span>
+                      <div className="row" style={{...}}>
+                        <PhonePreview ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="9 / 16">
+                          <div style={{width:236, ...}}>
+                            <div>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="4 / 5" big={true}>
+                              <div
+                                style={{
++                                 position: "relative"
+-                                 position: "relative"
++                                 aspectRatio: "4 / 5"
++                                 width: "100%"
+-                                 width: "100%"
++                                 overflow: "hidden"
++                                 background: "linear-gradient(160deg, #EDE9E2, #D9D3C7)"
+-                                 aspect-ratio: "9 / 16"
+-                                 overflow-x: "hidden"
+-                                 overflow-y: "hidden"
+-                                 background-image: "linear-gradient(160deg, rgb(237, 233, 226), rgb(217, 211, 199))"
+-                                 background-position-x: "initial"
+-                                 background-position-y: "initial"
+-                                 background-size: "initial"
+-                                 background-repeat: "initial"
+-                                 background-attachment: "initial"
+-                                 background-origin: "initial"
+-                                 background-clip: "initial"
+-                                 background-color: "initial"
+                                }}
+                              >
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                            ...
+                      ...
+            ...
+          ...
+ 
+ GET /brands/jmella-sample/opportunities/read?show=sources 200 in 220ms (next.js: 43ms, proxy.ts: 1.2ms, generate-params: 1.9ms, application-code: 174ms)
+ GET /brands/jmella-sample/opportunities/read?show=competitors 200 in 136ms (next.js: 2ms, proxy.ts: 1.1ms, generate-params: 1.0ms, application-code: 132ms)
+ GET /brands/jmella-sample/opportunities/read?show=ads 200 in 142ms (next.js: 3ms, proxy.ts: 1.4ms, generate-params: 1.2ms, application-code: 136ms)
+ GET /brands/jmella-sample/opportunities/read?show=numbers 200 in 119ms (next.js: 2ms, proxy.ts: 1.6ms, generate-params: 1.3ms, application-code: 113ms)
+ GET /brands/jmella-sample/opportunities/read?show=orders 200 in 158ms (next.js: 3ms, proxy.ts: 1.4ms, generate-params: 1.3ms, application-code: 152ms)
+ GET /brands/jmella-sample/opportunities/read?show=competitors 200 in 148ms (next.js: 3ms, proxy.ts: 2.0ms, generate-params: 3ms, application-code: 141ms)
+ GET /brands/jmella-sample/today 200 in 137ms (next.js: 7ms, proxy.ts: 1.7ms, generate-params: 1.1ms, application-code: 127ms)
+ GET /api/assets/e342107f-bb93-4831-ad56-42600770d53c 200 in 31ms (next.js: 13ms, proxy.ts: 1.8ms, application-code: 16ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c 200 in 45ms (next.js: 12ms, proxy.ts: 1.7ms, application-code: 32ms)
+ GET /brands/jmella-sample/opportunities 200 in 166ms (next.js: 10ms, proxy.ts: 1.2ms, generate-params: 1.0ms, application-code: 153ms)
+ GET /brands/jmella-sample/performance 200 in 232ms (next.js: 8ms, proxy.ts: 1.2ms, generate-params: 1.0ms, application-code: 223ms)
+ GET /brands/jmella-sample/assets 200 in 95ms (next.js: 8ms, proxy.ts: 1.1ms, generate-params: 1.1ms, application-code: 85ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264?w=480 200 in 19ms (next.js: 5ms, proxy.ts: 3ms, application-code: 11ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c?w=480 200 in 20ms (next.js: 11ms, proxy.ts: 3ms, application-code: 6ms)
+ GET /api/assets/e342107f-bb93-4831-ad56-42600770d53c?w=480 200 in 21ms (next.js: 9ms, proxy.ts: 3ms, application-code: 9ms)
+ GET /api/assets/651b95dd-686f-4000-818b-63bdcaa87c34?w=480 200 in 22ms (next.js: 13ms, proxy.ts: 3ms, application-code: 5ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976?w=480 200 in 23ms (next.js: 12ms, proxy.ts: 3ms, application-code: 7ms)
+ GET /brands/jmella-sample/plan 200 in 120ms (next.js: 6ms, proxy.ts: 1.4ms, generate-params: 1.0ms, application-code: 111ms)
+ GET /team 200 in 118ms (next.js: 11ms, proxy.ts: 1.8ms, application-code: 105ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 147ms (next.js: 4ms, proxy.ts: 1.2ms, generate-params: 1.1ms, application-code: 141ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 23ms (next.js: 7ms, proxy.ts: 3ms, application-code: 13ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 33ms (next.js: 5ms, proxy.ts: 3ms, application-code: 25ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+      <RedirectBoundary>
+        <RedirectErrorBoundary router={{...}}>
+          <InnerLayoutRouter url="/brands/jm..." tree={[...]} params={{slug:"jmel...", ...}} renderTree={{...}} ...>
+            <SegmentViewNode type="page" pagePath="(brand)/br...">
+              <SegmentTrieNode>
+              <NewTestPage>
+                <header>
+                <div>
+                <TestSetup brand="Jmella" currency="USD" title="Win-back ·..." audience="Custom aud..." ...>
+                  <div className="row fill s..." style={{minHeight:0}}>
+                    ...
+                      <div className="card col" style={{width:340, ...}}>
+                        <span>
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        <button type="button" onClick={function onClick} className="row g10" ...>
+                          <span style={{width:44, ...}}>
+                            <AdArt ad={{id:"2c1ea1...", ...}} brand="" ratio="1 / 1" bare={true}>
+                              <div style={{position:"...", ...}}>
+                                <img
+                                  src="/api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                          ...
+                        ...
+                    <aside className="col g12" style={{width:320, ...}}>
+                      <span>
+                      <div className="row" style={{...}}>
+                        <PhonePreview ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="9 / 16">
+                          <div style={{width:236, ...}}>
+                            <div>
+                            <AdArt ad={{id:"e1dd21...", ...}} brand="Jmella" ratio="4 / 5" big={true}>
+                              <div
+                                style={{
++                                 position: "relative"
+-                                 position: "relative"
++                                 aspectRatio: "4 / 5"
++                                 width: "100%"
+-                                 width: "100%"
++                                 overflow: "hidden"
++                                 background: "linear-gradient(160deg, #EDE9E2, #D9D3C7)"
+-                                 aspect-ratio: "9 / 16"
+-                                 overflow-x: "hidden"
+-                                 overflow-y: "hidden"
+-                                 background-image: "linear-gradient(160deg, rgb(237, 233, 226), rgb(217, 211, 199))"
+-                                 background-position-x: "initial"
+-                                 background-position-y: "initial"
+-                                 background-size: "initial"
+-                                 background-repeat: "initial"
+-                                 background-attachment: "initial"
+-                                 background-origin: "initial"
+-                                 background-clip: "initial"
+-                                 background-color: "initial"
+                                }}
+                              >
+                                <img
+                                  src="/api/assets/6b18a138-5a80-47aa-b759-3b797dfce264"
+                                  alt=""
+                                  style={{
++                                   position: "absolute"
+-                                   position: "absolute"
++                                   inset: 0
++                                   width: "100%"
+-                                   width: "100%"
++                                   height: "100%"
+-                                   height: "100%"
++                                   objectFit: "contain"
+-                                   top: "0px"
+-                                   right: "0px"
+-                                   bottom: "0px"
+-                                   left: "0px"
+-                                   object-fit: "cover"
+                                  }}
+                                >
+                            ...
+                      ...
+            ...
+          ...
+ 
+✓ Compiled in 56ms
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 177ms (next.js: 59ms, proxy.ts: 1.2ms, generate-params: 0.9ms, application-code: 116ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 30ms (next.js: 11ms, proxy.ts: 6ms, application-code: 13ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 51ms (next.js: 17ms, proxy.ts: 4ms, application-code: 30ms)
+✓ Compiled in 48ms
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 169ms (next.js: 23ms, proxy.ts: 1.4ms, generate-params: 1.7ms, application-code: 143ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 30ms (next.js: 9ms, proxy.ts: 6ms, application-code: 14ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 50ms (next.js: 12ms, proxy.ts: 6ms, application-code: 32ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 142ms (next.js: 2ms, proxy.ts: 3ms, generate-params: 1.0ms, application-code: 136ms)
+ GET /api/assets/cd55cde1-cc23-4ed9-86dc-05e839bb0976 200 in 27ms (next.js: 11ms, proxy.ts: 3ms, application-code: 14ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 34ms (next.js: 9ms, proxy.ts: 3ms, application-code: 22ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 220ms (next.js: 10ms, proxy.ts: 9ms, generate-params: 3ms, application-code: 198ms)
+ GET /brands/jmella-sample/run/47c0983b-5d3d-4c05-8778-f4db065d6b85 200 in 164ms (next.js: 6ms, proxy.ts: 3ms, generate-params: 3ms, application-code: 151ms)

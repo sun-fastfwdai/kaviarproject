@@ -16,7 +16,7 @@ export function AdArt({ ad, brand, ratio = "4 / 5", big = false, bare: bareIn = 
   const card = isCard(ad), bare = bareIn || card || (big && Boolean(ad.design?.video));
   return (
     <div style={{ position: "relative", aspectRatio: ratio, width: "100%", overflow: "hidden", background: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }}>
-      {ad.imageUrl && <img src={ad.imageUrl} alt={ad.product ?? ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+      {ad.imageUrl && <img src={ad.imageUrl} alt={ad.product ?? ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: card ? "contain" : "cover" }} />}
       {/* A clip from Shoots plays in the big preview. */}
       {big && ad.design?.video && <video src={ad.design.video} poster={ad.imageUrl ?? undefined} controls playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />}
       {!card && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.55) 100%)" }} />}
@@ -50,7 +50,8 @@ export function PhonePreview({ ad, brand, ratio }: { ad: AdView; brand: string; 
         <span style={{ width: 22, height: 22, borderRadius: 99, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>{brand.charAt(0)}</span>
         <div className="col" style={{ lineHeight: "12px" }}><span style={{ fontSize: 10.5, fontWeight: 600 }}>{brand.toLowerCase().replace(/\s+/g, "")}</span><span style={{ fontSize: 9, color: "#8B8883" }}>Sponsored</span></div>
       </div>
-      <AdArt ad={ad} brand={brand} ratio={ratio} big />
+      {/* Pictures are made 4:5, the feed's shape — shown whole, so words on them are never cut. Only a clip uses the tall frame. */}
+      <AdArt ad={ad} brand={brand} ratio={ad.design?.video ? ratio : "4 / 5"} big />
       <div className="row between" style={{ padding: "8px 10px", background: "var(--tray)" }}>
         <span style={{ fontSize: 10.5, fontWeight: 600 }} className="ell">{ad.headline}</span>
         <span style={{ fontSize: 9.5, border: "1px solid var(--line-2)", borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>{ad.cta}</span>

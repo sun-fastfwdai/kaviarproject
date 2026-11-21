@@ -29,7 +29,7 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
-      <div className="col g16" style={{ maxWidth: 1040 }}>
+      <div className="col g16">
         {/* ---- the plan in one sentence, and where you are */}
         <div style={{ position: "relative", overflow: "hidden", borderRadius: 22, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
           <div aria-hidden style={{ position: "absolute", right: -120, top: -160, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${pl && pl.profit < 0 ? "rgba(235,122,60,.30)" : "rgba(52,199,123,.30)"}, transparent)` }} />

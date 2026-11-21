@@ -121,3 +121,24 @@ export async function writeTest(brandId: string): Promise<WriteTest> {
   if (id) { try { await metaWrite("DELETE", id, {}, c.token); add("Delete the test campaign", true); } catch (e) { add("Delete the test campaign", false, `${err(e)} — delete “Kaviar access test” in Ads Manager`); } }
   return done(ok);
 }
+
+/** Currencies Meta counts in whole units; every other one is counted in hundredths. */
+const WHOLE = new Set(["CLP", "COP", "CRC", "HUF", "ISK", "IDR", "JPY", "KRW", "PYG", "TWD", "VND"]);
+
+/**
+ * Create a campaign on Meta, paused, with a daily budget — the first piece of launching from Kaviar. It cannot spend: it is paused and
+ * has no ad set or ads yet. Returns its id and the ad account, so the team can open it in Ads Manager.
+ */
+export async function createPausedCampaign(brandId: string, name: string, daily: number): Promise<{ ok: true; id: string; account: string } | { ok: false; message: string }> {
+  const c = await conn(brandId);
+  if (!c || !c.granted || !c.test?.ok) return { ok: false, message: "Kaviar may not change this ad account yet" };
+  if (!(daily > 0) || daily > 10_000) return { ok: false, message: "Set a daily budget first" };
+  try {
+    const acct = await metaGet<{ currency: string }>(c.account, { fields: "currency" }, c.token);
+    const raw = String(Math.round(daily * (WHOLE.has(acct.currency) ? 1 : 100)));
+    const made = await metaWrite<{ id: string }>("POST", `${c.account}/campaigns`, { name: name.slice(0, 200), objective: "OUTCOME_SALES", status: "PAUSED", special_ad_categories: "[]", daily_budget: raw, bid_strategy: "LOWEST_COST_WITHOUT_CAP" }, c.token);
+    const now = await campaign(c, made.id);
+    if (now.status !== "PAUSED") { await metaWrite("POST", made.id, { status: "PAUSED" }, c.token); }
+    return { ok: true, id: made.id, account: c.account.replace(/^act_/, "") };
+  } catch (e) { return { ok: false, message: e instanceof Error ? e.message.slice(0, 200) : "Meta refused" }; }
+}
