@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -14,19 +14,6 @@ import { makeAds } from "../plan/actions";
 const TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", "Set up": "#8B8883" };
 const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your results"];
 
-/** A number that counts up to its value once, when the page opens. */
-function useCount(to: number) {
-  const [v, setV] = useState(to);
-  useEffect(() => {
-    let raf = 0; const t0 = performance.now();
-    const tick = (t: number) => { const k = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - k, 3); setV(to * (0.55 + 0.45 * e)); if (k < 1) raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-    const done = setTimeout(() => setV(to), 1200); // a hidden tab pauses the animation — the real figure must still land
-    return () => { cancelAnimationFrame(raf); clearTimeout(done); };
-  }, [to]);
-  return v;
-}
-
 export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const base = `/brands/${slug}`;
   const [making, setMaking] = useState<string | null>(null);
@@ -35,7 +22,6 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const [, start] = useTransition();
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: t.currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const make = (a: Action) => { setMaking(a.key); setErr(null); start(async () => { const r = await makeAds(slug, a.make!); if (r?.error) { setErr(r.error); setMaking(null); } }); };
-  const back = useCount(t.plan?.mid ?? 0);
   const [first, ...rest] = t.actions, pl = t.plan, nowAt = t.flow.findIndex((x) => x.key === t.now);
   const Button = (a: Action, big: boolean) => a.make
     ? <button type="button" className={`btn${big ? " dark" : ""}`} disabled={making != null} onClick={() => make(a)} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{making === a.key ? <><Icon name="spinner" size={13} className="spin" color={big ? "#fff" : undefined} />Remy is writing…</> : a.cta}</button>
@@ -57,7 +43,7 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
                 <div className="row g14" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
                   <span className="col"><span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)" }}>{usd(pl.budget)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>you spend</span></span>
                   <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)" }}>→</span>
-                  <span className="col"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em" }}>{usd(back)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in {pl.weeks} weeks</span></span>
+                  <span className="col"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{usd(pl.mid)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in {pl.weeks} weeks</span></span>
                   <span className="col" style={{ paddingLeft: 6 }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, color: pl.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{pl.profit >= 0 ? "+" : "−"}{usd(Math.abs(pl.profit))}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>{pl.profit >= 0 ? "profit after costs" : "short of break-even"}</span></span>
                 </div>
                 {/* the range from a bad run to a good one */}
