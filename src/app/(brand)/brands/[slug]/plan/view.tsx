@@ -119,7 +119,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
             <div className="input" style={{ height: 48 }}><span className="i3" style={{ fontSize: 20 }}>$</span><input type="number" min={0} step={100} value={budget || ""} onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))} aria-label="Budget" style={{ ...field, fontSize: 22, fontWeight: 600 }} /></div>
             <div className="row g6" style={{ flexWrap: "wrap" }}>
               {[500, 1500, 3000, 5000].map((b) => <button key={b} type="button" className="chip" onClick={() => setBudget(b)} style={{ height: 26, ...(budget === b ? { background: "var(--ink)", color: "#fff" } : {}) }}>{usd(b)}</button>)}
-              {p.suggested != null && p.suggested !== budget && <button type="button" className="lnk xs" onClick={() => setBudget(p.suggested!)} title="The budget that earns the most at the likely rates — past it, the next dollar stops paying">Kaviar suggests {usd(p.suggested)}</button>}
+              {lvl >= 1 && p.suggested != null && p.suggested !== budget && <button type="button" className="lnk xs" onClick={() => setBudget(p.suggested!)} title="The budget that earns the most at the likely rates — past it, the next dollar stops paying">Kaviar suggests {usd(p.suggested)}</button>}
             </div></div>
           {data.products.length > 0 && <div className="col g6"><span className="xs i3">Product to advertise · what one order is worth</span>
             <div className="row g8">
@@ -178,7 +178,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
             <span className="col fill" style={{ minWidth: 0 }}>
               <span className="sm w5" style={{ color: pays ? GOOD : BAD }}>{pays ? `This plan pays: about ${usd(mid.profit)} profit` : `This plan doesn’t pay yet: about ${usd(-mid.profit)} short`}</span>
               <span className="xs i2" style={{ lineHeight: "17px" }}>{pays
-                ? p.next && p.next.profit > 0 ? `The next ${usd(p.next.step)} would add about ${usd(p.next.profit)} more.` : "More budget would not add profit — this is about the right size."
+                ? lvl === 0 ? "If the starting rates hold. Run it small first — your own results replace the assumptions within two weeks." : p.next && p.next.profit > 0 ? `The next ${usd(p.next.step)} would add about ${usd(p.next.profit)} more.` : "More budget would not add profit — this is about the right size."
                 : noFix ? `Nothing in the catalogue pays back at these rates. About ${p.needCvr != null ? (p.needCvr * 100).toFixed(1) : "more"} in 100 clickers must buy; the plan assumes ${(rates.cvr.cold[1] * 100).toFixed(1)}.` : `Each order brings ${usd(order * (1 - discount))}${discount ? ` after ${Math.round(discount * 100)}% off` : ""}; ads need ${p.breakEven.toFixed(2)}× back to break even.`}</span>
             </span>
             {!pays && !noFix && <button type="button" className="btn dark" onClick={fix} style={{ flexShrink: 0 }}>Show a plan that pays</button>}
