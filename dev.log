@@ -1,0 +1,37 @@
+▲ Next.js 16.4.5 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.14:3000
+- Environments: .env.local
+✓ Ready in 353ms
+⚠ Warning: Next.js ignored package-lock.json in /Users/krishna because it is outside the current Git repository (/Users/krishna/Documents/first Saas/kaviar/web).
+ To use this directory, set `turbopack.root` in your Next.js config.
+
+✓ Running next.config.ts took 94ms
+- Cache Components enabled
+- Partial Prefetching enabled
+- Experiments (use with caution):
+  · serverActions
+
+ GET /login 200 in 1960ms (next.js: 1684ms, proxy.ts: 39ms, application-code: 238ms)
+ GET /brands/jmella-sample/today 200 in 881ms (next.js: 220ms, proxy.ts: 14ms, generate-params: 333ms, application-code: 314ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c 200 in 675ms (next.js: 602ms, proxy.ts: 10ms, application-code: 63ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 687ms (next.js: 602ms, proxy.ts: 8ms, application-code: 77ms)
+ GET /brands/jmella-sample/opportunities 200 in 862ms (next.js: 348ms, proxy.ts: 1.8ms, generate-params: 333ms, application-code: 180ms)
+ GET /brands/jmella-sample/plan 200 in 469ms (next.js: 30ms, proxy.ts: 1.8ms, generate-params: 313ms, application-code: 124ms)
+[browser] Each child in a list should have a unique "key" prop.
+
+Check the render method of `LinkComponent`. It was passed a child from BrandSide. See https://react.dev/link/warning-keys for more information. 
+✓ Compiled in 100ms
+✓ Compiled in 18ms
+ GET /login 200 in 434ms (next.js: 374ms, proxy.ts: 5ms, application-code: 55ms)
+ GET /brands/jmella-sample/today 200 in 210ms (next.js: 31ms, proxy.ts: 1.5ms, generate-params: 1.2ms, application-code: 176ms)
+ GET /api/assets/6b18a138-5a80-47aa-b759-3b797dfce264 200 in 122ms (next.js: 77ms, proxy.ts: 9ms, application-code: 37ms)
+ GET /api/assets/50b1e270-4c5c-45dd-bd55-6f8e8077bf9c 200 in 133ms (next.js: 83ms, proxy.ts: 6ms, application-code: 44ms)
+ GET /brands/jmella-sample/plan 200 in 179ms (next.js: 28ms, proxy.ts: 1.7ms, generate-params: 1.3ms, application-code: 148ms)
+ GET /brands/jmella-sample/creative 200 in 590ms (next.js: 86ms, proxy.ts: 1.1ms, generate-params: 322ms, application-code: 180ms)
+ GET /brands/jmella-sample/performance 200 in 676ms (next.js: 61ms, proxy.ts: 9ms, generate-params: 378ms, application-code: 228ms)
+ GET /brands/jmella-sample/optimize 200 in 522ms (next.js: 52ms, proxy.ts: 1.5ms, generate-params: 321ms, application-code: 149ms)
+ GET /brands/jmella-sample/research 200 in 591ms (next.js: 50ms, proxy.ts: 1.4ms, generate-params: 394ms, application-code: 146ms)
+ GET /brands/jmella-sample/signals 200 in 780ms (next.js: 293ms, proxy.ts: 1.1ms, generate-params: 321ms, application-code: 165ms)
+ GET /brands/jmella-sample/audience 200 in 533ms (next.js: 56ms, proxy.ts: 1.6ms, generate-params: 333ms, application-code: 143ms)
+ GET /brands/jmella-sample/run 200 in 409ms (next.js: 25ms, proxy.ts: 1.5ms, generate-params: 286ms, application-code: 96ms)

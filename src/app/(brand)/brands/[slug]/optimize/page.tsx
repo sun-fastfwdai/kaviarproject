@@ -21,7 +21,7 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
-  const crumbs = [{ label: brand.name, href: base }, { label: "Growth" }, { label: "Optimize & repeat" }];
+  const crumbs = [{ label: brand.name, href: base }, { label: "Results", href: `${base}/performance` }, { label: "This week’s changes" }];
   if (!conns.meta) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Step 5 of 5 · Optimize & repeat" title="Connect Meta Ads to start the weekly loop"
       body="Every Monday the agents read the week’s Shopify orders and Meta results and propose a short list of changes — pause what loses money, move budget to what wins, refresh tired creatives. Nothing changes without your approval, and a week later Kaviar checks whether it worked."
@@ -45,7 +45,8 @@ export default async function OptimizePage({ params }: PageProps<"/brands/[slug]
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "20px 24px 0", gap: 14 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Optimize & repeat</h1><p className="sm i3">This week’s changes. Approve or skip — nothing changes on Meta until you do.</p></div>
+            <div className="col g8"><h1 className="h1">Results</h1>
+              <div className="seg" style={{ alignSelf: "flex-start" }}><Link className="o" href={`${base}/performance`}>What sold</Link><Link className="o on" href={`${base}/optimize`}>This week’s changes</Link></div></div>
             <span className="chip"><Icon name="calendar" size={13} />Week of {new Date(`${week}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
           </div>
           <div className="row top g10" style={{ padding: "12px 14px", background: "var(--blue-bg)", borderRadius: 12 }}>

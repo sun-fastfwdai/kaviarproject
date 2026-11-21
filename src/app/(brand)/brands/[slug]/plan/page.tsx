@@ -1,6 +1,7 @@
 import { getBrand } from "@/lib/queries/brands";
 import { planData } from "@/lib/growth/plan-data";
 import { Bar } from "@/components/shell/parts";
+import { LoopStrip } from "@/components/loop-strip";
 import { SpendPlan } from "./view";
 
 export const metadata = { title: "Spend plan" };
@@ -13,7 +14,7 @@ export default async function PlanPage({ params }: PageProps<"/brands/[slug]/pla
   const data = await planData(brand.id, brand.currency ?? "USD");
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Spend plan" }]} />
+      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Spend plan" }]}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="plan" /></Bar>
       <SpendPlan slug={slug} data={data} />
     </>
   );

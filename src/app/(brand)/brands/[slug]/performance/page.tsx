@@ -58,7 +58,8 @@ export default async function PerformancePage({ params, searchParams }: PageProp
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Results</h1><p className="sm i3">What your ads really did, counted in Shopify orders.</p></div>
+            <div className="col g8"><h1 className="h1">Results</h1>
+              <div className="seg" style={{ alignSelf: "flex-start" }}><Link className="o on" href={`/brands/${slug}/performance`}>What sold</Link><Link className="o" href={`/brands/${slug}/optimize`}>This week’s changes</Link></div></div>
             <RangeTabs base={`/brands/${slug}/performance`} days={days} />
           </div>
 

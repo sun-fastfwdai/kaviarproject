@@ -5,7 +5,7 @@ import { buildPipeline, planTurn } from "./actions";
 import { Icon, type IconName } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { PlanBrief, PlanFormat, PlanReply, PlanTurn } from "@/lib/creative/planner";
-import { AD_LOOKS, adLook, lookNamed, shortLook } from "@/lib/creative/layouts";
+import { adLook, shortLook } from "@/lib/creative/layouts";
 import type { ReadyTest } from "@/lib/research/context";
 
 export type PlanCard = { key: string; title: string; why: string; evidence: [string, string][]; href: string };
@@ -29,45 +29,8 @@ const FORMAT: Record<PlanFormat, { name: string; icon: IconName; time: string; s
 };
 
 /** Board 17's Plan as a conversation: say what you want, Remy asks what's missing, then lays out the pipeline it will set up in Shoots. */
-/** The formats offered first on each ready-made test: a poster, a with-a-person shot and an informative one — every style is one tap away. */
-const FIRST_FORMATS = [["bigword", "reach", "benefits"], ["statement", "sky", "swatch"], ["benefits", "moment", "splash"]].map((keys) => keys.map((k) => AD_LOOKS.find((l) => l.key === k)!.name));
 
-/**
- * A test straight from the research: who it is for, the hypothesis it settles and the messages to try — the team only picks the ad
- * format (one of a few, or any style) and builds it. No questions to answer.
- */
-function ReadyTestCard({ t, n, formats, examples, busy, disabled, onBuild }: { t: ReadyTest; n: number; formats: string[]; examples: Record<string, string>; busy: boolean; disabled: boolean; onBuild: (look: string) => void }) {
-  const [look, setLook] = useState(formats[0]);
-  const [all, setAll] = useState(false);
-  const shown = formats.includes(look) ? formats : [look, ...formats.slice(0, 2)];
-  return (
-    <div className="row top g16" style={{ padding: 16, background: "#fff", borderRadius: 16, boxShadow: n === 0 ? "0 0 0 1.5px var(--ink), 0 8px 24px rgba(18,18,18,.08)" : "0 0 0 1px var(--line), 0 4px 14px rgba(18,18,18,.04)", flexWrap: "wrap" }}>
-      <div className="col g8 fill" style={{ minWidth: 260 }}>
-        <span className="row g8"><span className="eyebrow">Audience {n + 1}</span>{t.primary && <span className="pill green" style={{ height: 18, fontSize: 10 }}>Primary buyer</span>}{t.size && <span className="pill" style={{ height: 18, fontSize: 10 }}>{t.size}</span>}</span>
-        <span className="h3">{t.name}{t.product ? <span className="sm i3" style={{ fontWeight: 400 }}> · {t.product}</span> : null}</span>
-        <span className="xs i2" style={{ lineHeight: "17px" }}>{t.who}{t.targeting ? <span className="i3"> — {t.targeting}</span> : null}</span>
-        {t.hypothesis && <span className="xs i2" style={{ lineHeight: "17px", padding: "7px 10px", borderRadius: 8, background: "var(--tray)" }}><span className="w5 i1">Hypothesis{t.strength ? ` · ${t.strength.toLowerCase()}` : ""}:</span> {t.hypothesis}</span>}
-        <div className="col g2">
-          <span className="xs i3">Messages to test</span>
-          {t.messages.map((m, i) => <span key={m} className="sm i1" style={{ lineHeight: "20px" }}><span className="i3 tnum">{i + 1}</span>&ensp;{m}</span>)}
-        </div>
-      </div>
-      <div className="col g8" style={{ width: 318, flexShrink: 0 }}>
-        <span className="row between"><span className="xs i3">Pick the ad format</span><button type="button" className="lnk xs i2" onClick={() => setAll((v) => !v)}>{all ? "Fewer" : `All ${AD_LOOKS.length} styles`}</button></span>
-        <div className="row g6" style={{ flexWrap: "wrap" }}>
-          {(all ? AD_LOOKS.map((l) => l.name) : shown).map((name) => (
-            <button key={name} type="button" onClick={() => setLook(name)} title={adLook(name)?.blurb} aria-pressed={look === name} className="chip"
-              style={{ height: 28, ...(look === name ? { background: "var(--ink)", color: "#fff" } : {}) }}>{shortLook(name)}</button>))}
-        </div>
-        <span className="xs i3" style={{ lineHeight: "16px" }}>{adLook(look)?.blurb}</span>
-        <button type="button" className={`btn${n === 0 ? " dark" : ""}`} disabled={busy || disabled} onClick={() => onBuild(look)} style={{ justifyContent: "center" }}>
-          {busy ? <Icon name="spinner" size={13} className="spin" color={n === 0 ? "#fff" : undefined} /> : <Icon name="sparkle" size={13} color={n === 0 ? "#fff" : undefined} />}{busy ? "Remy is writing the ads…" : `Build this test · 6 ${shortLook(look).toLowerCase()} ads`}</button>
-      </div>
-    </div>
-  );
-}
-
-export function PlanChat({ slug, brand, plans, research = [], aiOk, base, examples = {}, tests = [] }: { slug: string; brand: string; plans: PlanCard[]; research?: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string; examples?: Record<string, string>; tests?: ReadyTest[] }) {
+export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { slug: string; brand: string; plans: PlanCard[]; research?: PlanCard[]; hasMeta: boolean; aiOk: boolean; base: string; examples?: Record<string, string>; tests?: ReadyTest[] }) {
   const [turns, setTurns] = useState<(PlanTurn & { show?: string })[]>([]); // `show` is what the bubble says; `text` is what Remy reads back
   const [reply, setReply] = useState<PlanReply | null>(null);
   const [picks, setPicks] = useState<Record<number, string>>({});
@@ -75,7 +38,6 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base, exampl
   const [thinking, setThinking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [building, startBuild] = useTransition();
-  const [built, setBuilt] = useState<string | null>(null); // which ready-made test is being built
   const area = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const options = { plans: plans.map(({ key, title, why }) => ({ key, title, why })), buyers: research.map(({ key, title, why }) => ({ key, title, why })) };
@@ -222,16 +184,6 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base, exampl
             ))}
           </div>
 
-          {tests.length > 0 && <>
-            <div className="row between" style={{ paddingTop: 10 }}>
-              <span className="row g6 sm w5"><Icon name="globe" size={14} color="#5B6FD6" />Ready to test — from your research</span>
-              <Link className="xs i3 lnk" href={`${base}/research`}>audiences, hypotheses and messages Iris found</Link>
-            </div>
-            <div className="col g12">
-              {tests.map((t, i) => <ReadyTestCard key={t.key} t={t} n={i} formats={FIRST_FORMATS[i % FIRST_FORMATS.length]} examples={examples} busy={building && built === t.key} disabled={!aiOk || building}
-                onBuild={(look) => { setBuilt(t.key); build({ format: "static", product: t.product, signal: t.key, audience: t.who, angles: t.messages, count: 6, look: t.visual, adLook: look, seconds: 0, why: t.hypothesis ?? t.why }); }} />)}
-            </div>
-          </>}
 
           <div className="row between" style={{ paddingTop: 10 }}>
             <span className="row g6 sm w5"><AgentFace kind="analyst" size={16} />Suggested by Iris</span>
@@ -259,7 +211,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base, exampl
               <Link className="btn sm" href={`${base}/sync`}><Icon name="database" size={12} />Data sync</Link>
             </div>
           )}
-          {research.length > 0 && tests.length === 0 && <>
+          {research.length > 0 && <>
             <div className="row between" style={{ paddingTop: 10 }}>
               <span className="row g6 sm w5"><Icon name="globe" size={14} color="#5B6FD6" />From market research</span>
               <Link className="xs i3 lnk" href={`${base}/research`}>buyers and positioning Iris found</Link>

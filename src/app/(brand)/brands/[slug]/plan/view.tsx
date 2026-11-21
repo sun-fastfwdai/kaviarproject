@@ -32,11 +32,19 @@ function Gauge({ roas, breakEven }: { roas: [number, number, number]; breakEven:
     </div>
   );
 }
-function Stat({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: "good" | "bad" }) {
+/** The estimate as a chain: each box is the one before it times a rate, so nothing is a black box. */
+function Funnel({ steps }: { steps: { v: string; k: string; how: string; end?: boolean }[] }) {
   return (
-    <div className="row between" style={{ padding: "11px 0", borderTop: "1px solid var(--line)" }}>
-      <span className="col"><span className="sm i1">{k}</span>{sub && <span className="xs i3">{sub}</span>}</span>
-      <span className="tnum" style={{ fontSize: 17, fontWeight: 600, color: tone === "good" ? GOOD : tone === "bad" ? BAD : "var(--ink)" }}>{v}</span>
+    <div className="row" style={{ alignItems: "stretch", gap: 0, flexWrap: "wrap", rowGap: 8 }}>
+      {steps.map((x, i) => (
+        <div key={x.k} className="row fill" style={{ minWidth: 104 }}>
+          <div className="col g2 fill" style={{ padding: "10px 12px", borderRadius: 12, background: x.end ? "#E7F4EC" : "var(--tray)", boxShadow: x.end ? "0 0 0 1px #BFE0CC" : "none", minWidth: 0 }}>
+            <span className="tnum ell" style={{ fontSize: 20, lineHeight: "24px", fontWeight: 600, letterSpacing: "-0.01em", color: x.end ? GOOD : "var(--ink)" }}>{x.v}</span>
+            <span className="xs i1 ell">{x.k}</span>
+            <span style={{ fontSize: 10.5, lineHeight: "14px", color: "var(--ink-3)" }}>{x.how}</span>
+          </div>
+          {i < steps.length - 1 && <span aria-hidden className="i3" style={{ width: 22, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>→</span>}
+        </div>))}
     </div>
   );
 }
@@ -107,14 +115,12 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
     <div className="scroll" style={{ padding: "22px 24px 40px" }}>
       <div className="col g4" style={{ marginBottom: 18 }}>
         <h1 className="h1">Spend plan</h1>
-        <p className="sm i3">You set the budget. Kaviar works out where it goes and what comes back.</p>
+        <p className="sm i3">You set the budget. Below: which product, which audience, and how every number is reached.</p>
       </div>
       <div className="row top g16" style={{ flexWrap: "wrap" }}>
         {/* ---- what you decide */}
         <div className="card col g16" style={{ width: 380, flexShrink: 0, padding: 18 }}>
           <span className="sm w5">What you decide</span>
-          <div className="col g6"><span className="xs i3">Goal</span>
-            <div className="seg">{([["profit", "Profit"], ["revenue", "Revenue"], ["customers", "New customers"]] as const).map(([k, n]) => <button key={k} type="button" className={`o${goal === k ? " on" : ""}`} onClick={() => setGoal(k)}>{n}</button>)}</div></div>
           <div className="col g6"><span className="xs i3">Budget</span>
             <div className="input" style={{ height: 48 }}><span className="i3" style={{ fontSize: 20 }}>$</span><input type="number" min={0} step={100} value={budget || ""} onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))} aria-label="Budget" style={{ ...field, fontSize: 22, fontWeight: 600 }} /></div>
             <div className="row g6" style={{ flexWrap: "wrap" }}>
@@ -128,9 +134,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
               </select>
               <div className="input" style={{ width: 96, flexShrink: 0 }}><span className="i3">$</span><input type="number" min={1} value={Math.round(order) || ""} onChange={(e) => setOrder(Math.max(0, Number(e.target.value)))} aria-label="Order value" style={field} /></div>
             </div>
-            <span className="xs i3">{avg ? <>{order === avg ? `Your average across ${data.orders.count} orders.` : <>Your orders average {usd(avg)} · <button type="button" className="lnk" onClick={() => setOrder(avg)}>use it</button>.</>} </> : null}Pick a product to see a single-item order.</span></div>}
-          <div className="col g6"><span className="xs i3">Period</span>
-            <div className="seg">{([[14, "2 weeks"], [28, "4 weeks"], [56, "8 weeks"]] as const).map(([d, n]) => <button key={d} type="button" className={`o${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{n}</button>)}</div></div>
+            <span className="xs i3">{avg ? <>{order === avg ? `Your average across ${data.orders.count.toLocaleString("en-US")} orders.` : <>Your orders average {usd(avg)} · <button type="button" className="lnk" onClick={() => setOrder(avg)}>use it</button>.</>} </> : null}Pick a product to see a single-item order.</span></div>}
           <div className="col g6"><span className="xs i3">Margin — what is left of the price after making the product</span>
             <div className="input" style={{ width: 120 }}><input type="number" min={5} max={95} value={Math.round(margin * 100)} onChange={(e) => setMargin(Math.min(0.95, Math.max(0.05, Number(e.target.value) / 100)))} aria-label="Margin percent" style={field} /><span className="i3">%</span></div>
             <span className="xs i3">{data.margin.from === "costs" ? `From the cost on ${data.margin.withCost} of ${data.margin.variants} variants in Shopify` : data.margin.from === "saved" ? "Your figure" : "Assumed until you set it"}</span></div>
@@ -138,9 +142,14 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
             <div className="seg">{[0, 0.1, 0.15, 0.2, 0.3].map((d) => <button key={d} type="button" className={`o${discount === d ? " on" : ""}`} onClick={() => setDiscount(d)}>{d ? `${Math.round(d * 100)}% off` : "Full price"}</button>)}</div></div>
           <div className="col g8" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
             <button type="button" className="row between" onClick={() => setOpen((v) => !v)} style={{ textAlign: "left", cursor: "pointer" }}>
-              <span className="col"><span className="sm i1">{lvl === 2 ? "Rates from your ads" : "Starting assumptions"}</span><span className="xs i3">{data.history ? `From ${data.history.days} days of your Meta results${lvl < 2 ? ", blended with starting points" : ""}` : "No ad history yet — these are starting points, not your results"}</span></span>
+              <span className="col"><span className="sm i1">More settings</span><span className="xs i3">Goal, period and the rates behind the estimate</span></span>
               <span className="xs i3">{open ? "Hide" : "Show"}</span></button>
-            {open && <div className="col g8">
+            {open && <div className="col g12">
+              <div className="col g6"><span className="xs i3">Goal</span>
+                <div className="seg">{([["profit", "Profit"], ["revenue", "Revenue"], ["customers", "New customers"]] as const).map(([k, n]) => <button key={k} type="button" className={`o${goal === k ? " on" : ""}`} onClick={() => setGoal(k)}>{n}</button>)}</div></div>
+              <div className="col g6"><span className="xs i3">Period</span>
+                <div className="seg">{([[14, "2 weeks"], [28, "4 weeks"], [56, "8 weeks"]] as const).map(([d, n]) => <button key={d} type="button" className={`o${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{n}</button>)}</div></div>
+              <span className="xs i3">{data.history ? `Rates from ${data.history.days} days of your Meta results${lvl < 2 ? ", blended with starting points" : ""}` : "Rates: no ad history yet, so these are typical starting points. Change them if you know yours."}</span>
               {([["Cost per 1,000 views", cpm, (v: number) => setCpm(Math.max(1, v)), "$", 1], ["People who click", ctr * 100, (v: number) => setCtr(Math.max(0.0005, v / 100)), "%", 0.1], ["Clickers who buy (new audience)", cvr * 100, (v: number) => setCvr(Math.max(0.0005, v / 100)), "%", 0.1]] as [string, number, (v: number) => void, string, number][]).map(([n, v, set, unit, st]) => (
                 <label key={n} className="row between g8"><span className="xs i2">{n}</span>
                   <span className="input" style={{ width: 96, height: 30 }}><input type="number" step={st} value={Number(v.toFixed(2))} onChange={(e) => set(Number(e.target.value))} aria-label={n} style={{ ...field, fontSize: 13 }} /><span className="i3 xs">{unit}</span></span></label>))}
@@ -166,9 +175,23 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
               </div>
             </div>
             <div style={{ marginTop: 14 }}>
-              <Stat k="Ad spend" v={usd(mid.spend)} />
-              <Stat k="Product cost" sub={`${Math.round(mid.orders)} orders likely (${Math.round(lo.orders)}–${Math.round(hi.orders)})`} v={usd(mid.cost)} />
-              <Stat k="Expected profit" sub={pays ? "After ad spend and product cost" : "Ads cost more than they bring back"} v={`${mid.profit >= 0 ? "+" : "−"}${usd(Math.abs(mid.profit))}`} tone={pays ? "good" : "bad"} />
+              <div className="col g10" style={{ padding: "14px 0", borderTop: "1px solid var(--line)" }}>
+                <div className="row between"><span className="sm w5">How we get this number</span><button type="button" className="lnk xs i3" onClick={() => setOpen(true)}>{lvl === 0 ? "Typical starting rates — change them" : `From ${data.history?.days ?? 0} days of your ads`}</button></div>
+                <Funnel steps={[
+                  { v: usd(mid.spend), k: "ad spend", how: `${p.rows.length} campaign${p.rows.length === 1 ? "" : "s"}` },
+                  { v: people(mid.seen), k: "see an ad", how: `$${rates.cpm[1].toFixed(0)} per 1,000 views` },
+                  { v: Math.round(mid.clicks).toLocaleString("en-US"), k: "click", how: `${(rates.ctr[1] * 100).toFixed(1)}% of viewers` },
+                  { v: String(Math.round(mid.orders)), k: "buy", how: mid.clicks > 0 ? `${((mid.orders / mid.clicks) * 100).toFixed(1)}% of clickers` : "" },
+                  { v: usd(mid.revenue), k: "revenue", how: `${Math.round(mid.orders)} orders × ${usd(order * (1 - discount))}${repeat > 0 ? ", plus repeats" : ""}`, end: true },
+                ]} />
+                <div className="row g8 sm" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="i3">Then</span>
+                  <span className="chip" style={{ height: 26 }}>{usd(mid.revenue)} revenue</span><span className="i3">−</span>
+                  <span className="chip" style={{ height: 26 }}>{usd(mid.spend)} ads</span><span className="i3">−</span>
+                  <span className="chip" style={{ height: 26 }} title={`${Math.round((1 - margin) * 100)}% of the price goes on making the product`}>{usd(mid.cost)} product cost</span><span className="i3">=</span>
+                  <span className="tnum w5" style={{ fontSize: 17, color: pays ? GOOD : BAD }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))} profit</span>
+                </div>
+              </div>
               <Gauge roas={p.roas} breakEven={p.breakEven} />
             </div>
           </div>
@@ -185,26 +208,35 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
           </div>
 
           <div className="card" style={{ padding: "16px 18px" }}>
-            <div className="row between" style={{ marginBottom: 6 }}><span className="sm w5">Where the budget goes</span><span className="xs i3">{p.rows.length} campaign{p.rows.length === 1 ? "" : "s"} · each gets enough to read a result</span></div>
-            {p.rows.map((r) => (
-              <div key={r.c.key} className="col g8" style={{ padding: "14px 0", borderTop: "1px solid var(--line)" }}>
-                <div className="row top between g12">
-                  <span className="col g2 fill" style={{ minWidth: 0 }}>
-                    <span className="row g8"><span className="sm w5 i1">{r.c.name}</span><span className="pill" style={{ height: 18, fontSize: 10 }}>{KIND[r.c.kind]}</span>{r.c.audience ? <span className="xs i3">{people(r.c.audience)} people</span> : null}{r.stockLimited && <span className="pill" style={{ height: 18, fontSize: 10, background: "#FBF1DC", color: "#7A5A12" }}>Stock is the limit</span>}</span>
-                    <span className="xs i3 ell">{r.c.product} · {r.c.why}</span>
-                  </span>
-                  <span className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}><span className="tnum" style={{ fontSize: 17, fontWeight: 600 }}>{usd(r.spend)}</span><span className="xs i3">{Math.round(r.share * 100)}% of budget</span></span>
+            <div className="row between" style={{ marginBottom: 6 }}><span className="sm w5">Your {p.rows.length} campaign{p.rows.length === 1 ? "" : "s"}</span><span className="xs i3">Each is one product, shown to one audience, with one message</span></div>
+            {p.rows.map((r, n) => { const pic = data.products.find((x) => x.title === r.c.product)?.image ?? null, o = r.out[1]; return (
+              <div key={r.c.key} className="col g10" style={{ padding: "16px 0", borderTop: "1px solid var(--line)" }}>
+                <div className="row top g14">
+                  {pic
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={pic} alt="" width={56} height={56} loading="lazy" style={{ borderRadius: 10, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />
+                    : <span style={{ width: 56, height: 56, borderRadius: 10, background: "var(--tray-2)", flexShrink: 0 }} />}
+                  <div className="col g6 fill" style={{ minWidth: 0 }}>
+                    <span className="row g8"><span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-3)" }}>Campaign {n + 1}</span>{r.stockLimited && <span className="pill" style={{ height: 18, fontSize: 10, background: "#FBF1DC", color: "#7A5A12" }}>Limited by stock</span>}</span>
+                    <span className="w5 i1 ell" style={{ fontSize: 16 }}>{r.c.name}</span>
+                    <div className="col g2 xs">
+                      <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>Product</span><span className="i1 ell">{r.c.product} · {usd(order * (1 - discount))} an order</span></span>
+                      <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>Audience</span><span className="i1 ell">{KIND[r.c.kind]}{r.c.audience ? ` · ${people(r.c.audience)} people${r.c.kind === "cold" ? " on Meta" : ""}` : ""}</span></span>
+                      <span className="row g8"><span className="i3" style={{ width: 62, flexShrink: 0 }}>{r.c.kind === "cold" ? "Message" : "Why"}</span><span className="i1 ell" title={r.c.why}>{r.c.why}</span></span>
+                    </div>
+                  </div>
+                  <span className="col" style={{ alignItems: "flex-end", flexShrink: 0 }}><span className="tnum" style={{ fontSize: 20, fontWeight: 600 }}>{usd(r.spend)}</span><span className="xs i3">{Math.round(r.share * 100)}% of budget</span></span>
                 </div>
                 <div style={{ height: 6, borderRadius: 99, background: "var(--tray-2)" }}><div style={{ height: "100%", width: `${r.share * 100}%`, borderRadius: 99, background: "var(--ink)", transition: "width .3s" }} /></div>
-                <div className="row g16 xs" style={{ flexWrap: "wrap" }}>
-                  <span className="i2"><span className="i3">Orders</span> <b className="tnum">{Math.round(r.out[1].orders)}</b> <span className="i3">({Math.round(r.out[0].orders)}–{Math.round(r.out[2].orders)})</span></span>
-                  <span className="i2"><span className="i3">Revenue</span> <b className="tnum">{usd(r.out[1].revenue)}</b> <span className="i3">({usd(r.out[0].revenue)}–{usd(r.out[2].revenue)})</span></span>
-                  <span className="i2"><span className="i3">Profit</span> <b className="tnum" style={{ color: r.out[1].profit >= 0 ? GOOD : BAD }}>{r.out[1].profit >= 0 ? "+" : "−"}{usd(Math.abs(r.out[1].profit))}</b></span>
+                <div className="row g8 xs" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                  {[usd(r.spend), `${people(o.seen)} see it`, `${Math.round(o.clicks).toLocaleString("en-US")} click`, `${Math.round(o.orders)} order${Math.round(o.orders) === 1 ? "" : "s"} (${Math.round(r.out[0].orders)}–${Math.round(r.out[2].orders)})`].map((t, j) => <span key={j} className="row g8"><span className="tnum i2">{t}</span><span className="i3">→</span></span>)}
+                  <b className="tnum i1">{usd(o.revenue)} back</b>
+                  <b className="tnum" style={{ color: o.profit >= 0 ? GOOD : BAD }}>{o.profit >= 0 ? "+" : "−"}{usd(Math.abs(o.profit))} profit</b>
                   <span className="fill" />
-                  <button type="button" className="lnk row g4" disabled={making != null} onClick={() => make(r.c.key)} style={{ whiteSpace: "nowrap" }}>{making === r.c.key ? "Remy is writing the ads…" : "Make the ads"}<Icon name={making === r.c.key ? "spinner" : "arrow-r"} size={10} className={making === r.c.key ? "spin" : undefined} /></button>
+                  <button type="button" className="btn sm" disabled={making != null} onClick={() => make(r.c.key)} style={{ whiteSpace: "nowrap" }}>{making === r.c.key ? <><Icon name="spinner" size={12} className="spin" />Remy is writing…</> : <>Make the ads<Icon name="arrow-r" size={11} /></>}</button>
                 </div>
               </div>
-            ))}
+            ); })}
             {p.unfunded.length > 0 && <div className="col g4" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
               <span className="xs i3">Not funded at this budget</span>
               {p.unfunded.map((u) => <span key={u.c.key} className="row between xs"><span className="i2">{u.c.name}</span><span className="i3">{u.reason.replace(/(\d[\d,]*)/, (m) => usd(Number(m.replace(/,/g, ""))))}</span></span>)}

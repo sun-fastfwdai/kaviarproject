@@ -1,7 +1,8 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
-import { plan, ratesFrom, type Plan } from "./plan";
+import { levelOf, plan, ratesFrom, type Plan } from "./plan";
+import { flowState, type FlowKey, type FlowStep } from "./flow";
 import { planData, type PlanData } from "./plan-data";
 
 /**
@@ -10,8 +11,13 @@ import { planData, type PlanData } from "./plan-data";
  * what it should bring. Code decides and counts; nothing here is written by a model.
  */
 export type Who = "analyst" | "builder" | "qa" | "catalog";
-export type Action = { key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; urgent?: boolean };
-export type Today = { actions: Action[]; later: Action[]; plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number } | null; currency: string };
+export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; urgent?: boolean };
+export type Today = {
+  actions: Action[]; later: Action[]; currency: string;
+  plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
+  flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
+};
+const STEP: Partial<Record<Action["group"], FlowKey>> = { Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
 
 /** The plan as the team last set it (or the defaults the Spend plan opens with). */
 export function planFor(d: PlanData): { p: Plan; budget: number; days: number; margin: number } {
@@ -27,7 +33,11 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const base = `/brands/${slug}`, currency = brand.currency ?? "USD";
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const B = schema.adBatches;
-  const [d, batches, tested, changes] = await Promise.all([
+  const [flow, pics, d, batches, tested, changes] = await Promise.all([
+    flowState(brand.id),
+    // A few of the ads themselves, so "review" and "test" show what is waiting rather than describe it.
+    db.execute(sql`select a.batch_id as batch, a.status, a.image_url as url from ads a join ad_batches b on b.id = a.batch_id where b.brand_id = ${brand.id} and a.status in ('review', 'approved') and a.image_url is not null order by b.created_at desc, a.position limit 60`)
+      .then((r) => r.rows as { batch: string; status: string; url: string }[]).catch(() => []),
     planData(brand.id, currency),
     db.select({ id: B.id, title: B.title, signal: B.signal,
       review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
@@ -74,7 +84,14 @@ export async function today(brand: { id: string; currency: string | null }, slug
   // Urgent first; then finish what is already in hand (review, test, launch) before deciding and making more.
   const ORDER: Action["group"][] = ["Fix", "Protect", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Set up"];
   const rank = (x: Action) => (x.urgent ? 0 : 100) + ORDER.indexOf(x.group);
+  const pic = (status: string, batch?: string) => pics.filter((x) => x.status === status && (!batch || x.batch === batch)).slice(0, 5).map((x) => x.url);
+  for (const x of a) {
+    if (x.group === "Review") x.thumbs = pic("review", x.key.startsWith("review:") ? x.key.slice(7) : undefined);
+    if (x.group === "Test" || x.group === "Launch") x.thumbs = pic("approved", x.key.split(":")[1]);
+  }
   const sorted = [...a].sort((x, y) => rank(x) - rank(y));
-  return { actions: sorted.slice(0, 5), later: sorted.slice(5), currency,
-    plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit } : null };
+  const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
+  const sells = p.rows[0]?.c.product ?? null;
+  return { actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
+    plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
 }

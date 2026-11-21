@@ -11,7 +11,7 @@ export type Rates = { cpm: Tri; ctr: Tri; cvr: Record<Kind, Tri> };
 export type History = { days: number; spend: number; impressions: number; clicks: number; purchases: number; value: number };
 export type Candidate = { key: string; name: string; why: string; kind: Kind; audience: number | null; product: string; price: number; stock: number | null; signal: string | null; rank: number };
 export type PlanInput = { budget: number; days: number; goal: "profit" | "revenue" | "customers"; discount: number; margin: number; repeat: number; rates: Rates; candidates: Candidate[]; clicksToLearn?: number };
-export type Outcome = { spend: number; clicks: number; orders: number; revenue: number; cost: number; profit: number };
+export type Outcome = { spend: number; seen: number; clicks: number; orders: number; revenue: number; cost: number; profit: number };
 export type Row = { c: Candidate; spend: number; share: number; out: [Outcome, Outcome, Outcome]; stockLimited: boolean };
 export type Plan = {
   rows: Row[]; unfunded: { c: Candidate; reason: string }[]; total: [Outcome, Outcome, Outcome];
@@ -45,9 +45,9 @@ export function outcome(c: Candidate, spend: number, k: 0 | 1 | 2, i: PlanInput)
   let orders = clicks * i.rates.cvr[c.kind][k];
   if (c.stock != null) orders = Math.min(orders, c.stock);
   const sold = orders * (1 + i.repeat), revenue = sold * price, cost = sold * unitCost;
-  return { spend, clicks, orders, revenue, cost, profit: revenue - cost - spend };
+  return { spend, seen, clicks, orders, revenue, cost, profit: revenue - cost - spend };
 }
-const sum = (rows: Row[], k: 0 | 1 | 2): Outcome => rows.reduce((a, r) => ({ spend: a.spend + r.out[k].spend, clicks: a.clicks + r.out[k].clicks, orders: a.orders + r.out[k].orders, revenue: a.revenue + r.out[k].revenue, cost: a.cost + r.out[k].cost, profit: a.profit + r.out[k].profit }), { spend: 0, clicks: 0, orders: 0, revenue: 0, cost: 0, profit: 0 });
+const sum = (rows: Row[], k: 0 | 1 | 2): Outcome => rows.reduce((a, r) => ({ spend: a.spend + r.out[k].spend, seen: a.seen + r.out[k].seen, clicks: a.clicks + r.out[k].clicks, orders: a.orders + r.out[k].orders, revenue: a.revenue + r.out[k].revenue, cost: a.cost + r.out[k].cost, profit: a.profit + r.out[k].profit }), { spend: 0, seen: 0, clicks: 0, orders: 0, revenue: 0, cost: 0, profit: 0 });
 
 function allocate(i: PlanInput): { rows: Row[]; unfunded: Plan["unfunded"]; minToLearn: number; cells: number; tooSmall: boolean } {
   const cpc = i.rates.cpm[1] / 1000 / i.rates.ctr[1], minToLearn = Math.ceil(((i.clicksToLearn ?? 300) * cpc) / 10) * 10;

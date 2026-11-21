@@ -10,7 +10,7 @@ import type { Candidate, History } from "./plan";
 export type PlanData = {
   currency: string; history: History | null; margin: { value: number | null; from: "costs" | "saved" | "none"; withCost: number; variants: number };
   hero: { title: string; price: number; stock: number; sold30: number; coverDays: number | null } | null;
-  products: { title: string; price: number; stock: number; sold30: number }[];
+  products: { title: string; price: number; stock: number; sold30: number; image: string | null }[];
   orders: { count: number; aov: number | null; tagged: number; buyers: number; repeaters: number; lapsed: number };
   candidates: Candidate[]; saved: SavedPlan | null; hasResearch: boolean; metaCampaigns: number;
 };
@@ -33,11 +33,11 @@ export async function savePlan(brandId: string, body: SavedPlan): Promise<void> 
 export async function planData(brandId: string, currency: string): Promise<PlanData> {
   const rows = <T,>(r: { rows: unknown[] }) => r.rows as T[];
   const [prod, ord, cust, hist, costs, research, saved, camps] = await Promise.all([
-    db.execute(sql`select p.id, p.title, coalesce(min(v.price), p.price_min)::float8 as price, coalesce(sum(v.inventory_quantity), p.total_inventory, 0)::int as stock,
+    db.execute(sql`select p.id, p.title, p.image_url as image, coalesce(min(v.price), p.price_min)::float8 as price, coalesce(sum(v.inventory_quantity), p.total_inventory, 0)::int as stock,
         coalesce((select sum(l.quantity) from shop_order_lines l join shop_orders o on o.id = l.order_id and o.brand_id = l.brand_id
           where l.brand_id = ${brandId} and l.product_id = p.id and o.cancelled_at is null and o.created_at >= now() - interval '30 days'), 0)::int as sold30
       from shop_products p left join shop_variants v on v.product_id = p.id and v.brand_id = p.brand_id
-      where p.brand_id = ${brandId} group by p.id, p.title, p.price_min, p.total_inventory order by sold30 desc, stock desc limit 12`),
+      where p.brand_id = ${brandId} group by p.id, p.title, p.image_url, p.price_min, p.total_inventory order by sold30 desc, stock desc limit 12`),
     db.execute(sql`select count(*)::int as count, avg(total)::float8 as aov, count(*) filter (where coalesce(utm_source, '') <> '' or meta_campaign_id is not null)::int as tagged
       from shop_orders where brand_id = ${brandId} and cancelled_at is null and not coalesce(test, false)`),
     db.execute(sql`with last as (select customer_id, max(created_at) as at, count(*) as n from shop_orders where brand_id = ${brandId} and cancelled_at is null and customer_id is not null group by customer_id)
@@ -50,7 +50,7 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
     savedPlan(brandId),
     db.execute(sql`select count(*)::int as n from meta_campaigns where brand_id = ${brandId}`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
   ]);
-  const products = rows<{ id: string; title: string; price: number | null; stock: number; sold30: number }>(prod).filter((p) => (p.price ?? 0) > 0);
+  const products = rows<{ id: string; title: string; image: string | null; price: number | null; stock: number; sold30: number }>(prod).filter((p) => (p.price ?? 0) > 0);
   const o = rows<{ count: number; aov: number | null; tagged: number }>(ord)[0] ?? { count: 0, aov: null, tagged: 0 };
   const c = rows<{ buyers: number; repeaters: number; lapsed: number }>(cust)[0] ?? { buyers: 0, repeaters: 0, lapsed: 0 };
   const h = rows<History>(hist)[0], k = rows<{ variants: number; with_cost: number; margin: number | null }>(costs)[0] ?? { variants: 0, with_cost: 0, margin: null };
@@ -77,6 +77,6 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
   return {
     currency, history: h && h.days > 0 ? h : null,
     margin: { value: fromCosts ? k.margin : saved?.margin ?? null, from: fromCosts ? "costs" : saved?.margin ? "saved" : "none", withCost: k.with_cost, variants: k.variants },
-    hero, products: products.slice(0, 8).map((x) => ({ title: x.title, price: x.price!, stock: x.stock, sold30: x.sold30 })), orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0, metaCampaigns: camps,
+    hero, products: products.slice(0, 8).map((x) => ({ title: x.title, price: x.price!, stock: x.stock, sold30: x.sold30, image: x.image ?? null })), orders: { count: o.count, aov: o.aov, tagged: o.tagged, buyers: c.buyers, repeaters: c.repeaters, lapsed: c.lapsed }, candidates, saved, hasResearch: research.length > 0, metaCampaigns: camps,
   };
 }

@@ -19,7 +19,7 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
   const { slug } = await params;
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Ad signals" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Opportunities", href: `/brands/${slug}/opportunities` }, { label: "Store signals" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="ad signals" /></div></>);
 
   const [d, notes] = await Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]);

@@ -17,8 +17,8 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const base = `/brands/${slug}`;
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
     [base, "Overview", "home"], [`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`],
-    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/research`, "Market research", "globe", `${base}/research`], [`${base}/signals`, "Ad signals", "lightning", `${base}/signals`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
-    [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Performance", "chart-bar", `${base}/performance`],
+    [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/opportunities`, "Opportunities", "globe", `${base}/opportunities`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/creative`, "Creative studio", "image", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
+    [`${base}/run`, "Run ads", "target", `${base}/run`], [`${base}/performance`, "Results", "chart-bar", `${base}/performance`],
   ];
   const rail = (
     <aside className="col" style={{ width: 60, flexShrink: 0, alignItems: "center", padding: "14px 0 12px", gap: 12 }} aria-label="Navigation">
@@ -51,15 +51,11 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>
         <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" />
-        <NavLink href={`${base}/plan`} icon={<Icon name="chart-bar" />} label="Spend plan" />
-        <NavLink href={`${base}/creative`} icon={<Icon name="sparkle" />} label="Creative studio" />
-        <NavLink href={`${base}/performance`} icon={<Icon name="target" />} label="Results" />
-        <div className="nav-h">Library</div>
-        <NavLink href={`${base}/research`} icon={<Icon name="globe" />} label="Market research" />
-        <NavLink href={`${base}/signals`} icon={<Icon name="lightning" />} label="Ad signals" />
-        <NavLink href={`${base}/audience`} icon={<Icon name="users-three" />} label="Audience test" />
-        <NavLink href={`${base}/run`} icon={<Icon name="megaphone" />} label="Run ads" />
-        <NavLink href={`${base}/optimize`} icon={<Icon name="repeat" />} label="Optimize & repeat" />
+        {/* The six steps, numbered: the order is the product. Research and signals live inside Opportunities; Optimize inside Results. */}
+        {([["opportunities", "Opportunities", ["research", "signals"]], ["plan", "Spend plan", []], ["creative", "Creative studio", []], ["audience", "Audience test", []], ["run", "Run ads", []], ["performance", "Results", ["optimize"]]] as [string, string, string[]][]).map(([path, label, also], i) => (
+          <NavLink key={path} href={`${base}/${path}`} also={also.map((x) => `${base}/${x}`)} label={label}
+            icon={<span key="n" aria-hidden style={{ width: 18, height: 18, borderRadius: 99, boxShadow: "inset 0 0 0 1.2px currentColor", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 600, opacity: 0.75 }}>{i + 1}</span>} />
+        ))}
         <div style={{ height: 1, background: "var(--line)", margin: "6px 8px" }} />
         <NavLink href={`${base}/meta`} icon={<Icon name="megaphone" />} label="Meta Ads" />
         <NavLink href={`${base}/shopify`} icon={<Icon name="bag" />} label="Shopify data" />
