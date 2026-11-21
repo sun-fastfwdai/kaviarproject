@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
@@ -17,15 +18,24 @@ export function StatusPill({ s }: { s: Status }) {
 export function SignalsTable({ slug, rows }: { slug: string; rows: SignalRow[] }) {
   const router = useRouter();
   const href = (k: string) => `/brands/${slug}/signals/${k}`;
+  // Open on what can be used now; the rest (waiting for data or access) is one tap away.
+  const usable = rows.filter((r) => r.status === "ready" || r.status === "in-use");
+  const [all, setAll] = useState(usable.length === 0);
+  const shown = all ? rows : usable;
   return (
+    <div className="col g10">
+    <div className="seg" style={{ alignSelf: "flex-start" }}>
+      <button type="button" className={`o${all ? "" : " on"}`} onClick={() => setAll(false)} disabled={!usable.length}>Usable now · {usable.length}</button>
+      <button type="button" className={`o${all ? " on" : ""}`} onClick={() => setAll(true)}>All · {rows.length}</button>
+    </div>
     <div className="card" style={{ overflow: "hidden" }}>
       <div className="tr hd dense" style={{ padding: "0 14px" }}>
         <div className="td" style={{ width: 100 }}>Group</div><div className="td fill">Shopify data · what it tells us</div>
         <div className="td" style={{ width: 200 }}>How ads use it</div><div className="td" style={{ width: 140 }}>Where in Kaviar</div><div className="td" style={{ width: 132 }}>Status</div>
       </div>
-      {rows.map((s, i) => {
-        const first = rows[i - 1]?.group !== s.group;
-        const lastInGroup = rows[i + 1]?.group !== s.group;
+      {shown.map((s, i) => {
+        const first = shown[i - 1]?.group !== s.group;
+        const lastInGroup = shown[i + 1]?.group !== s.group;
         return (
           <div key={s.key} className="tr sig-row" role="link" tabIndex={0} onClick={() => router.push(href(s.key))} onKeyDown={(e) => { if (e.key === "Enter") router.push(href(s.key)); }}
             onMouseEnter={() => router.prefetch(href(s.key))}
@@ -44,6 +54,7 @@ export function SignalsTable({ slug, rows }: { slug: string; rows: SignalRow[] }
           </div>
         );
       })}
+    </div>
     </div>
   );
 }
