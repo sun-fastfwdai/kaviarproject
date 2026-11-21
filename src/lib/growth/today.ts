@@ -53,9 +53,14 @@ export async function today(brand: { id: string; currency: string | null }, slug
   // Create → Review → Test → Launch, campaign by campaign.
   const forSignal = (sig: string | null) => (sig ? batches.find((b) => b.signal === sig) : undefined);
   if (approved) for (const r of p.rows) if (!forSignal(r.c.signal)) a.push({ key: `make:${r.c.key}`, group: "Create", who: "builder", title: `Make the ads for ${r.c.name}`, why: `${usd(r.spend)} of the plan goes here. Remy writes six and shoots them with your product.`, effect: `${Math.round(r.out[1].orders)} orders likely`, cta: "Make the ads", make: r.c.key });
-  for (const b of batches.filter((x) => x.review > 0).slice(0, 3)) a.push({ key: `review:${b.id}`, group: "Review", who: "builder", title: `Review ${b.review} ad${b.review === 1 ? "" : "s"}`, why: b.title, cta: "Review", href: `${base}/creative/${b.id}` });
-  for (const b of batches.filter((x) => x.approved > 0 && x.review === 0 && !tested.has(x.id)).slice(0, 2)) a.push({ key: `test:${b.id}`, group: "Test", who: "qa", title: `Test ${b.approved} approved ad${b.approved === 1 ? "" : "s"} before spending`, why: `${b.title} — look-alike shoppers pick the winner.`, effect: "No ad spend", cta: "Run the test", href: `${base}/audience?batch=${b.id}` });
-  for (const b of batches.filter((x) => x.approved > 0 && tested.has(x.id)).slice(0, 2)) a.push({ key: `launch:${b.id}`, group: "Launch", who: "analyst", title: "Put the winner live", why: `${b.title} — tested, with a winner chosen.`, cta: "Set it up", href: `${base}/run` });
+  // One line per kind of work, however many batches are waiting — the list stays short.
+  const toReview = batches.filter((x) => x.review > 0), ads = toReview.reduce((n, x) => n + x.review, 0);
+  if (toReview.length === 1) a.push({ key: `review:${toReview[0].id}`, group: "Review", who: "builder", title: `Review ${ads} ad${ads === 1 ? "" : "s"}`, why: toReview[0].title, cta: "Review", href: `${base}/creative/${toReview[0].id}` });
+  else if (toReview.length > 1) a.push({ key: "review", group: "Review", who: "builder", title: `Review ${ads} ads`, why: `${toReview.length} batches are waiting — newest: ${toReview[0].title}`, cta: "Review", href: `${base}/creative?tab=ads` });
+  const toTest = batches.filter((x) => x.approved > 0 && x.review === 0 && !tested.has(x.id));
+  if (toTest.length) a.push({ key: `test:${toTest[0].id}`, group: "Test", who: "qa", title: `Test ${toTest[0].approved} approved ad${toTest[0].approved === 1 ? "" : "s"} before spending`, why: `${toTest[0].title} — look-alike shoppers pick the winner.${toTest.length > 1 ? ` ${toTest.length - 1} more after it.` : ""}`, effect: "No ad spend", cta: "Run the test", href: `${base}/audience?batch=${toTest[0].id}` });
+  const toLaunch = batches.filter((x) => x.approved > 0 && tested.has(x.id));
+  if (toLaunch.length) a.push({ key: `launch:${toLaunch[0].id}`, group: "Launch", who: "analyst", title: "Put the winner live", why: `${toLaunch[0].title} — tested, with a winner chosen.`, cta: "Set it up", href: `${base}/run` });
 
   // Improve: this week's proposed changes to what is running.
   for (const c of changes) a.push({ key: `change:${c.id}`, group: "Improve", who: "analyst", title: c.title, why: c.why, effect: c.before && c.after ? `${c.before} → ${c.after}` : undefined, cta: "Decide", href: `${base}/optimize`, urgent: c.kind === "pause" });
