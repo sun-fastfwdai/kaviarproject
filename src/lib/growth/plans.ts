@@ -65,7 +65,11 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
       "holiday", `${m.name} is ${inDays(m.days)}`, `${top?.product ?? hero.title}${known ? ` · to your ${n(d.orders.buyers)} buyers` : ""}`, { when: inDays(m.days), urgent: m.days <= 10, days: m.days <= 7 ? 7 : 14 }));
   }
   // Stock sitting: the product with the most on the shelf that isn't moving.
-  const sitting = (stock?.rows ?? []).filter((r) => (r.state === "over" || r.state === "idle") && r.inventory >= 20 && (r.price ?? 0) > 0).sort((a, b) => b.inventory * (b.price ?? 0) - a.inventory * (a.price ?? 0))[0];
+  // Something shoppers already buy, only too slowly, comes first. A product nobody bought in 30 days is offered only if it is priced like
+  // the things this store's shoppers do buy — not a wholesale case at ten times the usual order.
+  const usual = d.orders.count >= 5 && d.orders.aov ? d.orders.aov : null;
+  const sitting = (stock?.rows ?? []).filter((r) => r.inventory >= 20 && (r.price ?? 0) > 0 && (r.state === "over" || (r.state === "idle" && usual != null && r.price! <= usual * 2)))
+    .sort((a, b) => Number(b.state === "over") - Number(a.state === "over") || b.inventory * (b.price ?? 0) - a.inventory * (a.price ?? 0))[0];
   if (sitting) {
     const key = `stock:${sitting.id}`;
     list.push(make({ key, name: `Sell through ${sitting.title}`, why: `${n(sitting.inventory)} in stock, selling ${paceText(sitting.pace)} a day`, kind: d.orders.buyers >= 100 ? "lookalike" : "cold", audience: null, product: sitting.title, price: sitting.price!, stock: sitting.inventory, signal: key, rank: 5 },

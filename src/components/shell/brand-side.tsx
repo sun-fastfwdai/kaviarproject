@@ -64,8 +64,8 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
           <NavLink href={`${base}/inventory`} label="Inventory" />
           <NavLink href={`${base}/shopify`} label="Orders & products" />
         </NavGroup>
-        <NavGroup href={`${base}/creative`} match={STUDIO} icon={<Icon name="sparkle" />} label="Creative studio" count={wait.review || undefined}>
-          <NavLink href={`${base}/creative`} label="Ads" count={wait.review || undefined} />
+        <NavGroup href={`${base}/creative`} match={STUDIO} icon={<Icon name="sparkle" />} label="Creative studio">
+          <NavLink href={`${base}/creative`} label="Ads" />
           <NavLink href={`${base}/assets`} label="Brand assets" />
         </NavGroup>
         <NavGroup href={`${base}/competitors`} match={MARKET} icon={<Icon name="globe" />} label="Market">
