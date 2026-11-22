@@ -50,8 +50,12 @@ function Dial({ v, label, sub, size = 64, dark = true }: { v: number | null; lab
 }
 
 /** One page's speed: Google's score when there is one, what Kaviar measured, and what to do about each thing that is slow. */
-function SpeedCard({ p, google }: { p: SpeedPage; google: boolean }) {
+function SpeedCard({ p, google, admin }: { p: SpeedPage; google: boolean; admin: string | null }) {
   const g = p.google, bad = p.checks.filter((c) => !c.ok);
+  const [copied, setCopied] = useState(false);
+  // Everything a theme developer needs to fix this page, as one message.
+  const brief = [`Speed fixes for ${p.url}`, "", ...bad.flatMap((c) => [`• ${c.name}: ${c.value}`, `  ${c.detail}`, ...(c.how ? [`  Fix: ${c.how}`] : []), ...(c.items ?? []).map((x) => `    - ${x}`), ""])].join("\n");
+  const path = (() => { try { return new URL(p.url).pathname; } catch { return "/"; } })();
   return (
     <div className="col g12" style={{ flex: "1 1 420px", minWidth: 0, padding: 16, borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
       <div className="row between g12">
@@ -72,9 +76,14 @@ function SpeedCard({ p, google }: { p: SpeedPage; google: boolean }) {
               <span className="row between g8"><span className="sm w5 i1 ell">{c.name}</span><span className="xs tnum w5" style={{ flexShrink: 0, color: c.ok ? "var(--ink-2)" : "#B4532A" }}>{c.value}</span></span>
               <span className="xs i3" style={{ lineHeight: "17px" }}>{c.detail}</span>
               {!c.ok && c.how && <span className="xs i1" style={{ lineHeight: "17px" }}><b className="w5">Fix:</b> {c.how}</span>}
+              {!c.ok && c.items && c.items.length > 0 && <div className="row g4" style={{ flexWrap: "wrap", paddingTop: 4 }}>{c.items.map((x) => <span key={x} className="pill" style={{ height: 22, fontSize: 11, maxWidth: "100%" }}><span className="ell">{x}</span></span>)}</div>}
             </div>
           </div>))}
       </div>
+      {bad.length > 0 && <div className="row g8" style={{ flexWrap: "wrap" }}>
+        {admin && <a className="btn dark sm" href={`${admin}/themes/current/editor?previewPath=${encodeURIComponent(path)}`} target="_blank" rel="noreferrer">Fix in the theme editor<Icon name="external" size={11} color="#fff" /></a>}
+        <button type="button" className="btn sm" onClick={() => { void navigator.clipboard?.writeText(brief); setCopied(true); setTimeout(() => setCopied(false), 1400); }}><Icon name={copied ? "check" : "copy"} size={12} />{copied ? "Copied" : "Copy for my developer"}</button>
+      </div>}
       {g && g.slows.length > 0 && <div className="col g6" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--tray)" }}>
         <span className="xs w5 i1">What Google says would speed it up most</span>
         {g.slows.map((x) => <span key={x.name} className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">{x.name}</b>{x.saves ? ` · about ${secs(x.saves)} faster` : ""}{x.how ? ` — ${x.how}` : ""}</span>)}
@@ -190,7 +199,7 @@ export function StoreView({ slug, brand, audit, scores: sco, googleSpeed, checke
               <div style={{ flex: "1.25 1 230px", minWidth: 0 }}><Dial v={sco.overall} label="Overall score" sub="SEO, AI search and speed together" size={84} /></div>
               <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.seo} label="SEO" sub="Google can list and describe you" /></div>
               <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.ai} label="AI search" sub="ChatGPT, Claude and others can read and quote you" /></div>
-              <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.speed} label="Speed" sub={sco.speedFrom === "google" ? "Google’s score on a phone" : sco.speedFrom === "checks" ? "Kaviar’s speed checks that pass" : "Not measured yet — press Check again"} /></div>
+              <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.speed} label="Speed" sub={sco.speedFrom === "google" ? "Google’s score on a phone" : sco.speedFrom === "checks" ? "Share of Kaviar’s speed checks that pass — not Google’s score" : "Not measured yet — press Check again"} /></div>
             </div>}
             <div className="row g20" style={{ position: "relative", marginTop: 20, flexWrap: "wrap" }}>
               <Meter k="Search titles" p={audit.title} /><Meter k="Search descriptions" p={audit.description} /><Meter k="Pictures described" p={audit.alt} /><Meter k="Pages with enough text" p={audit.text} />{audit.speed && audit.speed.pages.length > 0 && <Meter k="Speed checks" p={speedScore(audit.speed)} />}
@@ -226,8 +235,8 @@ export function StoreView({ slug, brand, audit, scores: sco, googleSpeed, checke
         {/* ---- speed on a phone */}
         {audit?.speed && audit.speed.pages.length > 0 && <div className="col g8">
           <div className="row between"><span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Speed on a phone</span>
-            <span className="xs i3">{audit.speed.google === "failed" ? "Google’s speed test didn’t answer this time — Kaviar asks again tomorrow" : "Slow pages lose shoppers and rank lower. These are set in the theme and apps, so they are yours to change."}</span></div>
-          <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>{audit.speed.pages.map((p) => <SpeedCard key={p.key} p={p} google={googleSpeed} />)}</div>
+            <span className="xs i3">{audit.speed.google === "failed" ? "Google’s speed test didn’t answer this time — Kaviar asks again tomorrow" : "Speed lives in the theme and the apps, not in product text — so Kaviar names each cause and where it sits; the change is made in the theme."}</span></div>
+          <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>{audit.speed.pages.map((p) => <SpeedCard key={p.key} p={p} google={googleSpeed} admin={admin} />)}</div>
         </div>}
 
         {/* ---- every fix, by product */}

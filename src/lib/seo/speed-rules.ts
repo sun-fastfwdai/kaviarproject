@@ -6,7 +6,7 @@
  *    Only when a key for it is set for the project.
  * Everything here is pure, so the rules can be tested without a store.
  */
-export type SpeedCheck = { key: "answer" | "scripts" | "apps" | "blocking" | "lazy" | "sized"; name: string; ok: boolean; value: string; detail: string; how?: string };
+export type SpeedCheck = { key: "answer" | "scripts" | "apps" | "blocking" | "lazy" | "sized"; name: string; ok: boolean; value: string; detail: string; how?: string; items?: string[] }; // items: exactly which pictures, and where on the page
 export type Slow = { name: string; how: string | null; saves: number | null }; // saves: milliseconds Google estimates the fix would save
 export type Vitals = {
   score: number; lcp: number | null; cls: number | null; tbt: number | null;
@@ -17,14 +17,20 @@ export type SpeedPage = { key: "home" | "product"; name: string; url: string; ch
 export type Speed = { pages: SpeedPage[]; google: "on" | "off" | "failed" };
 
 /** Guideline limits — where a check turns amber. The measured value is always shown beside it. */
-export const SPEED_LIMIT = { answerMs: 800, scriptKb: 700, apps: 8, blocking: 3, notLazy: 6, unsized: 4 } as const;
+export const SPEED_LIMIT = { answerMs: 800, scriptKb: 700, apps: 8, blocking: 3, notLazy: 3, unsized: 3 } as const;
 
 const SHOPIFY = /(^|\.)(shopify\.com|shopifycdn\.com|shopifycdn\.net|shopifysvc\.com|shopifycloud\.com|myshopify\.com|shop\.app)$/i;
 const attr = (tag: string, name: string) => new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag)?.slice(2).find((x) => x != null) ?? null;
 const has = (tag: string, name: string) => new RegExp(`\\s${name}(\\s|=|>|/)`, "i").test(tag);
 const site = (host: string) => host.replace(/^www\./, "").split(".").slice(-2).join(".");
 
-export type Weight = { scripts: string[]; outside: string[]; addOns: number; blocking: number; pictures: number; notLazy: number; unsized: number };
+export type Weight = { scripts: string[]; outside: string[]; addOns: number; blocking: number; pictures: number; notLazy: number; unsized: number; early: string[]; loose: string[] };
+
+/** "shopify-section-template--123__media_with_content_MUN3P3" → "Media with content": the part of the page a picture sits in, as the theme editor names it. */
+export function sectionName(id: string): string {
+  const t = id.replace(/^shopify-section-/, "").replace(/^(template|sections)--\d+__/, "").replace(/_[A-Za-z0-9]{6}$/, "").replace(/[_-]+/g, " ").trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : "Page";
+}
 /** What a page asks a phone to load, read from its HTML. */
 export function weigh(html: string, pageUrl: string): Weight {
   const page = new URL(pageUrl), headEnd = html.search(/<\/head>/i);
@@ -42,11 +48,17 @@ export function weigh(html: string, pageUrl: string): Weight {
     const type = attr(tag, "type") ?? "";
     if (headEnd >= 0 && (m.index ?? 0) < headEnd && !has(tag, "async") && !has(tag, "defer") && type !== "module" && !/json|template/i.test(type)) blocking++;
   }
-  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]).filter((t) => { const s = attr(t, "src") ?? attr(t, "data-src") ?? ""; return s && !s.startsWith("data:"); });
-  // The first two pictures are what the shopper sees first — those should load at once; the rest should wait.
-  const notLazy = imgs.slice(2).filter((t) => (attr(t, "loading") ?? "").toLowerCase() !== "lazy" && !has(t, "data-src")).length;
-  const unsized = imgs.filter((t) => !(attr(t, "width") && attr(t, "height")) && !/aspect-ratio/i.test(attr(t, "style") ?? "")).length;
-  return { scripts: [...scripts], outside: [...outside].sort(), addOns, blocking, pictures: imgs.length, notLazy, unsized };
+  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => ({ tag: m[0], at: m.index ?? 0, src: attr(m[0], "src") ?? attr(m[0], "data-src") ?? "" })).filter((x) => x.src && !x.src.startsWith("data:"));
+  // What the shopper sees first — the header and the first part of the page — should load at once. Everything below it should wait.
+  const sections = [...html.matchAll(/<[a-z]+\b[^>]*\sid=["'](shopify-section-[^"']+)["'][^>]*>/gi)].map((m) => ({ at: m.index ?? 0, id: m[1] }));
+  const main = html.search(/<main\b/i), below = sections.filter((x) => x.at > Math.max(0, main))[1]?.at ?? null; // where the second part of the page starts
+  const where = (at: number) => { let id = ""; for (const x of sections) if (x.at <= at) id = x.id; return id ? sectionName(id) : "Page"; };
+  const file = (src: string) => decodeURIComponent(src.split("?")[0].split("/").pop() ?? "").slice(0, 48) || "picture";
+  const say = (x: { at: number; src: string }) => `${file(x.src)} — in “${where(x.at)}”`;
+  const lazy = (t: string) => (attr(t, "loading") ?? "").toLowerCase() === "lazy" || has(t, "data-src");
+  const early = (below != null ? imgs.filter((x) => x.at >= below) : imgs.slice(2)).filter((x) => !lazy(x.tag));
+  const loose = imgs.filter((x) => !(attr(x.tag, "width") && attr(x.tag, "height")) && !/aspect-ratio/i.test(attr(x.tag, "style") ?? ""));
+  return { scripts: [...scripts], outside: [...outside].sort(), addOns, blocking, pictures: imgs.length, notLazy: early.length, unsized: loose.length, early: [...new Set(early.map(say))], loose: [...new Set(loose.map(say))] };
 }
 
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -66,9 +78,9 @@ export function speedChecks(w: Weight, m: { answerMs: number | null; scriptBytes
   out.push({ key: "blocking", name: "Nothing holds the first view back", ok: w.blocking <= L.blocking, value: n(w.blocking, "file"),
     detail: w.blocking <= L.blocking ? "Files the phone must finish before it shows anything" : "The phone must finish these before it shows anything at all", how: "Have the theme load them after the page shows (“defer”), or move to a current Shopify theme" });
   out.push({ key: "lazy", name: "Pictures wait their turn", ok: w.notLazy <= L.notLazy, value: `${w.notLazy} of ${w.pictures} load early`,
-    detail: w.notLazy <= L.notLazy ? "Pictures below the first view load only when scrolled to" : "Pictures far down the page load before the shopper can see them", how: "Turn on lazy loading for pictures in the theme" });
+    detail: w.notLazy <= L.notLazy ? "Pictures below the first view load only when scrolled to" : "Pictures far down the page load before the shopper can see them", how: "In the theme editor, open each part named below and set its picture to load “lazy” — or re-add it with the theme’s own image block", items: w.early.slice(0, 8) });
   out.push({ key: "sized", name: "Pictures keep their place", ok: w.unsized <= L.unsized, value: `${w.unsized} without a set size`,
-    detail: w.unsized <= L.unsized ? "The page doesn’t jump as pictures arrive" : "The page jumps as these pictures arrive — shoppers tap the wrong thing", how: "Give pictures a width and height in the theme" });
+    detail: w.unsized <= L.unsized ? "The page doesn’t jump as pictures arrive" : "The page jumps as these pictures arrive — shoppers tap the wrong thing", how: "These come from custom code or video blocks. Give each picture a width and height, or swap it for the theme’s own image block", items: w.loose.slice(0, 8) });
   return out;
 }
 

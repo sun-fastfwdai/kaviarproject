@@ -89,6 +89,17 @@ describe("speed: what a page loads", () => {
     expect(w.pictures).toBe(4);
     expect(w.notLazy).toBe(1); // d.jpg
     expect(w.unsized).toBe(2); // b.jpg and d.jpg
+    expect(w.loose).toEqual(["b.jpg — in “Page”", "d.jpg — in “Page”"]);
+  });
+  it("on a Shopify page, treats the header and the first part of the page as the first view and names where each late picture sits", () => {
+    const page = `<body><header id="shopify-section-sections--9__header"><img src="logo.png" width="1" height="1"></header><main>
+      <div id="shopify-section-template--16__hero_NFJLVz"><img src="/a/hero.jpg?v=1" width="1" height="1"><img src="icon.svg" width="1" height="1"></div>
+      <div id="shopify-section-template--16__media_with_content_MUN3P3"><img src="poster.jpg"><img src="ok.jpg" loading="lazy" width="1" height="1"></div>
+      </main><footer id="shopify-section-sections--9__footer"><img src="logowhite.png" width="2" height="2"></footer></body>`;
+    const x = weigh(page, "https://shop.example.com/");
+    expect(x.early).toEqual(["poster.jpg — in “Media with content”", "logowhite.png — in “Footer”"]);
+    expect(x.loose).toEqual(["poster.jpg — in “Media with content”"]);
+    expect(speedChecks(x, { answerMs: null, scriptBytes: null }).find((c) => c.key === "lazy")?.items).toHaveLength(2);
   });
   it("turns a measurement into a check with the number beside it", () => {
     const checks = speedChecks(w, { answerMs: 1400, scriptBytes: 1_250_000 });
