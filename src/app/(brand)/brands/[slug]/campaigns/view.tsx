@@ -24,7 +24,7 @@ type Props = { slug: string; currency: string; plans: PlanCard[]; meta: LibRow[]
 const TONE: Record<Reason, [string, string]> = { holiday: ["#121212", "#fff"], overstock: ["var(--amber-bg)", "var(--amber)"], lapsed: ["var(--blue-bg)", "var(--blue)"], sales: ["var(--red-bg)", "var(--red)"], own: ["var(--tray-2)", "var(--ink)"] };
 const COLS = "minmax(240px, 2.4fr) 110px repeat(3, minmax(84px, 1fr)) 132px";
 
-export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMeta, sales, options, minBudget, pilot }: Props) {
+export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMeta, sales, options, minBudget, pilot, startNew = false }: Props & { startNew?: boolean }) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
   const [editing, setEditing] = useState(false);
@@ -33,7 +33,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
   const save = (v: number | null) => start(async () => { await setSalesTarget(slug, v); setEditing(false); router.refresh(); });
   const live = plans.filter((p) => p.stage === "live"), under = plans.filter((p) => p.stage !== "suggested" && p.stage !== "live"), fresh = plans.filter((p) => p.stage === "suggested");
   // A campaign of the brand's own: what to sell, to whom, for how much.
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startNew);
   const [mode, setM] = useState<Mode>(pilot.mode);
   const [form, setForm] = useState({ name: "", product: options.products[0]?.title ?? "", audience: options.audiences[0]?.key ?? "new", budget: String(minBudget), days: 14 });
   const [err, setErr] = useState<string | null>(null);
@@ -112,7 +112,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
         </>}
 
         {(meta.length > 0 || hasMeta) && <div className="card" style={{ padding: "14px 16px 6px" }}>
-          <div className="row between g12" style={{ paddingBottom: 8 }}><span className="h3">On Meta</span><Link className="btn sm quiet" href={`${base}/performance`}>All results<Icon name="arrow-r" size={11} /></Link></div>
+          <div className="row between g12" style={{ paddingBottom: 8 }}><span className="h3">On Meta</span><Link className="btn sm quiet" href={`${base}/performance`}>Running ads<Icon name="arrow-r" size={11} /></Link></div>
           {meta.length === 0 ? <span className="sm i3" style={{ padding: "6px 0 14px" }}>Nothing is running.</span> : <div style={{ overflowX: "auto" }}><div style={{ minWidth: 780 }}>
             <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
               <span className="xs i3">Campaign</span><span className="xs i3">Status</span><span className="xs i3" style={{ textAlign: "right" }}>Budget</span><span className="xs i3" style={{ textAlign: "right" }}>Spent · 30 days</span><span className="xs i3" style={{ textAlign: "right" }} title="Shopify sales from this campaign ÷ what it spent">Back per $1</span><span />

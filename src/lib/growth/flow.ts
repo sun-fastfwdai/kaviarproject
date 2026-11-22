@@ -8,7 +8,7 @@ import { db } from "../db";
  */
 export const FLOW = [
   ["find", "opportunities", "Opportunities", "Who to sell to, and what to say"],
-  ["plan", "plan", "Spend plan", "What to spend and what comes back"],
+  ["plan", "plan", "Budget", "What to spend and what comes back"],
   ["create", "creative", "Creative studio", "Make the ads"],
   ["test", "audience", "Audience test", "Look-alike shoppers pick the winner"],
   ["launch", "run", "Run ads", "Put the winner live"],

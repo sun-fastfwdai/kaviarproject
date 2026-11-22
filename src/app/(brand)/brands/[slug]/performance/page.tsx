@@ -17,13 +17,12 @@ import { products } from "@/lib/queries/shop";
 import { CHANNEL_COLOR, CHANNEL_LABEL } from "@/lib/sync/attribution";
 import { ago, money, num, pct, roas } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
-import { LoopStrip } from "@/components/loop-strip";
 import { Icon } from "@/components/icon";
 import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { ChartLegend, SalesChart } from "@/components/sales-chart";
 import { IrisHeader, NeedsSource, Note, RangeTabs, roasTone, SidePanel, Stat, StatStrip } from "@/components/ui";
 
-export const metadata = { title: "Results" };
+export const metadata = { title: "Running ads" };
 export const maxDuration = 300; // applying a change on Meta can wait out its rate limit
 
 export default async function PerformancePage({ params, searchParams }: PageProps<"/brands/[slug]/performance">) {
@@ -32,7 +31,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const me = await requireMember();
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Campaigns" }, { label: "Results" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Campaigns", href: `/brands/${slug}/campaigns` }, { label: "Running ads" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="sales next to ad spend" /></div></>);
 
   const tz = brand.timezone, cur = brand.currency;
@@ -74,13 +73,12 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   return (
     <>
       <Bar crumbs={crumbs}>
-        <LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="performance" />
         <Link className="btn sm" href={`/brands/${slug}/sync`}><Icon name="database" size={14} />Data sync</Link>
       </Bar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Results</h1><p className="sm i3">What your ads did, and what Kaviar is doing about it.</p></div>
+            <div className="col g4"><h1 className="h1">Running ads</h1><p className="sm i3">What is on Meta, what it brought back, and what Autopilot is doing about it.</p></div>
             <RangeTabs base={`/brands/${slug}/performance`} days={days} />
           </div>
 
@@ -89,7 +87,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               <span style={{ width: 32, height: 32, borderRadius: 99, background: pays ? "#1F7A52" : "#B4532A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={pays ? "check" : "warning"} size={16} color="#fff" /></span>
               <span className="col fill" style={{ minWidth: 0 }}>
                 <span className="w5" style={{ fontSize: 16, color: pays ? "#1F7A52" : "#B4532A" }}>{pays ? `Your ads made about ${money(adProfit, cur)} in ${days} days` : `Your ads lost about ${money(-adProfit, cur)} in ${days} days`}</span>
-                <span className="xs i2">Every $1 of ads brought back ${(verified ?? 0).toFixed(2)} in Shopify orders · break-even is ${breakEven.toFixed(2)} at a {pct(margin)} margin{pd?.margin.from === "none" ? " (assumed — set yours in Spend plan)" : ""}</span>
+                <span className="xs i2">Every $1 of ads brought back ${(verified ?? 0).toFixed(2)} in Shopify orders · break-even is ${breakEven.toFixed(2)} at a {pct(margin)} margin{pd?.margin.from === "none" ? " (assumed — set yours in Budget)" : ""}</span>
               </span>
               {toStop && <Link className="btn sm" href="#autopilot" title={`${roas(toStop.v)} on ${money(toStop.spend, cur)}`}>Stop {toStop.name.slice(0, 26)}</Link>}
               {toScale && <Link className="btn dark sm" href="#autopilot" title={`${roas(toScale.v)} on ${money(toScale.spend, cur)}`}>Scale {toScale.name.slice(0, 26)}</Link>}
@@ -97,7 +95,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
           ) : (
             <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
               <span className="col fill"><span className="w5 i1" style={{ fontSize: 16 }}>No ads ran in the last {days} days</span><span className="xs i3">{money(s.revenue, cur)} came in without ad spend.</span></span>
-              <Link className="btn dark sm" href={`/brands/${slug}/plan`}>Open Spend plan<Icon name="arrow-r" size={12} color="#fff" /></Link>
+              <Link className="btn dark sm" href={`/brands/${slug}/campaigns`}>See campaigns<Icon name="arrow-r" size={12} color="#fff" /></Link>
             </div>
           )}
 

@@ -14,6 +14,9 @@ import { NeedsSource, SidePanel } from "@/components/ui";
 import { BatchArt, EmptyState } from "@/components/empty";
 import { StudioBar, reviewCount } from "./tabs";
 import { PlanChat } from "./plan-chat";
+import { MakeAds } from "./make";
+import { getPlans, planExtras } from "@/lib/growth/plans";
+import { money } from "@/lib/format";
 import { researchSignals } from "@/lib/research/context";
 
 export const metadata = { title: "Creative studio" };
@@ -27,6 +30,21 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
   const sp = await searchParams;
   const tab = sp.tab === "ads" ? "batches" : "plan";
   const brand = await getBrand(slug);
+  // The studio opens on "Make ads": the campaign picked (or the first one that still needs ads), what Remy works from, and its ads.
+  if (sp.tab !== "ads" && sp.tab !== "plan") {
+    const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+    const wanted = typeof sp.for === "string" ? sp.for : null;
+    const on = plans.list.find((x) => x.key === wanted) ?? plans.list.find((x) => !x.meta && x.stage !== "suggested") ?? plans.list.find((x) => !x.meta) ?? plans.list[0] ?? null;
+    const x = on ? await planExtras({ id: brand.id, timezone: brand.timezone }, on) : null, cur = plans.currency;
+    const card = (q: (typeof plans.list)[number]) => ({ key: q.key, title: q.title, reason: q.reason, stage: q.stage, image: q.image, product: q.c.product, budget: money(q.budget, cur), rawBudget: q.budget, days: q.days, onMeta: Boolean(q.meta), ads: q.ads ? q.ads.review + q.ads.approved : 0 });
+    const waiting = plans.list.reduce((n, q) => n + (q.ads?.review ?? 0), 0);
+    return (
+      <>
+        <StudioBar base={`/brands/${slug}`} brand={brand.name} on="make" counts={reviewCount(waiting)} />
+        <MakeAds slug={slug} plans={plans.list.map(card)} on={on ? card(on) : null}
+          open={on && x ? { ads: x.ads, brief: x.brief, productPhoto: x.productPhoto, batchId: on.ads?.batchId ?? null, placed: on.meta?.placed } : null} />
+      </>);
+  }
   const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
   // Without Shopify, buyer groups from market research are enough to plan from.

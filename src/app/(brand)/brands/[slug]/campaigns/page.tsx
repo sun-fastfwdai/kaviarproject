@@ -11,8 +11,8 @@ import { CampaignsView } from "./view";
 export const metadata = { title: "Campaigns" };
 
 /** Campaigns: the plans Kaviar suggests — each with the reason behind it — the ones under way, and what is running on Meta. */
-export default async function CampaignsPage({ params }: PageProps<"/brands/[slug]/campaigns">) {
-  const { slug } = await params;
+export default async function CampaignsPage({ params, searchParams }: PageProps<"/brands/[slug]/campaigns">) {
+  const { slug } = await params, sp = await searchParams;
   const brand = await getBrand(slug), conns = await getConnections(brand.id), ref = { id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }, base = `/brands/${slug}`;
   const [plans, lib, s, pilot] = await Promise.all([getPlans(ref), library(ref, slug), summary(brand.id, brand.timezone, 30), getPilot(brand.id)]);
   const cur = brand.currency ?? "USD", meta = lib.rows.filter((r) => r.where === "Meta");
@@ -26,7 +26,7 @@ export default async function CampaignsPage({ params }: PageProps<"/brands/[slug
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: base }, { label: "Campaigns" }]} />
-      <CampaignsView slug={slug} currency={cur} plans={plans.list} meta={meta} tiles={tiles} loose={plans.loose} hasMeta={Boolean(conns.meta)} options={plans.options} minBudget={plans.minBudget}
+      <CampaignsView startNew={sp.new === "1"} slug={slug} currency={cur} plans={plans.list} meta={meta} tiles={tiles} loose={plans.loose} hasMeta={Boolean(conns.meta)} options={plans.options} minBudget={plans.minBudget}
         pilot={{ mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null }}
         sales={{ value: money(plans.sales.cur, cur), delta: pctDelta(plans.sales.cur, plans.sales.prev) ?? null, target: plans.target, share: plans.target ? Math.round((plans.sales.cur / plans.target) * 100) : null }} />
     </>

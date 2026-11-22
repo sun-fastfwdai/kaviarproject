@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
@@ -10,10 +10,9 @@ import type { PlanInput } from "@/lib/growth/plan";
 import type { PlanAd, PlanExtras, PlanFacts, Plans } from "@/lib/growth/plans";
 import { MODES, type Mode } from "@/lib/growth/pilot";
 import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey } from "@/lib/growth/plans-rules";
-import { makeAds } from "../../plan/actions";
-import { setAdStatus } from "../../creative/actions";
+import { AdsBlock, useAds } from "./ads";
 import { decide, setMode } from "../../optimize/actions";
-import { addReference, approvePlanFor, deleteOwnPlan, metaCheck, placeStep, removeReference, saveBrief, setPlanBudget, switchPlan } from "../actions";
+import { approvePlanFor, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
 import { Combo } from "@/components/combo";
 import { COUNTRIES } from "@/lib/meta/place-rules";
 import type { Ready } from "@/lib/meta/place";
@@ -45,29 +44,14 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [days, setDays] = useState(p.days);
   const [mode, setM] = useState<Mode>(pilot.mode);
   const clear = useCallback(() => setWork(null), []);
-  // What Remy works from: the brand's own pictures and words, and whether to shoot new pictures in the references' style.
-  const [note, setNote] = useState(brief.note);
-  const [shootNew, setShootNew] = useState(brief.shoot);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const addRefs = (files: File[]) => { if (!files.length) return; setErr(null); setDoing("ref"); start(async () => { for (const f of files.slice(0, 8)) { const fd = new FormData(); fd.set("file", f); const r = await addReference(slug, p.key, fd); if (r.error) { setErr(r.error); break; } } router.refresh(); setDoing(null); }); };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const [lo, mid, hi] = forecast(p.c, budget, days, input), changed = budget !== p.budget || days !== p.days;
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
   const { steps, now } = stepsOf(p), nowAt = steps.findIndex((s) => s.key === now), a = p.ads, step = Math.max(50, Math.round(minBudget / 4 / 50) * 50);
-  const toReview = ads.filter((x) => x.status === "review"), okAds = ads.filter((x) => x.status === "approved");
+  const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, onWork: setWork, onError: setErr });
+  const toReview = m.toReview, okAds = ads.filter((x) => x.status === "approved");
   const daily = budget / days, spin = (k: string, c?: string) => doing === k && <Icon name="spinner" size={13} className="spin" color={c} />;
 
-  // Remy writes the ads while the brand stays here: the dock at the bottom says so, and the ads appear below when he is done.
-  const write = () => {
-    const shooting = shootNew && brief.refs.length > 0;
-    setErr(null); setDoing("make"); setWork({ who: "builder", what: shooting ? `Remy is writing 3 ads and shooting their pictures` : `Remy is writing 3 ads for “${p.title}”`, usually: shooting ? "Usually two to three minutes" : "Usually under a minute", since: Date.now() });
-    start(async () => {
-      await saveBrief(slug, p.key, note, shootNew);
-      const r = await makeAds(slug, p.key, true);
-      if (r?.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork(r?.note ? { done: r.note, bad: true } : { done: "3 ads are ready — say yes or no to each, below" }); setTimeout(() => document.getElementById("ads")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400); }
-      setDoing(null);
-    });
-  };
   const openPlace = () => {
     setConfirm("place"); setCheck("asking");
     metaCheck(slug, p.key).then((r) => { setCheck({ ready: r.ready, link: r.link }); setPick((x) => ({ country: r.country, page: x.page ?? r.ready?.pages[0]?.id, pixel: x.pixel ?? r.ready?.pixels[0]?.id })); }).catch(() => setCheck({ ready: null, link: null }));
@@ -89,8 +73,6 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   };
   const flip = (on: boolean) => { setConfirm(false); setErr(null); setDoing("switch"); setWork({ who: "qa", what: on ? "Otto · Switching the campaign on" : "Otto · Pausing the campaign", usually: "A few seconds", since: Date.now() });
     start(async () => { const r = await switchPlan(slug, p.key, on); if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: on ? `It’s running — ${usd(p.budget / p.days)} a day for ${p.days} days, then Meta stops it` : "Paused on Meta. Nothing more is spent." }); } setDoing(null); }); };
-  const review = (ad: PlanAd, status: "approved" | "rejected") => go(ad.id, () => setAdStatus(slug, ad.id, status));
-  const approveAll = () => go("all", async () => { for (const x of toReview) await setAdStatus(slug, x.id, "approved"); }, `${toReview.length} ads approved`);
   const placedN = okAds.filter((x) => p.meta?.placed?.[x.id]).length, unplaced = p.meta ? okAds.length - placedN : 0;
   const running = results?.status === "ACTIVE" || Boolean(p.meta?.onAt);
   const manager = p.meta ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${p.meta.account}&selected_campaign_ids=${p.meta.campaignId}` : null;
@@ -100,7 +82,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
     const cls = small ? "row g4" : "row g6", st = small ? ({ height: 26, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 500, whiteSpace: "nowrap", background: "#fff", color: "#121212" } as const) : ({ height: 40, padding: "0 18px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 14, fontWeight: 600 } as const), ic = small ? 10 : 12;
     if (k === "budget") return <button type="button" disabled={busy} className={cls} style={st} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={ic} />}Approve plan</button>;
     if (k === "ads") return toReview.length ? <a className={cls} style={st} href="#ads">Review {toReview.length} ad{toReview.length === 1 ? "" : "s"}<Icon name="arrow-r" size={ic} style={{ transform: "rotate(90deg)" }} /></a>
-      : <button type="button" disabled={busy} className={cls} style={st} onClick={write}>{spin("make", "#0B2B1A")}{doing === "make" ? "Remy is writing…" : "Make 3 ads"}</button>;
+      : <button type="button" disabled={busy || m.busy} className={cls} style={st} onClick={m.write}>{m.doing === "make" && <Icon name="spinner" size={13} className="spin" color="#0B2B1A" />}{m.doing === "make" ? "Remy is writing…" : "Make 3 ads"}</button>;
     if (k === "launch") return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}Put it on Meta<Icon name="arrow-r" size={ic} /></button>;
     if (k === "results" && unplaced > 0) return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}{doing === "launch" ? "Placing…" : `Add ${unplaced} ad${unplaced === 1 ? "" : "s"} on Meta`}{doing !== "launch" && <Icon name="arrow-r" size={ic} />}</button>;
     if (k === "results" && placedN > 0 && !running) return <button type="button" disabled={busy} className={cls} style={st} onClick={() => setConfirm("on")}>{spin("switch", "#0B2B1A") || <Icon name="play" size={ic} />}Switch it on</button>;
@@ -190,7 +172,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 1, background: "var(--line)", borderRadius: "16px 16px 0 0", overflow: "hidden" }}>
             {([
               ["analyst", "Iris", "The reason and the numbers", `${REASON_NAME[p.reason]} · ${usd(mid.revenue)} likely back`, true],
-              ["builder", "Remy", "Writes the ads", doing === "make" ? "Writing now…" : ads.length ? `${ads.length} written${toReview.length ? ` · ${toReview.length} wait${toReview.length === 1 ? "s" : ""} for you` : ` · ${okAds.length} approved`}` : p.stage === "suggested" ? "Starts when you approve" : "Ready to write", ads.length > 0],
+              ["builder", "Remy", "Writes the ads", m.doing === "make" ? "Writing now…" : ads.length ? `${ads.length} written${toReview.length ? ` · ${toReview.length} wait${toReview.length === 1 ? "s" : ""} for you` : ` · ${okAds.length} approved`}` : p.stage === "suggested" ? "Starts when you approve" : "Ready to write", ads.length > 0],
               ["catalog", "Cleo", "Product page and stock", facts.page?.open ? `${facts.page.open} thing${facts.page.open === 1 ? "" : "s"} to fix on the page` : facts.store ? `Page ready · ${facts.store.inventory.toLocaleString("en-US")} in stock` : "Page ready", !facts.page?.open],
               ["qa", "Otto", "Places the ads, watches the spend", doing === "launch" ? "Placing now…" : !p.meta ? "Starts when the ads are approved" : unplaced > 0 ? `${placedN} of ${okAds.length} ads on Meta` : running ? `Watching every day${pilot.last ? ` · checked ${pilot.last}` : ""}` : placedN ? `${placedN} ad${placedN === 1 ? "" : "s"} on Meta · paused` : "Campaign on Meta · no ads yet", Boolean(p.meta) && unplaced === 0 && placedN > 0],
             ] as const).map(([kind, name, does, at, done]) => (
@@ -247,62 +229,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
         </div>}
 
         {/* ---- its ads: written here, judged here */}
-        <div id="ads" className="col g12" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)", scrollMarginTop: 16 }}>
-          <div className="row between g12" style={{ flexWrap: "wrap" }}>
-            <span className="row g8"><AgentFace kind="builder" size={18} /><span className="i3" style={label}>Its ads</span>{ads.length > 0 && <span className="xs i3 tnum">{toReview.length ? `${toReview.length} to review` : ""}{toReview.length && okAds.length ? " · " : ""}{okAds.length ? `${okAds.length} approved` : ""}</span>}</span>
-            <span className="row g6">
-              {toReview.length > 1 && <button type="button" className="btn dark sm" disabled={busy} onClick={approveAll}>{spin("all", "#fff") || <Icon name="check" size={12} color="#fff" />}Approve all {toReview.length}</button>}
-              {a && <Link className="btn quiet sm" href={`${base}/creative/${a.batchId}`} title="Change the words or the picture">Edit in the studio<Icon name="arrow-r" size={11} /></Link>}
-            </span>
-          </div>
-          {/* what Remy works from: the product photo, the brand's own pictures and its own words */}
-          {!p.meta && <div className="col g10" style={{ padding: "12px 14px", borderRadius: 14, background: "var(--tray)" }}>
-            <div className="row g8" style={{ flexWrap: "wrap", alignItems: "center" }}>
-              <span className="xs i2 w5" style={{ width: "100%" }}>Work from</span>
-              {productPhoto && <span title="The product’s own photo — the product in every picture stays exactly this" style={{ position: "relative", flexShrink: 0 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={productPhoto} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
-                <span style={{ position: "absolute", left: 3, bottom: 3, padding: "0 5px", borderRadius: 5, fontSize: 9.5, lineHeight: "14px", background: "rgba(18,18,18,.78)", color: "#fff" }}>Product</span></span>}
-              {brief.refs.map((r) => (
-                <span key={r.id} title={r.name} style={{ position: "relative", flexShrink: 0 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/assets/${r.id}?w=480`} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
-                  <button type="button" aria-label={`Remove ${r.name}`} disabled={busy} onClick={() => go(r.id, () => removeReference(slug, p.key, r.id))} style={{ position: "absolute", right: -5, top: -5, width: 18, height: 18, borderRadius: 99, background: "#121212", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={9} color="#fff" /></button>
-                </span>))}
-              <button type="button" className="btn sm" disabled={busy || brief.refs.length >= 8} onClick={() => fileRef.current?.click()} title="Your own photos, or pictures whose look you like — up to 8, 4 MB each" style={{ height: 56, borderStyle: "dashed" }}>{doing === "ref" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="plus" size={13} />}Add reference pictures</button>
-              <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; addRefs(fs); }} />
-            </div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 600))} onBlur={() => { if (note !== brief.note) void saveBrief(slug, p.key, note, shootNew); }} rows={2} aria-label="Your notes for this campaign" placeholder="Anything Remy should use — the offer, a line you like, what to leave out"
-              style={{ width: "100%", padding: "9px 11px", borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", font: "inherit", fontSize: 13.5, lineHeight: "19px", resize: "vertical" }} />
-            <div className="row g10" style={{ flexWrap: "wrap" }}>
-              {brief.refs.length > 0 && <div className="seg" role="radiogroup" aria-label="Where the pictures come from">
-                {([[false, "Use my pictures"], [true, "Shoot new ones in their style"]] as const).map(([v, text]) => <button key={text} type="button" role="radio" aria-checked={shootNew === v} className={`o${shootNew === v ? " on" : ""}`} title={v ? "New pictures are made from your product photo, lit and composed like your references. Each one is charged by the image service." : "Your reference pictures go on the ads as they are"} onClick={() => setShootNew(v)}>{text}</button>)}
-              </div>}
-              <span className="fill" />
-              {p.stage !== "suggested" && <button type="button" className={`btn sm${ads.length ? "" : " dark"}`} disabled={busy} onClick={write}>{doing === "make" ? <Icon name="spinner" size={12} className="spin" color={ads.length ? undefined : "#fff"} /> : null}{ads.length ? "Make 3 new ads" : "Make 3 ads"}</button>}
-            </div>
-          </div>}
-          {ads.length === 0 ? (
-            <div className="row g12" style={{ padding: "8px 0 4px" }}>
-              <span className="sm i3 fill">{p.stage === "suggested" ? "Ads are written once you approve the plan." : doing === "make" ? "Remy is writing them now…" : "None yet."}</span>
-
-            </div>
-          ) : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-            {ads.map((ad) => (
-              <div key={ad.id} className="col" style={{ borderRadius: 14, overflow: "hidden", boxShadow: "0 0 0 1px var(--line)", background: "#fff" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {ad.image && <img src={ad.image} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", background: "var(--tray-2)" }} />}
-                <div className="col g4" style={{ padding: "10px 12px" }}>
-                  <span className="sm w5" style={{ lineHeight: "19px" }}>{ad.hook || ad.headline}</span>
-                  <span className="xs i2" title={ad.text} style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ad.text}</span>
-                </div>
-                <div className="row g6" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", marginTop: "auto" }}>
-                  {ad.status === "approved" ? <><span className="pill green" style={{ height: 24, fontSize: 11.5 }}><Icon name="check" size={11} />Approved</span><span className="fill" /><button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(ad.id, () => setAdStatus(slug, ad.id, "review"))}>Undo</button></>
-                    : <><button type="button" className="btn dark sm" disabled={busy} onClick={() => review(ad, "approved")}>{spin(ad.id, "#fff") || <Icon name="check" size={12} color="#fff" />}Approve</button><button type="button" className="btn quiet sm" disabled={busy} onClick={() => review(ad, "rejected")}>Reject</button><span className="fill" /><span className="xs i3 ell">{ad.cta}</span></>}
-                </div>
-              </div>))}
-          </div>}
-        </div>
+        <AdsBlock m={m} base={base} stage={p.stage} locked={Boolean(p.meta)} ads={ads} brief={brief} productPhoto={productPhoto} batchId={a?.batchId ?? null} placed={p.meta?.placed} />
 
         {/* ---- what the plan rests on: one block per source Kaviar read, each opening that source */}
         <div className="col g10">

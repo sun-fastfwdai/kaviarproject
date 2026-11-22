@@ -202,7 +202,7 @@ function Summary({ slug, row, onOpen }: { slug: string; row: ResearchRow; onOpen
       <div className="row g10" style={{ padding: 14, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
         <span className="col fill"><span className="sm w5 i1">Turn this into a plan</span><span className="xs i3">{segs.length} buyer group{segs.length === 1 ? "" : "s"}{ads ? ` · ${ads} competitor ads read` : ""} · these audiences are already in your Spend plan</span></span>
         {ads > 0 && <button type="button" className="btn" onClick={() => onOpen("ads")}>Competitor ads</button>}
-        <Link className="btn dark" href={`${base}/plan`}>Open Spend plan<Icon name="arrow-r" size={12} color="#fff" /></Link>
+        <Link className="btn dark" href={`${base}/plan`}>Open Budget<Icon name="arrow-r" size={12} color="#fff" /></Link>
       </div>
     </div>
   );

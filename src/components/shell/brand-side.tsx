@@ -18,8 +18,8 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const [thumb, all, wait, store] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex(), waiting(brand.id).catch(() => ({ review: 0, changes: 0 })), storeWaiting(brand.id).catch(() => null)]);
   const builder = Boolean(brand.features?.storeBuilder); // switched on per brand by the Kaviar team, from the Brands list
   const base = `/brands/${slug}`;
-  // Five tabs. Today: the store's status and what is ready. Campaigns: every plan, each with its own steps. Store: its health and stock.
-  // Creative studio: the brand's assets and the ads made for plans. Market: the reference the others are judged against.
+  // Five tabs. Today: the store's status and what is ready. Campaigns: every plan with its own steps, the ads running now, and the
+  // budget. Store: its health and stock. Creative studio: one place — make ads, the ads made, the brand's own pictures. Market: reference.
   const ADS = ["campaigns", "opportunities", "signals", "plan", "audience", "run", "performance", "optimize", "meta"].map((p) => `${base}/${p}`);
   const STORE = ["seo", "inventory", "shopify"].map((p) => `${base}/${p}`);
   const STUDIO = ["creative", "assets"].map((p) => `${base}/${p}`);
@@ -58,16 +58,17 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <Link href={base} className="nav-h ell lnk" title={`${brand.name} · overview`}>{brand.name}</Link>
         <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" />
         {/* A number always means "this many things are waiting for you" — never a step number. */}
-        <NavGroup href={`${base}/campaigns`} match={ADS} icon={<Icon name="megaphone" />} label="Campaigns" count={wait.changes || undefined} />
+        <NavGroup href={`${base}/campaigns`} match={ADS} icon={<Icon name="megaphone" />} label="Campaigns" count={wait.changes || undefined}>
+          <NavLink href={`${base}/campaigns`} also={[`${base}/opportunities`, `${base}/signals`, `${base}/audience`, `${base}/run`]} label="All campaigns" />
+          <NavLink href={`${base}/performance`} also={[`${base}/optimize`, `${base}/meta`]} label="Running ads" count={wait.changes || undefined} />
+          <NavLink href={`${base}/plan`} label="Budget" />
+        </NavGroup>
         <NavGroup href={`${base}/seo`} match={STORE} icon={<Icon name="store" />} label="Store" count={store?.open || undefined}>
           <NavLink href={`${base}/seo`} label="Health" count={store?.open || undefined} />
           <NavLink href={`${base}/inventory`} label="Inventory" />
           <NavLink href={`${base}/shopify`} label="Orders & products" />
         </NavGroup>
-        <NavGroup href={`${base}/creative`} match={STUDIO} icon={<Icon name="sparkle" />} label="Creative studio">
-          <NavLink href={`${base}/creative`} label="Ads" />
-          <NavLink href={`${base}/assets`} label="Brand assets" />
-        </NavGroup>
+        <NavLink href={`${base}/creative`} also={[`${base}/assets`]} icon={<Icon name="sparkle" />} label="Creative studio" />
         <NavGroup href={`${base}/competitors`} match={MARKET} icon={<Icon name="globe" />} label="Market">
           <NavLink href={`${base}/competitors`} label="Competitors" />
           <NavLink href={`${base}/research`} label="Market research" />

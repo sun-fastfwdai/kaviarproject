@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Icon, type IconName } from "@/components/icon";
 
-export type CreativeTab = "plan" | "batches" | "editor" | "shoots" | "insights";
-// The order the work happens in: plan what to make → shoot the visuals → design the ad → review the ads → learn what won (back to Plan).
+export type CreativeTab = "make" | "plan" | "batches" | "assets" | "editor" | "shoots" | "insights";
+// What a brand comes here for, first: make ads for a campaign, look at the ads made, and the brand's own pictures. Then the tools.
 const TABS: [CreativeTab, string, string, IconName][] = [
-  ["plan", "Plan", "", "sparkle"], ["shoots", "Shoots", "/shoots", "image"], ["editor", "Editor", "/editor", "pen"], ["batches", "Ads", "?tab=ads", "squares"], ["insights", "Insights", "/insights", "chart-bar"],
+  ["make", "Make ads", "/creative", "sparkle"], ["batches", "Ads", "/creative?tab=ads", "squares"], ["assets", "Brand assets", "/assets", "swatches"],
+  ["shoots", "Shoots", "/creative/shoots", "image"], ["editor", "Editor", "/creative/editor", "pen"], ["insights", "Insights", "/creative/insights", "chart-bar"],
 ];
 
 /** Board 17's studio tabs, inline in the top bar. A count shows what needs a person (e.g. "8 to review"). */
@@ -12,7 +13,7 @@ export function StudioTabs({ base, on, counts = {} }: { base: string; on: Creati
   return (
     <nav className="tabs" style={{ border: 0, gap: 18, marginLeft: 8 }} aria-label="Creative studio">
       {TABS.map(([k, l, path, icon]) => (
-        <Link key={k} href={`${base}/creative${path}`} className={`tab${on === k ? " on" : ""}`} style={{ height: 52, whiteSpace: "nowrap" }}>
+        <Link key={k} href={`${base}${path}`} className={`tab${on === k || (k === "make" && on === "plan") ? " on" : ""}`} style={{ height: 52, whiteSpace: "nowrap" }}>
           <Icon name={icon} size={14} color={on === k ? "#121212" : "#8B8883"} />{l}
           {counts[k] ? <span style={{ height: 18, padding: "0 6px", borderRadius: 99, fontSize: 10.5, fontWeight: 500, display: "inline-flex", alignItems: "center", ...(on === k ? { background: "var(--ink)", color: "#fff" } : { background: "var(--tray-2)", color: "var(--ink-2)" }) }}>{counts[k]}</span> : null}
         </Link>
@@ -26,7 +27,7 @@ export function StudioBar({ base, brand, on, counts, crumbs, children }: {
   base: string; brand: string; on: CreativeTab; counts?: Partial<Record<CreativeTab, string>>;
   crumbs?: { label: string; href?: string }[]; children?: React.ReactNode;
 }) {
-  const trail = crumbs ?? [{ label: brand, href: base }, { label: "Campaigns" }, { label: "Creative studio" }];
+  const trail = crumbs ?? [{ label: brand, href: base }, { label: "Creative studio" }];
   return (
     <header className="bar" style={{ gap: 16 }}>
       <nav className="crumb" aria-label="Breadcrumb" style={{ whiteSpace: "nowrap" }}>

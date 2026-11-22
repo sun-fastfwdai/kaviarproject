@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
-import { Bar } from "@/components/shell/parts";
+import { StudioBar } from "../creative/tabs";
 import { moveToStorage, storageOn } from "@/lib/assets/storage";
 import { storeImages } from "@/lib/shopify/media";
 import { AssetsView, type AssetRow } from "./view";
@@ -35,7 +35,7 @@ export default async function AssetsPage({ params, searchParams }: PageProps<"/b
   assets.push(...fromStore);
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Brand assets" }]} />
+      <StudioBar base={`/brands/${slug}`} brand={brand.name} on="assets" />
       <AssetsView brand={brand.name} assets={assets} moving={pending} initial={typeof sp.open === "string" ? sp.open : null} />
     </>
   );
