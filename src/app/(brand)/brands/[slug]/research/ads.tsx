@@ -56,20 +56,19 @@ function AdCard({ a, who }: { a: LibAd; who: string }) {
   const d = days(a.start), body = a.bodies[0] ?? "", title = a.titles[0] ?? "", long = d != null && d >= 30, off = a.status === "inactive";
   const seen = [a.audience ? `Mostly ${a.audience.top} (${pct(a.audience.topShare)}) · ${pct(a.audience.women)} women` : "", a.countries?.length ? `Top: ${a.countries.slice(0, 3).map((c) => country(c.code)).join(", ")}` : "",
     a.target ? `Targeted: ${[a.target.gender && a.target.gender !== "All" ? a.target.gender : "everyone", a.target.ages, a.target.places.slice(0, 3).join(", ")].filter(Boolean).join(" · ")}` : ""].filter(Boolean).join(" — ");
+  const pic = Boolean(a.media?.asset);
+  const ran = d != null && <span className="tnum" title={long ? `Started ${date(a.start)} — advertisers rarely keep paying for an ad that doesn’t work` : `Started ${date(a.start)}`} suppressHydrationWarning
+    style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", flexShrink: 0, background: long ? "#121212" : pic ? "rgba(255,255,255,.92)" : "var(--tray-2)", color: long ? "#fff" : "#121212", boxShadow: pic ? "0 1px 3px rgba(0,0,0,.18)" : "none" }}>{d} day{d === 1 ? "" : "s"}</span>;
+  const stopped = off && <span style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, lineHeight: "22px", flexShrink: 0, background: pic ? "rgba(255,255,255,.92)" : "var(--tray-2)", color: "#55534F" }}>Stopped</span>;
   return (
     <div className="card" style={{ padding: 0, gap: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div style={{ position: "relative" }}>
-        <Media a={a} />
-        <span className="row g4" style={{ position: "absolute", top: 8, left: 8 }}>
-          {d != null && <span className="tnum" title={long ? `Started ${date(a.start)} — advertisers rarely keep paying for an ad that doesn’t work` : `Started ${date(a.start)}`} suppressHydrationWarning
-            style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: long ? "#121212" : "rgba(255,255,255,.92)", color: long ? "#fff" : "#121212", boxShadow: "0 1px 3px rgba(0,0,0,.18)" }}>{d} day{d === 1 ? "" : "s"}</span>}
-          {off && <span style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, lineHeight: "22px", background: "rgba(255,255,255,.92)", color: "#55534F" }}>Stopped</span>}
-        </span>
-      </div>
+      {/* With a picture, it leads and the running time sits on it. Without one, the card is just the words — no empty band. */}
+      {pic && <div style={{ position: "relative" }}><Media a={a} /><span className="row g4" style={{ position: "absolute", top: 8, left: 8 }}>{ran}{stopped}</span></div>}
       <div className="col g6" style={{ padding: "10px 12px" }}>
-        <div className="row g8"><Avatar name={a.page} /><span className="xs w5 i1 ell fill" title={a.partner ? `${a.page} with ${a.partner}` : a.page}>{a.page}</span><Platforms ps={a.platforms} /></div>
+        <div className="row g8"><Avatar name={a.page} /><span className="xs w5 i1 ell fill" title={a.partner ? `${a.page} with ${a.partner}` : a.page}>{a.page}</span>{!pic && <>{ran}{stopped}</>}{pic && <Platforms ps={a.platforms} />}</div>
         {title && <span className="sm w5 i1 ell" title={title}>{title}</span>}
-        {body && <p className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", margin: 0 }} title={body}>{body}</p>}
+        {body && <p className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: pic ? 2 : 4, WebkitBoxOrient: "vertical", overflow: "hidden", margin: 0 }} title={body}>{body}</p>}
+        {!pic && <Platforms ps={a.platforms} />}
       </div>
       <div className="row g10 xs" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", marginTop: "auto" }}>
         {a.reach != null && <span className="row g4 i1 tnum" title={seen || "People reached in the EU — Meta’s estimate"}><Icon name="users" size={12} color="#3B4FC4" /><b className="w6">{num(a.reach)}</b></span>}
