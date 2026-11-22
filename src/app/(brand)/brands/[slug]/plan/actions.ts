@@ -26,7 +26,7 @@ export async function approvePlan(slug: string, input: SavedPlan, approve: boole
  * The ads for one plan. Ads are never made for their own sake: the plan must exist — which means its reason holds today — and the
  * brand must have approved it. Then Remy writes three for that audience, filed under the plan, and Shoots opens with them.
  */
-export async function makeAds(slug: string, key: string): Promise<{ error?: string } | undefined> {
+export async function makeAds(slug: string, key: string, stay = false): Promise<{ error?: string; batchId?: string } | undefined> {
   await requireMember();
   const brand = await getBrand(slug);
   const [plans, tests] = await Promise.all([getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }), readyTests(brand.id).catch(() => [])]);
@@ -36,6 +36,7 @@ export async function makeAds(slug: string, key: string): Promise<{ error?: stri
   const c = p.c, t = tests.find((x) => x.key === c.signal);
   const r = await buildPipeline(slug, { format: "static", product: c.product, signal: c.signal ?? key, audience: t?.who ?? `${c.name} — ${c.why}`.slice(0, 200),
     angles: t?.messages?.length ? t.messages : [`${p.title}`.slice(0, 90)], count: 3, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? p.why,
-    reason: { data: p.title, value: p.when ?? null, use: `${REASON_NAME[p.reason]} — ${p.why}`, evidence: [["Why now", p.title], ["Detail", p.why], ["Budget", `${p.budget} over ${p.days} days`]] } });
-  return r?.error ? { error: r.error } : undefined;
+    reason: { data: p.title, value: p.when ?? null, use: `${REASON_NAME[p.reason]} — ${p.why}`, evidence: [["Why now", p.title], ["Detail", p.why], ["Budget", `${p.budget} over ${p.days} days`]] } }, stay);
+  if (stay) { revalidatePath(`/brands/${slug}/campaigns`, "layout"); revalidatePath(`/brands/${slug}/today`); }
+  return r?.error ? { error: r.error } : r?.batchId ? { batchId: r.batchId } : undefined;
 }

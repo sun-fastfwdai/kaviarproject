@@ -15,7 +15,7 @@ import { redrawCard } from "@/lib/creative/design";
 import { editWithRemy } from "@/lib/creative/editor-agent";
 import { planWithRemy, type PlanBrief, type PlanOption, type PlanReply, type PlanTurn } from "@/lib/creative/planner";
 
-export type State = { error?: string; at?: number } | undefined;
+export type State = { error?: string; at?: number; batchId?: string } | undefined;
 const fail = (error: string): State => ({ error, at: Date.now() });
 
 const kindOf = (form: FormData): BatchKind => { const k = String(form.get("kind") ?? ""); return k === "static" || k === "video" || k === "ugc" || k === "mixed" ? k : "mixed"; };
@@ -159,7 +159,7 @@ export async function planTurn(slug: string, turns: PlanTurn[], options: { plans
 }
 
 /** The plan is agreed: Remy writes the batch, and Shoots opens with the pipeline laid out for it. */
-export async function buildPipeline(slug: string, brief: PlanBrief): Promise<State> {
+export async function buildPipeline(slug: string, brief: PlanBrief, stay = false): Promise<State> {
   const me = await requireMember();
   if (!aiReady()) return fail("Remy needs the Claude API key to write ads.");
   const brand = await getBrand(slug);
@@ -183,6 +183,7 @@ export async function buildPipeline(slug: string, brief: PlanBrief): Promise<Sta
   const kind: BatchKind = format === "full" ? "video" : format;
   const id = await createBatch(brand.id, me.id, { ...(signal ? { signal } : { idea: direction }), direction, count, kind });
   if (!id) return fail("Remy couldn’t write the ads right now. Try again in a minute.");
+  if (stay) return { at: Date.now(), batchId: id }; // asked for from a plan's own page: the ads appear there, nobody is sent to Shoots
   const q = new URLSearchParams({ batch: id, layout: format, n: String(count), plan: "1" });
   if (signal) q.set("signal", signal.key);
   if (product) q.set("product", product);

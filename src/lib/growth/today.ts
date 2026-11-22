@@ -17,7 +17,7 @@ import { scores } from "../seo/types";
 import { summary, trend } from "../queries/growth";
 import { getStock } from "../store/stock";
 import { paceText } from "../store/stock-rules";
-import { halves, pctDelta, rolling, sumOf, type Tile } from "./trend";
+import { halves, pctDelta, rolling, sumOf, type Delta, type Tile } from "./trend";
 export type { Tile } from "./trend";
 import { storeAccess } from "../seo/apply";
 
@@ -36,6 +36,7 @@ export type Viz =
   | { kind: "pair"; a: { label: string; value: string }; b: { label: string; value: string } } // you against them
   | { kind: "counts"; items: { label: string; n: number }[] };
 export type Today = {
+  pulse: { sales: string; orders: number; delta: Delta | null } | null; // yesterday, against the same day a week before
   status: Tile[]; // the board: the last 30 days against the 30 before, then campaigns, customers, stock and the store's score — a block each
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
@@ -80,10 +81,10 @@ export async function today(brand: { id: string; currency: string | null; timezo
 
   // Plans: each a reason to advertise with its own budget and steps. The card opens the plan; nothing about ads is asked for outside one.
   const plans = await getPlans({ id: brand.id, currency: brand.currency, timezone: tz }, { byDay, stock }).catch(() => null);
-  for (const pl of plans?.list ?? []) {
+  for (const pl of (plans?.list ?? []).filter((x) => x.stage !== "live")) {
     const ad = pl.ads, m = pl.out[1], n = (k: number) => `${k} ad${k === 1 ? "" : "s"}`;
     a.push({ key: `plan:${pl.key}`, group: "Plan", label: REASON_NAME[pl.reason], who: pl.reason === "overstock" ? "qa" : pl.stage === "review" || pl.stage === "approved" ? "builder" : "analyst", title: pl.title, why: pl.why, urgent: pl.urgent,
-      effect: pl.stage === "review" ? `${n(ad!.review)} to review` : pl.stage === "test" ? `${n(ad!.approved)} to test` : pl.stage === "ready" ? "Ready to launch" : pl.stage === "approved" ? "Approved" : pl.when ? pl.when[0].toUpperCase() + pl.when.slice(1) : undefined,
+      effect: pl.stage === "review" ? `${n(ad!.review)} to review` : pl.stage === "ready" ? "Ready to launch" : pl.stage === "approved" ? "Approved" : pl.when ? pl.when[0].toUpperCase() + pl.when.slice(1) : undefined,
       cta: pl.stage === "suggested" ? "Review plan" : "Open plan", href: `${base}/campaigns/${encodeURIComponent(pl.key)}`,
       ...(ad?.thumbs.length ? { thumbs: ad.thumbs } : {}),
       viz: { kind: "flow", from: usd(pl.budget), fromLabel: "you spend", to: usd(m.revenue), toLabel: m.profit >= 0 ? `likely back · ${usd(m.profit)} profit` : "likely back" } });
@@ -144,7 +145,10 @@ export async function today(brand: { id: string; currency: string | null; timezo
       if (margin != null) status.push({ label: "Profit after ads", icon: "chart-bar", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
     } else status.push({ label: "New customers", icon: "user", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), chart: "bars", hint: "People whose first order was in the last 30 days" });
   }
-  const waitingPlans = (plans?.list ?? []).filter((x) => x.stage !== "suggested").length, newPlans = (plans?.list ?? []).length - waitingPlans;
+  // Yesterday is the last full day: today's row is still filling up.
+  const yd = byDay.at(-2), wk = byDay.at(-9);
+  const pulse = yd && (yd.orders || wk?.orders) ? { sales: usd(yd.revenue), orders: yd.orders, delta: wk ? pctDelta(yd.revenue, wk.revenue) ?? null : null } : null;
+  const waitingPlans = (plans?.list ?? []).filter((x) => x.stage !== "suggested" && x.stage !== "live").length, newPlans = (plans?.list ?? []).filter((x) => x.stage === "suggested").length;
   if (conns.meta || plans?.list.length) status.push({ label: "Campaigns", icon: "megaphone", href: `${base}/campaigns`, hint: "Each plan has a reason, a budget and its own steps",
     value: String(plans?.list.length ?? 0), unit: (plans?.list.length ?? 0) === 1 ? "plan" : "plans",
     sub: [watched.campaigns ? `${watched.campaigns} live` : null, waitingPlans ? `${waitingPlans} under way` : null, newPlans ? `${newPlans} suggested` : null, changes.length ? `${changes.length} to decide` : null].filter(Boolean).join(" · ") || "No reason to advertise today" });
@@ -159,7 +163,7 @@ export async function today(brand: { id: string; currency: string | null; timezo
       parts: [{ label: "SEO", value: String(sc.seo) }, { label: "AI search", value: String(sc.ai) }, { label: "Speed", value: sc.speed != null ? String(sc.speed) : sc.speedChecks.total ? `${sc.speedChecks.ok}/${sc.speedChecks.total}` : "–" }],
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
-  return { status, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
+  return { status, pulse, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };

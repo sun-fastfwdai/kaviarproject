@@ -9,24 +9,34 @@ import { StatTile } from "@/components/bento";
 import type { Delta, Tile } from "@/lib/growth/trend";
 import { LIB_STATUS, type LibRow } from "@/lib/growth/library";
 import { REASON_NAME, STAGE_NAME, type PlanCard, type Reason } from "@/lib/growth/plans-rules";
-import { setSalesTarget } from "./actions";
+import { MODES, type Mode } from "@/lib/growth/pilot";
+import type { Plans } from "@/lib/growth/plans";
+import { checkNow, setMode } from "../optimize/actions";
+import { createOwnPlan, setSalesTarget } from "./actions";
 
 /**
  * Campaigns. Kaviar proposes a campaign only when there is a reason to — and says which: a holiday coming, stock sitting, buyers going
  * quiet, sales short of the target set here. Each plan is a card that opens its own page; what already runs on Meta is listed below.
  */
-type Props = { slug: string; currency: string; plans: PlanCard[]; meta: LibRow[]; tiles: Tile[]; loose: number; hasMeta: boolean; sales: { value: string; delta: Delta | null; target: number | null; share: number | null } };
-const TONE: Record<Reason, [string, string]> = { holiday: ["#121212", "#fff"], overstock: ["var(--amber-bg)", "var(--amber)"], lapsed: ["var(--blue-bg)", "var(--blue)"], sales: ["var(--red-bg)", "var(--red)"] };
+type Props = { slug: string; currency: string; plans: PlanCard[]; meta: LibRow[]; tiles: Tile[]; loose: number; hasMeta: boolean; sales: { value: string; delta: Delta | null; target: number | null; share: number | null };
+  options: Plans["options"]; minBudget: number; pilot: { mode: Mode; last: string | null } };
+const TONE: Record<Reason, [string, string]> = { holiday: ["#121212", "#fff"], overstock: ["var(--amber-bg)", "var(--amber)"], lapsed: ["var(--blue-bg)", "var(--blue)"], sales: ["var(--red-bg)", "var(--red)"], own: ["var(--tray-2)", "var(--ink)"] };
 const COLS = "minmax(240px, 2.4fr) 110px repeat(3, minmax(84px, 1fr)) 132px";
 
-export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMeta, sales }: Props) {
+export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMeta, sales, options, minBudget, pilot }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
   const [editing, setEditing] = useState(false);
   const [target, setTarget] = useState(sales.target ? String(sales.target) : "");
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const save = (v: number | null) => start(async () => { await setSalesTarget(slug, v); setEditing(false); router.refresh(); });
-  const under = plans.filter((p) => p.stage !== "suggested"), fresh = plans.filter((p) => p.stage === "suggested");
+  const live = plans.filter((p) => p.stage === "live"), under = plans.filter((p) => p.stage !== "suggested" && p.stage !== "live"), fresh = plans.filter((p) => p.stage === "suggested");
+  // A campaign of the brand's own: what to sell, to whom, for how much.
+  const [creating, setCreating] = useState(false);
+  const [mode, setM] = useState<Mode>(pilot.mode);
+  const [form, setForm] = useState({ name: "", product: options.products[0]?.title ?? "", audience: options.audiences[0]?.key ?? "new", budget: String(minBudget), days: 14 });
+  const [err, setErr] = useState<string | null>(null);
+  const create = () => { setErr(null); start(async () => { const r = await createOwnPlan(slug, { ...form, budget: Number(form.budget) }); if (r.error || !r.key) setErr(r.error ?? "Couldn’t start it"); else router.push(`${base}/campaigns/${encodeURIComponent(r.key)}`); }); };
 
   const Card = (p: PlanCard, i: number, first: boolean) => { const m = p.out[1]; return (
     <Link key={p.key} href={`${base}/campaigns/${encodeURIComponent(p.key)}`} className="col hv rise" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: first ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0, ["--i" as string]: i }}>
@@ -56,6 +66,20 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
+        {/* ---- what runs by itself, and the two things a brand comes here to do: see results, start a campaign */}
+        <div className="row g10" style={{ flexWrap: "wrap" }}>
+          <div className="row g10" style={{ padding: "6px 8px 6px 14px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }} title={MODES[mode].line}>
+            <span className="row g6 sm w5"><span style={{ width: 7, height: 7, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 3px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite" }} />Autopilot</span>
+            <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
+              {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} title={MODES[m].line} onClick={() => { setM(m); start(async () => { await setMode(slug, m); router.refresh(); }); }}>{MODES[m].name}</button>)}
+            </div>
+            <span className="xs i3">{pilot.last ? `Checked ${pilot.last}` : "First check within the hour"}</span>
+            <button type="button" className="btn quiet sm" style={{ borderRadius: 99 }} disabled={busy} onClick={() => start(async () => { await checkNow(slug); router.refresh(); })}><Icon name="refresh" size={12} />Check now</button>
+          </div>
+          <span className="fill" />
+          <Link className="btn" href={`${base}/performance`}><Icon name="trend-up" size={14} />Results</Link>
+          <button type="button" className="btn dark" onClick={() => { setErr(null); setCreating(true); }}><Icon name="plus" size={13} color="#fff" />New campaign</button>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
           {/* the bar the plans answer to: sales against the target the brand sets */}
           <button type="button" onClick={() => setEditing(true)} className="bt rise" title="Falling short of your target is a reason to advertise" style={{ padding: "13px 15px 12px", gap: 2, textAlign: "left" }}>
@@ -69,8 +93,13 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
 
         {plans.length === 0 ? (
           <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 18, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="analyst" size={36} mood="happy" />
-            <span className="col fill"><span style={{ fontSize: 20, fontWeight: 600 }}>No reason to advertise today</span><span className="sm i3">No holiday in the next five weeks, stock is moving, buyers are coming back and sales are holding.</span></span></div>
+            <span className="col fill"><span style={{ fontSize: 20, fontWeight: 600 }}>No reason to advertise today</span><span className="sm i3">No holiday in the next five weeks, stock is moving, buyers are coming back and sales are holding.</span></span>
+            <button type="button" className="btn" onClick={() => setCreating(true)}>Start one anyway</button></div>
         ) : <>
+          {live.length > 0 && <div className="col g10">
+            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>On Meta · {live.length}</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 380px), 1fr))", gap: 12 }}>{live.map((p, i) => Card(p, i, false))}</div>
+          </div>}
           {under.length > 0 && <div className="col g10">
             <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Under way · {under.length}</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 380px), 1fr))", gap: 12 }}>{under.map((p, i) => Card(p, i, i === 0))}</div>
@@ -103,6 +132,22 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
           <Icon name="folder" size={15} color="#8B8883" /><span className="sm i2 fill">{loose} earlier batch{loose === 1 ? "" : "es"} of ads belong{loose === 1 ? "s" : ""} to no plan</span><span className="xs i3 row g4">Creative studio<Icon name="arrow-r" size={11} /></span>
         </Link>}
       </div>
+      {creating && <Modal icon={<Icon name="megaphone" size={16} />} title="New campaign" sub="Yours to start: pick what to sell and who should see it. Remy writes its ads on the next screen." onClose={() => setCreating(false)} width={500}
+        footer={<><button type="button" className="btn quiet" onClick={() => setCreating(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !form.product || !(Number(form.budget) >= 50)} onClick={create}>{busy ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : null}Start campaign</button></>}>
+        <div className="col g12">
+          <label className="col g4"><span className="xs i2 w5">What to sell</span>
+            <select className="input" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })}>{options.products.map((x) => <option key={x.title} value={x.title}>{x.title} · {usd(x.price)} · {x.stock} in stock</option>)}</select></label>
+          <label className="col g4"><span className="xs i2 w5">Who should see it</span>
+            <select className="input" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>{options.audiences.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
+          <div className="row g10">
+            <label className="col g4 fill"><span className="xs i2 w5">Budget</span><input className="input" inputMode="numeric" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value.replace(/[^0-9]/g, "").slice(0, 7) })} /></label>
+            <label className="col g4"><span className="xs i2 w5">Over</span>
+              <div className="seg">{[7, 14, 28].map((d) => <button key={d} type="button" className={`o${form.days === d ? " on" : ""}`} style={{ height: 30 }} onClick={() => setForm({ ...form, days: d })}>{d} days</button>)}</div></label>
+          </div>
+          <label className="col g4"><span className="xs i2 w5">Name <span className="i3" style={{ fontWeight: 400 }}>· optional</span></span><input className="input" placeholder="e.g. New serum launch" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+          {err && <span className="xs" style={{ color: "#B4532A" }}>{err}</span>}
+        </div>
+      </Modal>}
       {editing && <Modal icon={<Icon name="target" size={16} />} title="Monthly sales target" sub="Falling short of it is a reason for Kaviar to suggest a campaign." onClose={() => setEditing(false)} width={420}
         footer={<>{sales.target != null && <button type="button" className="btn quiet" style={{ marginRight: "auto" }} disabled={busy} onClick={() => save(null)}>Remove target</button>}<button type="button" className="btn quiet" onClick={() => setEditing(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !(Number(target) > 0)} onClick={() => save(Number(target))}>{busy ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : null}Save</button></>}>
         <label className="col g4"><span className="xs i2 w5">Sales you want in 30 days</span>

@@ -45,8 +45,9 @@ describe("one plan", () => {
     expect(stageOf(true, null)).toBe("approved");
     expect(stageOf(true, ads({ review: 3 }))).toBe("review");
     expect(stageOf(true, ads({ review: 1, approved: 2 }))).toBe("review");
-    expect(stageOf(false, ads({ approved: 3 }))).toBe("test"); // ads made before plans existed still count
+    expect(stageOf(false, ads({ approved: 3 }))).toBe("ready"); // approved ads can go live; the shopper test never blocks a launch
     expect(stageOf(true, ads({ approved: 3, tested: true }))).toBe("ready");
+    expect(stageOf(true, ads({ approved: 3 }), true)).toBe("live");
   });
   it("has its own six steps, with the one it is waiting on", () => {
     const s = stepsOf(card());
@@ -56,8 +57,10 @@ describe("one plan", () => {
     const r = stepsOf(card({ stage: "review", ads: ads({ review: 3 }) }));
     expect([r.now, r.steps[2].note, r.steps[1].done, r.steps[1].note]).toEqual(["ads", "3 ads to review", false, "Not approved yet"]); // ads made before anyone approved
     expect(stepsOf(card({ stage: "approved", approvedAt: "2026-11-22T10:00:00Z", approvedBy: "Kris Singh" })).steps[1]).toMatchObject({ done: true, note: "Approved by Kris · Nov 22" });
-    expect(stepsOf(card({ stage: "test", ads: ads({ approved: 3 }) }))).toMatchObject({ now: "test" });
-    expect(stepsOf(card({ stage: "ready", ads: ads({ approved: 3, tested: true }) })).now).toBe("launch");
+    const ready = stepsOf(card({ stage: "ready", ads: ads({ approved: 3 }) }));
+    expect([ready.now, ready.steps[3].note, ready.steps[3].optional, ready.steps[2].done]).toEqual(["launch", "Optional", true, true]);
+    const live = stepsOf(card({ stage: "live", ads: ads({ approved: 3, tested: true }) }));
+    expect([live.now, live.steps[4].done, live.steps[4].note, live.steps[3].done]).toEqual(["results", true, "Made on Meta", true]);
   });
   it("forecasts on its own budget: more spend brings more back, never past the stock", () => {
     const [lo, mid, hi] = forecast(c, 450, 14, input), more = forecast(c, 900, 14, input)[1];
@@ -66,7 +69,7 @@ describe("one plan", () => {
     expect(forecast({ ...c, stock: 2 }, 5000, 14, input)[2].orders).toBe(2);
   });
   it("puts a holiday days away first, then plans stopped mid-way, then the rest", () => {
-    const list = rankPlans([card({ key: "sales", reason: "sales" }), card({ key: "stock", reason: "overstock" }), card({ key: "review", stage: "review", ads: ads({ review: 3 }) }), card({ key: "xmas", reason: "holiday" }), card({ key: "bf", reason: "holiday", urgent: true }), card({ key: "ready", stage: "ready" })]);
-    expect(list.map((p) => p.key)).toEqual(["bf", "ready", "review", "xmas", "stock", "sales"]);
+    const list = rankPlans([card({ key: "live", stage: "live" }), card({ key: "sales", reason: "sales" }), card({ key: "stock", reason: "overstock" }), card({ key: "review", stage: "review", ads: ads({ review: 3 }) }), card({ key: "xmas", reason: "holiday" }), card({ key: "mine", reason: "own" }), card({ key: "bf", reason: "holiday", urgent: true }), card({ key: "ready", stage: "ready" })]);
+    expect(list.map((p) => p.key)).toEqual(["bf", "ready", "review", "mine", "xmas", "stock", "sales", "live"]); // what is already on Meta needs nothing from the brand
   });
 });

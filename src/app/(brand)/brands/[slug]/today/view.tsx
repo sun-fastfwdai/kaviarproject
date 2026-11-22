@@ -35,6 +35,8 @@ export function TodayView({ slug, t, day, hello }: { slug: string; t: Today; day
           <div className="col g2" style={{ minWidth: 0 }}>
             <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>{day}</span>
             <span style={{ fontSize: 30, lineHeight: "38px", fontWeight: 600, letterSpacing: "-0.03em" }}>{hello}</span>
+            {t.pulse && <span className="sm i2 tnum" title="The last full day, against the same day a week earlier">Yesterday <b className="i1 w5">{t.pulse.sales}</b> from {t.pulse.orders} order{t.pulse.orders === 1 ? "" : "s"}
+              {t.pulse.delta && <span style={{ color: t.pulse.delta.good ? "var(--green)" : t.pulse.delta.good === false ? "var(--red)" : "var(--ink-3)", fontWeight: 600 }}> {t.pulse.delta.dir === "up" ? "↗" : t.pulse.delta.dir === "down" ? "↘" : "→"} {t.pulse.delta.text}</span>}{t.pulse.delta && <span className="i3"> on last week</span>}</span>}
           </div>
           <div className="row g10 rise" style={{ padding: "7px 8px 7px 12px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", flexWrap: "wrap" }}
             title={`${t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · ${t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}${t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}`}>
