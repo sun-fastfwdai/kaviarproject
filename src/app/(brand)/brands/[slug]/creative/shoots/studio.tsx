@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, suggestPrompt } from "./actions";
+import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
 import { ALLOWED, CAT, DEFAULTS, clipCost, clipModel, type ClipModel, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
@@ -73,7 +73,7 @@ type Props = {
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
   examples?: Record<string, string>;
   engines: { photo: string; photoModel: string; photoModels: { key: string; name: string; note: string; price: number }[]; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
-  batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; shots: Shot[];
+  batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; store: { url: string; name: string }[]; shots: Shot[];
 };
 
 /** Board 17c · Shoots: a real node canvas — drag nodes, draw and remove wires, and Run flow follows the wires. */
@@ -100,7 +100,10 @@ export function ShootStudio(props: Props) {
 }
 
 function Studio(props: Props) {
-  const { slug, base, perImage, perVideoSecond, products, signals, shots, batches, refs } = props;
+  const { slug, base, perImage, perVideoSecond, products, signals, shots, batches, store } = props;
+  // The brand photos a Reference can use: the brand's uploads, plus any it adds or takes from its store while it is here.
+  const [refs, setRefs] = useState(props.refs);
+  const refFile = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname();
   const rf = useReactFlow<CanvasNode, Wire>();
@@ -634,6 +637,12 @@ function Studio(props: Props) {
     send(handOff);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires when a run finishes and its photos are in
   }, [lastRun, handOff, busy]);
+  const addReference = (rid: string, get: () => Promise<{ id?: string; name?: string; error?: string }>) => go(async () => {
+    const r = await get();
+    if (!r.id) { setMsg(r.error ?? "That photo couldn’t be added."); return; }
+    setRefs((l) => (l.some((x) => x.id === r.id) ? l : [{ id: r.id!, name: r.name ?? "Photo" }, ...l]));
+    pickReference(rid, r.id);
+  });
   const pickReference = (rid: string, assetId: string) => go(async () => {
     patchNode(rid, { reference: { id: assetId, note: "Remy is reading this photo…", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } });
     const r = await readReference(slug, assetId);
@@ -1072,10 +1081,23 @@ function Studio(props: Props) {
         </>}
 
         {n.type === "reference" && <>
-          <Field label="Brand photo" sub={refs.length ? "From the brand’s uploads" : undefined}>
-            {refs.length ? <div className="row g6" style={{ flexWrap: "wrap" }}>{refs.slice(0, 12).map((r) => <Thumb key={r.id} id={r.id} w={56} h={56} ring={c.reference?.id === r.id} onClick={() => pickReference(n.id, r.id)} title={r.name} />)}</div>
-              : <span className="xs i3" style={{ lineHeight: "16px" }}>No brand photos uploaded yet — add lifestyle shots in the brand’s assets during onboarding.</span>}
+          <Field label="Brand photo" sub={refs.length ? "From Brand assets" : "Upload one, or pick from your store below"}>
+            <div className="row g6" style={{ flexWrap: "wrap" }}>
+              {refs.slice(0, 15).map((r) => <Thumb key={r.id} id={r.id} w={56} h={56} ring={c.reference?.id === r.id} onClick={() => pickReference(n.id, r.id)} title={r.name} />)}
+              <button type="button" className="nodrag" disabled={running} onClick={() => refFile.current?.click()} title="Upload a photo — JPG, PNG or WebP under 4 MB. It joins Brand assets."
+                style={{ width: 56, height: 56, borderRadius: 6, border: "1px dashed var(--line-2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: "var(--ink-2)", fontSize: 10.5 }}><Icon name="upload" size={14} />Upload</button>
+              <input ref={refFile} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const fd = new FormData(); fd.set("file", f); addReference(n.id, () => uploadReference(slug, fd)); } }} />
+            </div>
           </Field>
+          {store.length > 0 && <Field label="From your store" sub="Your Shopify product photos">
+            <div className="row g6" style={{ flexWrap: "wrap", maxHeight: 190, overflowY: "auto", padding: 2 }}>
+              {store.map((x) => (
+                <button key={x.url} type="button" className="nodrag thumb-hover" disabled={running} title={x.name} onClick={() => addReference(n.id, () => storeReference(slug, x.url))}
+                  style={{ width: 56, height: 56, borderRadius: 6, overflow: "hidden", flexShrink: 0, padding: 0, background: "var(--tray)", boxShadow: "0 0 0 1px var(--line)" }}>
+                  <img src={`${x.url}${x.url.includes("?") ? "&" : "?"}width=160`} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </button>))}
+            </div>
+          </Field>}
           {c.reference && <Field label="What Remy borrows"><span className="xs i1" style={{ lineHeight: "16px", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)" }}>{c.reference.note}</span></Field>}
           <Field label="How closely to follow"><Pills label="How closely to follow" value={c.reference?.close ? "close" : "loose"} options={[["loose", "Loosely"], ["close", "Closely"]]} onChange={(v) => c.reference && patchNode(n.id, { reference: { ...c.reference, close: v === "close" } })} /></Field>
         </>}

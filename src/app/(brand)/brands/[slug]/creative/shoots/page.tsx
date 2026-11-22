@@ -1,5 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { storeImages } from "@/lib/shopify/media";
 import { getBrand } from "@/lib/queries/brands";
 import { signalData } from "@/lib/queries/signals";
 import { getNotes } from "@/lib/ai/notes";
@@ -28,7 +29,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
   const brand = await getBrand(slug);
   const base = `/brands/${slug}`;
   const A = schema.brandAssets;
-  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices, characters, research] = await Promise.all([
+  const [products, shots, month, batches, d, notes, [saved], refs, engines, voices, characters, research, storePics] = await Promise.all([
     db.execute(sql`select p.title, p.image_url as url, p.total_inventory as stock,
         (select min(v.price) from shop_variants v where v.brand_id = p.brand_id and v.product_id = p.id)::float8 as price
       from shop_products p where p.brand_id = ${brand.id} and p.image_url is not null and coalesce(p.status, 'ACTIVE') = 'ACTIVE' order by p.total_inventory desc nulls last limit 40`),
@@ -47,6 +48,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
     db.select({ id: A.id, name: A.name, meta: A.meta }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "voice"))).orderBy(desc(A.createdAt)).limit(12),
     db.select({ id: A.id, name: A.name, meta: A.meta, createdAt: A.createdAt }).from(A).where(and(eq(A.brandId, brand.id), eq(A.kind, "character"))).orderBy(desc(A.createdAt)).limit(24),
     researchSignals(brand.id),
+    storeImages(brand.id).catch(() => []),
   ]);
   const signals = buildSignals(base, brand, d, notes).filter((r) => (r.status === "ready" || r.status === "in-use") && SHOOT_SIGNALS.includes(r.key))
     .sort((a, b) => SHOOT_SIGNALS.indexOf(a.key) - SHOOT_SIGNALS.indexOf(b.key))
@@ -82,7 +84,7 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
       batches={allBatches.map(({ id, title, n, signal }) => ({ id, title, n, signal }))} signals={signals}
       palette={(ob.analysis?.palette ?? []).map((p) => p.hex)} look={ob.profile?.palette?.value ?? null} tone={ob.profile?.tone?.value ?? null}
       lessons={(notes.insights?.lessons ?? []).map((l) => ({ dimension: l.dimension, lesson: l.lesson, evidence: l.evidence, strength: l.strength }))}
-      products={list} refs={refs}
+      products={list} refs={refs} store={storePics.slice(0, 48).map((m) => ({ url: m.url, name: m.alt?.trim() || m.product }))}
       shots={shots.map((s) => ({ id: s.id, kind: s.mime.startsWith("video/") ? "video" as const : "image" as const, product: s.meta.product ?? null, prompt: s.meta.prompt ?? null,
         check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound), scene: s.meta.scene ?? null }))} />
   );

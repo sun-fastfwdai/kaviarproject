@@ -125,6 +125,12 @@ export async function planBrief(brandId: string, key: string): Promise<Brief> {
   const b = (await read<SavedPlans>(brandId, KEY))?.plans?.[key]?.brief;
   return { refs: b?.refs ?? [], note: b?.note ?? "", shoot: Boolean(b?.shoot) };
 }
+/** A plan's brief as a screen shows it: the words, the choice, and each reference picture that still exists, by name. */
+export async function briefView(brandId: string, key: string): Promise<{ note: string; shoot: boolean; refs: { id: string; name: string }[] }> {
+  const b = await planBrief(brandId, key);
+  const refs = b.refs.length ? (await db.select({ id: schema.brandAssets.id, name: schema.brandAssets.name }).from(schema.brandAssets).where(sql`${schema.brandAssets.brandId} = ${brandId} and ${schema.brandAssets.id}::text in (${sql.join(b.refs.map((x) => sql`${x}`), sql`, `)})`).catch(() => [])) : [];
+  return { note: b.note, shoot: b.shoot, refs: b.refs.map((id) => refs.find((r) => r.id === id)).filter((r): r is { id: string; name: string } => Boolean(r)) };
+}
 export async function savePlanChoice(brandId: string, key: string, v: { budget?: number; days?: number; approve?: boolean; by?: string; meta?: OnMeta; brief?: Brief }): Promise<void> {
   const cur = (await read<SavedPlans>(brandId, KEY)) ?? {}, was = cur.plans?.[key] ?? {};
   const budget = v.budget && Number.isFinite(v.budget) ? Math.min(1_000_000, Math.max(50, Math.round(v.budget))) : was.budget, days = v.days && Number.isFinite(v.days) ? Math.min(90, Math.max(3, Math.round(v.days))) : was.days;
@@ -136,10 +142,11 @@ export async function saveTarget(brandId: string, target: number | null): Promis
 }
 
 /** A campaign the brand starts itself. Starting it is its approval: the budget is the brand's own choice. */
-export async function addOwnPlan(brandId: string, o: Omit<OwnPlan, "key" | "at">, budget: number, days: number): Promise<string> {
+/** `approved: false` starts the campaign without a yes to its budget — used when the brand asked for ads, not for spend. It is approved on its own page. */
+export async function addOwnPlan(brandId: string, o: Omit<OwnPlan, "key" | "at">, budget: number, days: number, approved = true): Promise<string> {
   const cur = (await read<SavedPlans>(brandId, KEY)) ?? {}, key = `own:${crypto.randomUUID().slice(0, 8)}`, at = new Date().toISOString();
   await write(brandId, KEY, { ...cur, own: [...(cur.own ?? []), { ...o, key, at }].slice(-30),
-    plans: { ...(cur.plans ?? {}), [key]: { budget: Math.max(50, Math.round(budget)), days: Math.min(90, Math.max(3, Math.round(days))), approvedAt: at, by: o.by } } });
+    plans: { ...(cur.plans ?? {}), [key]: { budget: Math.max(50, Math.round(budget)), days: Math.min(90, Math.max(3, Math.round(days))), ...(approved ? { approvedAt: at, by: o.by } : {}) } } });
   return key;
 }
 export async function removeOwnPlan(brandId: string, key: string): Promise<void> {
@@ -209,9 +216,8 @@ export async function planExtras(brand: { id: string; timezone: string }, p: Pla
     rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), brands: rivals.rows.length, new30: rivals.rows.reduce((k, x) => k + x.new30, 0), angle: top ? { name: top.name, share: Math.round(top.share) } : null, gap: gap?.text ?? null } : null,
     page: audit?.at && fixes != null ? { open: fixes, stars: audit.site?.find((x) => x.key === "reviews")?.ok ?? null } : null,
   };
-  const b = await planBrief(brand.id, p.key);
-  const refs = b.refs.length ? (await db.select({ id: schema.brandAssets.id, name: schema.brandAssets.name }).from(schema.brandAssets).where(sql`${schema.brandAssets.brandId} = ${brand.id} and ${schema.brandAssets.id}::text in (${sql.join(b.refs.map((x) => sql`${x}`), sql`, `)})`).catch(() => [])) : [];
+  const brief = await briefView(brand.id, p.key);
   const c = p.meta ? camps.find((x) => x.id === p.meta!.campaignId) : undefined;
-  return { ads, facts, brief: { note: b.note, shoot: b.shoot, refs: b.refs.map((id) => refs.find((r) => r.id === id)).filter((r): r is { id: string; name: string } => Boolean(r)) }, productPhoto: p.image, results: p.meta ? { status: c?.status ?? null, spend: c?.spend ?? 0, orders: c?.verifiedOrders ?? 0, revenue: c?.verifiedRevenue ?? 0 } : null,
+  return { ads, facts, brief, productPhoto: p.image, results: p.meta ? { status: c?.status ?? null, spend: c?.spend ?? 0, orders: c?.verifiedOrders ?? 0, revenue: c?.verifiedRevenue ?? 0 } : null,
     pilot: { mode: pilot.mode, last: pilot.runs[0]?.at ?? null, canAct: pilot.canAct, changes } };
 }

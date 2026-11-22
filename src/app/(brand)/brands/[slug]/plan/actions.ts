@@ -28,15 +28,17 @@ export async function approvePlan(slug: string, input: SavedPlan, approve: boole
 
 /**
  * The ads for one plan. Ads are never made for their own sake: the plan must exist — which means its reason holds today — and the
- * brand must have approved it. Then Remy writes three for that audience, filed under the plan, and Shoots opens with them.
+ * brand must have approved it — or have asked for these ads itself in the studio (`asked`). Then Remy writes three for that audience,
+ * filed under the plan. Nothing can run until the plan's budget has its yes: putting it on Meta checks for it.
  */
-export async function makeAds(slug: string, key: string, stay = false): Promise<{ error?: string; batchId?: string; note?: string } | undefined> {
+export async function makeAds(slug: string, key: string, stay = false, asked = false): Promise<{ error?: string; batchId?: string; note?: string } | undefined> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   const [plans, tests] = await Promise.all([getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }), readyTests(brand.id).catch(() => [])]);
   const p = plans.list.find((x) => x.key === key);
   if (!p) return { error: "That plan’s reason no longer holds — open Campaigns for today’s plans." };
-  if (p.stage === "suggested") return { error: "Approve the plan first — ads are made once you’ve said yes to it." };
+  // From the studio the brand asks for the ads itself: they are written straight away, and the budget waits for its own yes before anything runs.
+  if (p.stage === "suggested" && !asked) return { error: "Approve the plan first — ads are made once you’ve said yes to it." };
   const c = p.c, t = tests.find((x) => x.key === c.signal), brief = await planBrief(brand.id, key);
   const r = await buildPipeline(slug, { format: "static", product: c.product, signal: c.signal ?? key, audience: t?.who ?? `${c.name} — ${c.why}`.slice(0, 200),
     angles: t?.messages?.length ? t.messages : [`${p.title}`.slice(0, 90)], count: 3, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? p.why, note: brief.note,

@@ -6,12 +6,15 @@ import { and, eq, sql } from "drizzle-orm";
 import { schema } from "@/lib/db";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
-import { addOwnPlan, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
+import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
 import { makeAd, makeAdSet, metaReady, switchCampaign, type Ready } from "@/lib/meta/place";
 import { COUNTRIES, countryFor } from "@/lib/meta/place-rules";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { readAssets } from "@/lib/assets/storage";
 import { createPausedCampaign } from "@/lib/meta/apply";
+
+/** A picture's width and height, in the words an asset keeps them in. */
+const dims = (b: Buffer) => { const z = imageSize(b); return z ? { width: z.w, height: z.h } : {}; };
 
 const fresh = (slug: string) => { for (const p of ["campaigns", "today", "plan"]) revalidatePath(`/brands/${slug}/${p}`, p === "campaigns" ? "layout" : "page"); };
 
@@ -80,6 +83,7 @@ export async function placeStep(slug: string, key: string, pick?: { page?: strin
 
   if (!p.meta) {
     if (p.stage !== "ready") return { placed: 0, total, error: "Approve at least one ad first." };
+    if (!p.approvedAt) return { placed: 0, total, error: "Approve this campaign’s budget first." };
     const daily = Math.max(1, Math.round((p.budget / p.days) * 100) / 100);
     const r = await createPausedCampaign(brand.id, `${brand.name} · ${p.title}`.slice(0, 180), daily);
     if (!r.ok) return { placed: 0, total, error: said(r.message) };
@@ -165,7 +169,7 @@ export async function addReference(slug: string, key: string, form: FormData): P
   const b = await planBrief(brand.id, key);
   if (b.refs.length >= 8) return { error: "Eight references at most — remove one first." };
   const buf = Buffer.from(await f.arrayBuffer());
-  const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name: f.name.slice(0, 120), mime: f.type, size: f.size, data: buf, meta: { ...(imageSize(buf) ?? {}), plan: key, ref: true }, createdBy: me.id });
+  const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name: f.name.slice(0, 120), mime: f.type, size: f.size, data: buf, meta: { ...dims(buf), plan: key, ref: true }, createdBy: me.id });
   await savePlanChoice(brand.id, key, { brief: { ...b, refs: [...b.refs, row.id] } });
   fresh(slug);
   return { id: row.id };
@@ -185,4 +189,38 @@ export async function saveBrief(slug: string, key: string, note: string, shoot: 
   const brand = await getBrand(slug), b = await planBrief(brand.id, key);
   await savePlanChoice(brand.id, key, { brief: { ...b, note: note.trim().slice(0, 600), shoot } });
   fresh(slug);
+}
+
+// ---------------------------------------------------------------- the studio: "make ads for this"
+export type StudioPlan = { key: string; title: string; product: string; image: string | null; onMeta: boolean; approved: boolean; budget: number; days: number };
+export type StudioAds = { plan: StudioPlan; ads: Awaited<ReturnType<typeof planAds>>; brief: Awaited<ReturnType<typeof briefView>>; batchId: string | null; placed: Record<string, string> };
+/**
+ * Where ads asked for in the studio belong. Every ad belongs to a campaign, so Kaviar finds it: the campaign named, or the one this
+ * product already has. With several, Remy asks which — the occasion changes what the ads say. With none, a campaign of the brand's own
+ * is started for the product, not approved: the brand asked for ads, not for spend, and its budget gets its yes on its own page.
+ */
+export async function studioTarget(slug: string, v: { plan?: string; product?: string; fresh?: boolean }): Promise<{ key: string; title: string; product: string; started?: boolean } | { ask: { key: string; title: string; sub: string }[]; product: string } | { error: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const named = v.plan ? plans.list.find((x) => x.key === v.plan) : undefined;
+  if (named && !named.meta && !v.fresh) return { key: named.key, title: named.title, product: named.c.product };
+  const product = plans.options.products.find((x) => x.title === (v.product ?? named?.c.product));
+  if (!product) return { error: "Pick a product first — type @." };
+  const open = plans.list.filter((x) => x.c.product === product.title && !x.meta);
+  if (!v.fresh && open.length === 1) return { key: open[0].key, title: open[0].title, product: product.title };
+  if (!v.fresh && open.length > 1) return { product: product.title, ask: open.slice(0, 4).map((x) => ({ key: x.key, title: x.title,
+    sub: [x.reason === "own" ? "Your campaign" : x.reason === "holiday" ? "Holiday" : x.reason === "lapsed" ? "Buyers gone quiet" : x.reason === "overstock" ? "Stock sitting" : "New buyers", x.when, x.ads ? `${x.ads.review + x.ads.approved} ads already` : null].filter(Boolean).join(" · ") })) };
+  const key = await addOwnPlan(brand.id, { name: product.title.slice(0, 80), product: product.title, who: "New people", kind: "cold", audience: null, by: me.name }, plans.minBudget, 14, false);
+  fresh(slug);
+  return { key, title: product.title, product: product.title, started: true };
+}
+/** One campaign's ads and what Remy works from, for the studio's thread. */
+export async function studioAds(slug: string, key: string): Promise<StudioAds | null> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const p = (await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone })).list.find((x) => x.key === key);
+  if (!p) return null;
+  const [ads, brief] = await Promise.all([p.ads ? planAds(p.ads.batchId).catch(() => []) : Promise.resolve([]), briefView(brand.id, key)]);
+  return { plan: { key: p.key, title: p.title, product: p.c.product, image: p.image, onMeta: Boolean(p.meta), approved: Boolean(p.approvedAt), budget: p.budget, days: p.days }, ads, brief, batchId: p.ads?.batchId ?? null, placed: p.meta?.placed ?? {} };
 }

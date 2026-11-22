@@ -16,15 +16,15 @@ import { addReference, removeReference, saveBrief } from "../actions";
  * what to work from (its own pictures, its own words), presses once, and says yes or no to each ad that comes back. Progress goes to
  * the dock at the bottom of the screen through `onWork`, so the brand never leaves the page it is on.
  */
-type Args = { slug: string; planKey: string; title: string; brief: PlanExtras["brief"]; ads: PlanAd[]; onWork: (w: Work | null) => void; onError?: (m: string | null) => void };
-export function useAds({ slug, planKey, title, brief, ads, onWork, onError }: Args) {
+type Args = { slug: string; planKey: string; title: string; brief: PlanExtras["brief"]; ads: PlanAd[]; onWork: (w: Work | null) => void; onError?: (m: string | null) => void; onChanged?: () => void };
+export function useAds({ slug, planKey, title, brief, ads, onWork, onError, onChanged }: Args) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
   const [note, setNote] = useState(brief.note);
   const [shootNew, setShootNew] = useState(brief.shoot);
   const fail = (m: string | null) => onError?.(m);
-  const run = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); fail(null); start(async () => { const r = await f(); if (r && r.error) { fail(r.error); onWork({ done: r.error, bad: true }); } else { router.refresh(); if (done) onWork({ done }); } setDoing(null); }); };
+  const run = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); fail(null); start(async () => { const r = await f(); if (r && r.error) { fail(r.error); onWork({ done: r.error, bad: true }); } else { router.refresh(); onChanged?.(); if (done) onWork({ done }); } setDoing(null); }); };
   const toReview = ads.filter((x) => x.status === "review");
   return {
     busy, doing, note, setNote, shootNew, setShootNew, toReview,
@@ -50,14 +50,15 @@ export function useAds({ slug, planKey, title, brief, ads, onWork, onError }: Ar
 export type AdsMaker = ReturnType<typeof useAds>;
 
 const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
-export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, batchId, heading = "Its ads", extra, placed }: {
+export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, batchId, heading = "Its ads", extra, placed, plain = false }: {
+  plain?: boolean; // only the ads and their yes/no — the studio's thread has its own place to say what Remy works from
   m: AdsMaker; base: string; stage: Stage; locked: boolean; ads: PlanAd[]; brief: PlanExtras["brief"]; productPhoto: string | null; batchId: string | null; heading?: string; extra?: React.ReactNode;
   placed?: Record<string, string>; // the plan's ads already on Meta, by ad
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const okAds = ads.filter((x) => x.status === "approved"), toReview = m.toReview, spin = (k: string, c?: string) => m.doing === k && <Icon name="spinner" size={13} className="spin" color={c} />;
   return (
-    <div id="ads" className="col g12" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)", scrollMarginTop: 16 }}>
+    <div id="ads" className="col g12" style={{ padding: plain ? "14px 16px" : "16px 18px", borderRadius: 18, background: "#fff", boxShadow: plain ? "0 0 0 1px var(--line), 0 12px 32px rgba(18,18,18,.06)" : "0 0 0 1px var(--line)", scrollMarginTop: 16 }}>
       <div className="row between g12" style={{ flexWrap: "wrap" }}>
         <span className="row g8"><AgentFace kind="builder" size={18} /><span className="i3" style={label}>{heading}</span>{ads.length > 0 && <span className="xs i3 tnum">{toReview.length ? `${toReview.length} to review` : ""}{toReview.length && okAds.length ? " · " : ""}{okAds.length ? `${okAds.length} approved` : ""}</span>}</span>
         <span className="row g6">
@@ -67,7 +68,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
         </span>
       </div>
       {/* what Remy works from: the product photo, the brand's own pictures and its own words */}
-      {!locked && <div className="col g10" style={{ padding: "12px 14px", borderRadius: 14, background: "var(--tray)" }}>
+      {!locked && !plain && <div className="col g10" style={{ padding: "12px 14px", borderRadius: 14, background: "var(--tray)" }}>
         <div className="row g8" style={{ flexWrap: "wrap", alignItems: "center" }}>
           <span className="xs i2 w5" style={{ width: "100%" }}>Work from</span>
           {productPhoto && <span title="The product’s own photo — the product in every picture stays exactly this" style={{ position: "relative", flexShrink: 0 }}>

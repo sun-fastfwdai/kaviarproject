@@ -11,10 +11,14 @@ import { STYLE } from "@/lib/creative/director";
 import { writeStoryboard } from "@/lib/creative/storyboard";
 import { cutAd } from "@/lib/creative/cut";
 import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
-import { hfReady } from "@/lib/creative/higgsfield";
+import { hfReady, imageSize } from "@/lib/creative/higgsfield";
+import { storeImages } from "@/lib/shopify/media";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { layoutBatch } from "@/lib/creative/design";
 import { adLook } from "@/lib/creative/layouts";
+
+/** A picture's width and height, in the words an asset keeps them in. */
+const dims = (b: Buffer) => { const z = imageSize(b); return z ? { width: z.w, height: z.h } : {}; };
 
 /** Remy writes the prompt from the flow's inputs, phrase by phrase. */
 export async function suggestPrompt(slug: string, input: PromptIn): Promise<{ out?: PromptOut; error?: string }> {
@@ -53,6 +57,32 @@ export async function readReference(slug: string, assetId: string): Promise<{ no
   const brand = await getBrand(slug);
   const note = await describeReference(brand.id, assetId);
   return note ? { note } : { error: "Remy couldn’t read that photo." };
+}
+
+/** Reference node: a photo of the brand's own, uploaded where it is needed. It joins Brand assets and can be picked from then on. */
+export async function uploadReference(slug: string, form: FormData): Promise<{ id?: string; name?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug), file = form.get("file");
+  if (!(file instanceof File) || !/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 4_000_000) return { error: "Add a JPG, PNG or WebP photo under 4 MB." };
+  const data = Buffer.from(await file.arrayBuffer()), name = file.name.slice(0, 120);
+  const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name, mime: file.type, size: data.byteLength, data, meta: { ...dims(data) }, createdBy: me.id });
+  return { id: row.id, name };
+}
+/** Reference node: one of the store's own product photos. It is copied into Brand assets once, so Remy can read it like any other. */
+export async function storeReference(slug: string, url: string): Promise<{ id?: string; name?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug), A = schema.brandAssets;
+  const pic = (await storeImages(brand.id).catch(() => [])).find((x) => x.url === url);
+  if (!pic) return { error: "That photo is no longer on the store." };
+  const name = (pic.alt?.trim() || pic.product).slice(0, 120);
+  const [had] = await db.select({ id: A.id }).from(A).where(and(eq(A.brandId, brand.id), sql`${A.meta}->>'from' = ${url}`)).limit(1);
+  if (had) return { id: had.id, name };
+  const r = await fetch(url, { cache: "no-store" }), mime = (r.headers.get("content-type") ?? "").split(";")[0];
+  if (!r.ok || !/^image\/(png|jpe?g|webp)$/.test(mime)) return { error: "That photo couldn’t be read from the store." };
+  const data = Buffer.from(await r.arrayBuffer());
+  if (!data.byteLength || data.byteLength > 12_000_000) return { error: "That photo is too large to use as a reference." };
+  const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name, mime, size: data.byteLength, data, meta: { ...dims(data), product: pic.product, from: url }, createdBy: me.id });
+  return { id: row.id, name };
 }
 
 /** Edit nodes: remove the background, extend to 9:16, relight. */
