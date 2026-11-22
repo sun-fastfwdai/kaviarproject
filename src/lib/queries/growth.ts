@@ -129,3 +129,24 @@ export function adProducts(brandId: string, tz: string, days: number, limit = 8)
     where o.brand_id = ${brandId} and ${SALE} and o.meta_ad_id is not null and o.created_at >= ${since(tz, days)}
     group by 1, 2, 3 order by 6 desc limit ${limit}`);
 }
+
+export type TrendDay = { day: string; revenue: number; orders: number; meta: number; fresh: number; spend: number };
+/** One row a day for the last `days` and the `days` before them — sales, orders, sales from Meta ads, first-time customers and ad spend — so every number on Today can show its trend and its change. */
+export function trend(brandId: string, tz: string, days: number) {
+  const n = days * 2;
+  return rows<TrendDay>(sql`
+    with d as (select generate_series(${sinceDate(tz, n)}, (now() at time zone ${tz})::date, interval '1 day')::date as day),
+    o as (
+      select (o.created_at at time zone ${tz})::date as day, sum(o.total - o.refunded) as rev, count(*) as orders, sum(o.total - o.refunded) filter (where o.channel = 'meta') as meta
+      from shop_orders o where o.brand_id = ${brandId} and ${SALE} and o.created_at >= ${since(tz, n)} group by 1
+    ),
+    f as (
+      select x.day, count(*) as n from (
+        select (min(o.created_at) at time zone ${tz})::date as day from shop_orders o where o.brand_id = ${brandId} and ${SALE} and o.customer_id is not null group by o.customer_id
+      ) x group by 1
+    ),
+    s as (select date as day, sum(spend) as spend from meta_insights_daily where brand_id = ${brandId} and date >= ${sinceDate(tz, n)} group by 1)
+    select d.day::text as "day", coalesce(o.rev, 0)::float8 as "revenue", coalesce(o.orders, 0)::int as "orders", coalesce(o.meta, 0)::float8 as "meta",
+      coalesce(f.n, 0)::int as "fresh", coalesce(s.spend, 0)::float8 as "spend"
+    from d left join o using (day) left join f using (day) left join s using (day) order by d.day`);
+}

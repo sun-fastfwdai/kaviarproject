@@ -15,7 +15,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
   const days = parseRange((await searchParams).days);
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Ads" }, { label: "Meta Ads" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Campaigns" }, { label: "Meta Ads" }];
   const conn = conns.meta;
   if (!conn || conn.status === "choose_account") return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="meta" what="campaigns and spend" /></div></>);
 

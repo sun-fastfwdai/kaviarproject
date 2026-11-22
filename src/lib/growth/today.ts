@@ -10,7 +10,11 @@ import { planData, type PlanData } from "./plan-data";
 import { currentAudit, getStore, storeWaiting } from "../seo/run";
 import { benchGaps } from "../seo/bench";
 import { scores } from "../seo/types";
-import { daily, summary } from "../queries/growth";
+import { summary, trend } from "../queries/growth";
+import { getStock } from "../store/stock";
+import { paceText } from "../store/stock-rules";
+import { halves, pctDelta, rolling, sumOf, type Tile } from "./trend";
+export type { Tile } from "./trend";
 import { storeAccess } from "../seo/apply";
 
 /**
@@ -19,11 +23,17 @@ import { storeAccess } from "../seo/apply";
  * what it should bring. Code decides and counts; nothing here is written by a model.
  */
 export type Who = "analyst" | "builder" | "qa" | "catalog";
-export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; run?: "store-fix"; urgent?: boolean }; // run: done right here on Today, without leaving the page
-/** One number about how the store is doing, opening the place it comes from. */
-export type Tile = { label: string; value: string; change?: number | null; href: string; spark?: number[]; hint?: string; tag?: { text: string; tone: "good" | "bad" | "flat" } };
+export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; run?: "store-fix"; urgent?: boolean; viz?: Viz }; // run: done right here on Today, without leaving the page
+/** What a card shows between its headline and its button: the evidence, as a picture rather than a sentence. */
+export type Viz =
+  | { kind: "bars"; rows: { label: string; value: number; text: string; tone: "warn" | "calm" }[] } // stock cover against restock time
+  | { kind: "flow"; from: string; fromLabel: string; to: string; toLabel: string } // money in → money back, or before → after
+  | { kind: "pair"; a: { label: string; value: string }; b: { label: string; value: string } } // you against them
+  | { kind: "counts"; items: { label: string; n: number }[] };
+/** A line under Today: one part of the business in a number, opening that part. */
+export type Foot = { label: string; value: string; unit: string; sub: string; href: string };
 export type Today = {
-  status: Tile[]; // the store's last 30 days
+  status: Tile[]; foot: Foot[]; // the last 30 days against the 30 before; then ads, customers and stock in a line each
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
@@ -47,8 +57,8 @@ export async function today(brand: { id: string; currency: string | null; timezo
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const B = schema.adBatches;
   const tz = brand.timezone ?? "UTC";
-  const [sum, byDay, audit, bench] = await Promise.all([
-    summary(brand.id, tz, 30).catch(() => null), daily(brand.id, tz, 30).catch(() => []),
+  const [sum, byDay, stock, audit, bench] = await Promise.all([
+    summary(brand.id, tz, 30).catch(() => null), trend(brand.id, tz, 30).catch(() => []), conns.shopify ? getStock(brand.id, tz).catch(() => null) : Promise.resolve(null),
     getStore(brand.id).then((x) => currentAudit(brand.id, x.audit)).catch(() => null), benchGaps(brand.id).catch(() => null),
   ]);
   const [flow, pilot, watched, shop, shopAccess, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
@@ -73,15 +83,24 @@ export async function today(brand: { id: string; currency: string | null; timezo
   if (conns.meta?.status === "needs_reauth") a.push({ key: "fix-meta", group: "Fix", who: "catalog", title: "Reconnect Meta Ads", why: "The Facebook login expired.", cta: "Reconnect", href: `${base}/integrations`, urgent: true });
   if (conns.meta?.status === "choose_account") a.push({ key: "fix-account", group: "Fix", who: "catalog", title: "Pick your Meta ad account", why: "Login is done — choose which account is yours.", cta: "Choose", href: `${base}/integrations`, urgent: true });
 
-  // Protect: stock decides what ads may sell.
-  if (d.hero?.coverDays != null && d.hero.coverDays < 30) a.push({ key: "stock", group: "Protect", who: "qa", title: `Reorder ${d.hero.title}`, why: `${d.hero.stock.toLocaleString("en-US")} left — about ${d.hero.coverDays} days at the current pace.`, effect: "Ads would shorten it", cta: "See stock", href: `${base}/shopify?tab=products`, urgent: d.hero.coverDays < 14 });
+  // Protect: stock decides what ads may sell. From the forecast — what runs out before a restock could arrive, soonest first.
+  const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "");
+  for (const r of (stock?.rows ?? []).filter((x) => x.pace > 0 && (x.state === "out" || x.state === "risk" || x.state === "low")).slice(0, 2)) {
+    const left = Math.floor(r.runway ?? 0);
+    a.push({ key: `stock:${r.id}`, group: "Protect", who: "qa", title: r.state === "out" ? `${r.title} is sold out` : `${r.title} runs out in ${left} day${left === 1 ? "" : "s"}`,
+      why: `${r.inventory.toLocaleString("en-US")} left · sells ${paceText(r.pace)} a day`, effect: r.gap > 0 ? `${r.gap} day${r.gap === 1 ? "" : "s"} with nothing to sell` : `Order by ${nice(r.reorderBy)}`,
+      cta: "See the forecast", href: `${base}/inventory`, urgent: r.state !== "low",
+      viz: { kind: "bars", rows: [{ label: "Stock lasts", value: left, text: `${left} day${left === 1 ? "" : "s"}`, tone: "warn" }, { label: "A restock takes", value: stock!.leadDays, text: `${stock!.leadDays} days`, tone: "calm" }] } });
+  }
 
   // Decide: the plan itself.
-  if (!approved && p.rows.length) a.push({ key: "plan", group: "Decide", who: "analyst", title: `Approve your ${usd(budget)} spend plan`, why: `${p.rows.length} campaign${p.rows.length === 1 ? "" : "s"} over ${Math.round(days / 7)} weeks, sized so each gives a result you can read.`, effect: `Likely ${usd(mid.revenue)} back`, cta: "Open plan", href: `${base}/plan` });
+  if (!approved && p.rows.length) a.push({ key: "plan", group: "Decide", who: "analyst", title: `Approve your ${usd(budget)} spend plan`, why: `${p.rows.length} campaign${p.rows.length === 1 ? "" : "s"} over ${Math.round(days / 7)} weeks, sized so each gives a result you can read.`, effect: `Likely ${usd(mid.revenue)} back`, cta: "Open plan", href: `${base}/plan`,
+    viz: { kind: "flow", from: usd(budget), fromLabel: "you spend", to: usd(mid.revenue), toLabel: `likely back in ${Math.round(days / 7)} weeks` } });
 
   // Create → Review → Test → Launch, campaign by campaign.
   const forSignal = (sig: string | null) => (sig ? batches.find((b) => b.signal === sig) : undefined);
-  if (approved) for (const r of p.rows) if (!forSignal(r.c.signal)) a.push({ key: `make:${r.c.key}`, group: "Create", who: "builder", title: `Make the ads for ${r.c.name}`, why: `${usd(r.spend)} of the plan goes here. Remy writes six and shoots them with your product.`, effect: `${Math.round(r.out[1].orders)} orders likely`, cta: "Make the ads", make: r.c.key });
+  if (approved) for (const r of p.rows) if (!forSignal(r.c.signal)) a.push({ key: `make:${r.c.key}`, group: "Create", who: "builder", title: `Make the ads for ${r.c.name}`, why: `${usd(r.spend)} of the plan goes here. Remy writes six and shoots them with your product.`, effect: `${Math.round(r.out[1].orders)} orders likely`, cta: "Make the ads", make: r.c.key,
+    viz: { kind: "flow", from: usd(r.spend), fromLabel: "of your budget", to: usd(r.out[1].revenue), toLabel: "likely back" } });
   // One line per kind of work, however many batches are waiting — the list stays short.
   const toReview = batches.filter((x) => x.review > 0), ads = toReview.reduce((n, x) => n + x.review, 0);
   if (toReview.length === 1) a.push({ key: `review:${toReview[0].id}`, group: "Review", who: "builder", title: `Review ${ads} ad${ads === 1 ? "" : "s"}`, why: toReview[0].title, cta: "Review", href: `${base}/creative/${toReview[0].id}` });
@@ -94,7 +113,8 @@ export async function today(brand: { id: string; currency: string | null; timezo
   // Improve: this week's proposed changes to what is running.
   // One line, however many Autopilot found — the list stays short and the detail is on Results.
   const lead = changes.find((c) => c.kind === "pause") ?? changes[0];
-  if (changes.length === 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: lead.title, why: lead.why, effect: lead.before && lead.after ? `${lead.before} → ${lead.after}` : undefined, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause" });
+  if (changes.length === 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: lead.title, why: lead.why, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause",
+    ...(lead.before && lead.after ? { viz: { kind: "flow" as const, from: lead.before, fromLabel: "now", to: lead.after, toLabel: "proposed" } } : {}) });
   else if (changes.length > 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: `Decide ${changes.length} changes Autopilot found`, why: `${lead.title} — and ${changes.length - 1} more.`, effect: lead.kind === "pause" ? "Stops a loss" : undefined, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause" });
   if (toSwitch > 0) a.push({ key: "switch", group: "Improve", who: "analyst", title: `Switch ${toSwitch} decided change${toSwitch === 1 ? "" : "s"} in Meta`, why: "Decided already. Kaviar can’t change your Meta ads itself yet — about a minute each.", cta: "See them", href: `${base}/performance#autopilot` });
 
@@ -103,15 +123,17 @@ export async function today(brand: { id: string; currency: string | null; timezo
     const n = (k: number, one: string) => (k ? `${k} ${one}${k === 1 ? "" : "s"}` : null);
     a.push({ key: "store", group: "Store", who: "catalog", title: `Fix ${shop.open} thing${shop.open === 1 ? "" : "s"} on your store`,
       why: `${[n(shop.title, "search title"), n(shop.description, "search description"), n(shop.alt, "picture") && `${n(shop.alt, "picture")} with no description`].filter(Boolean).join(", ")} — Cleo has written each one.`,
-      effect: "No ad spend", cta: shopAccess?.canFix ? `Fix all ${shop.open}` : "See the fixes", href: `${base}/seo`, ...(shopAccess?.canFix ? { run: "store-fix" as const } : {}) });
+      effect: "No ad spend", cta: shopAccess?.canFix ? `Fix all ${shop.open}` : "See the fixes", href: `${base}/seo`, ...(shopAccess?.canFix ? { run: "store-fix" as const } : {}),
+      viz: { kind: "counts", items: [{ label: "Search titles", n: shop.title }, { label: "Descriptions", n: shop.description }, { label: "Pictures", n: shop.alt }].filter((x) => x.n > 0) } });
   }
   // Store, against competitors: what the sites Kaviar read do that this one doesn't. (Titles, descriptions and pictures are the fixes above.)
   const gap = (k: string) => bench?.gaps.find((g) => g.key === k), n = bench?.sites ?? 0, them = `competitor${n === 1 ? "" : "s"}`;
-  if (gap("reviews")) a.push({ key: "gap-reviews", group: "Store", who: "analyst", title: "Show review stars in Google", why: `${gap("reviews")!.they.replace(" have it", "")} ${them} publish their ratings. Your store doesn’t.`, cta: "See how", href: `${base}/seo` });
-  if (gap("aiOpen")) a.push({ key: "gap-ai", group: "Store", who: "analyst", title: "Let AI assistants read your store", why: `Your store shuts AI crawlers out. ${gap("aiOpen")!.they.replace(" have it", "")} ${them} let them in.`, cta: "See how", href: `${base}/seo` });
-  if (gap("facts")) a.push({ key: "gap-facts", group: "Store", who: "analyst", title: "Publish price and stock for Google", why: `${gap("facts")!.they.replace(" have it", "")} ${them} do. Yours can’t be read by machines.`, cta: "See how", href: `${base}/seo` });
+  const versus = (g: { you: string; they: string }): Viz => ({ kind: "pair", a: { label: "You", value: g.you }, b: { label: `${n} ${them}`, value: g.they.replace(/^they /, "") } });
+  if (gap("reviews")) a.push({ key: "gap-reviews", group: "Store", who: "analyst", title: "Show review stars in Google", why: `${gap("reviews")!.they.replace(" have it", "")} ${them} publish their ratings. Your store doesn’t.`, cta: "See how", href: `${base}/seo`, viz: versus(gap("reviews")!) });
+  if (gap("aiOpen")) a.push({ key: "gap-ai", group: "Store", who: "analyst", title: "Let AI assistants read your store", why: `Your store shuts AI crawlers out. ${gap("aiOpen")!.they.replace(" have it", "")} ${them} let them in.`, cta: "See how", href: `${base}/seo`, viz: versus(gap("aiOpen")!) });
+  if (gap("facts")) a.push({ key: "gap-facts", group: "Store", who: "analyst", title: "Publish price and stock for Google", why: `${gap("facts")!.they.replace(" have it", "")} ${them} do. Yours can’t be read by machines.`, cta: "See how", href: `${base}/seo`, viz: versus(gap("facts")!) });
   const slow = ["speed", "answer", "code", "apps"].map(gap).find(Boolean);
-  if (slow) a.push({ key: "gap-speed", group: "Store", who: "analyst", title: "Your store is slower than competitors", why: `${slow.name}: you ${slow.you}, ${slow.they}.`, cta: "See what slows it", href: `${base}/seo#speed` });
+  if (slow) a.push({ key: "gap-speed", group: "Store", who: "analyst", title: "Your store is slower than competitors", why: `${slow.name}: you ${slow.you}, ${slow.they}.`, cta: "See what slows it", href: `${base}/seo#speed`, viz: versus(slow) });
 
   // Set up: the inputs that make the numbers real.
   if (d.margin.from === "none") a.push({ key: "margin", group: "Set up", who: "analyst", title: "Tell us your margin", why: "Profit is assuming 60% until you set it.", effect: "Unlocks real profit", cta: "Set it", href: `${base}/plan` });
@@ -130,23 +152,36 @@ export async function today(brand: { id: string; currency: string | null; timezo
   const sorted = [...a].sort((x, y) => rank(x) - rank(y));
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
   const sells = p.rows[0]?.c.product ?? null;
-  // The store's status: its own orders and ad spend for the last 30 days, and how findable it is.
-  const status: Tile[] = [];
-  if (sum && (sum.orders || sum.prevRevenue)) status.push(
-    { label: "Sales · 30 days", value: usd(sum.revenue), change: sum.prevRevenue > 0 ? Math.round(((sum.revenue - sum.prevRevenue) / sum.prevRevenue) * 100) : null, href: `${base}/shopify`, spark: byDay.map((x) => x.revenue), hint: "From Shopify orders, after refunds. The arrow compares with the 30 days before." },
-    { label: "Orders", value: String(sum.orders), href: `${base}/shopify`, hint: "Paid orders in the last 30 days" },
-    { label: "Average order", value: sum.orders ? usd(sum.revenue / sum.orders) : "–", href: `${base}/shopify`, hint: "Sales ÷ orders" });
-  if (sum && sum.spend > 0) status.push(
-    { label: "Ad spend", value: usd(sum.spend), href: `${base}/performance`, spark: byDay.map((x) => x.spend), hint: "What Meta charged in the last 30 days" },
-    { label: "Back per $1 of ads", value: `${(sum.metaRevenue / sum.spend).toFixed(2)}×`, href: `${base}/performance`, hint: "Shopify sales that came from Meta ads ÷ Meta spend" });
+  // The store's status: the last 30 days against the 30 before, each number with its line.
+  const status: Tile[] = [], { prev, cur } = halves(byDay), N = cur.length, t = (k: Parameters<typeof sumOf>[1]) => [sumOf(cur, k), sumOf(prev, k)] as const;
+  const [rev, rev0] = t("revenue"), [ord, ord0] = t("orders"), [sp, sp0] = t("spend"), [meta, meta0] = t("meta"), [fresh, fresh0] = t("fresh");
+  if (ord || ord0) {
+    status.push(
+      { label: "Sales", value: usd(rev), delta: pctDelta(rev, rev0), href: `${base}/shopify`, spark: cur.map((x) => x.revenue), hint: "From Shopify orders, after refunds — last 30 days against the 30 before" },
+      { label: "Orders", value: ord.toLocaleString("en-US"), delta: pctDelta(ord, ord0), href: `${base}/shopify`, spark: cur.map((x) => x.orders), hint: "Paid orders, last 30 days" },
+      { label: "Average order", value: ord ? usd(rev / ord) : "–", delta: ord && ord0 ? pctDelta(rev / ord, rev0 / ord0) : undefined, href: `${base}/shopify`, spark: rolling(byDay, "revenue", "orders", N), hint: "Sales ÷ orders. The line is each week’s average." });
+    if (sp > 0) {
+      const margin = d.margin.from === "none" ? null : d.margin.value;
+      if (margin != null) status.push({ label: "Profit after ads", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
+      status.push(
+        { label: "Ad spend", value: usd(sp), delta: pctDelta(sp, sp0, null), href: `${base}/performance`, spark: cur.map((x) => x.spend), hint: "What Meta charged, last 30 days" },
+        { label: "Back per $1 of ads", value: `${(meta / sp).toFixed(2)}×`, delta: sp0 > 0 && meta0 > 0 ? pctDelta(meta / sp, meta0 / sp0) : undefined, href: `${base}/performance`, spark: rolling(byDay, "meta", "spend", N), hint: "Shopify sales that came from Meta ads ÷ Meta spend" });
+    } else status.push({ label: "New customers", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), hint: "People whose first order was in the last 30 days" });
+  }
   if (audit) {
     // One word on where it stands, naming the score: behind comes first, because that is the one to act on.
     const NAME = { seo: "SEO", ai: "AI search", speed: "speed" } as const, st = Object.entries(bench?.stands ?? {}) as [keyof typeof NAME, { verdict: string }][], sc = scores(audit);
     const at = (v: string) => st.find(([, x]) => x.verdict === v)?.[0];
-    status.push({ label: "Store score", value: String(sc.overall), href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
+    status.push({ label: "Store score", value: String(sc.overall), meter: sc.overall, href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
-  return { status, actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
+  // Under the actions: ads, customers and stock, a line each.
+  const foot: Foot[] = [], waitingAds = batches.reduce((k, x) => k + x.review, 0);
+  if (conns.meta || batches.length) foot.push({ label: "Campaigns", value: sp > 0 ? usd(sp) : String(watched.campaigns), unit: sp > 0 ? "spent in 30 days" : `live campaign${watched.campaigns === 1 ? "" : "s"}`,
+    sub: [sp > 0 ? `${watched.campaigns} live` : null, waitingAds ? `${waitingAds} ads to review` : null, changes.length ? `${changes.length} change${changes.length === 1 ? "" : "s"} to decide` : null].filter(Boolean).join(" · ") || "Nothing waiting", href: `${base}/campaigns` });
+  if (sum && sum.customerOrders > 0) foot.push({ label: "Customers", value: `${Math.round((sum.returningOrders / sum.customerOrders) * 100)}%`, unit: "of orders from returning buyers", sub: `${sum.newCustomers.toLocaleString("en-US")} new in 30 days`, href: `${base}/shopify?tab=customers` });
+  if (stock?.rows.length) foot.push({ label: "Inventory", value: String(stock.totals.soon + stock.totals.reorder), unit: "to reorder", sub: `${stock.totals.over} overstocked${stock.totals.tied ? ` · ${usd(stock.totals.tied)} sitting` : ""}`, href: `${base}/inventory` });
+  return { status, foot, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };

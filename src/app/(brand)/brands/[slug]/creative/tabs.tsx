@@ -26,7 +26,7 @@ export function StudioBar({ base, brand, on, counts, crumbs, children }: {
   base: string; brand: string; on: CreativeTab; counts?: Partial<Record<CreativeTab, string>>;
   crumbs?: { label: string; href?: string }[]; children?: React.ReactNode;
 }) {
-  const trail = crumbs ?? [{ label: brand, href: base }, { label: "Ads" }, { label: "Creative studio" }];
+  const trail = crumbs ?? [{ label: brand, href: base }, { label: "Campaigns" }, { label: "Creative studio" }];
   return (
     <header className="bar" style={{ gap: 16 }}>
       <nav className="crumb" aria-label="Breadcrumb" style={{ whiteSpace: "nowrap" }}>

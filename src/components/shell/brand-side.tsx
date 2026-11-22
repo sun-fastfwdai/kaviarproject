@@ -18,12 +18,12 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const [thumb, all, wait, store] = await Promise.all([brand.imageUrl ?? brandThumb(brand.id), brandIndex(), waiting(brand.id).catch(() => ({ review: 0, changes: 0 })), storeWaiting(brand.id).catch(() => null)]);
   const builder = Boolean(brand.features?.storeBuilder); // switched on per brand by the Kaviar team, from the Brands list
   const base = `/brands/${slug}`;
-  // Four tabs. Today: the store's status and everything to do. Ads and Store: where the brand acts. Market: the reference both are judged against.
-  const ADS = ["opportunities", "signals", "plan", "creative", "audience", "run", "performance", "optimize", "meta"].map((p) => `${base}/${p}`);
-  const STORE = ["seo", "shopify", "assets", "integrations", "store", "launch", "sync"].map((p) => `${base}/${p}`);
+  // Four tabs. Today: the store's status and everything to do. Campaigns and Store: where the brand acts. Market: the reference both are judged against.
+  const ADS = ["campaigns", "opportunities", "signals", "plan", "creative", "audience", "run", "performance", "optimize", "meta"].map((p) => `${base}/${p}`);
+  const STORE = ["seo", "inventory", "shopify", "assets", "integrations", "store", "launch", "sync"].map((p) => `${base}/${p}`);
   const MARKET = ["competitors", "research"].map((p) => `${base}/${p}`);
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string[]?][] = [
-    [`${base}/today`, "Today", "lightning", [`${base}/today`]], [`${base}/opportunities`, "Ads", "megaphone", ADS], [`${base}/seo`, "Store", "store", STORE.filter((p) => !p.endsWith("/store"))],
+    [`${base}/today`, "Today", "lightning", [`${base}/today`]], [`${base}/campaigns`, "Campaigns", "megaphone", ADS], [`${base}/seo`, "Store", "store", STORE.filter((p) => !p.endsWith("/store"))],
     ...(builder ? [[`${base}/store?step=build`, "Store builder", "layers", [`${base}/store`]], [`${base}/store?step=review`, "Store preview", "eye", [`${base}/store`]]] as typeof railItems : []),
     [`${base}/competitors`, "Market", "globe", MARKET], [base, "Overview", "home"],
   ];
@@ -54,7 +54,8 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <Link href={base} className="nav-h ell lnk" title={`${brand.name} · overview`}>{brand.name}</Link>
         <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" count={(wait.review + wait.changes + (store?.open ?? 0)) || undefined} />
         {/* A number always means "this many things are waiting for you" — never a step number. */}
-        <NavGroup href={`${base}/opportunities`} match={ADS} icon={<Icon name="megaphone" />} label="Ads" count={(wait.review + wait.changes) || undefined}>
+        <NavGroup href={`${base}/campaigns`} match={ADS} icon={<Icon name="megaphone" />} label="Campaigns" count={(wait.review + wait.changes) || undefined}>
+          <NavLink href={`${base}/campaigns`} label="All campaigns" />
           <NavLink href={`${base}/opportunities`} also={[`${base}/signals`]} label="Opportunities" />
           <NavLink href={`${base}/plan`} label="Spend plan" />
           <NavLink href={`${base}/creative`} label="Creative studio" count={wait.review || undefined} />
@@ -65,6 +66,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         </NavGroup>
         <NavGroup href={`${base}/seo`} match={STORE} icon={<Icon name="store" />} label="Store" count={store?.open || undefined}>
           <NavLink href={`${base}/seo`} label="Health · SEO, AI, speed" count={store?.open || undefined} />
+          <NavLink href={`${base}/inventory`} label="Inventory" />
           <NavLink href={`${base}/shopify`} label="Orders & products" />
           <NavLink href={`${base}/assets`} label="Brand assets" />
           {builder && <NavLink href={`${base}/store`} also={[`${base}/launch`]} label="Store builder" />}

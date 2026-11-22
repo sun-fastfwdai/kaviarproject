@@ -6,68 +6,56 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { Action, Today } from "@/lib/growth/today";
 import { MODES, type Mode } from "@/lib/growth/pilot";
-import { approvePlan, makeAds } from "../plan/actions";
+import { approvePlan } from "../plan/actions";
 import { checkNow, setMode } from "../optimize/actions";
-import { fix } from "../seo/actions";
+import { ActionCard, GROUP_TONE as TONE, StatTile } from "./action-card";
 
 /**
- * Today. Top: the plan in one sentence — money in, money back — and the six steps with "you are here". Then the one thing to do now,
- * shown with the ads it is about, and the short list after it. No paragraphs — and nothing that is only there to be read: every number
- * opens the place it is set, every step is a button for what that step needs now, and Autopilot is switched right here.
+ * Today, as a dashboard. Top: the last 30 days in a few numbers, each with its change and its line. Then what is ready for action —
+ * up to four cards, each one decision with its evidence as a picture and one button. Then the plan in one sentence with the six steps,
+ * Autopilot, and a line each for campaigns, customers and stock. Nothing is only there to be read: every number opens where it comes from.
  */
-const TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
 const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your results"];
-const TAG = { good: ["#E4F4EB", "#1F7A52"], bad: ["#FBEDE6", "#B4532A"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
-
-/** Thirty days as a line — the shape, not the numbers. */
-function Spark({ data, color = "#1F8A5B" }: { data: number[]; color?: string }) {
-  const max = Math.max(...data, 0), w = 120, h = 30;
-  if (data.length < 2 || max <= 0) return null;
-  const pts = data.map((v, i) => `${((i / (data.length - 1)) * w).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }} aria-hidden>
-      <polygon points={`0,${h} ${pts} ${w},${h}`} fill={color} opacity={0.1} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
 
 export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const base = `/brands/${slug}`;
-  const [making, setMaking] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   const [busy, start] = useTransition();
   const router = useRouter();
   const [doing, setDoing] = useState<string | null>(null);
   const [mode, setM] = useState<Mode>(t.pilot.mode);
-  const go = (what: string, f: () => Promise<unknown>) => { setDoing(what); setErr(null); start(async () => { await f(); router.refresh(); setDoing(null); }); };
+  const go = (what: string, f: () => Promise<unknown>) => { setDoing(what); start(async () => { await f(); router.refresh(); setDoing(null); }); };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: t.currency, maximumFractionDigits: 0 }).format(Math.round(v));
-  const make = (a: Action) => { setMaking(a.key); setErr(null); start(async () => { const r = await makeAds(slug, a.make!); if (r?.error) { setErr(r.error); setMaking(null); } }); };
-  const [first, ...rest] = t.actions, pl = t.plan, nowAt = t.flow.findIndex((x) => x.key === t.now);
-  // Done here, without leaving Today: save every written fix to the store.
-  const fixStore = () => { setDoing("store-fix"); setErr(null); setDone(null); start(async () => { const r = await fix(slug, "all"); if (r.fields) setDone(`Saved ${r.fields} fix${r.fields === 1 ? "" : "es"} to your store`); if (!r.fields || r.failed) setErr(r.error ?? (r.failed ? `${r.failed} didn’t save` : "Nothing was saved")); router.refresh(); setDoing(null); }); };
-  const Button = (a: Action, big: boolean) => a.run === "store-fix"
-    ? <button type="button" className={`btn${big ? " dark" : ""}`} disabled={busy} onClick={fixStore} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{doing === "store-fix" ? <><Icon name="spinner" size={13} className="spin" color={big ? "#fff" : undefined} />Saving to your store…</> : <><Icon name="check" size={12} color={big ? "#fff" : undefined} />{a.cta}</>}</button>
-    : a.make
-    ? <button type="button" className={`btn${big ? " dark" : ""}`} disabled={making != null} onClick={() => make(a)} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{making === a.key ? <><Icon name="spinner" size={13} className="spin" color={big ? "#fff" : undefined} />Remy is writing…</> : a.cta}</button>
-    : <Link className={`btn${big ? " dark" : ""}`} href={a.href ?? base} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{a.cta}<Icon name="arrow-r" size={12} color={big ? "#fff" : undefined} /></Link>;
+  const pl = t.plan, nowAt = t.flow.findIndex((x) => x.key === t.now), total = t.actions.length + t.later.length;
+  const Go = (a: Action) => <Link className="btn sm" href={a.href ?? base} style={{ flexShrink: 0 }}>{a.cta}<Icon name="arrow-r" size={11} /></Link>;
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
-        {/* ---- how the store is doing: each number opens where it comes from */}
-        {t.status.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-          {t.status.map((k) => (
-            <Link key={k.label} href={k.href} title={k.hint} className="col hv" style={{ padding: "12px 14px 10px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", minWidth: 0, gap: 4 }}>
-              <span className="xs i3 ell">{k.label}</span>
-              <span className="row g8" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{k.value}</span>
-                {k.change != null && <span className="xs tnum w5" style={{ color: k.change >= 0 ? "#1F7A52" : "#B4532A" }}>{k.change >= 0 ? "↑" : "↓"} {Math.abs(k.change)}%</span>}</span>
-              {k.tag ? <span style={{ alignSelf: "flex-start", height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 500, lineHeight: "20px", marginTop: 5, marginBottom: 5, background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>
-                : k.spark ? <Spark data={k.spark} color={k.change != null && k.change < 0 ? "#C9705A" : "#1F8A5B"} /> : <span style={{ height: 30 }} />}
-            </Link>))}
-        </div>}
+        {/* ---- how the store is doing: the last 30 days against the 30 before; each number opens where it comes from */}
+        {t.status.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 12 }}>{t.status.map((k) => <StatTile key={k.label} k={k} />)}</div>}
+
+        {/* ---- ready for action: each decision with its evidence and one button */}
+        {total > 0 ? <div className="col g10">
+          <div className="row g8"><Icon name="sparkle" size={15} weight="fill" /><span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Ready for action</span><span className="tnum" style={{ height: 20, minWidth: 20, padding: "0 6px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, lineHeight: "20px", textAlign: "center", background: "var(--tray-2)" }}>{total}</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{t.actions.map((a, i) => <ActionCard key={a.key} slug={slug} a={a} n={i + 1} primary={i === 0} />)}</div>
+          {t.later.length > 0 && <div className="card" style={{ padding: "0 16px" }}>
+            {more && t.later.map((a, i) => (
+              <div key={a.key} className="row g12" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
+                <span className="tnum xs i3 w5" style={{ width: 20, flexShrink: 0 }}>{String(t.actions.length + i + 1).padStart(2, "0")}</span>
+                <AgentFace kind={a.who} size={22} mood={a.urgent ? "worried" : "happy"} />
+                <div className="col fill" style={{ minWidth: 0 }}>
+                  <span className="row g8"><span className="sm w5 i1 ell">{a.title}</span><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: TONE[a.group], flexShrink: 0 }}>{a.group}</span></span>
+                  <span className="xs i3 ell" title={a.why}>{a.effect ? `${a.effect} · ` : ""}{a.why}</span>
+                </div>
+                {Go(a)}
+              </div>))}
+            <button type="button" className="lnk xs i3" style={{ padding: "10px 0", width: "100%", textAlign: "left" }} onClick={() => setMore((v) => !v)}>{more ? "Show fewer" : `${t.later.length} more`}</button>
+          </div>}
+        </div> : (
+          <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={36} mood="happy" /><span className="col"><span style={{ fontSize: 20, fontWeight: 600 }}>Nothing needs you today</span><span className="sm i3">Kaviar is watching stock, ads and orders.</span></span></div>
+        )}
+
         {/* ---- the plan in one sentence, and where you are */}
         <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
           <div aria-hidden style={{ position: "absolute", right: -120, top: -160, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${pl && pl.profit < 0 ? "rgba(235,122,60,.30)" : "rgba(52,199,123,.30)"}, transparent)` }} />
@@ -146,52 +134,14 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
             : <Link href={`${base}/performance#autopilot`} className="btn quiet sm">Nothing to decide<Icon name="arrow-r" size={11} /></Link>}
         </div>
 
-        {done && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#E9F6EF", color: "#1F7A52" }}><Icon name="check-circle" size={15} />{done}</div>}
-        {err && <span className="xs c-amber">{err}</span>}
-
-        {/* ---- the one thing to do now */}
-        {first ? (
-          <div className="col g14" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1.5px var(--ink), 0 14px 40px rgba(18,18,18,.08)" }}>
-            <div className="row top between g16">
-              <div className="row top g14" style={{ minWidth: 0 }}>
-                <AgentFace kind={first.who} size={40} mood={first.urgent ? "worried" : "happy"} />
-                <div className="col g4" style={{ minWidth: 0 }}>
-                  <span className="row g8"><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: TONE[first.group] }}>Do this now · {first.group}</span>{first.effect && <span className="pill green" style={{ height: 20, fontSize: 11 }}>{first.effect}</span>}</span>
-                  <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em" }}>{first.title}</span>
-                  <span className="sm i2">{first.why}</span>
-                </div>
-              </div>
-              {Button(first, true)}
-            </div>
-            {first.thumbs && first.thumbs.length > 0 && <div className="row g10">
-              {first.thumbs.map((u) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={u} src={u} alt="" loading="lazy" style={{ width: 112, height: 140, borderRadius: 12, objectFit: "cover", background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />))}
-            </div>}
-          </div>
-        ) : (
-          <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={36} mood="happy" /><span className="col"><span style={{ fontSize: 20, fontWeight: 600 }}>Nothing needs you today</span><span className="sm i3">Kaviar is watching stock, ads and orders.</span></span></div>
-        )}
-
-        {/* ---- after that */}
-        {rest.length > 0 && <div className="col g8">
-          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>After that</span>
-          <div className="card" style={{ padding: "2px 16px" }}>
-            {(more ? [...rest, ...t.later] : rest).map((a, i) => (
-              <div key={a.key} className="row g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
-                <span className="tnum" style={{ width: 22, height: 22, borderRadius: 99, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 600, flexShrink: 0 }}>{i + 2}</span>
-                {a.thumbs?.[0]
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={a.thumbs[0]} alt="" loading="lazy" style={{ width: 30, height: 38, borderRadius: 6, objectFit: "cover", flexShrink: 0, boxShadow: "0 0 0 1px var(--line)" }} />
-                  : <AgentFace kind={a.who} size={24} mood={a.urgent ? "worried" : "happy"} />}
-                <div className="col fill" style={{ minWidth: 0 }}>
-                  <span className="row g8"><span className="sm w5 i1 ell">{a.title}</span><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: TONE[a.group], flexShrink: 0 }}>{a.group}</span></span>
-                  <span className="xs i3 ell" title={a.why}>{a.effect ? `${a.effect} · ` : ""}{a.why}</span>
-                </div>
-                {Button(a, false)}
-              </div>))}
-            {t.later.length > 0 && <button type="button" className="lnk xs i3" style={{ padding: "10px 0", borderTop: "1px solid var(--line)", width: "100%", textAlign: "left" }} onClick={() => setMore((v) => !v)}>{more ? "Show fewer" : `${t.later.length} more`}</button>}
-          </div>
+        {/* ---- the rest of the business, a line each */}
+        {t.foot.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+          {t.foot.map((f) => (
+            <Link key={f.label} href={f.href} className="col g4 hv" style={{ padding: "14px 16px", borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)", minWidth: 0 }}>
+              <span className="row between"><span style={{ fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-2)" }}>{f.label}</span><Icon name="arrow-r" size={12} color="#8B8883" /></span>
+              <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 700, letterSpacing: "-0.02em" }}>{f.value}</span><span className="sm i2 ell">{f.unit}</span></span>
+              <span className="xs i3 ell">{f.sub}</span>
+            </Link>))}
         </div>}
       </div>
     </div>
