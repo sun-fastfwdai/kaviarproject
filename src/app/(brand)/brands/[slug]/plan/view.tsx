@@ -41,6 +41,7 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
   const a = sum(yes), s = sum(maybe), live = yes.filter((p) => p.meta);
   const save = () => { setDoing("save"); start(async () => { for (const k of changed) await setPlanBudget(slug, k, set[k].budget, set[k].days); router.refresh(); setDoing(null); }); };
   const approve = (p: PlanCard) => { setDoing(p.key); start(async () => { const v = at(p); await approvePlanFor(slug, p.key, v.budget, v.days); router.refresh(); setDoing(null); }); };
+  const approveAll = () => { setDoing("all"); start(async () => { for (const p of maybe) { const v = at(p); await approvePlanFor(slug, p.key, v.budget, v.days); } router.refresh(); setDoing(null); }); };
   const saveFig = () => { setDoing("fig"); start(async () => { await approvePlan(slug, { margin: Math.min(95, Math.max(5, fig.margin)) / 100, discount: fig.discount, goal: fig.goal, ...(Number(fig.order) > 0 ? { order: Number(fig.order) } : {}) }, false); setOpen(false); router.refresh(); setDoing(null); }); };
 
   const Row = (p: PlanCard) => {
@@ -110,8 +111,11 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
             <span className="xs i3">after the goods and the ads · {Math.round(input.margin * 100)}% margin</span>
           </div>
           <div className="col g4" style={{ padding: "16px 18px", borderRadius: 18, background: "var(--tray)" }}>
-            <span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Suggested, not approved</span>
-            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em", color: maybe.length ? "var(--ink)" : "var(--ink-3)" }}>{maybe.length ? usd(s.spend) : "–"}</span>
+            <span className="row g6" style={{ fontSize: 12.5, color: "var(--ink-2)" }}><AgentFace kind="analyst" size={16} />Suggested by Iris, not approved</span>
+            <span className="row between g10" style={{ flexWrap: "wrap" }}>
+              <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em", color: maybe.length ? "var(--ink)" : "var(--ink-3)" }}>{maybe.length ? usd(s.spend) : "–"}</span>
+              {maybe.length > 0 && <button type="button" className="btn dark" disabled={busy} onClick={approveAll} title="Says yes to each suggested campaign at the budget shown below. Nothing is spent until a campaign is switched on.">{doing === "all" ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="check" size={13} color="#fff" />}Approve {maybe.length === 1 ? "it" : `all ${maybe.length}`}</button>}
+            </span>
             <span className="xs i3 tnum">{maybe.length ? `${maybe.length} campaign${maybe.length === 1 ? "" : "s"} · would add ${signed(s.profit)}` : "Nothing waiting for a yes"}</span>
           </div>
         </div>
