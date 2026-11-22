@@ -8,7 +8,7 @@ import { setFeature } from "./actions-settings";
 
 /** What the Kaviar team has switched on for one brand. Opened from the Brands list; brands never see it. */
 const PARTS: { key: keyof BrandFeatures; icon: IconName; name: string; on: string; off: string }[] = [
-  { key: "storeBuilder", icon: "store", name: "Store builder", on: "The brand’s sidebar shows Store builder: Remy builds and edits the storefront.", off: "Hidden. The brand works on the store it already has, with SEO & AI search." },
+  { key: "storeBuilder", icon: "store", name: "Store builder", on: "The brand’s sidebar shows Store builder: Remy builds and edits the storefront.", off: "Hidden. The brand works on the store it already has, with SEO, speed & AI search." },
 ];
 
 export function BrandSettingsModal({ slug, name, features, onClose }: { slug: string; name: string; features: BrandFeatures; onClose: () => void }) {

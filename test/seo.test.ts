@@ -60,3 +60,81 @@ describe("score", () => {
       site: [{ key: "open", name: "", ok: true, detail: "" }, { key: "ai", name: "", ok: false, detail: "" }, { key: "facts", name: "", ok: null, detail: "" }] })).toEqual({ ok: 5, total: 10 });
   });
 });
+
+import { readGoogle, speedChecks, weigh } from "@/lib/seo/speed-rules";
+import { scores } from "@/lib/seo/types";
+
+describe("speed: what a page loads", () => {
+  const html = `<html><head>
+    <script src="/cdn/shop/t/1/assets/theme.js" defer></script>
+    <script src="https://cdn.shopify.com/extensions/abc/reviews.js"></script>
+    <script src="https://static.klaviyo.com/onsite/js/klaviyo.js" async></script>
+    <script src="//widget.trustpilot.com/boot.js"></script>
+    <script type="application/json">{"a":1}</script>
+    <script>inline()</script>
+  </head><body>
+    <img src="a.jpg" width="10" height="10"><img src="b.jpg" loading="lazy">
+    <img src="c.jpg" loading="lazy" width="1" height="1"><img src="d.jpg"><img src="data:image/gif;base64,AA">
+    <script src="https://www.googletagmanager.com/gtm.js"></script>
+  </body></html>`;
+  const w = weigh(html, "https://shop.example.com/products/x");
+
+  it("counts files, outside services and app add-ons", () => {
+    expect(w.scripts).toHaveLength(5);
+    expect(w.outside).toEqual(["googletagmanager.com", "klaviyo.com", "trustpilot.com"]);
+    expect(w.addOns).toBe(1);
+  });
+  it("counts only head scripts that really hold the page back", () => expect(w.blocking).toBe(2)); // the app add-on and trustpilot: no async, no defer
+  it("leaves the first two pictures alone, and counts the rest that load early or have no size", () => {
+    expect(w.pictures).toBe(4);
+    expect(w.notLazy).toBe(1); // d.jpg
+    expect(w.unsized).toBe(2); // b.jpg and d.jpg
+  });
+  it("turns a measurement into a check with the number beside it", () => {
+    const checks = speedChecks(w, { answerMs: 1400, scriptBytes: 1_250_000 });
+    expect(checks.find((c) => c.key === "answer")).toMatchObject({ ok: false, value: "1.4 s" });
+    expect(checks.find((c) => c.key === "scripts")).toMatchObject({ ok: false, value: "1.3 MB · 5 files" });
+    expect(checks.find((c) => c.key === "apps")).toMatchObject({ ok: true, value: "4 services" });
+    expect(speedChecks(w, { answerMs: null, scriptBytes: null }).map((c) => c.key)).toEqual(["apps", "blocking", "lazy", "sized"]);
+  });
+});
+
+describe("speed: Google's answer", () => {
+  it("reads the score, the timings, real-shopper data and the biggest savings in plain words", () => {
+    const v = readGoogle({
+      lighthouseResult: { categories: { performance: { score: 0.43 } }, audits: {
+        "largest-contentful-paint": { score: 0.2, numericValue: 6100 }, "cumulative-layout-shift": { score: 1, numericValue: 0.02 }, "total-blocking-time": { score: 0.3, numericValue: 640 },
+        "unused-javascript": { title: "Reduce unused JavaScript", score: 0, details: { overallSavingsMs: 1800 } },
+        "legacy-javascript": { title: "Avoid legacy JavaScript", score: 0.5, details: { overallSavingsMs: 300 } },
+        "render-blocking-resources": { title: "Eliminate render-blocking resources", score: 0.4, metricSavings: { LCP: 900, FCP: 700 } },
+        "some-new-audit": { title: "A new thing", score: 0.1, details: { overallSavingsMs: 150 } },
+        "uses-text-compression": { title: "Enable text compression", score: 1, details: { overallSavingsMs: 5000 } },
+      } },
+      loadingExperience: { overall_category: "SLOW", metrics: { LARGEST_CONTENTFUL_PAINT_MS: { percentile: 4300 }, CUMULATIVE_LAYOUT_SHIFT_SCORE: { percentile: 12 } } },
+    })!;
+    expect(v).toMatchObject({ score: 43, lcp: 6100, cls: 0.02, tbt: 640, real: { verdict: "SLOW", lcp: 4300, cls: 0.12, inp: null } });
+    expect(v.slows.map((s) => [s.name, s.saves])).toEqual([["Code that loads but isn’t needed", 1800], ["Files that hold the page back before anything shows", 900], ["A new thing", 150]]);
+  });
+  it("gives no score rather than a wrong one when the answer isn't what was expected", () => {
+    expect(readGoogle({ error: { code: 429 } })).toBeNull();
+    expect(readGoogle(null)).toBeNull();
+  });
+});
+
+describe("the three scores", () => {
+  const audit = (over = {}) => ({ at: "", domain: null, products: 10, pictures: 20, title: { ok: 5, total: 10 }, description: { ok: 10, total: 10 }, alt: { ok: 0, total: 20 }, text: { ok: 10, total: 10 },
+    site: [{ key: "open" as const, name: "", ok: true, detail: "" }, { key: "home" as const, name: "", ok: true, detail: "" }, { key: "reviews" as const, name: "", ok: false, detail: "" },
+      { key: "ai" as const, name: "", ok: true, detail: "" }, { key: "facts" as const, name: "", ok: null, detail: "" }], ...over });
+  it("weighs each group of checks the same, and leaves out what couldn't be read", () => {
+    const s = scores(audit());
+    expect(s.seo).toBe(54); // titles 50%, descriptions 100%, pictures 0%, store checks 2 of 3
+    expect(s.ai).toBe(100); // descriptions, page text, and the two store checks that could be read
+    expect(s).toMatchObject({ speed: null, speedFrom: null, overall: 77 });
+  });
+  it("uses Google's speed score when there is one, Kaviar's checks otherwise", () => {
+    const check = (ok: boolean) => ({ key: "apps" as const, name: "", ok, value: "", detail: "" });
+    const page = (google: number | null) => ({ key: "home" as const, name: "", url: "", checks: [check(true), check(false)], google: google == null ? null : { score: google, lcp: null, cls: null, tbt: null, real: null, slows: [] } });
+    expect(scores(audit({ speed: { google: "off", pages: [page(null)] } }))).toMatchObject({ speed: 50, speedFrom: "checks" });
+    expect(scores(audit({ speed: { google: "on", pages: [page(40), page(60)] } }))).toMatchObject({ speed: 50, speedFrom: "google" });
+  });
+});

@@ -20,7 +20,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const base = `/brands/${slug}`;
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string?][] = [
     [base, "Overview", "home"], ...(builder ? [[`${base}/store?step=build`, "Store builder", "layers", `${base}/store`], [`${base}/store?step=review`, "Store preview", "eye", `${base}/store`]] as typeof railItems : []),
-    [`${base}/seo`, "SEO & AI search", "search", `${base}/seo`], [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/opportunities`, "Opportunities", "target", `${base}/opportunities`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/creative`, "Creative studio", "sparkle", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
+    [`${base}/seo`, "SEO, speed & AI search", "search", `${base}/seo`], [`${base}/assets`, "Brand assets", "image", `${base}/assets`], [`${base}/integrations`, "Integrations", "plug"], [`${base}/today`, "Today", "lightning", `${base}/today`], [`${base}/opportunities`, "Opportunities", "target", `${base}/opportunities`], [`${base}/plan`, "Spend plan", "chart-bar", `${base}/plan`], [`${base}/creative`, "Creative studio", "sparkle", `${base}/creative`], [`${base}/audience`, "Audience test", "users-three", `${base}/audience`],
     [`${base}/run`, "Run ads", "play", `${base}/run`], [`${base}/performance`, "Results", "trend-up", `${base}/performance`],
   ];
   const rail = (
@@ -50,7 +50,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
         <div className="nav-h ell">{brand.name}</div>
         <NavLink href={base} exact icon={<Icon name="home" />} label="Overview" />
         {builder && <NavLink href={`${base}/store`} icon={<Icon name="store" />} label="Store builder" />}
-        <NavLink href={`${base}/seo`} icon={<Icon name="search" />} label="SEO & AI search" count={store?.open || undefined} />
+        <NavLink href={`${base}/seo`} icon={<Icon name="search" />} label="SEO, speed & AI" count={store?.open || undefined} />
         <NavLink href={`${base}/assets`} icon={<Icon name="image" />} label="Brand assets" />
         <NavLink href={`${base}/integrations`} icon={<Icon name="plug" />} label="Integrations" />
         <div className="nav-h">Growth</div>

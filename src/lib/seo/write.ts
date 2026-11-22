@@ -21,6 +21,8 @@ const OUT = z.object({
   searchTitle: z.string(), searchDescription: z.string(),
   alts: z.array(z.object({ picture: z.number().describe("the picture's number"), alt: z.string() })),
 });
+// Room for the model to think and still finish its answer: a lower cap cut the answer off mid-sentence on products with little to go on.
+const ROOM = 4000;
 const small = (url: string) => url + (url.includes("?") ? "&" : "?") + "width=512";
 
 type Row = typeof F.$inferSelect;
@@ -32,7 +34,7 @@ async function one(brand: { name: string; category: string | null; positioning: 
   }) }];
   pics.forEach((r, i) => content.push({ type: "text", text: `Picture ${i + 1}:` }, { type: "image", source: { type: "url", url: small(r.image!) } }));
   // A picture the model can't open must not cost the product its search listing: try once more with the words alone.
-  const out = (await ask("cleo", { system: SYSTEM, content, schema: OUT, maxTokens: 1200 })) ?? (pics.length ? await ask("cleo", { system: SYSTEM, content: [content[0]], schema: OUT, maxTokens: 800 }) : null);
+  const out = (await ask("cleo", { system: SYSTEM, content, schema: OUT, maxTokens: ROOM })) ?? (pics.length ? await ask("cleo", { system: SYSTEM, content: [content[0]], schema: OUT, maxTokens: ROOM }) : null);
   if (!out) return 0;
   let n = 0;
   const set = async (id: string, after: string) => { if (after) { await db.update(F).set({ after, updatedAt: new Date() }).where(eq(F.id, id)); n++; } };

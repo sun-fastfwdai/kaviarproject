@@ -3,7 +3,8 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
-import { KIND, score, type Audit, type Fix, type Part } from "@/lib/seo/types";
+import { KIND, score, type Audit, type Fix, type Part, type Scores } from "@/lib/seo/types";
+import { band, secs, speedScore, type SpeedPage } from "@/lib/seo/speed-rules";
 import { checkStore, edit, fix, mark, setStoreAuto, undo } from "./actions";
 
 /**
@@ -11,7 +12,7 @@ import { checkStore, edit, fix, mark, setStoreAuto, undo } from "./actions";
  * and let Kaviar keep fixing. Then the store-wide checks, then every fix grouped by product: what the store says now → what it should say.
  */
 type Props = {
-  slug: string; brand: string; audit: Audit | null; checked: string | null; auto: boolean; canFix: boolean; allow: string; admin: string | null;
+  slug: string; brand: string; audit: Audit | null; scores: Scores | null; googleSpeed: boolean; checked: string | null; auto: boolean; canFix: boolean; allow: string; admin: string | null;
   fixes: Fix[]; runs: { when: string; line: string; auto: boolean }[];
 };
 type Tab = "open" | "you" | "done" | "skipped";
@@ -30,7 +31,60 @@ function Meter({ k, p }: { k: string; p: Part }) {
   );
 }
 
-export function StoreView({ slug, brand, audit, checked, auto: saved, canFix, allow, admin, fixes, runs }: Props) {
+const TONE = { good: "#34C77B", ok: "#E9B949", poor: "#FF8A5C" } as const;
+/** A score out of 100 as a ring. */
+function Dial({ v, label, sub, size = 64, dark = true }: { v: number | null; label: string; sub?: string; size?: number; dark?: boolean }) {
+  const r = (size - 8) / 2, c = 2 * Math.PI * r, tone = v == null ? "#8B8883" : TONE[band(v)];
+  return (
+    <div className="row g10" title={sub}>
+      <span style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={dark ? "rgba(255,255,255,.14)" : "var(--line)"} strokeWidth={size > 70 ? 7 : 5} />
+          {v != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone} strokeWidth={size > 70 ? 7 : 5} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} />}
+        </svg>
+        <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size > 70 ? 28 : 18, fontWeight: 600, letterSpacing: "-0.02em", color: dark ? "#fff" : "var(--ink)" }}>{v ?? "–"}</span>
+      </span>
+      <span className="col" style={{ minWidth: 0 }}><span style={{ fontSize: size > 70 ? 15 : 13, fontWeight: 600, color: dark ? "#fff" : "var(--ink)" }}>{label}</span>{sub && <span style={{ fontSize: 11.5, color: dark ? DIM : "var(--ink-3)", maxWidth: 150, lineHeight: "15px" }}>{sub}</span>}</span>
+    </div>
+  );
+}
+
+/** One page's speed: Google's score when there is one, what Kaviar measured, and what to do about each thing that is slow. */
+function SpeedCard({ p, google }: { p: SpeedPage; google: boolean }) {
+  const g = p.google, bad = p.checks.filter((c) => !c.ok);
+  return (
+    <div className="col g12" style={{ flex: "1 1 420px", minWidth: 0, padding: 16, borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+      <div className="row between g12">
+        <div className="col" style={{ minWidth: 0 }}><span className="sm w5 i1">{p.name}</span><a className="xs i3 ell lnk" href={p.url} target="_blank" rel="noreferrer">{p.url.replace(/^https?:\/\//, "")}</a></div>
+        {g ? <Dial v={g.score} label="Google’s score" sub="on a phone" size={52} dark={false} />
+          : <span className="pill" style={{ height: 22, fontSize: 11, flexShrink: 0 }}>{bad.length ? `${bad.length} of ${p.checks.length} to fix` : `All ${p.checks.length} fine`}</span>}
+      </div>
+      {g && <div className="row g16" style={{ flexWrap: "wrap" }}>
+        {([["Main content shows in", g.lcp != null ? secs(g.lcp) : "–", g.lcp != null && g.lcp <= 2500, "2.5 s or less is good"], ["Page frozen for", g.tbt != null ? `${Math.round(g.tbt)} ms` : "–", g.tbt != null && g.tbt <= 200, "200 ms or less is good"], ["Page jumps", g.cls != null ? g.cls.toFixed(2) : "–", g.cls != null && g.cls <= 0.1, "0.1 or less is good"]] as const).map(([k, v, ok, hint]) => (
+          <span key={k} className="col" title={hint}><span className="xs i3">{k}</span><span className="tnum sm w5" style={{ color: ok ? "#1F7A52" : "#B4532A" }}>{v}</span></span>))}
+        {g.real?.verdict && <span className="col" title="What Google recorded from real visitors over the last 28 days"><span className="xs i3">Real shoppers</span><span className="sm w5" style={{ color: g.real.verdict === "FAST" ? "#1F7A52" : g.real.verdict === "SLOW" ? "#B4532A" : "#8A6A14" }}>{g.real.verdict === "FAST" ? "Fast" : g.real.verdict === "SLOW" ? "Slow" : "Average"}{g.real.lcp != null ? ` · ${secs(g.real.lcp)}` : ""}</span></span>}
+      </div>}
+      <div className="col">
+        {p.checks.map((c, i) => (
+          <div key={c.key} className="row top g10" style={{ padding: "9px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+            <Icon name={c.ok ? "check-circle" : "warning-circle"} size={15} weight="fill" color={c.ok ? "#1F8A5B" : "#B4532A"} style={{ marginTop: 2, flexShrink: 0 }} />
+            <div className="col g2 fill" style={{ minWidth: 0 }}>
+              <span className="row between g8"><span className="sm w5 i1 ell">{c.name}</span><span className="xs tnum w5" style={{ flexShrink: 0, color: c.ok ? "var(--ink-2)" : "#B4532A" }}>{c.value}</span></span>
+              <span className="xs i3" style={{ lineHeight: "17px" }}>{c.detail}</span>
+              {!c.ok && c.how && <span className="xs i1" style={{ lineHeight: "17px" }}><b className="w5">Fix:</b> {c.how}</span>}
+            </div>
+          </div>))}
+      </div>
+      {g && g.slows.length > 0 && <div className="col g6" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--tray)" }}>
+        <span className="xs w5 i1">What Google says would speed it up most</span>
+        {g.slows.map((x) => <span key={x.name} className="xs i2" style={{ lineHeight: "17px" }}><b className="w5 i1">{x.name}</b>{x.saves ? ` · about ${secs(x.saves)} faster` : ""}{x.how ? ` — ${x.how}` : ""}</span>)}
+      </div>}
+      {!g && !google && <span className="xs i3">Google’s own speed score isn’t switched on for Kaviar yet — these are Kaviar’s measurements of the page.</span>}
+    </div>
+  );
+}
+
+export function StoreView({ slug, brand, audit, scores: sco, googleSpeed, checked, auto: saved, canFix, allow, admin, fixes, runs }: Props) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -113,7 +167,7 @@ export function StoreView({ slug, brand, audit, checked, auto: saved, canFix, al
             <div className="row top g14" style={{ minWidth: 0 }}>
               <AgentFace kind="catalog" size={40} mood={open.length ? "up" : "happy"} />
               <div className="col g4">
-                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>Found on Google and in AI answers · Cleo</span>
+                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>Found on Google and in AI answers, and fast · Cleo</span>
                 {!audit ? <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.02em" }}>Let Cleo read {brand}’s store</span>
                   : <span className="row g12" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
                     <span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{open.length}</span>
@@ -132,8 +186,14 @@ export function StoreView({ slug, brand, audit, checked, auto: saved, canFix, al
           </div>
 
           {audit && <>
-            <div className="row g20" style={{ position: "relative", marginTop: 22, flexWrap: "wrap" }}>
-              <Meter k="Search titles" p={audit.title} /><Meter k="Search descriptions" p={audit.description} /><Meter k="Pictures described" p={audit.alt} /><Meter k="Pages with enough text" p={audit.text} />
+            {sco && <div className="row g16" style={{ position: "relative", marginTop: 22, padding: "16px 18px", borderRadius: 16, background: "rgba(255,255,255,.06)", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ flex: "1.25 1 230px", minWidth: 0 }}><Dial v={sco.overall} label="Overall score" sub="SEO, AI search and speed together" size={84} /></div>
+              <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.seo} label="SEO" sub="Google can list and describe you" /></div>
+              <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.ai} label="AI search" sub="ChatGPT, Claude and others can read and quote you" /></div>
+              <div style={{ flex: "1 1 190px", minWidth: 0 }}><Dial v={sco.speed} label="Speed" sub={sco.speedFrom === "google" ? "Google’s score on a phone" : sco.speedFrom === "checks" ? "Kaviar’s speed checks that pass" : "Not measured yet — press Check again"} /></div>
+            </div>}
+            <div className="row g20" style={{ position: "relative", marginTop: 20, flexWrap: "wrap" }}>
+              <Meter k="Search titles" p={audit.title} /><Meter k="Search descriptions" p={audit.description} /><Meter k="Pictures described" p={audit.alt} /><Meter k="Pages with enough text" p={audit.text} />{audit.speed && audit.speed.pages.length > 0 && <Meter k="Speed checks" p={speedScore(audit.speed)} />}
             </div>
             <div className="row g12" style={{ position: "relative", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.12)", flexWrap: "wrap" }}>
               <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone">
@@ -162,6 +222,13 @@ export function StoreView({ slug, brand, audit, checked, auto: saved, canFix, al
             </div>))}
         </div>}
         {audit && bad.length > 0 && <span className="xs i3">The {bad.length === 1 ? "one" : bad.length} marked above {bad.length === 1 ? "is" : "are"} set in the store’s theme or settings, so they are yours to change — Kaviar checks them again every morning.</span>}
+
+        {/* ---- speed on a phone */}
+        {audit?.speed && audit.speed.pages.length > 0 && <div className="col g8">
+          <div className="row between"><span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Speed on a phone</span>
+            <span className="xs i3">{audit.speed.google === "failed" ? "Google’s speed test didn’t answer this time — Kaviar asks again tomorrow" : "Slow pages lose shoppers and rank lower. These are set in the theme and apps, so they are yours to change."}</span></div>
+          <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>{audit.speed.pages.map((p) => <SpeedCard key={p.key} p={p} google={googleSpeed} />)}</div>
+        </div>}
 
         {/* ---- every fix, by product */}
         {audit && <div className="col g10">
