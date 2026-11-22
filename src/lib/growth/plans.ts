@@ -163,11 +163,28 @@ export type PlanExtras = {
   results: { status: string | null; spend: number; orders: number; revenue: number } | null; // null until the campaign is on Meta
   pilot: { mode: Mode; last: string | null; canAct: boolean; changes: { id: string; kind: string; title: string; why: string; before: string; after: string }[] };
 };
+/** A plan's ads as the brand sees them — the same words and the same picture that go to Meta. */
+export async function planAds(batchId: string): Promise<PlanAd[]> {
+  const r = await db.execute(sql`select a.id, a.status, a.hook, a.headline, a.primary_text as text, a.cta, ${realPic} as image from ads a
+    left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) and ai.meta->>'plan' is null
+    where a.batch_id = ${batchId} and a.status in ('review', 'approved') order by a.position limit 12`);
+  return r.rows as PlanAd[];
+}
+/** The product page an ad sends people to, on the store's own address. Null when Kaviar doesn't know it. */
+export async function productLink(brandId: string, product: string): Promise<string | null> {
+  const r = await db.execute(sql`select (select c.details->>'primaryHost' from connections c where c.brand_id = ${brandId} and c.provider = 'shopify' limit 1) as host,
+    (select p.handle from shop_products p where p.brand_id = ${brandId} and p.title = ${product} and p.handle is not null limit 1) as handle`);
+  const x = r.rows[0] as { host: string | null; handle: string | null } | undefined;
+  return x?.host && x.handle ? `https://${x.host}/products/${x.handle}` : null;
+}
+/** The market the brand was last researched in — where its ads are shown unless it says otherwise. */
+export async function planMarket(brandId: string): Promise<string | null> {
+  const r = await db.execute(sql`select market from market_research where brand_id = ${brandId} order by updated_at desc limit 1`).catch(() => ({ rows: [] }));
+  return (r.rows[0] as { market: string } | undefined)?.market ?? null;
+}
 export async function planExtras(brand: { id: string; timezone: string }, p: PlanCard): Promise<PlanExtras> {
   const [ads, pilot, camps, changes] = await Promise.all([
-    p.ads ? db.execute(sql`select a.id, a.status, a.hook, a.headline, a.primary_text as text, a.cta, ${realPic} as image from ads a
-        left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) and ai.meta->>'plan' is null
-        where a.batch_id = ${p.ads.batchId} and a.status in ('review', 'approved') order by a.position limit 12`).then((r) => r.rows as PlanAd[]).catch(() => []) : Promise.resolve([] as PlanAd[]),
+    p.ads ? planAds(p.ads.batchId).catch(() => []) : Promise.resolve([] as PlanAd[]),
     getPilot(brand.id),
     p.meta ? campaigns(brand.id, brand.timezone, 90).catch(() => []) : Promise.resolve([]),
     p.meta ? db.execute(sql`select id, kind, title, why, before, after from optimize_changes where brand_id = ${brand.id} and status = 'proposed' and target->>'campaignId' = ${p.meta.campaignId} order by created_at desc limit 5`)

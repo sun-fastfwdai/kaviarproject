@@ -12,7 +12,10 @@ export type Tile = {
   label: string; value: string; unit?: string; sub?: string; delta?: Delta; href: string; hint?: string;
   spark?: number[]; chart?: "line" | "bars"; icon?: string; kind?: "hero" | "score"; tone?: "good" | "warn";
   points?: { label: string; text: string }[]; // each day's date and value in words, for reading the chart
-  tag?: { text: string; tone: "good" | "bad" | "flat" }; meter?: number; parts?: { label: string; value: string }[];
+  tag?: { text: string; tone: "good" | "bad" | "flat" }; meter?: number;
+  /** One score of the store. `you` and `them` are on a 0–100 scale: `them` is each competitor's score, `avg` their average. */
+  parts?: { label: string; value: string; you?: number | null; avg?: number | null; them?: number[]; verdict?: "ahead" | "level" | "behind" }[];
+  rivals?: number;
 };
 
 type K = "revenue" | "orders" | "meta" | "fresh" | "spend";

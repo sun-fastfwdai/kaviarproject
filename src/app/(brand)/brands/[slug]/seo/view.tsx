@@ -44,15 +44,15 @@ const STAND = { ahead: ["#E4F4EB", "#1F7A52"], level: ["rgba(255,255,255,.16)", 
 function Dial({ v, text, label, sub, hint, size = 54, dark = true, stand, share = false }: { v: number | null; text?: string; label: string; sub?: string; hint?: string; size?: number; dark?: boolean; stand?: { verdict: Verdict; avg: number }; share?: boolean }) {
   const r = (size - 8) / 2, c = 2 * Math.PI * r, tone = v == null ? "#8B8883" : TONE[band(v)], big = size > 70;
   return (
-    <div className="row g10" title={hint}>
+    <div className="row g12" title={hint} style={{ minWidth: 0 }}>
       <span style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={dark ? "rgba(255,255,255,.14)" : "var(--line)"} strokeWidth={big ? 7 : 5} />
           {v != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone} strokeWidth={big ? 7 : 5} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} />}
         </svg>
-        <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: text ? 14 : big ? 28 : 18, fontWeight: 600, letterSpacing: "-0.02em", color: dark ? "#fff" : "var(--ink)" }}>{text ?? v ?? "–"}</span>
+        <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: text ? 13 : big ? 28 : 18, fontWeight: 600, letterSpacing: "-0.02em", color: dark ? "#fff" : "var(--ink)" }}>{text ?? v ?? "–"}</span>
       </span>
-      <span className="col" style={{ minWidth: 0 }}><span className="row g6"><span style={{ fontSize: big ? 15 : 13.5, fontWeight: 600, color: dark ? "#fff" : "var(--ink)" }}>{label}</span>
+      <span className="col" style={{ minWidth: 0, gap: 1 }}><span className="row g6"><span style={{ fontSize: big ? 15 : 13.5, fontWeight: 600, color: dark ? "#fff" : "var(--ink)", whiteSpace: "nowrap" }}>{label}</span>
         {stand && <span style={{ height: 18, padding: "0 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, lineHeight: "18px", background: STAND[stand.verdict][0], color: STAND[stand.verdict][1] }}>{VERDICT_NAME[stand.verdict]}</span>}</span>{sub && <span className="ell" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>{sub}</span>}
         {stand && <span className="ell tnum" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>Competitors average {Math.round(stand.avg)}{share ? "%" : ""}</span>}</span>
     </div>
@@ -218,7 +218,7 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
               <Dial v={sco.seo} stand={stands.seo} label="SEO" sub={left(audit, "seo")} hint="How well Google can list and describe the store: search titles, descriptions, picture descriptions, and the store-wide checks" />
               <Dial v={sco.ai} stand={stands.ai} label="AI search" sub={left(audit, "ai")} hint="How well ChatGPT, Claude and others can read and quote the store: descriptions, page text, crawlers let in, price and stock readable" />
               {sco.speed != null ? <Dial v={sco.speed} stand={stands.speed} label="Speed" sub="Google · on a phone" hint="Google’s speed score on a phone" />
-                : sco.speedChecks.total > 0 ? <Dial v={Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)} text={`${sco.speedChecks.ok}/${sco.speedChecks.total}`} stand={stands.speed} share label="Speed checks" sub={sco.speedChecks.ok === sco.speedChecks.total ? "All fine" : `${sco.speedChecks.total - sco.speedChecks.ok} to fix`} hint="Kaviar’s own page checks that pass. Google’s speed score isn’t on yet, so speed is not part of the overall score." />
+                : sco.speedChecks.total > 0 ? <Dial v={Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)} text={`${Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)}%`} stand={stands.speed} share label="Speed" sub={`${sco.speedChecks.ok} of ${sco.speedChecks.total} checks pass`} hint="Kaviar’s own page checks that pass. Google’s speed score isn’t on yet, so speed is not part of the overall score." />
                 : <Dial v={null} label="Speed" sub="Not measured yet" hint="Press Check again" />}
             </div>}
             <div className="row g20" style={{ position: "relative", marginTop: 14, flexWrap: "wrap" }}>

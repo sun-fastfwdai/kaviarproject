@@ -192,7 +192,11 @@ export async function today(brand: { id: string; currency: string | null; timezo
     const NAME = { seo: "SEO", ai: "AI search", speed: "speed" } as const, st = Object.entries(bench?.stands ?? {}) as [keyof typeof NAME, { verdict: string }][], sc = scores(audit);
     const at = (v: string) => st.find(([, x]) => x.verdict === v)?.[0];
     status.push({ kind: "score", label: "Store score", value: String(sc.overall), meter: sc.overall, href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
-      parts: [{ label: "SEO", value: String(sc.seo) }, { label: "AI search", value: String(sc.ai) }, { label: "Speed", value: sc.speed != null ? String(sc.speed) : sc.speedChecks.total ? `${sc.speedChecks.ok}/${sc.speedChecks.total}` : "–" }],
+      rivals: bench?.sites ?? 0,
+      parts: (() => { const S = bench?.stands ?? {}, vs = (k: "seo" | "ai" | "speed") => (S[k] ? { avg: Math.round(S[k]!.avg), them: (S[k]!.each ?? []).map(Math.round), verdict: S[k]!.verdict } : {});
+        const speed = sc.speed != null ? sc.speed : sc.speedChecks.total ? Math.round((sc.speedChecks.ok / sc.speedChecks.total) * 100) : null;
+        return [{ label: "SEO", value: String(sc.seo), you: sc.seo, ...vs("seo") }, { label: "AI search", value: String(sc.ai), you: sc.ai, ...vs("ai") },
+          { label: "Speed", value: sc.speed != null ? String(sc.speed) : speed != null ? `${speed}%` : "–", you: speed, ...vs("speed") }]; })(),
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
   return { status, pulse, more, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,

@@ -12,7 +12,8 @@ export const REASON_NAME: Record<Reason, string> = { holiday: "Holiday", oversto
 export type Stage = "suggested" | "approved" | "review" | "ready" | "live";
 export const STAGE_NAME: Record<Stage, string> = { suggested: "Suggested", approved: "Approved", review: "Ads to review", ready: "Ready to launch", live: "On Meta" };
 /** The campaign Kaviar made on Meta for a plan. It is made paused; it spends only once the brand switches it on there. */
-export type OnMeta = { campaignId: string; account: string; at: string; daily: number };
+/** What Kaviar made on Meta for a plan. `placed` maps each of the plan's ads to its ad on Meta; `until` is when Meta stops it by itself. */
+export type OnMeta = { campaignId: string; account: string; at: string; daily: number; adset?: string; page?: string; pixel?: string; country?: string; placed?: Record<string, string>; onAt?: string; until?: string | null };
 /** A campaign the brand set up by hand: what to sell, to whom, and what to call it. */
 export type OwnPlan = { key: string; name: string; product: string; who: string; kind: "cold" | "lookalike" | "warm"; audience: number | null; at: string; by?: string };
 export type PlanAds = { batchId: string; review: number; approved: number; tested: boolean; thumbs: string[] };

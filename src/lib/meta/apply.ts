@@ -19,6 +19,7 @@ type Prev = NonNullable<ChangeTarget["applied"]>["prev"];
 export type ApplyResult = { ok: true; note: string; prev: Prev } | { ok: false; manual: boolean; message: string };
 
 const C = schema.connections;
+export const metaConn = (brandId: string) => conn(brandId);
 async function conn(brandId: string): Promise<Conn | null> {
   const [c] = await db.select().from(C).where(and(eq(C.brandId, brandId), eq(C.provider, "meta"))).limit(1);
   if (!c || c.status !== "connected" || !c.accessToken || !c.externalId) return null;
@@ -123,7 +124,7 @@ export async function writeTest(brandId: string): Promise<WriteTest> {
 }
 
 /** Currencies Meta counts in whole units; every other one is counted in hundredths. */
-const WHOLE = new Set(["CLP", "COP", "CRC", "HUF", "ISK", "IDR", "JPY", "KRW", "PYG", "TWD", "VND"]);
+export const WHOLE_UNITS = new Set(["CLP", "COP", "CRC", "HUF", "ISK", "IDR", "JPY", "KRW", "PYG", "TWD", "VND"]);
 
 /**
  * Create a campaign on Meta, paused, with a daily budget — the first piece of launching from Kaviar. It cannot spend: it is paused and
@@ -135,7 +136,7 @@ export async function createPausedCampaign(brandId: string, name: string, daily:
   if (!(daily > 0) || daily > 10_000) return { ok: false, message: "Set a daily budget first" };
   try {
     const acct = await metaGet<{ currency: string }>(c.account, { fields: "currency" }, c.token);
-    const raw = String(Math.round(daily * (WHOLE.has(acct.currency) ? 1 : 100)));
+    const raw = String(Math.round(daily * (WHOLE_UNITS.has(acct.currency) ? 1 : 100)));
     const made = await metaWrite<{ id: string }>("POST", `${c.account}/campaigns`, { name: name.slice(0, 200), objective: "OUTCOME_SALES", status: "PAUSED", special_ad_categories: "[]", daily_budget: raw, bid_strategy: "LOWEST_COST_WITHOUT_CAP" }, c.token);
     const now = await campaign(c, made.id);
     if (now.status !== "PAUSED") { await metaWrite("POST", made.id, { status: "PAUSED" }, c.token); }

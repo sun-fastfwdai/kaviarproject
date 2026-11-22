@@ -13,7 +13,10 @@ import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey
 import { makeAds } from "../../plan/actions";
 import { setAdStatus } from "../../creative/actions";
 import { decide, setMode } from "../../optimize/actions";
-import { addReference, approvePlanFor, deleteOwnPlan, launchPlan, removeReference, saveBrief, setPlanBudget } from "../actions";
+import { addReference, approvePlanFor, deleteOwnPlan, metaCheck, placeStep, removeReference, saveBrief, setPlanBudget, switchPlan } from "../actions";
+import { Combo } from "@/components/combo";
+import { COUNTRIES } from "@/lib/meta/place-rules";
+import type { Ready } from "@/lib/meta/place";
 
 /**
  * One campaign, whole. The brand never leaves this page to run it: approve the budget, have the ads written (progress shows at the
@@ -34,7 +37,10 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [doing, setDoing] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [work, setWork] = useState<Work | null>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<false | "place" | "on" | "off">(false);
+  // What Meta says it needs, asked when the brand opens "Put it on Meta" — and what the brand picks there.
+  const [check, setCheck] = useState<{ ready: Ready | null; link: string | null } | "asking" | null>(null);
+  const [pick, setPick] = useState<{ page?: string; pixel?: string; country: string }>({ country: p.meta?.country ?? "US" });
   const [budget, setBudget] = useState(p.budget);
   const [days, setDays] = useState(p.days);
   const [mode, setM] = useState<Mode>(pilot.mode);
@@ -62,10 +68,31 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
       setDoing(null);
     });
   };
-  const launch = () => { setConfirm(false); setErr(null); setDoing("launch"); setWork({ who: "analyst", what: "Making the campaign on Meta, paused", usually: "A few seconds", since: Date.now() });
-    start(async () => { const r = await launchPlan(slug, p.key); if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: "The campaign is on Meta, paused. Add the ads there and switch it on." }); } setDoing(null); }); };
+  const openPlace = () => {
+    setConfirm("place"); setCheck("asking");
+    metaCheck(slug, p.key).then((r) => { setCheck({ ready: r.ready, link: r.link }); setPick((x) => ({ country: r.country, page: x.page ?? r.ready?.pages[0]?.id, pixel: x.pixel ?? r.ready?.pixels[0]?.id })); }).catch(() => setCheck({ ready: null, link: null }));
+  };
+  // Otto puts it on Meta piece by piece — the campaign, the ad set, each ad — and the dock says which piece he is on.
+  const launch = () => {
+    setConfirm(false); setErr(null); setDoing("launch");
+    const say = (what: string) => setWork({ who: "qa", what: `Otto · ${what}`, usually: "Meta takes a few seconds for each piece", since: Date.now() });
+    say(p.meta ? (p.meta.adset ? "Placing the ads on Meta" : "Making the ad set") : "Making the campaign on Meta, paused");
+    start(async () => {
+      for (let i = 0; i < 16; i++) {
+        const r = await placeStep(slug, p.key, pick);
+        if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); router.refresh(); break; }
+        if (r.done) { router.refresh(); setWork({ done: `${r.placed} ad${r.placed === 1 ? " is" : "s are"} in the campaign on Meta, paused — switch it on when you’re ready` }); break; }
+        say(r.next ?? "Placing the ads on Meta"); router.refresh();
+      }
+      setDoing(null);
+    });
+  };
+  const flip = (on: boolean) => { setConfirm(false); setErr(null); setDoing("switch"); setWork({ who: "qa", what: on ? "Otto · Switching the campaign on" : "Otto · Pausing the campaign", usually: "A few seconds", since: Date.now() });
+    start(async () => { const r = await switchPlan(slug, p.key, on); if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: on ? `It’s running — ${usd(p.budget / p.days)} a day for ${p.days} days, then Meta stops it` : "Paused on Meta. Nothing more is spent." }); } setDoing(null); }); };
   const review = (ad: PlanAd, status: "approved" | "rejected") => go(ad.id, () => setAdStatus(slug, ad.id, status));
   const approveAll = () => go("all", async () => { for (const x of toReview) await setAdStatus(slug, x.id, "approved"); }, `${toReview.length} ads approved`);
+  const placedN = okAds.filter((x) => p.meta?.placed?.[x.id]).length, unplaced = p.meta ? okAds.length - placedN : 0;
+  const running = results?.status === "ACTIVE" || Boolean(p.meta?.onAt);
   const manager = p.meta ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${p.meta.account}&selected_campaign_ids=${p.meta.campaignId}` : null;
 
   // What each step does when it is this plan's turn — the same button in the card's corner and under the step.
@@ -74,7 +101,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
     if (k === "budget") return <button type="button" disabled={busy} className={cls} style={st} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={ic} />}Approve plan</button>;
     if (k === "ads") return toReview.length ? <a className={cls} style={st} href="#ads">Review {toReview.length} ad{toReview.length === 1 ? "" : "s"}<Icon name="arrow-r" size={ic} style={{ transform: "rotate(90deg)" }} /></a>
       : <button type="button" disabled={busy} className={cls} style={st} onClick={write}>{spin("make", "#0B2B1A")}{doing === "make" ? "Remy is writing…" : "Make 3 ads"}</button>;
-    if (k === "launch") return <button type="button" disabled={busy} className={cls} style={st} onClick={() => setConfirm(true)}>{spin("launch", "#0B2B1A")}Put it on Meta<Icon name="arrow-r" size={ic} /></button>;
+    if (k === "launch") return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}Put it on Meta<Icon name="arrow-r" size={ic} /></button>;
+    if (k === "results" && unplaced > 0) return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}{doing === "launch" ? "Placing…" : `Add ${unplaced} ad${unplaced === 1 ? "" : "s"} on Meta`}{doing !== "launch" && <Icon name="arrow-r" size={ic} />}</button>;
+    if (k === "results" && placedN > 0 && !running) return <button type="button" disabled={busy} className={cls} style={st} onClick={() => setConfirm("on")}>{spin("switch", "#0B2B1A") || <Icon name="play" size={ic} />}Switch it on</button>;
     if (k === "results" && manager) return <a className={cls} style={st} href={manager} target="_blank" rel="noreferrer">Open in Ads Manager<Icon name="external" size={ic} /></a>;
     return null;
   };
@@ -156,20 +185,34 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
         {err && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" />{err}</div>}
 
-        {/* ---- Autopilot's part in this campaign, switched from here */}
-        <div className="col" style={{ borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-          <div className="row g12" style={{ padding: "10px 12px 10px 16px", flexWrap: "wrap" }}>
-            <span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.2)", animation: p.meta ? "pulse 2.2s ease-in-out infinite" : undefined, opacity: p.meta ? 1 : 0.45, flexShrink: 0 }} />
-            <span className="sm w5 i1" style={{ flexShrink: 0 }}>Autopilot</span>
+        {/* ---- who is on this campaign, what each one does, and where each has got to. Autopilot is Otto's part, switched from here */}
+        <div className="col" style={{ borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 1, background: "var(--line)", borderRadius: "16px 16px 0 0", overflow: "hidden" }}>
+            {([
+              ["analyst", "Iris", "The reason and the numbers", `${REASON_NAME[p.reason]} · ${usd(mid.revenue)} likely back`, true],
+              ["builder", "Remy", "Writes the ads", doing === "make" ? "Writing now…" : ads.length ? `${ads.length} written${toReview.length ? ` · ${toReview.length} wait${toReview.length === 1 ? "s" : ""} for you` : ` · ${okAds.length} approved`}` : p.stage === "suggested" ? "Starts when you approve" : "Ready to write", ads.length > 0],
+              ["catalog", "Cleo", "Product page and stock", facts.page?.open ? `${facts.page.open} thing${facts.page.open === 1 ? "" : "s"} to fix on the page` : facts.store ? `Page ready · ${facts.store.inventory.toLocaleString("en-US")} in stock` : "Page ready", !facts.page?.open],
+              ["qa", "Otto", "Places the ads, watches the spend", doing === "launch" ? "Placing now…" : !p.meta ? "Starts when the ads are approved" : unplaced > 0 ? `${placedN} of ${okAds.length} ads on Meta` : running ? `Watching every day${pilot.last ? ` · checked ${pilot.last}` : ""}` : placedN ? `${placedN} ad${placedN === 1 ? "" : "s"} on Meta · paused` : "Campaign on Meta · no ads yet", Boolean(p.meta) && unplaced === 0 && placedN > 0],
+            ] as const).map(([kind, name, does, at, done]) => (
+              <div key={name} className="row g10" style={{ padding: "12px 14px", background: "#fff", minWidth: 0 }}>
+                <AgentFace kind={kind} size={30} mood={done ? "happy" : "focus"} />
+                <span className="col" style={{ minWidth: 0, lineHeight: 1.3 }}>
+                  <span className="row g6"><span className="sm w5 i1">{name}</span><span className="xs i3 ell" title={does}>{does}</span></span>
+                  <span className="xs ell tnum" title={at} style={{ color: done ? "var(--green)" : "var(--ink-2)", fontWeight: 500 }}>{at}</span>
+                </span>
+              </div>))}
+          </div>
+          <div className="row g10" style={{ padding: "10px 12px 10px 12px", flexWrap: "wrap" }}>
+            <span className="sm w5 i1" style={{ flexShrink: 0, paddingLeft: 4 }}>Autopilot</span>
             <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone" style={{ flexShrink: 0 }}>
               {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} title={MODES[m].line} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
             </div>
-            <span className="xs i2 fill" style={{ minWidth: 200 }}>{!p.meta ? "Starts watching this campaign the day it is on Meta" : pilot.changes.length ? `Found ${pilot.changes.length} change${pilot.changes.length === 1 ? "" : "s"} for this campaign` : `Watching this campaign every day${pilot.last ? ` · checked ${pilot.last}` : ""}`}
+            <span className="xs i2 fill" style={{ minWidth: 200 }}>{!p.meta ? "Otto starts watching the day it is on Meta" : pilot.changes.length ? `Found ${pilot.changes.length} change${pilot.changes.length === 1 ? "" : "s"} for this campaign` : `Watching this campaign every day${pilot.last ? ` · checked ${pilot.last}` : ""}`}
               <span className="i3"> · {mode === "ask" ? "it asks you before every change" : mode === "protect" ? "it pauses what loses money by itself, never raises spend" : "it pauses losers and moves budget to winners by itself"}</span></span>
           </div>
           {pilot.changes.map((c) => (
             <div key={c.id} className="row g12" style={{ padding: "10px 16px", borderTop: "1px solid var(--line)" }}>
-              <AgentFace kind="analyst" size={22} />
+              <AgentFace kind="qa" size={22} />
               <span className="col fill" style={{ minWidth: 0 }}><span className="sm w5 ell">{c.title}</span><span className="xs i3 ell" title={c.why}>{c.before && c.after ? `${c.before} → ${c.after} · ` : ""}{c.why}</span></span>
               <button type="button" className="btn dark sm" disabled={busy} onClick={() => go(c.id, () => decide(slug, [c.id], "approved"), "Change approved")}>{spin(c.id, "#fff")}Approve</button>
               <button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(c.id, () => decide(slug, [c.id], "skipped"))}>Skip</button>
@@ -180,11 +223,19 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
         {p.meta && results && <div className="col g12" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
           <div className="row between g12" style={{ flexWrap: "wrap" }}>
             <span className="row g8"><span className="i3" style={label}>Results against this plan</span>
-              <span className={`pill ${results.status === "ACTIVE" ? "green" : "amber"}`} style={{ height: 22, fontSize: 11 }}>{results.status === "ACTIVE" ? "Running on Meta" : "Paused on Meta"}</span></span>
+              <span className={`pill ${running ? "green" : "amber"}`} style={{ height: 22, fontSize: 11 }}>{running ? "Running on Meta" : "Paused on Meta"}</span></span>
             <span className="row g6">{a && <Link className="btn quiet sm" href={`${base}/run/${a.batchId}`} title="The ads, laid out for Ads Manager">Set-up sheet<Icon name="arrow-r" size={11} /></Link>}{manager && <a className="btn sm" href={manager} target="_blank" rel="noreferrer">Open in Ads Manager<Icon name="external" size={11} /></a>}</span>
           </div>
-          {results.status !== "ACTIVE" && results.spend === 0 && <div className="row g10 sm" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--amber-bg)", color: "var(--amber)" }}>
-            <Icon name="info" size={14} /><span className="fill">Kaviar made the campaign at {usd(p.meta.daily)} a day and left it paused. Add the {okAds.length || "approved"} ad{okAds.length === 1 ? "" : "s"} in Ads Manager and switch it on — Kaviar can’t place ads on Meta itself yet.</span></div>}
+          {unplaced > 0 ? <div className="row g10 sm" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--amber-bg)", color: "var(--amber)", flexWrap: "wrap" }}>
+            <Icon name="info" size={14} /><span className="fill" style={{ minWidth: 220 }}>{placedN ? `${placedN} of ${okAds.length} ads are in the campaign` : "The campaign is on Meta with no ads in it yet"}</span>
+            <button type="button" className="btn dark sm" disabled={busy} onClick={openPlace}>{spin("launch", "#fff")}Add {unplaced} ad{unplaced === 1 ? "" : "s"} on Meta</button></div>
+          : placedN > 0 && !running ? <div className="row g10 sm" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--tray)", flexWrap: "wrap" }}>
+            <Icon name="check-circle" size={14} color="#1F7A52" /><span className="fill i2" style={{ minWidth: 220 }}>{placedN} ad{placedN === 1 ? " is" : "s are"} in the campaign, paused · nothing is spent yet</span>
+            <button type="button" className="btn dark sm" disabled={busy} onClick={() => setConfirm("on")}>{spin("switch", "#fff") || <Icon name="play" size={11} color="#fff" />}Switch it on · {usd(p.meta.daily)} a day</button></div>
+          : running ? <div className="row g10 sm" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--green-bg)", flexWrap: "wrap" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 3px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite" }} /><span className="fill" style={{ minWidth: 220, color: "var(--green)" }}>Running · {usd(p.meta.daily)} a day{p.meta.until ? ` until ${new Date(p.meta.until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => setConfirm("off")}>{spin("switch") || <Icon name="pause" size={11} />}Pause</button></div>
+          : null}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
             {([["Spent", results.spend, p.budget, usd(results.spend), `of ${usd(p.budget)} planned`], ["Orders", results.orders, mid.orders, String(results.orders), `${Math.round(mid.orders)} expected`], ["Sales", results.revenue, mid.revenue, usd(results.revenue), `${usd(mid.revenue)} expected`]] as const).map(([k, got, want, v, sub]) => (
               <div key={k} className="col g4" style={{ padding: "11px 13px", borderRadius: 14, background: "var(--tray)" }}>
@@ -314,13 +365,34 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
       </div>
 
-      {confirm && <Modal icon={<Icon name="facebook" size={16} />} title="Put this campaign on Meta" sub="Kaviar makes it paused. Nothing is spent until you switch it on in Ads Manager." onClose={() => setConfirm(false)} width={460}
-        footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" onClick={launch}>Make it on Meta</button></>}>
-        <div className="col g8">
-          {([["Campaign", p.title], ["Daily budget", `${usd(p.budget / p.days)} · ${usd(p.budget)} over ${p.days} days`], ["Ads approved", String(okAds.length)], ["Starts", "Paused — you switch it on"]] as const).map(([k, v]) => (
-            <span key={k} className="row between g12 sm" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5 ell" style={{ maxWidth: 280 }}>{v}</span></span>))}
-          <span className="xs i3">Kaviar can’t place the ads on Meta itself yet: after this, add the approved ads in Ads Manager.</span>
-        </div>
+      {confirm === "place" && (() => {
+        const got = check && check !== "asking" ? check : null, r = got?.ready ?? null, asking = !got, page = r?.pages.find((x) => x.id === pick.page) ?? r?.pages[0], pixel = r?.pixels.find((x) => x.id === pick.pixel) ?? r?.pixels[0];
+        const stop = asking ? null : !r ? "Meta isn’t connected — connect it in Settings › Integrations." : !r.account.ok ? r.account.note : !page ? "Kaviar can’t see a Facebook Page on this ad account. Reconnect Meta in Settings › Integrations and include your Page." : !pixel ? "This ad account has no Meta pixel, so purchases can’t be counted. Add the Facebook & Instagram app in Shopify." : !got?.link ? "Kaviar doesn’t know this product’s page on your store yet — run a sync in Settings." : r.dry && !r.dry.ok ? r.dry.note : null;
+        const row = (k: string, v: React.ReactNode) => <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)", minHeight: 40 }}><span className="i3" style={{ flexShrink: 0 }}>{k}</span><span className="w5 ell" style={{ maxWidth: 300, textAlign: "right" }}>{v}</span></span>;
+        return (
+          <Modal icon={<Icon name="facebook" size={16} />} title={p.meta ? "Add the ads on Meta" : "Put this campaign on Meta"} sub="Otto makes everything paused. Nothing is spent until you switch it on." onClose={() => setConfirm(false)} width={480}
+            footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" disabled={asking || Boolean(stop)} onClick={launch}>{asking && <Icon name="spinner" size={13} className="spin" color="#fff" />}{asking ? "Asking Meta…" : "Put it on Meta, paused"}</button></>}>
+            <div className="col">
+              {row("Campaign", p.title)}
+              {row("Budget", `${usd(p.budget / p.days)} a day · ${usd(p.budget)} over ${p.days} days`)}
+              {row("Ads", `${okAds.length} approved${placedN ? ` · ${placedN} already there` : ""}`)}
+              {!asking && r && <>
+                {row("Shown as", r.pages.length > 1 ? <select className="input" style={{ height: 30, fontSize: 13 }} value={page?.id} onChange={(e) => setPick({ ...pick, page: e.target.value })} aria-label="Facebook Page">{r.pages.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> : page ? <span className="row g6" style={{ justifyContent: "flex-end" }}><Icon name="check" size={12} color="#1F7A52" />{page.name}</span> : <span style={{ color: "var(--red)" }}>No Page found</span>)}
+                {row("Purchases counted by", pixel ? <span className="row g6" style={{ justifyContent: "flex-end" }}><Icon name="check" size={12} color="#1F7A52" />{pixel.name}</span> : <span style={{ color: "var(--red)" }}>No pixel found</span>)}
+                {r.dry && row("Meta’s check", r.dry.ok ? <span className="row g6" style={{ justifyContent: "flex-end", color: "var(--green)" }}><Icon name="check" size={12} color="#1F7A52" />Accepts this set-up</span> : <span style={{ color: "var(--red)" }}>Refused</span>)}
+              </>}
+              {!p.meta?.adset && <div className="col g4" style={{ paddingTop: 12 }}><span className="xs i2 w5">Shown to people in</span>
+                <Combo label="Country" searchText="Search countries" value={pick.country} onChange={(v) => setPick({ ...pick, country: v })} items={COUNTRIES.map(([k, name]) => ({ value: k, label: name, icon: "globe" as const, sub: "Meta finds the likely buyers there" }))} /></div>}
+              {stop && <span className="row top g8 sm" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" style={{ marginTop: 2, flexShrink: 0 }} /><span>{stop}</span></span>}
+            </div>
+          </Modal>);
+      })()}
+      {(confirm === "on" || confirm === "off") && p.meta && <Modal icon={<Icon name={confirm === "on" ? "play" : "pause"} size={16} />} title={confirm === "on" ? "Switch this campaign on" : "Pause this campaign"} sub={confirm === "on" ? "This is the step that spends money." : "Meta stops showing its ads. You can switch it on again."} onClose={() => setConfirm(false)} width={440}
+        footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" onClick={() => flip(confirm === "on")}>{confirm === "on" ? `Start spending ${usd(p.meta.daily)} a day` : "Pause it"}</button></>}>
+        {confirm === "on" ? <div className="col">
+          {([["Spends", `${usd(p.meta.daily)} a day`], ["For", `${p.days} days · about ${usd(p.budget)} in all`], ["Then", "Meta stops it by itself"], ["Ads", `${placedN} on Meta`], ["Autopilot", MODES[mode].name]] as const).map(([k, v]) => (
+            <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5">{v}</span></span>))}
+        </div> : <span className="sm i2">{results ? `${usd(results.spend)} spent so far.` : "Nothing more is spent after this."}</span>}
       </Modal>}
       <Working work={work} onClear={clear} />
     </div>

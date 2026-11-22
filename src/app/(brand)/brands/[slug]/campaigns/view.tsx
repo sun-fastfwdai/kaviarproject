@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { Modal } from "@/components/modal";
+import { Combo } from "@/components/combo";
 import { StatTile } from "@/components/bento";
 import type { Delta, Tile } from "@/lib/growth/trend";
 import { LIB_STATUS, type LibRow } from "@/lib/growth/library";
@@ -68,8 +69,8 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
       <div className="col g16">
         {/* ---- what runs by itself, and the two things a brand comes here to do: see results, start a campaign */}
         <div className="row g10" style={{ flexWrap: "wrap" }}>
-          <div className="row g10" style={{ padding: "6px 8px 6px 14px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }} title={MODES[mode].line}>
-            <span className="row g6 sm w5"><span style={{ width: 7, height: 7, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 3px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite" }} />Autopilot</span>
+          <div className="row g10" style={{ padding: "6px 8px 6px 8px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }} title={`Otto watches every ad on Meta, every day. ${MODES[mode].line}`}>
+            <span className="row g8 sm w5"><AgentFace kind="qa" size={24} mood="happy" />Autopilot</span>
             <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
               {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} title={MODES[m].line} onClick={() => { setM(m); start(async () => { await setMode(slug, m); router.refresh(); }); }}>{MODES[m].name}</button>)}
             </div>
@@ -135,10 +136,14 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
       {creating && <Modal icon={<Icon name="megaphone" size={16} />} title="New campaign" sub="Yours to start: pick what to sell and who should see it. Remy writes its ads on the next screen." onClose={() => setCreating(false)} width={500}
         footer={<><button type="button" className="btn quiet" onClick={() => setCreating(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !form.product || !(Number(form.budget) >= 50)} onClick={create}>{busy ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : null}Start campaign</button></>}>
         <div className="col g12">
-          <label className="col g4"><span className="xs i2 w5">What to sell</span>
-            <select className="input" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })}>{options.products.map((x) => <option key={x.title} value={x.title}>{x.title} · {usd(x.price)} · {x.stock} in stock</option>)}</select></label>
-          <label className="col g4"><span className="xs i2 w5">Who should see it</span>
-            <select className="input" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>{options.audiences.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
+          <div className="col g4"><span className="xs i2 w5">What to sell</span>
+            <Combo label="What to sell" searchText="Search products" value={form.product} onChange={(v) => setForm({ ...form, product: v })}
+              items={options.products.map((x) => ({ value: x.title, label: x.title, image: x.image, sub: usd(x.price), right: x.stock > 0 ? `${x.stock.toLocaleString("en-US")} in stock` : "Out of stock", ...(x.stock > 0 ? {} : { tone: "warn" as const }) }))} /></div>
+          <div className="col g4"><span className="xs i2 w5">Who should see it</span>
+            <Combo label="Who should see it" searchText="Search audiences" value={form.audience} onChange={(v) => setForm({ ...form, audience: v })}
+              items={options.audiences.map((x) => ({ value: x.key, label: x.label.split(" · ")[0], icon: x.kind === "warm" ? "repeat" : x.kind === "lookalike" ? "users" : "globe",
+                sub: x.kind === "warm" ? "Your own customers" : x.kind === "lookalike" ? "Meta finds people who resemble them" : x.key === "new" ? "Meta finds them — the widest reach" : "New to you · a buyer group from market research",
+                ...(x.size ? { right: `${x.size >= 1e6 ? `${(x.size / 1e6).toFixed(1)}M` : x.size.toLocaleString("en-US")} people` } : {}) }))} /></div>
           <div className="row g10">
             <label className="col g4 fill"><span className="xs i2 w5">Budget</span><input className="input" inputMode="numeric" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value.replace(/[^0-9]/g, "").slice(0, 7) })} /></label>
             <label className="col g4"><span className="xs i2 w5">Over</span>

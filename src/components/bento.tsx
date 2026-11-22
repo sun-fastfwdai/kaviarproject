@@ -72,25 +72,51 @@ function Hero({ k }: { k: Tile }) {
   );
 }
 
-/** The tall block: the store's score as a ring, where it stands, and the three scores it is made of. */
+/**
+ * The tall block: the store's score, and the three scores it is made of — each drawn on one 0–100 line with the brand's own mark, a
+ * band for where the competitors sit and a tick at their average, so "ahead" or "behind" is seen, not read.
+ */
 function Score({ k }: { k: Tile }) {
-  const v = k.meter ?? 0, size = 92, r = (size - 10) / 2, c = 2 * Math.PI * r, ring = v >= 90 ? "#34C77B" : v >= 50 ? "#E9B949" : "#FF8A5C";
+  const v = k.meter ?? 0, size = 58, r = (size - 8) / 2, c = 2 * Math.PI * r, ring = v >= 90 ? "#34C77B" : v >= 50 ? "#E9B949" : "#FF8A5C";
   const TAG = { good: ["var(--green-bg)", "var(--green)"], bad: ["var(--red-bg)", "var(--red)"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
+  const MARK = { ahead: "#34C77B", level: "#55534F", behind: "#FF8A5C" } as const, measured = (k.parts ?? []).some((p) => p.avg != null);
   return (
-    <Link href={k.href} title={k.hint} className="bt rise" style={{ padding: "13px 15px 12px", gap: 10, ["--i" as string]: 9 }}>
+    <Link href={k.href} title={k.hint} className="bt rise" style={{ padding: "13px 15px 12px", gap: 12, ["--i" as string]: 9 }}>
       <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{k.label}</span><Icon name="store" size={15} color="#8B8883" /></span>
-      <div className="col" style={{ alignItems: "center", gap: 8, padding: "4px 0" }}>
-        <span style={{ position: "relative", width: size, height: size }}>
+      <div className="row g12">
+        <span style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
           <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden>
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--tray-2)" strokeWidth={8} />
-            <circle className="ring-in" cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ring} strokeWidth={8} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} style={{ ["--c" as string]: c }} />
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--tray-2)" strokeWidth={6} />
+            <circle className="ring-in" cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ring} strokeWidth={6} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} style={{ ["--c" as string]: c }} />
           </svg>
-          <span className="bt-n" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30 }}>{k.value}</span>
+          <span className="bt-n" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{k.value}</span>
         </span>
-        {k.tag && <span style={{ height: 22, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, lineHeight: "22px", background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>}
+        <span className="col g4" style={{ minWidth: 0 }}>
+          {k.tag && <span style={{ alignSelf: "flex-start", height: 22, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, lineHeight: "22px", whiteSpace: "nowrap", background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>}
+          <span className="xs i3">{measured ? `against ${k.rivals} competitor${k.rivals === 1 ? "" : "s"}` : "out of 100"}</span>
+        </span>
       </div>
-      {k.parts && <div className="col" style={{ marginTop: "auto" }}>
-        {k.parts.map((p, i) => <span key={p.label} className="row between sm" style={{ padding: "6px 0", borderTop: i ? "1px solid var(--line)" : 0 }}><span className="i2">{p.label}</span><span className="tnum w5">{p.value}</span></span>)}
+      {k.parts && <div className="col" style={{ marginTop: "auto", gap: 11 }}>
+        {k.parts.map((p) => {
+          const lo = p.them?.length ? Math.min(...p.them) : null, hi = p.them?.length ? Math.max(...p.them) : null, at = (x: number) => `${Math.min(100, Math.max(0, x))}%`;
+          return (
+            <span key={p.label} className="col" style={{ gap: 5 }} title={p.avg != null ? `You ${p.value} · competitors average ${p.avg}${lo != null && hi != null && lo !== hi ? ` (from ${lo} to ${hi})` : ""}` : undefined}>
+              <span className="row between" style={{ alignItems: "baseline" }}>
+                <span className="xs i2">{p.label}</span>
+                <span className="row g6" style={{ alignItems: "baseline" }}>{p.avg != null && <span className="tnum i3" style={{ fontSize: 11 }}>avg {p.avg}</span>}<span className="tnum w5" style={{ fontSize: 13.5 }}>{p.value}</span></span>
+              </span>
+              <span aria-hidden style={{ position: "relative", height: 8, borderRadius: 99, background: "var(--tray-2)" }}>
+                {lo != null && hi != null && <span style={{ position: "absolute", top: 0, bottom: 0, left: at(lo), width: `max(8px, ${hi - lo}%)`, borderRadius: 99, background: "rgba(18,18,18,.16)" }} />}
+                {p.avg != null && <span style={{ position: "absolute", top: -3, bottom: -3, left: at(p.avg), width: 2, marginLeft: -1, borderRadius: 2, background: "#55534F" }} />}
+                {p.you != null && <span className="fade-in" style={{ position: "absolute", top: -2, left: at(p.you), width: 12, height: 12, marginLeft: -6, borderRadius: 99, background: MARK[p.verdict ?? "ahead"], boxShadow: "0 0 0 2px var(--sheet)" }} />}
+              </span>
+            </span>);
+        })}
+        {measured && <span className="row g10" style={{ fontSize: 10.5, color: "var(--ink-3)", paddingTop: 1 }}>
+          <span className="row g4"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B" }} />You</span>
+          <span className="row g4"><span style={{ width: 12, height: 6, borderRadius: 99, background: "rgba(18,18,18,.16)" }} />Competitors</span>
+          <span className="row g4"><span style={{ width: 2, height: 10, borderRadius: 2, background: "#55534F" }} />Their average</span>
+        </span>}
       </div>}
     </Link>
   );

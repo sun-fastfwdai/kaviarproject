@@ -147,11 +147,11 @@ export async function removeRival(brandId: string, url: string): Promise<void> {
 
 /** Where the brand is behind its competitors, for Today and the Store screen — the measures, with both numbers. */
 export type Gap = { key: MeasureKey; name: string; hint: string; you: string; they: string };
-export async function benchGaps(brandId: string): Promise<{ sites: number; measured: number; gaps: Gap[]; stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number }>> } | null> {
+export async function benchGaps(brandId: string): Promise<{ sites: number; measured: number; gaps: Gap[]; stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number; each?: number[] }>> } | null> {
   const g = await getCompete(brandId), b = g.bench;
   if (!b || !g.mine) return null;
-  const c = compare(b, g.mine), stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number }>> = {};
-  for (const r of c.rows) if ((r.m.key === "seo" || r.m.key === "ai" || r.m.key === "speed") && r.s.verdict && r.s.avg != null) stands[r.m.key] = { verdict: r.s.verdict, avg: r.s.avg };
+  const c = compare(b, g.mine), stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number; each?: number[] }>> = {};
+  for (const r of c.rows) if ((r.m.key === "seo" || r.m.key === "ai" || r.m.key === "speed") && r.s.verdict && r.s.avg != null) stands[r.m.key] = { verdict: r.s.verdict, avg: r.s.avg, each: r.each.filter((x): x is number => x != null) };
   return { sites: c.rivals.filter((r) => r.audit).length, measured: c.rows.filter((r) => r.s.verdict).length, stands,
     gaps: c.rows.filter((r) => r.s.verdict === "behind").map((r) => ({ key: r.m.key, name: r.m.name, hint: r.m.hint, you: show(r.m, r.s.you), they: theyLine(r) })) };
 }
