@@ -161,7 +161,7 @@ export function StoreView({ slug, brand, audit, scores: sco, googleSpeed, checke
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
         {/* ---- the state of the store, and the two buttons that matter */}
-        <div style={{ position: "relative", overflow: "hidden", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 20px" }}>
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 20px" }}>
           <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${open.length ? "rgba(91,111,214,.34)" : "rgba(52,199,123,.30)"}, transparent)` }} />
           <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
             <div className="row top g14" style={{ minWidth: 0 }}>

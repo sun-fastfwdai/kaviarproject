@@ -96,7 +96,7 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
   return (
     <div id="autopilot" style={{ borderRadius: 20, overflow: "hidden", boxShadow: "0 0 0 1px var(--line), 0 12px 32px rgba(18,18,18,.06)", background: "#fff", scrollMarginTop: 16 }}>
       {/* ---- running, and how much it may decide alone */}
-      <div style={{ position: "relative", overflow: "hidden", background: "#121212", color: "#fff", padding: "20px 22px 18px" }}>
+      <div style={{ position: "relative", overflow: "clip", background: "#121212", color: "#fff", padding: "20px 22px 18px" }}>
         <div aria-hidden style={{ position: "absolute", right: -140, top: -180, width: 480, height: 480, borderRadius: 999, background: "radial-gradient(closest-side, rgba(52,199,123,.26), transparent)" }} />
         <div className="row top between g16" style={{ position: "relative", flexWrap: "wrap" }}>
           <div className="row top g12" style={{ minWidth: 0 }}>
