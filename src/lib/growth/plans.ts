@@ -86,7 +86,9 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
   }
   list.push(...grow.sort((a, b) => b.out[1].profit - a.out[1].profit).slice(0, 2));
   const loose = live.filter((b) => !b.signal || !used.has(b.signal)).length;
-  return { list: rankPlans(list), input: rest, minBudget: round(p.minToLearn), currency, level: levelOf(d.history), sales: { ...sales, on: sr.on, why: sr.why }, target, loose };
+  // Kaviar doesn't suggest spending money to lose it: a new plan must at least pay for itself at the likely rates. One already under way stays.
+  const worth = list.filter((x) => x.stage !== "suggested" || x.out[1].profit >= 0);
+  return { list: rankPlans(worth), input: rest, minBudget: round(p.minToLearn), currency, level: levelOf(d.history), sales: { ...sales, on: sr.on, why: sr.why }, target, loose };
 }
 
 export async function savePlanChoice(brandId: string, key: string, v: { budget?: number; days?: number; approve?: boolean; by?: string }): Promise<void> {
