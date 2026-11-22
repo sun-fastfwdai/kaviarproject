@@ -13,7 +13,7 @@ import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { readAssets } from "@/lib/assets/storage";
 import { createPausedCampaign } from "@/lib/meta/apply";
 
-const fresh = (slug: string) => { for (const p of ["campaigns", "today"]) revalidatePath(`/brands/${slug}/${p}`, p === "campaigns" ? "layout" : "page"); };
+const fresh = (slug: string) => { for (const p of ["campaigns", "today", "plan"]) revalidatePath(`/brands/${slug}/${p}`, p === "campaigns" ? "layout" : "page"); };
 
 /** Say yes to one plan, at the budget and length chosen. Its ads can be made from then on. */
 export async function approvePlanFor(slug: string, key: string, budget: number, days: number): Promise<void> {

@@ -22,6 +22,7 @@ export async function approvePlan(slug: string, input: SavedPlan, approve: boole
     goal: goal ?? before.goal, discount: num(input.discount, 0, 0.9) ?? before.discount, product: typeof input.product === "string" ? input.product.slice(0, 200) : before.product, order: num(input.order, 1, 100_000) ?? before.order, ...(approve ? { approvedAt: new Date().toISOString(), by: me.name } : {}) });
   revalidatePath(`/brands/${slug}/plan`);
   revalidatePath(`/brands/${slug}/today`);
+  revalidatePath(`/brands/${slug}/campaigns`, "layout"); // every campaign's forecast uses these figures
   return { ok: true };
 }
 
