@@ -47,6 +47,7 @@ describe("reading a public page by the store's own rules", () => {
     expect([p.pictures, p.described]).toEqual([2, 1]); // the logo and payment icons aren't the product's; "Marine Toner" alone is what a theme prints when nothing was written
     expect(readPage(page({ alts: ["", "Back of the bottle with the ingredient list"] })).described).toBe(1);
     expect(fileKey("https://cdn.shopify.com/s/files/1/01/files/Toner_800x.JPG?v=3")).toBe("toner.jpg");
+    expect(fileKey("//x.com/cdn/shop/files/Cream_02__3_{width}x.webp")).toBe("cream_02__3.webp");
     expect(readPage("<html><title>x</title><main><img src='/a.jpg' alt='a'></main></html>")).toMatchObject({ pictures: null, described: null }); // the site doesn't say which pictures are the product's
   });
   it("counts the words about the product, as the store's own check does", () => {

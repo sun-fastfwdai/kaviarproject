@@ -55,7 +55,7 @@ const wordsIn = (t: string) => (t ? t.split(/\s+/).filter(Boolean).length : 0);
 /** A picture's file, whatever size it is served at: ".../files/Toner_800x.jpg?v=1&width=600" and ".../files/toner.jpg" are the same picture. */
 export function fileKey(url: string): string {
   const name = decodeURIComponent(url.split(/[?#]/)[0].split("/").pop() ?? "").toLowerCase();
-  return name.replace(/_(\d+x\d*|\d*x\d+|pico|icon|thumb|small|compact|medium|large|grande|original|master)(@\dx)?(?=\.[a-z0-9]+$)/, "");
+  return name.replace(/_(\{width\}x|\d+x\d*|\d*x\d+|pico|icon|thumb|small|compact|medium|large|grande|original|master)(@\dx)?(?=\.[a-z0-9]+$)/, ""); // "{width}" is how some themes write a picture that loads later
 }
 /** The product a page describes, from the facts it publishes for machines (schema.org Product). */
 export function productLd(html: string): { name: string | null; description: string | null; images: string[] } {

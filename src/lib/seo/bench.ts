@@ -16,19 +16,25 @@ import type { MarketReport, RivalAds } from "../research/types";
  */
 const RIVALS = "rivals", BENCH = "bench";
 
-/** The product pages to read: from the store's own public product list where it has one (Shopify does), else the ones the home page links to, else the first in the sitemap. */
+/**
+ * The product pages to read: the ones the home page shows (what a store puts forward — its best sellers), topped up from the store's own
+ * public product list, else the first in the sitemap. Where the store publishes that list (Shopify does), each page comes with the
+ * product's name, text and pictures; otherwise those are read from the page itself.
+ */
 async function productPages(home: NonNullable<Got>): Promise<ProductInfo[]> {
-  const root = new URL(home.url).origin, linked = productLinks(home.text, home.url, 12);
+  const root = new URL(home.url).origin, linked = productLinks(home.text, home.url, 12), bare = (url: string): ProductInfo => ({ url, name: null, text: null, images: [] });
   const list = await get(`${root}/products.json?limit=50`);
-  if (list && list.status < 400) { try { const found = productList(JSON.parse(list.text), root, linked); if (found.length) return found; } catch { /* not a Shopify store, or the list is switched off */ } }
-  const bare = (urls: string[]) => urls.slice(0, PUBLIC.pages).map((url) => ({ url, name: null, text: null, images: [] }));
-  if (linked.length) return bare(linked);
+  let listed: ProductInfo[] = [];
+  if (list && list.status < 400) { try { listed = productList(JSON.parse(list.text), root, linked, 50); } catch { /* not a Shopify store, or the list is switched off */ } }
+  const known = new Map(listed.map((i) => [i.url, i])), chosen = linked.slice(0, PUBLIC.pages).map((u) => known.get(u) ?? bare(u));
+  for (const i of listed) if (chosen.length < PUBLIC.pages && !chosen.some((c) => c.url === i.url)) chosen.push(i);
+  if (chosen.length) return chosen;
   const map = await get(`${root}/sitemap.xml`);
   if (!map || map.status >= 400) return [];
   let locs = sitemapLocs(map.text);
   const inner = locs.find((l) => /product/i.test(l) && /\.xml/i.test(l));
   if (inner) { const m = await get(inner); locs = m && m.status < 400 ? sitemapLocs(m.text) : []; }
-  return bare(locs.filter((l) => /\/products?\/[^/]+/i.test(l)));
+  return locs.filter((l) => /\/products?\/[^/]+/i.test(l)).slice(0, PUBLIC.pages).map(bare);
 }
 
 /**
