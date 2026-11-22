@@ -3,28 +3,32 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { get, judge, type Got } from "./audit";
 import { measureSpeed } from "./speed";
-import { read, write } from "./run";
+import { currentAudit, read, write } from "./run";
 import { productFacts, type Audit } from "./types";
-import { cleanUrl, compare, guessSites, isSiteOf, pageOk, pointOf, productLinks, PUBLIC, readPage, show, sitemapLocs, theyLine, type Bench, type MeasureKey, type Rival, type SiteRead } from "./bench-rules";
+import { cleanUrl, compare, guessSites, isSiteOf, metaContent, pageOk, pointOf, productLinks, productList, PUBLIC, readPage, show, sitemapLocs, theyLine, type Bench, type MeasureKey, type ProductInfo, type Rival, type SiteRead } from "./bench-rules";
 import type { MarketReport, RivalAds } from "../research/types";
 
 /**
- * Reads the brand's competitors the way it reads the brand: opens each public site like a visitor, reads the home page, robots.txt and
- * a handful of product pages, and runs the same SEO, AI-search and speed checks. The brand's own site is read the same way here, so the
- * comparison is like for like. Every number is measured by Kaviar on the day shown — no outside estimates.
+ * Reads a brand's competitors from outside: opens each public site like a visitor, reads the home page, robots.txt and a few product
+ * pages, and applies the store's own rules to what each page shows (see bench-rules). The brand itself is not read here — its side of
+ * the comparison is its own store check, the one its Store screen shows, so the two screens can never disagree. Every number is
+ * measured by Kaviar on the day shown; nothing is an outside estimate.
  */
 const RIVALS = "rivals", BENCH = "bench";
 
-/** Up to five product pages: the ones the home page links to, else the first in the sitemap. */
-async function productPages(home: NonNullable<Got>): Promise<string[]> {
-  const found = productLinks(home.text, home.url);
-  if (found.length) return found;
-  const root = new URL(home.url).origin, map = await get(`${root}/sitemap.xml`);
+/** The product pages to read: from the store's own public product list where it has one (Shopify does), else the ones the home page links to, else the first in the sitemap. */
+async function productPages(home: NonNullable<Got>): Promise<ProductInfo[]> {
+  const root = new URL(home.url).origin, linked = productLinks(home.text, home.url, 12);
+  const list = await get(`${root}/products.json?limit=50`);
+  if (list && list.status < 400) { try { const found = productList(JSON.parse(list.text), root, linked); if (found.length) return found; } catch { /* not a Shopify store, or the list is switched off */ } }
+  const bare = (urls: string[]) => urls.slice(0, PUBLIC.pages).map((url) => ({ url, name: null, text: null, images: [] }));
+  if (linked.length) return bare(linked);
+  const map = await get(`${root}/sitemap.xml`);
   if (!map || map.status >= 400) return [];
   let locs = sitemapLocs(map.text);
   const inner = locs.find((l) => /product/i.test(l) && /\.xml/i.test(l));
   if (inner) { const m = await get(inner); locs = m && m.status < 400 ? sitemapLocs(m.text) : []; }
-  return locs.filter((l) => /\/products?\/[^/]+/i.test(l)).slice(0, PUBLIC.pages);
+  return bare(locs.filter((l) => /\/products?\/[^/]+/i.test(l)));
 }
 
 /**
@@ -50,18 +54,18 @@ export async function readSite(name: string, url: string, you: boolean): Promise
   const [home, robots] = await Promise.all([get(url), get(`${url.replace(/\/$/, "")}/robots.txt`)]);
   if (!home) return { ...base, audit: null, note: "Didn’t answer" };
   if (home.status >= 400) return { ...base, audit: null, note: [401, 403, 429, 503].includes(home.status) ? "Shut to automated readers" : "Didn’t answer" };
-  const links = await productPages(home), opened: NonNullable<Got>[] = [];
-  for (const l of links) { const p = await slowly(l); if (p?.status === 429) break; if (p && p.status < 400) opened.push(p); }
-  const seen = judge(home, robots, opened[0] ?? null), pages = opened.map((p) => readPage(p.text)), ok = pages.map(pageOk);
+  const infos = await productPages(home), opened: NonNullable<Got>[] = [], kept: ProductInfo[] = [];
+  for (const i of infos) { const p = await slowly(i.url); if (p?.status === 429) break; if (p && p.status < 400) { opened.push(p); kept.push(i); } }
+  const site0 = metaContent(home.text, "og:site_name"), seen = judge(home, robots, opened[0] ?? null), pages = opened.map((p, k) => readPage(p.text, kept[k], site0)), ok = pages.map(pageOk);
   const count = (f: (x: (typeof ok)[number]) => boolean) => ({ ok: ok.filter(f).length, total: ok.length });
-  const pictures = pages.reduce((n, p) => n + p.pictures, 0);
+  const pictures = pages.reduce((n, p) => n + (p.pictures ?? 0), 0);
   // Review stars and machine-readable price count if any of the pages read publishes them.
   const facts = opened.map((p) => productFacts(p.text));
   const site = seen.checks.map((c) => (c.key === "reviews" && c.ok === false && facts.some((f) => f.reviews) ? { ...c, ok: true, detail: "Ratings are published with the product", how: undefined }
     : c.key === "facts" && c.ok === false && facts.some((f) => f.found && f.price) ? { ...c, ok: true, detail: "Product pages publish name, price and stock in the form Google and AI read", how: undefined } : c));
   const audit: Audit = {
     at, domain: new URL(home.url).origin, products: pages.length, pictures,
-    title: count((x) => x.title), description: count((x) => x.description), alt: { ok: pages.reduce((n, p) => n + p.described, 0), total: pictures }, text: count((x) => x.text),
+    title: count((x) => x.title), description: count((x) => x.description), alt: { ok: pages.reduce((n, p) => n + (p.described ?? 0), 0), total: pictures }, text: count((x) => x.text),
     site, speed: await measureSpeed(seen.pages).catch(() => undefined),
   };
   return { ...base, url: audit.domain ?? url, audit };
@@ -87,7 +91,7 @@ async function fromResearch(brandId: string): Promise<Rival[]> {
   return out.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 5);
 }
 
-export type Compete = { rivals: Rival[]; bench: Bench | null; own: string | null };
+export type Compete = { rivals: Rival[]; bench: Bench | null; own: string | null; mine: Audit | null }; // mine: the brand's own store check, as its Store screen shows it
 async function ownSite(brandId: string): Promise<string | null> {
   const a = await read<Audit>(brandId, "store-audit");
   if (a?.domain) return a.domain;
@@ -95,8 +99,8 @@ async function ownSite(brandId: string): Promise<string | null> {
   return b?.website ? cleanUrl(b.website) : null;
 }
 export async function getCompete(brandId: string): Promise<Compete> {
-  const [list, bench, own] = await Promise.all([read<{ list?: Rival[] }>(brandId, RIVALS), read<Bench>(brandId, BENCH), ownSite(brandId)]);
-  return { rivals: list?.list ?? [], bench: bench?.at ? bench : null, own };
+  const [list, bench, own, audit] = await Promise.all([read<{ list?: Rival[] }>(brandId, RIVALS), read<Bench>(brandId, BENCH), ownSite(brandId), read<Audit>(brandId, "store-audit")]);
+  return { rivals: list?.list ?? [], bench: bench?.at ? { ...bench, sites: bench.sites.filter((s) => !s.you) } : null, own, mine: await currentAudit(brandId, audit?.at ? audit : null) };
 }
 
 /** Read the brand's site and every competitor's, and keep the result. The first time, the competitors come from Iris's research. */
@@ -104,12 +108,11 @@ export async function runBench(brand: { id: string; name: string }): Promise<{ s
   const c = await getCompete(brand.id);
   let rivals = c.rivals;
   if (!rivals.length) { rivals = await fromResearch(brand.id); if (rivals.length) await write(brand.id, RIVALS, { list: rivals }); }
-  if (!c.own) return { sites: 0, read: 0, error: "This brand has no website Kaviar can open yet" };
   if (!rivals.length) return { sites: 0, read: 0, error: "Add a competitor’s website to compare against" };
   waited = false;
-  const sites = await Promise.all([readSite(brand.name, c.own, true), ...rivals.map((r) => readSite(r.name, r.url, false))]);
+  const sites = await Promise.all(rivals.map((r) => readSite(r.name, r.url, false)));
   const b: Bench = { at: new Date().toISOString(), sites };
-  b.history = [...(c.bench?.history ?? []), pointOf(b)].slice(-26);
+  b.history = [...(c.bench?.history ?? []), pointOf(b, c.mine)].slice(-26);
   await write(brand.id, BENCH, b as unknown as Record<string, unknown>);
   return { sites: sites.length, read: sites.filter((s) => s.audit).length };
 }
@@ -124,7 +127,7 @@ export async function addRival(brandId: string, name: string, input: string): Pr
   if (!home || home.status >= 500) return { error: "That website didn’t answer" };
   const label = name.trim() || host(url).split(".")[0].replace(/^./, (x) => x.toUpperCase());
   await write(brandId, RIVALS, { list: [...c.rivals, { name: label, url, by: "team" as const }] });
-  if (c.bench && c.own) { // read just the new one, so the table fills without re-reading everyone
+  if (c.bench) { // read just the new one, so the table fills without re-reading everyone
     const one = await readSite(label, url, false);
     await write(brandId, BENCH, { ...c.bench, sites: [...c.bench.sites, one] } as unknown as Record<string, unknown>);
   }
@@ -139,9 +142,9 @@ export async function removeRival(brandId: string, url: string): Promise<void> {
 /** Where the brand is behind its competitors, for Today and the Store screen — the measures, with both numbers. */
 export type Gap = { key: MeasureKey; name: string; hint: string; you: string; they: string };
 export async function benchGaps(brandId: string): Promise<{ sites: number; measured: number; gaps: Gap[]; stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number }>> } | null> {
-  const b = await read<Bench>(brandId, BENCH);
-  if (!b?.at) return null;
-  const c = compare(b), stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number }>> = {};
+  const g = await getCompete(brandId), b = g.bench;
+  if (!b || !g.mine) return null;
+  const c = compare(b, g.mine), stands: Partial<Record<"seo" | "ai" | "speed", { verdict: "ahead" | "level" | "behind"; avg: number }>> = {};
   for (const r of c.rows) if ((r.m.key === "seo" || r.m.key === "ai" || r.m.key === "speed") && r.s.verdict && r.s.avg != null) stands[r.m.key] = { verdict: r.s.verdict, avg: r.s.avg };
   return { sites: c.rivals.filter((r) => r.audit).length, measured: c.rows.filter((r) => r.s.verdict).length, stands,
     gaps: c.rows.filter((r) => r.s.verdict === "behind").map((r) => ({ key: r.m.key, name: r.m.name, hint: r.m.hint, you: show(r.m, r.s.you), they: theyLine(r) })) };

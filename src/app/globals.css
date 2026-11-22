@@ -343,3 +343,17 @@ details > summary::-webkit-details-marker { display: none; }
 .thumb-hover .thumb-expand { display: none; }
 .thumb-hover:hover .thumb-expand { display: flex; }
 .thumb-hover:hover .thumb-play { opacity: 0; }
+
+/* ---- The board at the top of Today: one ink block, a field of small blocks, one tall block. Sizes do the work; colour only means something. */
+.bento { display: grid; gap: 10px; grid-template-columns: minmax(280px, 1.3fr) minmax(0, 2.6fr) minmax(200px, 0.85fr); align-items: stretch; }
+.bento.two { grid-template-columns: minmax(280px, 1.3fr) minmax(0, 3.2fr); }
+.bento-mid { display: grid; gap: 10px; grid-auto-rows: minmax(126px, 1fr); }
+.bt { display: flex; flex-direction: column; min-width: 0; border-radius: 18px; background: var(--sheet); box-shadow: 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow .15s ease, transform .15s ease; }
+a.bt:hover { box-shadow: 0 0 0 1px var(--line-2), 0 8px 22px rgba(18,18,18,0.08); transform: translateY(-1px); }
+.bt.tray { background: var(--tray); box-shadow: none; }
+.bt.good { background: var(--green-bg); box-shadow: none; }
+.bt.warn { background: var(--amber-bg); box-shadow: none; }
+.bt.ink { background: var(--ink); color: #fff; box-shadow: none; position: relative; overflow: clip; }
+.bt-n { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.035em; }
+@media (max-width: 1180px) { .bento, .bento.two { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } .bento.two { grid-template-columns: 1fr; } .bento .bento-mid { grid-column: 1 / -1; grid-row: 2; } }
+@media (max-width: 720px) { .bento, .bento.two { grid-template-columns: 1fr; } .bento .bento-mid { grid-row: auto; } }

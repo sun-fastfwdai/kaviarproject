@@ -10,6 +10,7 @@ import { scores, type Audit, type Fix } from "@/lib/seo/types";
 import { benchGaps } from "@/lib/seo/bench";
 import { summary } from "@/lib/queries/growth";
 import { money, num } from "@/lib/format";
+import { pctDelta, type Tile } from "@/lib/growth/trend";
 
 export const metadata = { title: "Store" };
 export const maxDuration = 300; // "Check again" reads the whole store and Cleo writes the replacements
@@ -30,11 +31,11 @@ export default async function SeoPage({ params }: PageProps<"/brands/[slug]/seo"
   // The store's last 30 days, from its own orders.
   const [s, bench] = await Promise.all([summary(brand.id, brand.timezone, 30), benchGaps(brand.id).catch(() => null)]);
   const cur = brand.currency ?? "USD", data = `${base}/shopify`;
-  const kpis = s.orders || s.prevRevenue ? [
-    { label: "Sales · 30 days", value: money(s.revenue, cur), change: s.prevRevenue > 0 ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null, href: data },
-    { label: "Orders", value: num(s.orders), change: null, href: data },
-    { label: "Average order", value: s.orders ? money(s.revenue / s.orders, cur) : "–", change: null, href: data },
-    { label: "New customers", value: num(s.newCustomers), change: null, href: `${data}?tab=customers` },
+  const kpis: Tile[] = s.orders || s.prevRevenue ? [
+    { label: "Sales · 30 days", icon: "trend-up", value: money(s.revenue, cur), delta: pctDelta(s.revenue, s.prevRevenue), href: data, hint: "From Shopify orders, after refunds — against the 30 days before" },
+    { label: "Orders", icon: "bag", value: num(s.orders), sub: "last 30 days", href: data },
+    { label: "Average order", icon: "receipt", value: s.orders ? money(s.revenue / s.orders, cur) : "–", sub: "sales ÷ orders", href: data },
+    { label: "New customers", icon: "user", value: num(s.newCustomers), sub: "first order in 30 days", href: `${data}?tab=customers` },
   ] : [];
   return (
     <>

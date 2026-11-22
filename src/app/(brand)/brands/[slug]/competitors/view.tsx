@@ -17,6 +17,7 @@ type Site = { name: string; url: string; read: boolean; note: string | null };
 type RowT = Measure & { you: number | null; each: (number | null)[] };
 type Props = {
   slug: string; brand: string; own: string | null; rivals: Rival[]; checked: string | null; you: Site | null; sites: Site[]; rows: RowT[];
+  basis: string | null; storeHref: string; // basis: who was read how, for the tooltip
   ads: (RivalAdLine & { library: string })[]; ownAds: { ads: number; new30: number }; adsHref: string; angles: { name: string; share: number; example: string }[];
 };
 const DIM = "rgba(255,255,255,.55)";
@@ -44,7 +45,7 @@ function Pair({ label, pill, you, they, theyName, max, hint }: { label: string; 
   );
 }
 
-export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, angles }: Props) {
+export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, angles, basis, storeHref }: Props) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -93,7 +94,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                   {sites.map((s, i) => <option key={s.url} value={i} disabled={!s.read} style={{ color: "#121212" }}>{s.name}</option>)}
                 </select>
               </label>}
-              {own && <button type="button" disabled={busy} onClick={() => go("read", () => readRivals(slug))} className="row g6" style={pill(!checked)}>{doing === "read" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}{doing === "read" ? "Reading the sites… about 2 minutes" : checked ? "Read again" : "Read my competitors"}</button>}
+              {(own || rivals.length > 0) && <button type="button" disabled={busy} onClick={() => go("read", () => readRivals(slug))} className="row g6" style={pill(!checked)}>{doing === "read" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}{doing === "read" ? "Reading the sites… about 2 minutes" : checked ? "Read again" : "Read my competitors"}</button>}
             </div>
           </div>
           {checked && readN > 0 && <div style={{ position: "relative", marginTop: 22, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
@@ -107,7 +108,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
         {/* ---- every site, side by side */}
         <div className="card" style={{ padding: "14px 16px 10px" }}>
           <div className="row between g12">
-            <span className="h3">Site by site</span>
+            <span className="h3 row g6" title={basis ?? undefined}>Site by site{basis && <Icon name="info" size={13} color="#8B8883" />}</span>
             {!adding && <button type="button" className="btn sm" onClick={() => setAdding(true)}><Icon name="plus" size={12} />Add competitor</button>}
           </div>
           {adding && <div className="row g8" style={{ flexWrap: "wrap", paddingTop: 12 }}>
@@ -129,7 +130,8 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                     <div key={s.url + i} style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "10px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: s.me ? "var(--tray)" : ri === one && one >= 0 ? "#F6F7FE" : undefined, borderRadius: s.me ? 10 : 0 }}>
                       <span className="col" style={{ minWidth: 0 }}>
                         <span className="sm w5 ell">{s.me ? `You · ${brand}` : s.name}</span>
-                        <a className="xs i3 lnk ell" href={s.url} target="_blank" rel="noreferrer">{host(s.url)}{!s.read && s.note ? ` · ${s.note}` : ""}</a>
+                        {s.me && !s.read ? <Link className="xs lnk" style={{ color: "#B4532A" }} href={storeHref}>{s.note} →</Link>
+                          : <a className="xs i3 lnk ell" href={s.url} target="_blank" rel="noreferrer">{host(s.url)}{!s.read && s.note ? ` · ${s.note}` : ""}</a>}
                       </span>
                       {TABLE.map((k) => { const m = table.find((x) => x.key === k); if (!m) return <span key={k} className="sm i3" style={{ textAlign: "center" }}>–</span>;
                         const v = s.me ? m.you : ri >= 0 ? m.each[ri] ?? null : null, vals = [m.you, ...m.each].filter((x): x is number => x != null);

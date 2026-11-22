@@ -16,7 +16,7 @@ export default async function CampaignsPage({ params }: PageProps<"/brands/[slug
     library({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }, slug),
   ]);
   const ADS = ["Review", "Test", "Launch", "Decide", "Create", "Improve"], mine = [...t.actions, ...t.later].filter((a) => ADS.includes(a.group));
-  const money = t.status.filter((k) => ["Ad spend", "Back per $1 of ads", "Profit after ads"].includes(k.label));
+  const money = t.status.filter((k) => ["Ad spend", "Back per $1", "Profit after ads"].includes(k.label));
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Campaigns" }]} />

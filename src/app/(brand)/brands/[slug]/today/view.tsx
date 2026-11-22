@@ -8,7 +8,8 @@ import type { Action, Today } from "@/lib/growth/today";
 import { MODES, type Mode } from "@/lib/growth/pilot";
 import { approvePlan } from "../plan/actions";
 import { checkNow, setMode } from "../optimize/actions";
-import { ActionCard, GROUP_TONE as TONE, StatTile } from "./action-card";
+import { Bento } from "@/components/bento";
+import { ActionCard, GROUP_TONE as TONE } from "./action-card";
 
 /**
  * Today, as a dashboard. Top: the last 30 days in a few numbers, each with its change and its line. Then what is ready for action —
@@ -32,12 +33,12 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
-        {/* ---- how the store is doing: the last 30 days against the 30 before; each number opens where it comes from */}
-        {t.status.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 12 }}>{t.status.map((k) => <StatTile key={k.label} k={k} />)}</div>}
+        {/* ---- the board: the month in blocks — sales, the numbers around it, campaigns, customers, stock and the store's score */}
+        <Bento tiles={t.status} />
 
         {/* ---- ready for action: each decision with its evidence and one button */}
         {total > 0 ? <div className="col g10">
-          <div className="row g8"><Icon name="sparkle" size={15} weight="fill" /><span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Ready for action</span><span className="tnum" style={{ height: 20, minWidth: 20, padding: "0 6px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, lineHeight: "20px", textAlign: "center", background: "var(--tray-2)" }}>{total}</span></div>
+          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Ready for action · {total}</span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{t.actions.map((a, i) => <ActionCard key={a.key} slug={slug} a={a} n={i + 1} primary={i === 0} />)}</div>
           {t.later.length > 0 && <div className="card" style={{ padding: "0 16px" }}>
             {more && t.later.map((a, i) => (
@@ -134,15 +135,6 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
             : <Link href={`${base}/performance#autopilot`} className="btn quiet sm">Nothing to decide<Icon name="arrow-r" size={11} /></Link>}
         </div>
 
-        {/* ---- the rest of the business, a line each */}
-        {t.foot.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-          {t.foot.map((f) => (
-            <Link key={f.label} href={f.href} className="col g4 hv" style={{ padding: "14px 16px", borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)", minWidth: 0 }}>
-              <span className="row between"><span style={{ fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-2)" }}>{f.label}</span><Icon name="arrow-r" size={12} color="#8B8883" /></span>
-              <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 700, letterSpacing: "-0.02em" }}>{f.value}</span><span className="sm i2 ell">{f.unit}</span></span>
-              <span className="xs i3 ell">{f.sub}</span>
-            </Link>))}
-        </div>}
       </div>
     </div>
   );

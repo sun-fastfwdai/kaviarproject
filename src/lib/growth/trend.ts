@@ -4,7 +4,15 @@
  */
 export type Day = { day: string; revenue: number; orders: number; meta: number; fresh: number; spend: number };
 export type Delta = { text: string; dir: "up" | "down" | "flat"; good: boolean | null }; // good: null when more is neither better nor worse (ad spend)
-export type Tile = { label: string; value: string; delta?: Delta; href: string; spark?: number[]; hint?: string; tag?: { text: string; tone: "good" | "bad" | "flat" }; meter?: number };
+/**
+ * One block of the board at the top of Today. `kind` picks its place: the hero (sales, with the big chart), the score (the tall one with
+ * the ring), or an ordinary block. Colour is never decoration: `tone` tints a block only when its state is good news or needs attention.
+ */
+export type Tile = {
+  label: string; value: string; unit?: string; sub?: string; delta?: Delta; href: string; hint?: string;
+  spark?: number[]; chart?: "line" | "bars"; icon?: string; kind?: "hero" | "score"; tone?: "good" | "warn";
+  tag?: { text: string; tone: "good" | "bad" | "flat" }; meter?: number; parts?: { label: string; value: string }[];
+};
 
 type K = "revenue" | "orders" | "meta" | "fresh" | "spend";
 export const sumOf = (d: Day[], k: K) => d.reduce((n, x) => n + x[k], 0);

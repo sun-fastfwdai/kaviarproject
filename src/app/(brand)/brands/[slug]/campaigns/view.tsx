@@ -5,7 +5,8 @@ import { Icon } from "@/components/icon";
 import type { Action, Tile } from "@/lib/growth/today";
 import { LIB_STATUS, type LibRow, type LibStatus } from "@/lib/growth/library";
 import { makeAds } from "../plan/actions";
-import { ActionCard, StatTile } from "../today/action-card";
+import { StatTile } from "@/components/bento";
+import { ActionCard } from "../today/action-card";
 
 /**
  * Campaigns. Top: what is live and what is waiting, as numbers. Then the two things that need the brand, each with its ads and its
@@ -14,15 +15,6 @@ import { ActionCard, StatTile } from "../today/action-card";
 type Props = { slug: string; currency: string; lib: { rows: LibRow[]; live: number; toReview: number; drafts: number }; actions: Action[]; more: number; tiles: Tile[]; hasMeta: boolean };
 const TONE: Record<LibStatus, [string, string]> = { live: ["#E4F4EB", "#1F7A52"], ready: ["#E4F4EB", "#1F7A52"], test: ["#FBEFE3", "#B4632A"], review: ["#E3F3F8", "#14788F"], planned: ["var(--tray-2)", "var(--ink-2)"], paused: ["var(--tray-2)", "var(--ink-3)"] };
 const COLS = "minmax(240px, 2.4fr) 132px repeat(3, minmax(84px, 1fr)) 132px";
-
-function Count({ label, value, hint, href }: { label: string; value: string; hint: string; href: string }) {
-  return (
-    <Link href={href} title={hint} className="col hv" style={{ padding: "14px 16px", gap: 2, borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", minWidth: 0, justifyContent: "center" }}>
-      <span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>{label}</span>
-      <span className="tnum" style={{ fontSize: 30, lineHeight: "38px", fontWeight: 700, letterSpacing: "-0.035em" }}>{value}</span>
-    </Link>
-  );
-}
 
 export function CampaignsView({ slug, currency, lib, actions, more, tiles, hasMeta }: Props) {
   const base = `/brands/${slug}`;
@@ -38,14 +30,14 @@ export function CampaignsView({ slug, currency, lib, actions, more, tiles, hasMe
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 12 }}>
-          <Count label="Live campaigns" value={String(lib.live)} hint="Running on Meta now" href={`${base}/performance`} />
-          <Count label="Ads to review" value={String(lib.toReview)} hint="Written by Remy, waiting for your yes or no" href={`${base}/creative?tab=ads`} />
-          {tiles.length > 0 ? tiles.map((k) => <StatTile key={k.label} k={k} />) : <Count label="In the making" value={String(lib.drafts)} hint="Planned, or with ads written, not yet on Meta" href={`${base}/plan`} />}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+          <StatTile k={{ label: "Live campaigns", icon: "megaphone", value: String(lib.live), sub: "running on Meta now", href: `${base}/performance` }} />
+          <StatTile tray k={{ label: "Ads to review", icon: "eye", value: String(lib.toReview), sub: "written by Remy, waiting for you", href: `${base}/creative?tab=ads`, ...(lib.toReview ? {} : {}) }} />
+          {tiles.length > 0 ? tiles.map((k, i) => <StatTile key={k.label} k={k} tray={i % 2 === 1} />) : <StatTile k={{ label: "In the making", icon: "pen", value: String(lib.drafts), sub: "planned or written, not yet on Meta", href: `${base}/plan` }} />}
         </div>
 
         {actions.length > 0 && <div className="col g10">
-          <div className="row between"><span className="row g8"><Icon name="sparkle" size={15} weight="fill" /><span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Waiting for you</span></span>{more > 0 && <Link className="lnk xs i3 row g4" href={`${base}/today`}>{more} more on Today<Icon name="arrow-r" size={11} /></Link>}</div>
+          <div className="row between"><span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Waiting for you</span>{more > 0 && <Link className="lnk xs i3 row g4" href={`${base}/today`}>{more} more on Today<Icon name="arrow-r" size={11} /></Link>}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{actions.map((a, i) => <ActionCard key={a.key} slug={slug} a={a} n={i + 1} primary={i === 0} />)}</div>
         </div>}
 

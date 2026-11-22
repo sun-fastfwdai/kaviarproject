@@ -24,13 +24,15 @@ export default async function CompetitorsPage({ params }: PageProps<"/brands/[sl
       .then((r) => (r.rows as { ads: number; new30: number }[])[0] ?? { ads: 0, new30: 0 }),
     db.select({ adsRead: R.adsRead }).from(R).where(and(eq(R.brandId, brand.id), sql`${R.adsRead} is not null`)).orderBy(desc(R.updatedAt)).limit(1).then((r) => (r[0]?.adsRead as AdsRead | undefined) ?? null),
   ]);
-  const cmp = c.bench ? compare(c.bench) : null, site = (x: { name: string; url: string; audit: unknown; note?: string }) => ({ name: x.name, url: x.url, read: Boolean(x.audit), note: x.note ?? null });
+  // The brand's side is its own store check — the numbers on its Store screen — so the two screens always agree.
+  const cmp = c.bench ? compare(c.bench, c.mine) : null, site = (x: { name: string; url: string; audit: unknown; note?: string }) => ({ name: x.name, url: x.url, read: Boolean(x.audit), note: x.note ?? null });
   const research = `/brands/${slug}/research?tab=ads${ads.subject != null ? `&product=${encodeURIComponent(ads.subject)}&market=${ads.market}` : ""}`;
   return (
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Market" }, { label: "Competitors" }]} />
       <CompetitorsView slug={slug} brand={brand.name} own={c.own} rivals={c.rivals} checked={c.bench ? ago(new Date(c.bench.at)) : null}
-        you={cmp?.you ? site(cmp.you) : null} sites={(cmp?.rivals ?? []).map(site)}
+        you={c.bench ? { name: brand.name, url: c.mine?.domain ?? c.own ?? "", read: Boolean(c.mine), note: c.mine ? null : "Check your store first" } : null} sites={(cmp?.rivals ?? []).map(site)}
+        basis={c.mine ? `You: all ${c.mine.products} products, read through Shopify. Competitors: up to 3 product pages each, read from outside. Same rules for everyone.` : null} storeHref={`/brands/${slug}/seo`}
         rows={(cmp?.rows ?? []).map((r) => ({ ...r.m, you: r.s.you, each: r.each }))}
         ads={ads.rows.map((a) => ({ ...a, library: adLibraryUrl({ q: a.name, country: ads.market ?? "US" }) }))} ownAds={own} adsHref={research}
         angles={(read?.angles ?? []).slice(0, 5).map((a) => ({ name: a.name, share: Math.round(a.share), example: a.example }))} />

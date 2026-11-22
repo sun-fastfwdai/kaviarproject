@@ -4,51 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
-import type { Action, Tile, Viz } from "@/lib/growth/today";
+import type { Action, Viz } from "@/lib/growth/today";
 import { makeAds } from "../plan/actions";
 import { fix } from "../seo/actions";
 
 /**
- * The pieces Today and Campaigns share: a number tile with its change and its line, and an action card — one decision, the evidence for
- * it as a picture (the ads, stock against restock time, you against competitors), and one button that does it here where it can.
+ * The action card Today and Campaigns share: one decision, the evidence for it as a picture (the ads, stock against restock time, you
+ * against competitors), and one button that does it here where it can.
  */
 export const GROUP_TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
 const WHO = { analyst: "Iris", builder: "Remy", qa: "Otto", catalog: "Cleo" } as const;
-const GOOD = "#1F8A5B", BAD = "#C9705A", FLAT = "#8B8883";
-
-/** Thirty days as a line with the last day marked — the shape, not the numbers. */
-function Spark({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data), min = Math.min(...data, 0), h = 44, span = max - min;
-  if (data.length < 2 || span <= 0) return <div style={{ height: h, borderTop: "1px dashed var(--line)", marginTop: 0 }} />;
-  const y = (v: number) => 4 + (1 - (v - min) / span) * (h - 9), pts = data.map((v, i) => `${((i / (data.length - 1)) * 100).toFixed(2)},${y(v).toFixed(1)}`).join(" "), id = `g${color.replace("#", "")}`;
-  return (
-    <div style={{ position: "relative", height: h, marginRight: 9 }} aria-hidden>
-      <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
-        <defs><linearGradient id={id} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".22" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
-        <polygon points={`0,${h} ${pts} 100,${h}`} fill={`url(#${id})`} />
-        <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <span style={{ position: "absolute", right: -4, top: y(data.at(-1)!) - 4, width: 8, height: 8, borderRadius: 99, background: color, boxShadow: "0 0 0 2.5px #fff" }} />
-    </div>
-  );
-}
-
-export function StatTile({ k }: { k: Tile }) {
-  const d = k.delta, tone = !d || d.good == null ? FLAT : d.good ? GOOD : BAD, line = !d || d.good == null ? "#6B6862" : d.good ? GOOD : BAD;
-  const TAG = { good: ["#E4F4EB", "#1F7A52"], bad: ["#FBEDE6", "#B4532A"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
-  return (
-    <Link href={k.href} title={k.hint} className="col hv" style={{ borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", minWidth: 0, overflow: "hidden" }}>
-      <div className="col" style={{ padding: "14px 16px 10px", gap: 2 }}>
-        <span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>{k.label}</span>
-        <span className="tnum ell" style={{ fontSize: 30, lineHeight: "38px", fontWeight: 700, letterSpacing: "-0.035em" }}>{k.value}</span>
-        {k.tag ? <span style={{ alignSelf: "flex-start", height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "20px", background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>
-          : <span className="row g4 tnum" style={{ fontSize: 12, height: 20 }}>{d ? <><b style={{ color: tone, fontWeight: 600 }}>{d.dir === "up" ? "↗" : d.dir === "down" ? "↘" : "→"} {d.text}</b><span className="i3">vs prior</span></> : <span className="i3">last 30 days</span>}</span>}
-      </div>
-      {k.meter != null ? <div style={{ padding: "0 16px", height: 44, display: "flex", alignItems: "center" }}><span style={{ flex: 1, height: 8, borderRadius: 99, background: "var(--tray-2)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(2, Math.min(100, k.meter))}%`, borderRadius: 99, background: k.meter >= 90 ? "#34C77B" : k.meter >= 50 ? "#E9B949" : "#FF8A5C" }} /></span></div>
-        : <Spark data={k.spark ?? []} color={k.spark?.length ? line : FLAT} />}
-    </Link>
-  );
-}
 
 export function VizView({ v }: { v: Viz }) {
   if (v.kind === "bars") { const max = Math.max(...v.rows.map((r) => r.value), 1); return (

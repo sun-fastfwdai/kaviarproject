@@ -30,10 +30,8 @@ export type Viz =
   | { kind: "flow"; from: string; fromLabel: string; to: string; toLabel: string } // money in → money back, or before → after
   | { kind: "pair"; a: { label: string; value: string }; b: { label: string; value: string } } // you against them
   | { kind: "counts"; items: { label: string; n: number }[] };
-/** A line under Today: one part of the business in a number, opening that part. */
-export type Foot = { label: string; value: string; unit: string; sub: string; href: string };
 export type Today = {
-  status: Tile[]; foot: Foot[]; // the last 30 days against the 30 before; then ads, customers and stock in a line each
+  status: Tile[]; // the board: the last 30 days against the 30 before, then campaigns, customers, stock and the store's score — a block each
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
@@ -152,36 +150,38 @@ export async function today(brand: { id: string; currency: string | null; timezo
   const sorted = [...a].sort((x, y) => rank(x) - rank(y));
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
   const sells = p.rows[0]?.c.product ?? null;
-  // The store's status: the last 30 days against the 30 before, each number with its line.
+  // The board: the last 30 days against the 30 before, then campaigns, customers and stock, and the store's score.
   const status: Tile[] = [], { prev, cur } = halves(byDay), N = cur.length, t = (k: Parameters<typeof sumOf>[1]) => [sumOf(cur, k), sumOf(prev, k)] as const;
   const [rev, rev0] = t("revenue"), [ord, ord0] = t("orders"), [sp, sp0] = t("spend"), [meta, meta0] = t("meta"), [fresh, fresh0] = t("fresh");
   if (ord || ord0) {
     status.push(
-      { label: "Sales", value: usd(rev), delta: pctDelta(rev, rev0), href: `${base}/shopify`, spark: cur.map((x) => x.revenue), hint: "From Shopify orders, after refunds — last 30 days against the 30 before" },
-      { label: "Orders", value: ord.toLocaleString("en-US"), delta: pctDelta(ord, ord0), href: `${base}/shopify`, spark: cur.map((x) => x.orders), hint: "Paid orders, last 30 days" },
-      { label: "Average order", value: ord ? usd(rev / ord) : "–", delta: ord && ord0 ? pctDelta(rev / ord, rev0 / ord0) : undefined, href: `${base}/shopify`, spark: rolling(byDay, "revenue", "orders", N), hint: "Sales ÷ orders. The line is each week’s average." });
+      { kind: "hero", label: "Sales · last 30 days", value: usd(rev), delta: pctDelta(rev, rev0), href: `${base}/shopify`, spark: cur.map((x) => x.revenue), hint: "From Shopify orders, after refunds — against the 30 days before" },
+      { label: "Orders", icon: "bag", value: ord.toLocaleString("en-US"), delta: pctDelta(ord, ord0), href: `${base}/shopify`, spark: cur.map((x) => x.orders), chart: "bars", hint: "Paid orders, last 30 days" },
+      { label: "Average order", icon: "receipt", value: ord ? usd(rev / ord) : "–", delta: ord && ord0 ? pctDelta(rev / ord, rev0 / ord0) : undefined, href: `${base}/shopify`, spark: rolling(byDay, "revenue", "orders", N), hint: "Sales ÷ orders. The line is each week’s average." });
     if (sp > 0) {
       const margin = d.margin.from === "none" ? null : d.margin.value;
-      if (margin != null) status.push({ label: "Profit after ads", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
       status.push(
-        { label: "Ad spend", value: usd(sp), delta: pctDelta(sp, sp0, null), href: `${base}/performance`, spark: cur.map((x) => x.spend), hint: "What Meta charged, last 30 days" },
-        { label: "Back per $1 of ads", value: `${(meta / sp).toFixed(2)}×`, delta: sp0 > 0 && meta0 > 0 ? pctDelta(meta / sp, meta0 / sp0) : undefined, href: `${base}/performance`, spark: rolling(byDay, "meta", "spend", N), hint: "Shopify sales that came from Meta ads ÷ Meta spend" });
-    } else status.push({ label: "New customers", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), hint: "People whose first order was in the last 30 days" });
+        { label: "Ad spend", icon: "megaphone", value: usd(sp), delta: pctDelta(sp, sp0, null), href: `${base}/performance`, spark: cur.map((x) => x.spend), chart: "bars", hint: "What Meta charged, last 30 days" },
+        { label: "Back per $1", icon: "trend-up", value: `${(meta / sp).toFixed(2)}×`, delta: sp0 > 0 && meta0 > 0 ? pctDelta(meta / sp, meta0 / sp0) : undefined, href: `${base}/performance`, spark: rolling(byDay, "meta", "spend", N), hint: "Shopify sales that came from Meta ads ÷ Meta spend" });
+      if (margin != null) status.push({ label: "Profit after ads", icon: "chart-bar", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
+    } else status.push({ label: "New customers", icon: "user", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), chart: "bars", hint: "People whose first order was in the last 30 days" });
   }
+  const waitingAds = batches.reduce((k, x) => k + x.review, 0);
+  if (conns.meta || batches.length) status.push({ label: "Campaigns", icon: "megaphone", href: `${base}/campaigns`, hint: "Everything about your ads, in one place",
+    ...(waitingAds ? { value: String(waitingAds), unit: "to review" } : { value: String(watched.campaigns), unit: "live" }),
+    sub: [waitingAds ? `${watched.campaigns} live` : null, changes.length ? `${changes.length} to decide` : null].filter(Boolean).join(" · ") || (watched.campaigns ? `${watched.ads} ads running` : "None running yet") });
+  if (sum && sum.customerOrders > 0) status.push({ label: "Customers", icon: "users", value: `${Math.round((sum.returningOrders / sum.customerOrders) * 100)}%`, unit: "returning", sub: `${sum.newCustomers.toLocaleString("en-US")} new`, href: `${base}/shopify?tab=customers`, hint: "Share of orders from people who had bought before" });
+  if (stock?.rows.length) { const need = stock.totals.soon + stock.totals.reorder; status.push({ label: "Inventory", icon: "box", value: String(need), unit: "to reorder", href: `${base}/inventory`, ...(stock.totals.soon ? { tone: "warn" as const } : {}),
+    sub: stock.totals.soon ? `${stock.totals.soon} run${stock.totals.soon === 1 ? "s" : ""} out first` : `${stock.totals.over} overstocked`, hint: `Forecast from the last 30 days of orders, against a ${stock.leadDays}-day restock` }); }
   if (audit) {
     // One word on where it stands, naming the score: behind comes first, because that is the one to act on.
     const NAME = { seo: "SEO", ai: "AI search", speed: "speed" } as const, st = Object.entries(bench?.stands ?? {}) as [keyof typeof NAME, { verdict: string }][], sc = scores(audit);
     const at = (v: string) => st.find(([, x]) => x.verdict === v)?.[0];
-    status.push({ label: "Store score", value: String(sc.overall), meter: sc.overall, href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
+    status.push({ kind: "score", label: "Store score", value: String(sc.overall), meter: sc.overall, href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
+      parts: [{ label: "SEO", value: String(sc.seo) }, { label: "AI search", value: String(sc.ai) }, { label: "Speed", value: sc.speed != null ? String(sc.speed) : sc.speedChecks.total ? `${sc.speedChecks.ok}/${sc.speedChecks.total}` : "–" }],
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
-  // Under the actions: ads, customers and stock, a line each.
-  const foot: Foot[] = [], waitingAds = batches.reduce((k, x) => k + x.review, 0);
-  if (conns.meta || batches.length) foot.push({ label: "Campaigns", value: sp > 0 ? usd(sp) : String(watched.campaigns), unit: sp > 0 ? "spent in 30 days" : `live campaign${watched.campaigns === 1 ? "" : "s"}`,
-    sub: [sp > 0 ? `${watched.campaigns} live` : null, waitingAds ? `${waitingAds} ads to review` : null, changes.length ? `${changes.length} change${changes.length === 1 ? "" : "s"} to decide` : null].filter(Boolean).join(" · ") || "Nothing waiting", href: `${base}/campaigns` });
-  if (sum && sum.customerOrders > 0) foot.push({ label: "Customers", value: `${Math.round((sum.returningOrders / sum.customerOrders) * 100)}%`, unit: "of orders from returning buyers", sub: `${sum.newCustomers.toLocaleString("en-US")} new in 30 days`, href: `${base}/shopify?tab=customers` });
-  if (stock?.rows.length) foot.push({ label: "Inventory", value: String(stock.totals.soon + stock.totals.reorder), unit: "to reorder", sub: `${stock.totals.over} overstocked${stock.totals.atCost && stock.totals.tied ? ` · ${usd(stock.totals.tied)} sitting` : stock.totals.units ? ` · ${stock.totals.units.toLocaleString("en-US")} units sitting` : ""}`, href: `${base}/inventory` });
-  return { status, foot, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
+  return { status, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
