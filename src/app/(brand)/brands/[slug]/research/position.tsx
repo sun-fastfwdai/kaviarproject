@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { rerun, savePositioning } from "./actions";
-import { Figures, From, Line, Section, Tone } from "./bits";
+import { Figures, From, Tone } from "./bits";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { DataSource, Positioning } from "@/lib/research/types";
@@ -21,6 +21,24 @@ function Statement({ text }: { text: string }) {
   return <>{c("For ")}{k(buyer)}{c(" who ")}{k(need)}{c(", ")}{k(product)}{c(` is ${art ?? ""}`)}{k(category)}{c(" that ")}{k(benefit)}{c(", unlike ")}{k(alt)}{c(".")}</>;
 }
 
+function Block({ title, n, children }: { title: string; n: number; children: React.ReactNode }) {
+  return (
+    <div className="col" style={{ padding: "13px 15px 8px", borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)", minWidth: 0 }}>
+      <span className="row between" style={{ paddingBottom: 4 }}><span className="sm w5">{title}</span><span className="xs i3 tnum">{n}</span></span>
+      {children}
+    </div>
+  );
+}
+function Row({ children, right, tip, icon }: { children: React.ReactNode; right?: React.ReactNode; tip?: string; icon?: "blocked" | "lightning" }) {
+  return (
+    <div className="row top g8 sm" title={tip} style={{ padding: "8px 0", borderTop: "1px solid var(--line)", lineHeight: "19px" }}>
+      {icon && <Icon name={icon} size={13} color={icon === "blocked" ? "#8B8883" : "#B7791F"} style={{ marginTop: 3 }} />}
+      <span className="fill" style={{ minWidth: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{children}</span>
+      {right}{tip && <Icon name="info" size={12} color="#B5B2AC" style={{ marginTop: 3 }} />}
+    </div>
+  );
+}
+
 const STANCE: Record<string, string> = { value: "Value", "accessible premium": "Accessible premium", premium: "Premium" };
 
 /** The product's positioning — built by Iris from the store, live ads, the research and competitors' ads. Every agent writes from it. */
@@ -36,7 +54,7 @@ export function PositionTab({ slug, id, pos, running }: { slug: string; id: stri
 
   if (!pos) return (
     <div className="col g10" style={{ padding: "18px 0" }}>
-      <span className="sm i2" style={{ maxWidth: 560, lineHeight: "20px" }}>No positioning yet. Iris writes it from the market research, competitors’ ads, the store’s own numbers and what live ads show — then every agent writes from it.</span>
+      <span className="sm i2">No positioning yet.</span>
       <button type="button" className="btn sm dark" style={{ alignSelf: "flex-start" }} disabled={busy || running} onClick={again}><AgentFace kind="analyst" size={14} />Position the product</button>
       {err && <span className="xs c-amber">{err}</span>}
     </div>
@@ -46,9 +64,9 @@ export function PositionTab({ slug, id, pos, running }: { slug: string; id: stri
   const fromText = from.map((s) => ({ shopify: "Shopify", meta: "Meta ads", research: "the research", ads: "competitors’ ads", brand: "the brand profile" })[s]).join(", ").replace(/, ([^,]*)$/, " and $1");
 
   return (
-    <div className="col" style={{ gap: 28 }}>
+    <div className="col g16">
       {/* The statement: one sentence the whole team and every agent works from. */}
-      <div className="col g12">
+      <div className="col g12" style={{ padding: "18px 20px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
         <div className="row g8">
           <AgentFace kind="analyst" size={18} />
           <span className="xs i3 fill">{pos.edited ? "Edited by the team" : `Written by Iris from ${fromText}`}</span>
@@ -66,57 +84,55 @@ export function PositionTab({ slug, id, pos, running }: { slug: string; id: stri
             </>
           ) : accepted
             ? <button type="button" className="btn sm" disabled={busy} onClick={() => save({ status: null })}>Stop using it</button>
-            : <button type="button" className="btn sm dark" disabled={busy} onClick={() => save({ status: "accepted" })}><Icon name="check" size={12} color="#fff" />Use this positioning</button>}
+            : <button type="button" className="btn sm dark" disabled={busy} title="Remy then writes every ad, photo prompt, storyboard and casting from it" onClick={() => save({ status: "accepted" })}><Icon name="check" size={12} color="#fff" />Use this positioning</button>}
           {!edit && <button type="button" className="btn sm quiet" disabled={busy || running} onClick={again}>{running ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Write it again</button>}
           {err && <span className="xs c-amber">{err}</span>}
-          <span className="fill" />
-          <span className="xs i3">Remy writes every ad, photo prompt, storyboard and casting from this.</span>
         </div>
       </div>
 
-      <Section title="The brief" right="what every agent writes from">
-        <Line label="Primary buyer"><span className="w5">{pos.primary}</span></Line>
-        {pos.secondary.length > 0 && <Line label="Then test">{pos.secondary.join(" · ")}</Line>}
-        <Line label="Price" sub={pos.price.note}><span className="w5">{STANCE[pos.price.stance] ?? pos.price.stance}</span></Line>
-        <Line label="Say">{pos.voice.say.join(" · ")}</Line>
-        <Line label="Don’t say"><span className="i2">{pos.voice.avoid.join(" · ")}</span></Line>
-      </Section>
-
-      <Section title="Message pillars" right={`${pos.pillars.length} · what every ad says, and the proof behind it`}>
-        {(edit ? pillars : pos.pillars).map((p, i) => (
-          <Line key={p.id} label={<span className="row top g8"><span className="tnum i3" style={{ width: 12 }}>{i + 1}</span><span className="w5 i1">{p.title}</span></span>} labelW={190}
-            sub={<><span className="i2 w5">Proof</span> <Figures text={p.proof} /></>} from={<From s={p.source} />}>
-            {edit
-              ? <textarea value={p.message} rows={2} maxLength={160} aria-label={`Pillar ${i + 1} message`} className="input" onChange={(e) => setPillars((xs) => xs.map((x) => (x.id === p.id ? { ...x, message: e.target.value } : x)))} style={{ width: "100%", height: "auto", padding: 8, lineHeight: "19px", resize: "vertical" }} />
-              : <>“{p.message}”</>}
-          </Line>
-        ))}
-      </Section>
-
-      <div className="row top" style={{ gap: 28, flexWrap: "wrap" }}>
-        <div className="fill" style={{ minWidth: 340 }}>
-          <Section title="Proof the ads can use" right={`${pos.proof.length} facts`}>
-            {pos.proof.map((p, i) => <Line key={i} from={<From s={p.source} />}><Figures text={p.fact} /></Line>)}
-          </Section>
+      {/* The brief, as blocks: who, at what price, the words to use and the words to leave out. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+        <div className="col g4" style={{ padding: "13px 15px", borderRadius: 16, background: "#121212", color: "#fff" }}>
+          <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "rgba(255,255,255,.6)" }}>Sell to</span>
+          <span style={{ fontSize: 18, lineHeight: "24px", fontWeight: 600, letterSpacing: "-0.01em" }}>{pos.primary}</span>
+          {pos.secondary.length > 0 && <div className="row g4" style={{ flexWrap: "wrap", marginTop: "auto", paddingTop: 8 }}>{pos.secondary.map((x) => <span key={x} title="Test after the first group" style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, lineHeight: "22px", background: "rgba(255,255,255,.12)" }}>{x}</span>)}</div>}
         </div>
-        <div className="fill" style={{ minWidth: 300 }}>
-          <Section title="Where to lead" right={`${pos.where.length} placements`}>
-            {pos.where.map((w) => <Line key={w.placement} sub={<Figures text={w.why} />}><span className="w5">{w.placement}</span></Line>)}
-          </Section>
+        <div className="col g4" title={pos.price.note} style={{ padding: "13px 15px", borderRadius: 16, background: "var(--tray)" }}>
+          <span className="xs i3">Price</span>
+          <span style={{ fontSize: 18, lineHeight: "24px", fontWeight: 600, letterSpacing: "-0.01em" }}>{STANCE[pos.price.stance] ?? pos.price.stance}</span>
+          <span className="xs i3" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}><Figures text={pos.price.note} /></span>
+        </div>
+        <div className="col g6" style={{ padding: "13px 15px", borderRadius: 16, background: "var(--green-bg)" }}>
+          <span className="xs" style={{ color: "var(--green)", fontWeight: 500 }}>Say</span>
+          <div className="row g4" style={{ flexWrap: "wrap" }}>{pos.voice.say.map((x) => <span key={x} className="xs" style={{ padding: "3px 9px", borderRadius: 99, background: "#fff", color: "var(--ink)" }}>{x}</span>)}</div>
+        </div>
+        <div className="col g6" style={{ padding: "13px 15px", borderRadius: 16, background: "var(--tray)" }}>
+          <span className="xs i3" style={{ fontWeight: 500 }}>Don’t say</span>
+          <div className="row g4" style={{ flexWrap: "wrap" }}>{pos.voice.avoid.map((x) => <span key={x} className="xs i2" style={{ padding: "3px 9px", borderRadius: 99, background: "#fff", textDecoration: "line-through" }}>{x}</span>)}</div>
         </div>
       </div>
 
-      <div className="row top" style={{ gap: 28, flexWrap: "wrap" }}>
-        <div className="fill" style={{ minWidth: 340 }}>
-          <Section title="Stay away from" right="overused, or against Meta’s ad rules">
-            {pos.avoid.map((x) => <Line key={x}><Figures text={x} /></Line>)}
-          </Section>
+      {/* The pillars: what every ad says, each with the proof behind it. */}
+      <div className="col g8">
+        <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>What every ad says</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
+          {(edit ? pillars : pos.pillars).map((p, i) => (
+            <div key={p.id} className="col g8" style={{ padding: "14px 16px", borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+              <span className="row between g8"><span className="row g8" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}><span className="tnum i3">{String(i + 1).padStart(2, "0")}</span><span>{p.title}</span></span><From s={p.source} /></span>
+              {edit
+                ? <textarea value={p.message} rows={3} maxLength={160} aria-label={`Pillar ${i + 1} message`} className="input" onChange={(e) => setPillars((xs) => xs.map((x) => (x.id === p.id ? { ...x, message: e.target.value } : x)))} style={{ width: "100%", height: "auto", padding: 8, lineHeight: "19px", resize: "vertical" }} />
+                : <span style={{ fontSize: 16, lineHeight: "23px", fontWeight: 500, letterSpacing: "-0.01em" }}>“{p.message}”</span>}
+              <span className="xs i3" title={p.proof} style={{ marginTop: "auto", paddingTop: 8, borderTop: "1px solid var(--line)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}><Figures text={p.proof} /></span>
+            </div>))}
         </div>
-        <div className="fill" style={{ minWidth: 300 }}>
-          <Section title="Test next" right="what the data can’t answer yet">
-            {pos.next.map((x, i) => <Line key={x} label={<span className="tnum">{i + 1}</span>} labelW={14}><Figures text={x} /></Line>)}
-          </Section>
-        </div>
+      </div>
+
+      {/* Proof, placements, what to avoid and what to test next — a block each, a line a fact. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 10 }}>
+        <Block title="Proof the ads can use" n={pos.proof.length}>{pos.proof.map((p, i) => <Row key={i} right={<From s={p.source} />}><Figures text={p.fact} /></Row>)}</Block>
+        <Block title="Where to lead" n={pos.where.length}>{pos.where.map((w) => <Row key={w.placement} tip={w.why}><span className="w5">{w.placement}</span></Row>)}</Block>
+        <Block title="Stay away from" n={pos.avoid.length}>{pos.avoid.map((x) => <Row key={x} icon="blocked"><Figures text={x} /></Row>)}</Block>
+        <Block title="Test next" n={pos.next.length}>{pos.next.map((x) => <Row key={x} icon="lightning"><Figures text={x} /></Row>)}</Block>
       </div>
     </div>
   );

@@ -27,14 +27,6 @@ function Platforms({ ps }: { ps: string[] }) {
   return <span className="row g4">{ps.map((p) => { const [ic, label] = PLAT[p.toUpperCase()] ?? ["globe", p]; return <span key={p} title={label} aria-label={label} style={{ display: "inline-flex" }}><Icon name={ic} size={13} color="#55534F" /></span>; })}</span>;
 }
 
-/** Where a number comes from: Meta's Ad Library API (EU/UK delivery) or an Ad Library screenshot (US). */
-function Origin({ from }: { from?: "api" | "shot" }) {
-  const shot = from === "shot";
-  return <span className="row g4" title={shot ? "Copied off a screenshot of the Ad Library website" : "From Meta's Ad Library API — ads that reached the EU or UK"} style={{ height: 20, padding: "0 7px", borderRadius: 6, background: shot ? "#EDF2FD" : "#EFF1FB", color: shot ? "#2563EB" : "#3B4FC4", fontSize: 10.5, fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0 }}>
-    <Icon name={shot ? "image" : "facebook"} size={11} color={shot ? "#2563EB" : "#3B4FC4"} />{shot ? "US · screenshot" : "EU/UK · Ad Library"}
-  </span>;
-}
-
 const TONES = ["#1F8A5B", "#2563EB", "#B7791F", "#5B6FD6", "#C2410C", "#0E7490", "#9D4EDD", "#55534F"];
 const tone = (s: string) => TONES[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % TONES.length];
 function Avatar({ name }: { name: string }) {
@@ -59,54 +51,31 @@ function Media({ a }: { a: LibAd }) {
   );
 }
 
-/** One ad, laid out like a card on the Ad Library website, with Meta's numbers under it. */
+/** One competitor ad: the picture first, how long it has run, who ran it and what it says. Meta's finer numbers sit in the tooltips. */
 function AdCard({ a, who }: { a: LibAd; who: string }) {
-  const d = days(a.start), body = a.bodies[0] ?? "", cap = a.captions?.[0] ?? "", title = a.titles[0] ?? "";
-  const active = a.status !== "inactive";
+  const d = days(a.start), body = a.bodies[0] ?? "", title = a.titles[0] ?? "", long = d != null && d >= 30, off = a.status === "inactive";
+  const seen = [a.audience ? `Mostly ${a.audience.top} (${pct(a.audience.topShare)}) · ${pct(a.audience.women)} women` : "", a.countries?.length ? `Top: ${a.countries.slice(0, 3).map((c) => country(c.code)).join(", ")}` : "",
+    a.target ? `Targeted: ${[a.target.gender && a.target.gender !== "All" ? a.target.gender : "everyone", a.target.ages, a.target.places.slice(0, 3).join(", ")].filter(Boolean).join(" · ")}` : ""].filter(Boolean).join(" — ");
   return (
     <div className="card" style={{ padding: 0, gap: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div className="col g4" style={{ padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
-        <div className="row g6">
-          <span className={`pill ${active ? "green" : ""}`} style={{ height: 20, fontSize: 10.5, padding: "0 7px" }}><Icon name={active ? "check-circle" : "circle"} size={11} />{active ? "Active" : "Inactive"}</span>
-          {d != null && d >= 30 && <span className="pill amber" style={{ height: 20, fontSize: 10.5, padding: "0 7px" }} title="Advertisers rarely keep paying for an ad that doesn't work — a month or more is a strong sign" suppressHydrationWarning>{d}+ days</span>}
-        </div>
-        <span className="xs i3 tnum">Library ID: {isLibId(a.id) ? a.id : "not readable"}</span>
-        <span className="xs i3" suppressHydrationWarning>Started running on {date(a.start)}{d != null ? ` · ${d} day${d === 1 ? "" : "s"}` : ""}</span>
-        <span className="row g6 xs i3">Platforms <Platforms ps={a.platforms} /></span>
-        {(a.copies ?? 1) > 1 && <span className="xs i1"><b className="w5">{a.copies} ads</b> use this creative and text</span>}
+      <div style={{ position: "relative" }}>
+        <Media a={a} />
+        <span className="row g4" style={{ position: "absolute", top: 8, left: 8 }}>
+          {d != null && <span className="tnum" title={long ? `Started ${date(a.start)} — advertisers rarely keep paying for an ad that doesn’t work` : `Started ${date(a.start)}`} suppressHydrationWarning
+            style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: long ? "#121212" : "rgba(255,255,255,.92)", color: long ? "#fff" : "#121212", boxShadow: "0 1px 3px rgba(0,0,0,.18)" }}>{d} day{d === 1 ? "" : "s"}</span>}
+          {off && <span style={{ height: 22, padding: "0 8px", borderRadius: 99, fontSize: 11, lineHeight: "22px", background: "rgba(255,255,255,.92)", color: "#55534F" }}>Stopped</span>}
+        </span>
       </div>
-      <div className="col g8" style={{ padding: "10px 12px" }}>
-        <div className="row g8">
-          <Avatar name={a.page} />
-          <span className="col fill" style={{ minWidth: 0 }}>
-            <span className="xs w5 i1 ell">{a.page}{a.partner && <><span className="w4 i3"> with </span>{a.partner}</>}</span>
-            <span className="xs i3" style={{ fontSize: 11 }}>Sponsored</span>
-          </span>
-        </div>
-        {body && <p className="xs i1" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "pre-line", margin: 0 }} title={body}>{body}</p>}
+      <div className="col g6" style={{ padding: "10px 12px" }}>
+        <div className="row g8"><Avatar name={a.page} /><span className="xs w5 i1 ell fill" title={a.partner ? `${a.page} with ${a.partner}` : a.page}>{a.page}</span><Platforms ps={a.platforms} /></div>
+        {title && <span className="sm w5 i1 ell" title={title}>{title}</span>}
+        {body && <p className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", margin: 0 }} title={body}>{body}</p>}
       </div>
-      <Media a={a} />
-      {(cap || title || a.cta) && (
-        <div className="row g8" style={{ padding: "8px 12px", background: "var(--tray)" }}>
-          <span className="col fill" style={{ minWidth: 0 }}>
-            {cap && <span className="i3 ell" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.2 }}>{cap}</span>}
-            {title && <span className="xs w5 i1 ell" title={title}>{title}</span>}
-          </span>
-          {a.cta && <span className="btn sm" style={{ pointerEvents: "none", height: 26 }}>{a.cta}</span>}
-        </div>
-      )}
-      {(a.reach != null || a.audience || a.target || a.countries?.length) && (
-        <div className="col g4" style={{ padding: "9px 12px", borderTop: "1px solid var(--line)" }}>
-          {a.reach != null && <span className="row g6 xs i1"><Icon name="users" size={12} color="#3B4FC4" /><span><b className="w6 tnum">{num(a.reach)}</b> people reached in the EU</span></span>}
-          {a.audience && <span className="xs i2" style={{ lineHeight: "16px" }}>Mostly <b className="w5 i1">{a.audience.top}</b> ({pct(a.audience.topShare)}) · {pct(a.audience.women)} women</span>}
-          {a.countries && a.countries.length > 0 && <span className="xs i3 ell" title={a.countries.map((c) => `${country(c.code)} ${num(c.reach)}`).join(" · ")}>Top: {a.countries.slice(0, 3).map((c) => country(c.code)).join(", ")}</span>}
-          {a.target && <span className="xs i3 ell">Targeted: {[a.target.gender && a.target.gender !== "All" ? a.target.gender : "everyone", a.target.ages, a.target.places.slice(0, 3).join(", ")].filter(Boolean).join(" · ")}</span>}
-        </div>
-      )}
-      <div className="row g6" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", marginTop: "auto" }}>
-        <Origin from={a.from} />
-        <span className="xs i3 ell fill" title={`Filed under ${who}`}>{who !== a.page && who !== a.partner ? who : ""}</span>
-        {isLibId(a.id) && <a className="lnk xs row g4" href={adLibraryUrl({ id: a.id })} target="_blank" rel="noreferrer">See on Meta<Icon name="external" size={11} /></a>}
+      <div className="row g10 xs" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", marginTop: "auto" }}>
+        {a.reach != null && <span className="row g4 i1 tnum" title={seen || "People reached in the EU — Meta’s estimate"}><Icon name="users" size={12} color="#3B4FC4" /><b className="w6">{num(a.reach)}</b></span>}
+        {(a.copies ?? 1) > 1 && <span className="i3 tnum" title="Ads using this picture and text">×{a.copies}</span>}
+        <span className="i3 ell fill" title={a.from === "shot" ? "Copied off a screenshot of the Ad Library website" : "From Meta’s Ad Library — ads that reached the EU or UK"}>{who !== a.page && who !== a.partner ? who : a.from === "shot" ? "US" : "EU/UK"}</span>
+        {isLibId(a.id) && <a className="lnk row g4" href={adLibraryUrl({ id: a.id })} target="_blank" rel="noreferrer">Meta<Icon name="external" size={11} /></a>}
       </div>
     </div>
   );
@@ -189,56 +158,50 @@ function Rivals({ rivals, us, market, pick, setPick, onRemove }: { rivals: Rival
   );
 }
 
-/** Iris's read — every angle is the count of ads she tagged with it, and opens those ads. */
+/** Iris's read — every angle is the count of ads she tagged with it, and pressing one shows those ads. Each gap is a decision. */
 function ReadCard({ read, slug, id, angle, setAngle }: { read: AdsRead; slug: string; id: string; angle: string | null; setAngle: (a: string | null) => void }) {
   const router = useRouter();
   const [local, setLocal] = useState<Record<string, Decision | null>>({});
   const set = (gid: string, s: Decision | null) => { setLocal((x) => ({ ...x, [gid]: s })); void decide(slug, id, "gap", gid, s).then(() => router.refresh()); };
+  const chips = [...read.hooks.map((x) => ["Hook", x] as const), ...read.offers.map((x) => ["Offer", x] as const)];
   return (
-    <div className="card">
-      <div className="card-h"><AgentFace kind="analyst" size={20} /><span className="sm w5 fill">How competitors sell</span><span className="xs i3">{read.counted ? `Iris tagged ${read.creatives} ads · shares are counted` : `${read.count} ads read`}</span></div>
-      <div className="card-b">
-        <span className="sm i1" style={{ lineHeight: "20px" }}>{read.summary}</span>
-        <div className="col g2">
-          <span className="xs w5 i3" style={{ paddingBottom: 4 }}>Message angles{read.counted ? " · click one to see its ads" : ""}</span>
+    <div className="col g12">
+      <div className="col g8">
+        <span className="row g6 xs i3" title={`${read.summary} ${read.positioning}`} style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}><AgentFace kind="analyst" size={16} />What their ads say<Icon name="info" size={12} /></span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 8 }}>
           {read.angles.map((a) => {
             const on = angle === a.name, can = Boolean(a.ids?.length);
             return (
-              <button key={a.name} type="button" disabled={!can} onClick={() => setAngle(on ? null : a.name)} className="row g10"
-                style={{ padding: "6px 8px", margin: "0 -8px", borderRadius: 8, textAlign: "left", background: on ? "var(--tray)" : undefined, cursor: can ? "pointer" : "default" }}>
-                <span className="xs w5 i1" style={{ width: 170, flexShrink: 0 }}>{a.name}</span>
-                <span className="fill" style={{ height: 6, borderRadius: 3, background: "var(--tray-2)" }}><span style={{ display: "block", height: 6, width: `${a.share}%`, borderRadius: 3, background: "#B7791F" }} /></span>
-                <span className="xs i2 tnum" style={{ width: 92, textAlign: "right", flexShrink: 0 }}>{a.n != null && read.counted ? `${a.n} of ${read.creatives} ads` : `${a.share}%`}</span>
-                <span className="xs tnum" style={{ width: 82, flexShrink: 0, color: (a.proven ?? 0) > 0 ? "#B7791F" : "var(--ink-3)" }} title="Of these, running 30+ days">{a.proven != null ? `${a.proven} long-run` : ""}</span>
-                <span className="xs i3 ell" style={{ width: 230 }} title={`“${a.example}” — ${a.who.join(", ")}`}>“{a.example}”</span>
+              <button key={a.name} type="button" disabled={!can} onClick={() => setAngle(on ? null : a.name)} title={`“${a.example}” — ${a.who.join(", ")}`} className="col g6"
+                style={{ padding: "10px 12px", borderRadius: 12, textAlign: "left", background: on ? "#121212" : "#fff", color: on ? "#fff" : "var(--ink)", boxShadow: on ? "none" : "0 0 0 1px var(--line)", cursor: can ? "pointer" : "default" }}>
+                <span className="row between g8"><span className="sm w5 ell">{a.name}</span><span className="sm tnum w5">{a.share}%</span></span>
+                <span style={{ height: 4, borderRadius: 99, background: on ? "rgba(255,255,255,.2)" : "var(--tray-2)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(3, a.share)}%`, borderRadius: 99, background: on ? "#fff" : "#B7791F" }} /></span>
+                <span className="xs tnum" style={{ color: on ? "rgba(255,255,255,.65)" : "var(--ink-3)" }}>{a.n != null && read.counted ? `${a.n} ads` : ""}{(a.proven ?? 0) > 0 ? ` · ${a.proven} running 30+ days` : ""}</span>
               </button>
             );
           })}
         </div>
-        <div className="row top g16" style={{ flexWrap: "wrap" }}>
-          {([["Hooks they repeat", read.hooks], ["Offers", read.offers]] as const).map(([t, xs]) => (
-            <div key={t} className="col g4 fill" style={{ minWidth: 220 }}><span className="xs w5 i3">{t}</span>{xs.length ? xs.map((x) => <span key={x} className="xs i2" style={{ lineHeight: "17px" }}>· {x}</span>) : <span className="xs i3">None seen</span>}</div>
-          ))}
-        </div>
-        <div className="col g4"><span className="xs w5 i3">Positioning</span><span className="xs i2" style={{ lineHeight: "17px" }}>{read.positioning}</span></div>
-        <div className="col">
-          <span className="xs w5 i3" style={{ paddingBottom: 2 }}>Gaps nobody speaks to · accept the ones to test</span>
+        {chips.length > 0 && <div className="row g6" style={{ flexWrap: "wrap" }}>
+          {chips.slice(0, 10).map(([k, x]) => <span key={k + x} className="row g6 xs" title={x} style={{ height: 26, padding: "0 10px", borderRadius: 99, background: "var(--tray)", maxWidth: 320 }}><b className="w5 i3">{k}</b><span className="ell">{x}</span></span>)}
+        </div>}
+      </div>
+      {read.gaps.length > 0 && <div className="col g8">
+        <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>What nobody is saying</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
           {read.gaps.map((g) => {
             const st = g.id in local ? local[g.id] ?? undefined : g.status;
             return (
-              <div key={g.id} className="row top g10" style={{ padding: "8px 0", borderTop: "1px solid var(--line)", opacity: st === "rejected" ? 0.5 : 1 }}>
-                <Icon name="lightning" size={14} color="#B7791F" />
-                <span className="col fill"><span className="sm w5 i1">{g.text}</span><span className="xs i3" style={{ lineHeight: "17px" }}>{g.why}</span></span>
-                {st ? <span className="row g6 xs" style={{ flexShrink: 0 }}><span className={st === "accepted" ? "c-green" : "i3"}>{st === "accepted" ? "Accepted" : "Rejected"}</span><button type="button" className="lnk i3" onClick={() => set(g.id, null)}>Undo</button></span>
-                  : <span className="row g4" style={{ flexShrink: 0 }}>
-                    <button type="button" aria-label="Accept" title="Accept" onClick={() => set(g.id, "accepted")} style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6 }}><Icon name="check" size={13} color="#1F8A5B" /></button>
-                    <button type="button" aria-label="Reject" title="Reject" onClick={() => set(g.id, "rejected")} style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6 }}><Icon name="x" size={13} color="#8B8883" /></button>
-                  </span>}
+              <div key={g.id} className="col g10" title={g.why} style={{ padding: "12px 14px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", opacity: st === "rejected" ? 0.55 : 1 }}>
+                <span className="row top g8"><Icon name="lightning" size={14} color="#B7791F" style={{ marginTop: 3 }} /><span className="sm w5 i1 fill">{g.text}</span></span>
+                <div className="row g6" style={{ marginTop: "auto" }}>
+                  {st ? <><span className={`pill ${st === "accepted" ? "green" : ""}`} style={{ height: 24, fontSize: 11.5 }}>{st === "accepted" ? "In your test plan" : "Skipped"}</span><button type="button" className="btn quiet sm" onClick={() => set(g.id, null)}>Undo</button></>
+                    : <><button type="button" className="btn dark sm" onClick={() => set(g.id, "accepted")}><Icon name="check" size={12} color="#fff" />Test this</button><button type="button" className="btn quiet sm" onClick={() => set(g.id, "rejected")}>Skip</button></>}
+                </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -341,21 +304,22 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
 
   return (
     <div className="col g12">
-      {block ? <Access slug={slug} kind={block.blocked!} message={block.error ?? ""} busy={running || busy != null} onRetry={() => run("pull", () => rerun(slug, id, ["ads"]))} />
-        : (
-          <div className="row top g10">
-            <Icon name="facebook" size={14} color="#8B8883" style={{ marginTop: 2 }} />
-            <span className="xs i3 fill" style={{ lineHeight: "18px", maxWidth: 820 }}>
-              Everything here is Meta’s own data. Meta’s API shares a brand’s ordinary ads when they also reached the EU or UK — with reach, who saw them and what was targeted. Ads shown only in {marketName(market)} are on the Ad Library website: screenshot them and Kaviar copies each ad card off the screenshot.
-              {!hasMeta && <b className="w5 c-amber"> Connect Meta Ads on any brand to pull ads — the Library is read with that login.</b>}
-            </span>
-            <a className="btn sm quiet" href={adLibraryUrl({ q: names[0] ?? "", country: market })} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>Open the Ad Library<Icon name="external" size={11} /></a>
-          </div>
-        )}
+      {block && <Access slug={slug} kind={block.blocked!} message={block.error ?? ""} busy={running || busy != null} onRetry={() => run("pull", () => rerun(slug, id, ["ads"]))} />}
+      <div className="row g8" style={{ flexWrap: "wrap" }}>
+        <form className="row g6" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void run("add", async () => { const r = await addRival(slug, id, name); if (!r.error) setName(""); return r; }); }}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a competitor’s Facebook Page" aria-label="Competitor name" className="input sm" style={{ width: 250, height: 32 }} />
+          <button type="submit" className="btn sm" disabled={busy != null || !name.trim()}>{busy === "add" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="plus" size={12} />}Add</button>
+        </form>
+        {!hasMeta && <span className="pill amber" style={{ height: 26 }}>Connect Meta Ads to pull ads</span>}
+        <span className="fill" />
+        {err && <span className="xs c-amber" style={{ maxWidth: 420 }}>{err}</span>}
+        <a className="btn sm quiet" href={adLibraryUrl({ q: names[0] ?? "", country: market })} target="_blank" rel="noreferrer" title={`Meta shares a brand’s ads through its API when they also reached the EU or UK. Ads shown only in ${marketName(market)} are on the Ad Library website — screenshot them below and Kaviar copies each ad off the screenshot.`}>Ad Library<Icon name="external" size={11} /></a>
+        <button type="button" className="btn sm" disabled={busy != null || running} onClick={() => run("pull", () => rerun(slug, id, ["ads"]))}>{running ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Pull again</button>
+      </div>
       {!block && hasMeta && step?.state === "error" && step.note && <div className="row g8 xs c-amber" style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 10 }}><Icon name="warning-circle" size={14} color="#B7791F" />{step.note}</div>}
 
       {items.length > 0 && (
-        <div className="card" style={{ padding: 0, gap: 0 }}>
+        <div className="card" style={{ padding: 0, gap: 0 }} title={`Counted from Meta’s Ad Library${pulledAt ? ` · pulled ${new Date(pulledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""} — no estimates`}>
           <div className="row" style={{ flexWrap: "wrap" }}>
             <Stat label="Live ads in the Library" value={lib ? num(lib) : "—"} sub={lib ? `${st.reduce((a, s) => a + s.creatives, 0)} creatives · EU/UK` : "none from the API yet"} />
             <Stat label="From your US screenshots" value={usN ? String(usN) : "—"} sub={usN ? `${row.manual.filter((m) => m.ads?.length).length} screenshots` : "add one below"} />
@@ -363,25 +327,8 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
             <Stat label="Longest running" value={longest && days(longest.a.start) != null ? `${days(longest.a.start)} days` : "—"} sub={longest ? longest.who : undefined} />
             <Stat label="Reached in the EU" value={reach != null ? num(reach) : "—"} sub={reach != null ? "people, Meta’s estimate" : "Meta shares reach for EU/UK ads"} />
           </div>
-          <div className="row g6 xs i3" style={{ padding: "7px 14px", borderTop: "1px solid var(--line)" }} suppressHydrationWarning>
-            <Icon name="facebook" size={12} />Counted from Meta’s Ad Library{pulledAt ? ` · pulled ${new Date(pulledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""} — no estimates
-          </div>
         </div>
       )}
-
-      <div className="row g8" style={{ flexWrap: "wrap" }}>
-        <form className="row g6" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void run("add", async () => { const r = await addRival(slug, id, name); if (!r.error) setName(""); return r; }); }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a competitor — their Facebook Page name" aria-label="Competitor name" className="input sm" style={{ width: 300, height: 32 }} />
-          <button type="submit" className="btn sm" disabled={busy != null || !name.trim()}>{busy === "add" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="plus" size={12} />}Add</button>
-        </form>
-        <span className="fill" />
-        {err && <span className="xs c-amber" style={{ maxWidth: 420 }}>{err}</span>}
-        <button type="button" className="btn sm" disabled={busy != null || running} onClick={() => run("pull", () => rerun(slug, id, ["ads"]))}>
-          {running ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Pull and read the ads again</button>
-      </div>
-
-      <Rivals rivals={row.rivals} us={us} market={market} pick={pick} setPick={setPick} onRemove={(n) => run("rm", () => removeRival(slug, id, n))} />
-      {!row.rivals.length && !usN && <span className="sm i3">No competitors pulled yet. {row.report ? "Pull the ads, add a competitor by name, or add a screenshot below." : "They come from the market research — or add one by name."}</span>}
 
       {row.adsRead && <ReadCard read={row.adsRead} slug={slug} id={id} angle={angle} setAngle={setAngle} />}
 
@@ -397,7 +344,7 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
             <Combo chip small label="Sort" prefix="Sort" value={sort} onChange={(v) => setSort(v as Sort)} options={[{ value: "long", label: "Longest running" }, { value: "new", label: "Newest" }, { value: "reach", label: "Most reach (EU)" }, { value: "copies", label: "Most ads using it" }]} />
           </div>
           {shown.length ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
               {shown.slice(0, limit).map((x) => <AdCard key={`${x.who}:${x.a.id}`} a={x.a} who={x.who} />)}
             </div>
           ) : <span className="sm i3">No ads match these filters.</span>}
@@ -405,8 +352,12 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
         </div>
       )}
 
+      <Rivals rivals={row.rivals} us={us} market={market} pick={pick} setPick={setPick} onRemove={(n) => run("rm", () => removeRival(slug, id, n))} />
+      {!row.rivals.length && !usN && <span className="sm i3">No competitors pulled yet. {row.report ? "Pull the ads, add a competitor by name, or add a screenshot below." : "They come from the market research — or add one by name."}</span>}
+
+
       <div className="col g8" style={{ marginTop: 6 }}>
-        <div className="row between"><span className="h3">US ads from the Ad Library website</span><span className="xs i3">Screenshot a results page or one ad — Kaviar copies every card off it</span></div>
+        <div className="row between"><span className="h3" title="Screenshot a results page or one ad on the Ad Library website — Kaviar copies every ad off it">Add US ads from a screenshot</span></div>
         <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); if (!shotBusy) void upload([...e.dataTransfer.files]); }}
           onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length && !shotBusy) { e.preventDefault(); void upload(fs); } }}
@@ -417,7 +368,7 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
           <input value={who} onChange={(e) => setWho(e.target.value)} list="research-rivals" placeholder="Whose ads (optional)" aria-label="Whose ads" className="input sm" style={{ width: 170, height: 32 }} />
           <datalist id="research-rivals">{names.map((n) => <option key={n} value={n} />)}</datalist>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Note" className="input sm fill" style={{ minWidth: 160, height: 32 }} />
-          <span className="xs i3" style={{ width: "100%" }}>{shotBusy ? "Iris is copying each ad card — about 20 seconds a screenshot." : "Drop or paste screenshots here. Full-page screenshots work; Kaviar reads them in slices."}</span>
+          {shotBusy && <span className="xs i3" style={{ width: "100%" }}>Iris is copying each ad — about 20 seconds a screenshot.</span>}
         </div>
         {row.manual.length > 0 && (
           <div className="col">
@@ -432,7 +383,7 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
                 <button type="button" className="lnk xs i3" onClick={() => run("rm", () => removeScreenshot(slug, id, m.id))}>Remove</button>
               </div>
             ))}
-            <span className="xs i3" style={{ paddingTop: 6 }}>Iris reads the copied ads with the rest the next time you pull and read the ads.</span>
+
           </div>
         )}
       </div>
