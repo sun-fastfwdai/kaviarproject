@@ -18,7 +18,8 @@ export async function library(brand: { id: string; currency: string | null; time
     campaigns(brand.id, brand.timezone, 30).catch(() => []), planData(brand.id, brand.currency ?? "USD"),
     db.select({ id: B.id, title: B.title, signal: B.signal,
       review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
-      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(40),
+      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int`,
+      total: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id")::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(40),
     db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
     db.execute(sql`select distinct on (x.batch) x.batch, x.url from (select a.batch_id as batch, a.position, coalesce(case when ai.id is null then a.image_url end, (select sp.image_url from shop_products sp where sp.brand_id = a.brand_id and sp.title = a.product and sp.image_url is not null limit 1)) as url from ads a join ad_batches b on b.id = a.batch_id left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) where b.brand_id = ${brand.id} and a.status in ('review', 'approved')) x where x.url is not null order by x.batch, x.position`)
       .then((r) => new Map((r.rows as { batch: string; url: string }[]).map((x) => [x.batch, x.url]))).catch(() => new Map<string, string>()),
@@ -36,7 +37,7 @@ export async function library(brand: { id: string; currency: string | null; time
       perDay: f ? f.spend / days : null, spend: null, back: null,
       next: status === "review" ? { label: `Review ${b.review}`, href: `${base}/creative/${b.id}` } : status === "test" ? { label: "Test", href: `${base}/audience?batch=${b.id}` } : { label: "Put live", href: `${base}/run` } });
   }
-  for (const r of p.rows) if (!batches.some((b) => b.signal && b.signal === r.c.signal))
+  for (const r of p.rows) if (!batches.some((b) => b.signal && b.signal === r.c.signal && b.total > 0)) // an emptied batch doesn't count as made
     rows.push({ key: `p:${r.c.key}`, name: r.c.name, sub: r.c.product, thumb: d.products.find((x) => x.title === r.c.product)?.image ?? null, where: "Kaviar", status: "planned",
       perDay: r.spend / days, spend: null, back: null, next: approved ? { label: "Make the ads", make: r.c.key } : { label: "Approve plan", href: `${base}/plan` } });
   rows.sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || (b.spend ?? 0) - (a.spend ?? 0));

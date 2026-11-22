@@ -68,7 +68,8 @@ export async function today(brand: { id: string; currency: string | null; timezo
     planData(brand.id, currency),
     db.select({ id: B.id, title: B.title, signal: B.signal,
       review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
-      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(30),
+      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int`,
+      total: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id")::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(30),
     db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
     db.select({ id: schema.optimizeChanges.id, kind: schema.optimizeChanges.kind, title: schema.optimizeChanges.title, why: schema.optimizeChanges.why, before: schema.optimizeChanges.before, after: schema.optimizeChanges.after })
       .from(schema.optimizeChanges).where(and(eq(schema.optimizeChanges.brandId, brand.id), eq(schema.optimizeChanges.status, "proposed"), sql`${schema.optimizeChanges.week} > current_date - 7`)).orderBy(desc(schema.optimizeChanges.createdAt)).limit(20).catch(() => []),
@@ -96,7 +97,8 @@ export async function today(brand: { id: string; currency: string | null; timezo
     viz: { kind: "flow", from: usd(budget), fromLabel: "you spend", to: usd(mid.revenue), toLabel: `likely back in ${Math.round(days / 7)} weeks` } });
 
   // Create → Review → Test → Launch, campaign by campaign.
-  const forSignal = (sig: string | null) => (sig ? batches.find((b) => b.signal === sig) : undefined);
+  // A batch with no ads left in it (they were deleted) hasn't been made: the campaign asks for its ads again.
+  const forSignal = (sig: string | null) => (sig ? batches.find((b) => b.signal === sig && b.total > 0) : undefined);
   if (approved) for (const r of p.rows) if (!forSignal(r.c.signal)) a.push({ key: `make:${r.c.key}`, group: "Create", who: "builder", title: `Make the ads for ${r.c.name}`, why: `${usd(r.spend)} of the plan goes here. Remy writes six and shoots them with your product.`, effect: `${Math.round(r.out[1].orders)} orders likely`, cta: "Make the ads", make: r.c.key,
     viz: { kind: "flow", from: usd(r.spend), fromLabel: "of your budget", to: usd(r.out[1].revenue), toLabel: "likely back" } });
   // One line per kind of work, however many batches are waiting — the list stays short.
