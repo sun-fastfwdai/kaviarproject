@@ -1,5 +1,7 @@
 import { getBrand, getConnections } from "@/lib/queries/brands";
 import { requireMember } from "@/lib/auth";
+import { after } from "next/server";
+import { refreshNotes } from "@/lib/ai/notes";
 import { today } from "@/lib/growth/today";
 import { Bar } from "@/components/shell/parts";
 import { TodayView } from "./view";
@@ -15,6 +17,7 @@ export default async function TodayPage({ params }: PageProps<"/brands/[slug]/to
   // The date and the time of day where the brand is, so the page greets the way its day is going.
   const now = new Date(), tz = brand.timezone, hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: tz }).format(now)) % 24;
   const day = new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", timeZone: tz }).format(now);
+  after(() => refreshNotes(brand.id, ["overview"])); // Iris rewrites her one-line reading when the numbers have changed
   const t = await today({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }, slug, conns);
   return (
     <>

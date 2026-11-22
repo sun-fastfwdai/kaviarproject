@@ -137,3 +137,31 @@ export async function moveToStorage(brandId: string | null, budgetMs = 120_000):
   } finally { moving = false; }
   return left();
 }
+
+/**
+ * Files in storage that no row points at any more — left behind when rows were deleted without their files. Nothing in Kaviar can
+ * open them. Listing is read-only; removing is permanent.
+ */
+export async function leftoverFiles(brandId: string): Promise<{ paths: string[]; bytes: number }> {
+  if (!storage()) return { paths: [], bytes: 0 };
+  const kept = new Set((await db.select({ p: sql<string | null>`${A.meta}->>'stored'` }).from(A).where(eq(A.brandId, brandId))).map((r) => r.p).filter(Boolean) as string[]);
+  const paths: string[] = [];
+  let bytes = 0;
+  for (let offset = 0; offset < 20_000; offset += 1000) {
+    const r = await sb(`object/list/${BUCKET}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prefix: `${brandId}/`, limit: 1000, offset }) });
+    if (!r.ok) throw new Error(`list ${r.status}`);
+    const items = (await r.json()) as { name: string; id: string | null; metadata?: { size?: number } | null }[];
+    for (const it of items) { const path = `${brandId}/${it.name}`; if (it.id && !kept.has(path)) { paths.push(path); bytes += it.metadata?.size ?? 0; } }
+    if (items.length < 1000) break;
+  }
+  return { paths, bytes };
+}
+export async function removeLeftovers(brandId: string): Promise<number> {
+  const { paths } = await leftoverFiles(brandId);
+  let done = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const r = await sb(`object/${BUCKET}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prefixes: paths.slice(i, i + 100) }) });
+    if (r.ok) done += ((await r.json()) as unknown[]).length;
+  }
+  return done;
+}

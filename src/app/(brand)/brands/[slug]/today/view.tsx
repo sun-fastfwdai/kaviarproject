@@ -37,6 +37,7 @@ export function TodayView({ slug, t, day, hello }: { slug: string; t: Today; day
             <span style={{ fontSize: 30, lineHeight: "38px", fontWeight: 600, letterSpacing: "-0.03em" }}>{hello}</span>
             {t.pulse && <span className="sm i2 tnum" title="The last full day, against the same day a week earlier">Yesterday <b className="i1 w5">{t.pulse.sales}</b> from {t.pulse.orders} order{t.pulse.orders === 1 ? "" : "s"}
               {t.pulse.delta && <span style={{ color: t.pulse.delta.good ? "var(--green)" : t.pulse.delta.good === false ? "var(--red)" : "var(--ink-3)", fontWeight: 600 }}> {t.pulse.delta.dir === "up" ? "↗" : t.pulse.delta.dir === "down" ? "↘" : "→"} {t.pulse.delta.text}</span>}{t.pulse.delta && <span className="i3"> on last week</span>}</span>}
+            {t.more.note && <span className="row top g8 sm i2" style={{ maxWidth: 720, paddingTop: 4 }}><AgentFace kind="analyst" size={18} /><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }} title={t.more.note}>{t.more.note}</span></span>}
           </div>
           <div className="row g10 rise" style={{ padding: "7px 8px 7px 12px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", flexWrap: "wrap" }}
             title={`${t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · ${t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}${t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}`}>
@@ -52,6 +53,42 @@ export function TodayView({ slug, t, day, hello }: { slug: string; t: Today; day
 
         {/* ---- the board: the month in blocks — sales, the numbers around it, campaigns, customers, stock and the store's score */}
         <Bento tiles={t.status} />
+
+        {/* ---- the month in the store, a block per source: what sells, where it comes from, when, and what competitors run */}
+        {(t.more.sellers.length > 0 || t.more.channels.length > 0 || t.more.week.length > 0 || t.more.rivals) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+          {t.more.sellers.length > 0 && <Link href={`${base}/shopify?tab=products`} className="bt rise" style={{ padding: "13px 15px 12px", gap: 8, ["--i" as string]: 10 }}>
+            <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Best sellers · 30 days</span><Icon name="bag" size={15} color="#8B8883" /></span>
+            {t.more.sellers.map((x) => (
+              <span key={x.title} className="row g10" style={{ minWidth: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {x.image ? <img src={x.image} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)" }} /> : <span style={{ width: 30, height: 30, borderRadius: 7, background: "var(--tray-2)", flexShrink: 0 }} />}
+                <span className="col fill" style={{ minWidth: 0, gap: 3 }}><span className="row between g8"><span className="xs w5 ell">{x.title}</span><span className="xs tnum i2" style={{ flexShrink: 0 }}>{x.revenue}</span></span>
+                  <span style={{ height: 4, borderRadius: 99, background: "var(--tray-2)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(3, x.share)}%`, borderRadius: 99, background: "#121212" }} /></span></span>
+                <span className="xs tnum i3" style={{ width: 44, textAlign: "right", flexShrink: 0 }}>{x.units} sold</span>
+              </span>))}
+          </Link>}
+          {t.more.channels.length > 0 && <Link href={`${base}/shopify`} className="bt tray rise" title="From how each order arrived" style={{ padding: "13px 15px 12px", gap: 10, ["--i" as string]: 11 }}>
+            <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Where sales come from</span><Icon name="split" size={15} color="#8B8883" /></span>
+            <span className="row" style={{ height: 10, borderRadius: 99, overflow: "hidden", gap: 2 }}>{t.more.channels.map((c) => <span key={c.name} style={{ width: `${Math.max(2, c.share)}%`, background: c.color }} />)}</span>
+            <span className="col g4">{t.more.channels.slice(0, 4).map((c) => <span key={c.name} className="row g8 xs"><span style={{ width: 8, height: 8, borderRadius: 3, background: c.color, flexShrink: 0 }} /><span className="i2 ell fill">{c.name}</span><span className="tnum w5">{c.share}%</span></span>)}</span>
+          </Link>}
+          {t.more.week.length > 0 && <Link href={`${base}/shopify`} className="bt rise" title="Orders by day of the week, last 90 days" style={{ padding: "13px 15px 12px", gap: 6, ["--i" as string]: 12 }}>
+            <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>When people buy</span><Icon name="calendar" size={15} color="#8B8883" /></span>
+            <span className="bt-n" style={{ fontSize: 20, lineHeight: "26px" }}>{t.more.bestDay ?? "Too few orders to say"}</span>
+            {(() => { const max = Math.max(...t.more.week.map((x) => x.orders), 1); return (
+              <span className="row" style={{ alignItems: "flex-end", gap: 6, height: 54, marginTop: "auto" }}>{t.more.week.map((x) => (
+                <span key={x.day} className="col fill" style={{ alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }} title={`${x.orders} orders`}>
+                  <span style={{ width: "100%", height: `${Math.max(4, (x.orders / max) * 100)}%`, borderRadius: 4, background: x.orders === max && t.more.bestDay !== "Evenly through the week" ? "#121212" : "#D9D6D1" }} />
+                  <span style={{ fontSize: 10, color: "var(--ink-3)" }}>{x.day}</span>
+                </span>))}</span>); })()}
+          </Link>}
+          {t.more.rivals && <Link href={`${base}/competitors`} className="bt tray rise" title="From Meta’s Ad Library" style={{ padding: "13px 15px 12px", gap: 4, ["--i" as string]: 13 }}>
+            <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Competitors’ ads now</span><Icon name="globe" size={15} color="#8B8883" /></span>
+            <span className="row g6" style={{ alignItems: "baseline" }}><span className="bt-n" style={{ fontSize: 27, lineHeight: "36px" }}>{t.more.rivals.ads.toLocaleString("en-US")}</span><span className="xs i2">from {t.more.rivals.brands} brand{t.more.rivals.brands === 1 ? "" : "s"}</span></span>
+            <span className="xs i3 tnum">{t.more.rivals.new30.toLocaleString("en-US")} started in the last 30 days</span>
+            {t.more.rivals.top && <span className="xs" style={{ marginTop: "auto", padding: "5px 9px", borderRadius: 9, background: "#fff", alignSelf: "flex-start", maxWidth: "100%" }} title="The message most of their ads lead with">Most say “{t.more.rivals.top}”</span>}
+          </Link>}
+        </div>}
 
         {/* ---- ready for action: each decision with its evidence and one button */}
         {total > 0 ? <div className="col g10">

@@ -1,3 +1,5 @@
+import { leftoverFiles } from "@/lib/assets/storage";
+import { Leftovers } from "./leftovers";
 import Link from "next/link";
 import { after } from "next/server";
 import { getNotes, refreshNotes } from "@/lib/ai/notes";
@@ -93,6 +95,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
   after(() => refreshNotes(brand.id, ["sync"]));
   const [tables, history, hooks, health] = await Promise.all([tableStats(brand.id), runs(brand.id, 10), webhookCount(brand.id), utmHealth(brand.id, brand.timezone, 30)]);
   const running = history.some((r) => r.status === "running");
+  const left = await leftoverFiles(brand.id).catch(() => ({ paths: [] as string[], bytes: 0 })); // stored files with no record: shown only when there are some
   const last = (p: string) => history.find((r) => r.provider === p && r.status === "success")?.finishedAt ?? null;
   const totalRows = tables.reduce((a, t) => a + t.rows, 0);
   const lastChange = history.find((r) => r.status === "success")?.finishedAt ?? null;
@@ -108,6 +111,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
       </Bar>
       <div className="scroll">
         <div className="col g16" style={{ padding: "22px 24px" }}>
+          <Leftovers slug={slug} count={left.paths.length} size={left.bytes >= 1e6 ? `${(left.bytes / 1e6).toFixed(1)} MB` : `${Math.round(left.bytes / 1000)} KB`} />
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4"><h1 className="h1">Data sync</h1><p className="sm i3">Shopify and Meta Ads data, kept in Kaviar’s database and ready for the agents.</p></div>
             <div className="row">

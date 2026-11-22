@@ -12,6 +12,11 @@ import { planData } from "./plan-data";
 import { currentAudit, getStore, storeWaiting } from "../seo/run";
 import { benchGaps } from "../seo/bench";
 import { getPlans } from "./plans";
+import { channels } from "../queries/growth";
+import { products } from "../queries/shop";
+import { CHANNEL_COLOR, CHANNEL_LABEL } from "../sync/attribution";
+import { getNotes } from "../ai/notes";
+import { rivalAds } from "../seo/bench";
 import { REASON_NAME } from "./plans-rules";
 import { scores } from "../seo/types";
 import { summary, trend } from "../queries/growth";
@@ -37,6 +42,14 @@ export type Viz =
   | { kind: "counts"; items: { label: string; n: number }[] };
 export type Today = {
   pulse: { sales: string; orders: number; delta: Delta | null } | null; // yesterday, against the same day a week before
+  /** The month in the store, from each source Kaviar holds: what sells, through which channel, on which days, and what competitors run. `note` is Iris's one-line reading of the numbers. */
+  more: {
+    note: string | null;
+    sellers: { title: string; image: string | null; units: number; revenue: string; share: number }[];
+    channels: { name: string; color: string; share: number }[];
+    week: { day: string; orders: number }[]; bestDay: string | null;
+    rivals: { ads: number; new30: number; brands: number; top: string | null } | null;
+  };
   status: Tile[]; // the board: the last 30 days against the 30 before, then campaigns, customers, stock and the store's score — a block each
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
@@ -145,6 +158,25 @@ export async function today(brand: { id: string; currency: string | null; timezo
       if (margin != null) status.push({ label: "Profit after ads", icon: "chart-bar", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
     } else status.push({ label: "New customers", icon: "user", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), chart: "bars", hint: "People whose first order was in the last 30 days" });
   }
+  // The month in the store, each from its own source. A source that fails leaves its block out.
+  const [top3, chans, dows, rivals, notes, said] = await Promise.all([
+    conns.shopify ? products(brand.id, tz, 30, 3).catch(() => []) : Promise.resolve([]),
+    conns.shopify ? channels(brand.id, tz, 30).catch(() => []) : Promise.resolve([]),
+    conns.shopify ? db.execute(sql`select extract(isodow from o.created_at at time zone ${tz})::int as d, count(*)::int as n from shop_orders o where o.brand_id = ${brand.id} and not o.test and o.cancelled_at is null and o.created_at >= now() - interval '90 days' group by 1`)
+      .then((r) => r.rows as { d: number; n: number }[]).catch(() => []) : Promise.resolve([] as { d: number; n: number }[]),
+    rivalAds(brand.id).catch(() => null), getNotes(brand.id).catch(() => null),
+    db.execute(sql`select ads_read->'angles'->0->>'name' as name from market_research where brand_id = ${brand.id} and ads_read is not null order by updated_at desc limit 1`).then((r) => (r.rows as { name: string | null }[])[0]?.name ?? null).catch(() => null),
+  ]);
+  const sold = top3.filter((x) => x.units > 0), soldAll = sum?.revenue ?? 0, chanAll = chans.reduce((k, x) => k + x.revenue, 0), DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], LONG = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+  const week = DAY.map((day, i) => ({ day, orders: dows.find((x) => x.d === i + 1)?.n ?? 0 })), most = Math.max(...week.map((x) => x.orders)), weekAll = week.reduce((k, x) => k + x.orders, 0);
+  const more: Today["more"] = {
+    note: notes?.overview?.line?.trim() || null,
+    sellers: sold.map((x) => ({ title: x.title, image: x.imageUrl, units: x.units, revenue: usd(x.revenue), share: soldAll > 0 ? Math.round((x.revenue / soldAll) * 100) : 0 })),
+    channels: chanAll > 0 ? chans.filter((x) => x.revenue > 0).map((x) => ({ name: CHANNEL_LABEL[x.channel] ?? x.channel, color: CHANNEL_COLOR[x.channel] ?? "#8B8883", share: Math.round((x.revenue / chanAll) * 100) })).slice(0, 5) : [],
+    week: most > 0 ? week : [], // A day is named only when it clearly stands out: at least a fifth more orders than the average day, on enough orders to mean something.
+    bestDay: weekAll >= 10 && most >= (weekAll / 7) * 1.2 ? LONG[week.findIndex((x) => x.orders === most)] : weekAll >= 10 ? "Evenly through the week" : null,
+    rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), new30: rivals.rows.reduce((k, x) => k + x.new30, 0), brands: rivals.rows.length, top: said } : null,
+  };
   // Yesterday is the last full day: today's row is still filling up.
   const yd = byDay.at(-2), wk = byDay.at(-9);
   const pulse = yd && (yd.orders || wk?.orders) ? { sales: usd(yd.revenue), orders: yd.orders, delta: wk ? pctDelta(yd.revenue, wk.revenue) ?? null : null } : null;
@@ -163,7 +195,7 @@ export async function today(brand: { id: string; currency: string | null; timezo
       parts: [{ label: "SEO", value: String(sc.seo) }, { label: "AI search", value: String(sc.ai) }, { label: "Speed", value: sc.speed != null ? String(sc.speed) : sc.speedChecks.total ? `${sc.speedChecks.ok}/${sc.speedChecks.total}` : "–" }],
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
-  return { status, pulse, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
+  return { status, pulse, more, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
