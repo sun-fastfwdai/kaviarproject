@@ -37,7 +37,7 @@ export function MakeAds({ slug, plans, on, open }: { slug: string; plans: MakePl
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 96px" }}>
-      <div className="col g16" style={{ maxWidth: 1280, width: "100%" }}>
+      <div className="col g16" style={{ width: "100%" }}>
         <div className="row between g12" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <h1 className="h1">Make ads</h1>
           <span className="row g6 xs i3">{(["Pick the campaign", "Add your pictures and notes", "Approve what comes back"] as const).map((t, i) => <span key={t} className="row g6"><span className="tnum" style={{ width: 18, height: 18, borderRadius: 99, background: "var(--tray-2)", color: "var(--ink-2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 600 }}>{i + 1}</span>{t}{i < 2 && <Icon name="chev-r" size={10} color="#B5B2AC" />}</span>)}</span>

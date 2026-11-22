@@ -126,7 +126,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 96px" }}>
-      <div className="col g16" style={{ maxWidth: 1280, width: "100%" }}>
+      <div className="col g16" style={{ width: "100%" }}>
         <div className="row between g12" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="col g6">
             <h1 className="h1">Budget</h1>
@@ -236,7 +236,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
       </div>
 
       {/* ---- one yes, always in reach */}
-      <div style={{ position: "sticky", bottom: 16, marginTop: 18, maxWidth: 1280, width: "100%", zIndex: 5 }}>
+      <div style={{ position: "sticky", bottom: 16, marginTop: 18, width: "100%", zIndex: 5 }}>
         <div className="row g12" style={{ padding: "10px 12px 10px 18px", borderRadius: 99, background: "#121212", color: "#fff", boxShadow: "0 14px 34px rgba(18,18,18,.22)", flexWrap: "wrap" }}>
           <span className="col fill" style={{ minWidth: 200, lineHeight: 1.3 }}><span className="sm w5 tnum">{usd(budget)} over {days / 7} weeks · {mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))} likely</span>
             <span style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>{approved ? `Approved · ${approved}` : "Nothing is spent by approving — each campaign is switched on by you"}</span></span>
