@@ -7,7 +7,6 @@ import { Bar } from "@/components/shell/parts";
 import { NeedsSource } from "@/components/ui";
 import { StoreView } from "./view";
 import { scores, type Audit, type Fix, type Part } from "@/lib/seo/types";
-import { googleSpeedReady } from "@/lib/seo/speed";
 
 export const metadata = { title: "SEO, speed & AI search" };
 export const maxDuration = 300; // "Check again" reads the whole store and Cleo writes the replacements
@@ -30,7 +29,7 @@ export default async function SeoPage({ params }: PageProps<"/brands/[slug]/seo"
   return (
     <>
       <Bar crumbs={crumbs} />
-      <StoreView slug={slug} brand={brand.name} audit={audit} scores={audit ? scores(audit) : null} googleSpeed={googleSpeedReady()} checked={store.audit ? ago(new Date(store.audit.at)) : null} auto={store.auto} canFix={store.access.canFix}
+      <StoreView slug={slug} brand={brand.name} audit={audit} scores={audit ? scores(audit) : null} checked={store.audit ? ago(new Date(store.audit.at)) : null} auto={store.auto} canFix={store.access.canFix}
         allow={`/api/shopify/install?brand=${slug}&shop=${encodeURIComponent(shop)}&write=1`} admin={shop ? `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}` : null}
         fixes={fixes} runs={store.runs.slice(0, 8).map((r) => ({ when: ago(new Date(r.at)), line: storeLine(r), auto: r.by === "schedule" }))} />
     </>

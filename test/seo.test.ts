@@ -94,7 +94,8 @@ describe("speed: what a page loads", () => {
   it("on a Shopify page, treats the header and the first part of the page as the first view and names where each late picture sits", () => {
     const page = `<body><header id="shopify-section-sections--9__header"><img src="logo.png" width="1" height="1"></header><main>
       <div id="shopify-section-template--16__hero_NFJLVz"><img src="/a/hero.jpg?v=1" width="1" height="1"><img src="icon.svg" width="1" height="1"></div>
-      <div id="shopify-section-template--16__media_with_content_MUN3P3"><img src="poster.jpg"><img src="ok.jpg" loading="lazy" width="1" height="1"></div>
+      <div id="shopify-section-template--16__media_with_content_MUN3P3"><img src="poster.jpg"><img src="ok.jpg" loading="lazy" width="1" height="1">
+        <video playsinline><source src="v.mp4"><img src="never-loaded.thumbnail.jpg"></video><noscript><img src="noscript.jpg"></noscript></div>
       </main><footer id="shopify-section-sections--9__footer"><img src="logowhite.png" width="2" height="2"></footer></body>`;
     const x = weigh(page, "https://shop.example.com/");
     expect(x.early).toEqual(["poster.jpg — in “Media with content”", "logowhite.png — in “Footer”"]);
@@ -140,12 +141,12 @@ describe("the three scores", () => {
     const s = scores(audit());
     expect(s.seo).toBe(54); // titles 50%, descriptions 100%, pictures 0%, store checks 2 of 3
     expect(s.ai).toBe(100); // descriptions, page text, and the two store checks that could be read
-    expect(s).toMatchObject({ speed: null, speedFrom: null, overall: 77 });
+    expect(s).toMatchObject({ speed: null, overall: 77 });
   });
-  it("uses Google's speed score when there is one, Kaviar's checks otherwise", () => {
+  it("counts speed in the overall score only when it is Google's number", () => {
     const check = (ok: boolean) => ({ key: "apps" as const, name: "", ok, value: "", detail: "" });
     const page = (google: number | null) => ({ key: "home" as const, name: "", url: "", checks: [check(true), check(false)], google: google == null ? null : { score: google, lcp: null, cls: null, tbt: null, real: null, slows: [] } });
-    expect(scores(audit({ speed: { google: "off", pages: [page(null)] } }))).toMatchObject({ speed: 50, speedFrom: "checks" });
-    expect(scores(audit({ speed: { google: "on", pages: [page(40), page(60)] } }))).toMatchObject({ speed: 50, speedFrom: "google" });
+    expect(scores(audit({ speed: { google: "off", pages: [page(null)] } }))).toMatchObject({ speed: null, overall: 77, speedChecks: { ok: 1, total: 2 } });
+    expect(scores(audit({ speed: { google: "on", pages: [page(40), page(60)] } }))).toMatchObject({ speed: 50, overall: 68 });
   });
 });

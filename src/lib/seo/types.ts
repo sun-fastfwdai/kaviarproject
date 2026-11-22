@@ -35,23 +35,24 @@ export function score(a: Audit): Part {
 }
 
 /**
- * Three scores out of 100, and one overall. Each is the share of its checks that pass, with every group of checks counting the same
- * (so 71 pictures don't drown out 25 search titles). These are Kaviar's scores from the checks on this page — except Speed, which is
- * Google's own score whenever Google's speed test is switched on.
+ * Scores out of 100, and one overall. SEO and AI search are the share of their checks that pass, with every group of checks counting
+ * the same (so 71 pictures don't drown out 25 search titles). Speed is Google's own score, and joins the overall only when Google's
+ * speed test is switched on.
  *  - SEO: search titles, search descriptions, picture descriptions; the store is open to Google, the home page is titled, ratings are published.
  *  - AI search: search descriptions (what assistants quote), enough text on each product page; AI crawlers are let in, price and stock are machine-readable.
  */
-export type Scores = { overall: number; seo: number; ai: number; speed: number | null; speedFrom: "google" | "checks" | null };
+export type Scores = { overall: number; seo: number; ai: number; speed: number | null; speedChecks: Part };
 export function scores(a: Audit): Scores {
   const share = (p: Part) => (p.total ? p.ok / p.total : null);
   const site = (keys: SiteCheck["key"][]) => { const c = a.site.filter((x) => keys.includes(x.key) && x.ok != null); return c.length ? c.filter((x) => x.ok).length / c.length : null; };
   const mean = (xs: (number | null)[]) => { const v = xs.filter((x): x is number => x != null); return v.length ? Math.round((v.reduce((n, x) => n + x, 0) / v.length) * 100) : 0; };
   const seo = mean([share(a.title), share(a.description), share(a.alt), site(["open", "home", "reviews"])]);
   const ai = mean([share(a.description), share(a.text), site(["open", "ai", "facts"])]);
-  const g = (a.speed?.pages ?? []).map((p) => p.google?.score).filter((x): x is number => x != null), sp = speedScore(a.speed);
-  const speed = g.length ? Math.round(g.reduce((n, x) => n + x, 0) / g.length) : sp.total ? Math.round((sp.ok / sp.total) * 100) : null;
+  // Speed is a score out of 100 only when it is Google's. Kaviar's own page checks are shown as "9 of 12", never dressed up as a score.
+  const g = (a.speed?.pages ?? []).map((p) => p.google?.score).filter((x): x is number => x != null);
+  const speed = g.length ? Math.round(g.reduce((n, x) => n + x, 0) / g.length) : null;
   const all = [seo, ai, ...(speed != null ? [speed] : [])];
-  return { overall: Math.round(all.reduce((n, x) => n + x, 0) / all.length), seo, ai, speed, speedFrom: g.length ? "google" : sp.total ? "checks" : null };
+  return { overall: Math.round(all.reduce((n, x) => n + x, 0) / all.length), seo, ai, speed, speedChecks: speedScore(a.speed) };
 }
 
 /** Cut to a limit at a word, never mid-word. */

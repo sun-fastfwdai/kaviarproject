@@ -39,7 +39,10 @@ async function save(connectionId: string, productGid: string, rows: { id: string
   const seo = rows.filter((r) => r.kind === "search_title" || r.kind === "search_description"), alt = rows.filter((r) => r.kind === "alt" && r.mediaGid);
   try {
     if (seo.length) {
-      const input: Record<string, string | null> = {};
+      // Shopify saves the search title and description as a pair: sending one alone empties the other. So read both first and send both back.
+      const cur = (await shopifyGraphql<{ product: { seo: { title: string | null; description: string | null } } | null }>(connectionId, `query($id: ID!) { product(id: $id) { seo { title description } } }`, { id: productGid })).product?.seo;
+      if (!cur) return { ok, error: "That product or picture is no longer in the store" };
+      const input: Record<string, string | null> = { title: cur.title || null, description: cur.description || null };
       for (const r of seo) input[r.kind === "search_title" ? "title" : "description"] = r.value || null;
       const out = await shopifyGraphql<SeoOut>(connectionId, SEO, { product: { id: productGid, seo: input } });
       const e = out.productUpdate.userErrors[0]?.message, now = out.productUpdate.product?.seo;

@@ -6,7 +6,7 @@
  *    Only when a key for it is set for the project.
  * Everything here is pure, so the rules can be tested without a store.
  */
-export type SpeedCheck = { key: "answer" | "scripts" | "apps" | "blocking" | "lazy" | "sized"; name: string; ok: boolean; value: string; detail: string; how?: string; items?: string[] }; // items: exactly which pictures, and where on the page
+export type SpeedCheck = { key: "answer" | "scripts" | "apps" | "blocking" | "lazy" | "sized"; name: string; ok: boolean; value: string; n?: string; detail: string; how?: string; items?: string[] }; // n: the number alone, for a tile; // items: exactly which pictures, and where on the page
 export type Slow = { name: string; how: string | null; saves: number | null }; // saves: milliseconds Google estimates the fix would save
 export type Vitals = {
   score: number; lcp: number | null; cls: number | null; tbt: number | null;
@@ -32,7 +32,9 @@ export function sectionName(id: string): string {
   return t ? t[0].toUpperCase() + t.slice(1) : "Page";
 }
 /** What a page asks a phone to load, read from its HTML. */
-export function weigh(html: string, pageUrl: string): Weight {
+export function weigh(raw: string, pageUrl: string): Weight {
+  // A picture inside <video>, <noscript> or <template> is a fall-back the phone never downloads — blank those out (same length, so positions hold).
+  const html = raw.replace(/<(video|noscript|template)\b[\s\S]*?<\/\1>/gi, (m) => " ".repeat(m.length));
   const page = new URL(pageUrl), headEnd = html.search(/<\/head>/i);
   const scripts = new Set<string>(), outside = new Set<string>();
   let addOns = 0, blocking = 0;
@@ -68,19 +70,19 @@ export const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 /** The checks for one page, from what was measured. */
 export function speedChecks(w: Weight, m: { answerMs: number | null; scriptBytes: number | null }): SpeedCheck[] {
   const out: SpeedCheck[] = [], L = SPEED_LIMIT, apps = w.outside.length + w.addOns;
-  if (m.answerMs != null) out.push({ key: "answer", name: "The store answers quickly", ok: m.answerMs <= L.answerMs, value: m.answerMs < 1000 ? `${Math.round(m.answerMs)} ms` : secs(m.answerMs),
+  if (m.answerMs != null) out.push({ key: "answer", name: "The store answers quickly", ok: m.answerMs <= L.answerMs, value: m.answerMs < 1000 ? `${Math.round(m.answerMs)} ms` : secs(m.answerMs), n: m.answerMs < 1000 ? `${Math.round(m.answerMs)} ms` : secs(m.answerMs),
     detail: m.answerMs <= L.answerMs ? "Time for the store to start sending the page" : "The store is slow to start sending the page — everything else waits for it", how: "Usually a heavy theme or app code that runs before the page is built" });
-  if (m.scriptBytes != null) out.push({ key: "scripts", name: "Code the page loads", ok: m.scriptBytes <= L.scriptKb * 1000, value: `${kb(m.scriptBytes)} · ${n(w.scripts.length, "file")}`,
+  if (m.scriptBytes != null) out.push({ key: "scripts", name: "Code the page loads", ok: m.scriptBytes <= L.scriptKb * 1000, value: `${kb(m.scriptBytes)} · ${n(w.scripts.length, "file")}`, n: kb(m.scriptBytes),
     detail: m.scriptBytes <= L.scriptKb * 1000 ? "A phone downloads and runs this before the page reacts" : "A phone has to download and run all of it before the page reacts to a tap", how: "Remove apps you no longer use — an app leaves its code on every page until it is removed" });
-  out.push({ key: "apps", name: "Apps and outside services", ok: apps <= L.apps, value: n(apps, "service"),
+  out.push({ key: "apps", name: "Apps and outside services", ok: apps <= L.apps, value: n(apps, "service"), n: String(apps),
     detail: apps ? `${[...w.outside.slice(0, 6), ...(w.addOns ? [n(w.addOns, "Shopify app add-on")] : [])].join(", ")}${w.outside.length > 6 ? ` and ${w.outside.length - 6} more` : ""}` : "None load on this page",
     how: "Each one slows every visit. Keep the ones that earn their place; remove the rest in Shopify › Apps" });
-  out.push({ key: "blocking", name: "Nothing holds the first view back", ok: w.blocking <= L.blocking, value: n(w.blocking, "file"),
+  out.push({ key: "blocking", name: "Nothing holds the first view back", ok: w.blocking <= L.blocking, value: n(w.blocking, "file"), n: String(w.blocking),
     detail: w.blocking <= L.blocking ? "Files the phone must finish before it shows anything" : "The phone must finish these before it shows anything at all", how: "Have the theme load them after the page shows (“defer”), or move to a current Shopify theme" });
-  out.push({ key: "lazy", name: "Pictures wait their turn", ok: w.notLazy <= L.notLazy, value: `${w.notLazy} of ${w.pictures} load early`,
-    detail: w.notLazy <= L.notLazy ? "Pictures below the first view load only when scrolled to" : "Pictures far down the page load before the shopper can see them", how: "In the theme editor, open each part named below and set its picture to load “lazy” — or re-add it with the theme’s own image block", items: w.early.slice(0, 8) });
-  out.push({ key: "sized", name: "Pictures keep their place", ok: w.unsized <= L.unsized, value: `${w.unsized} without a set size`,
-    detail: w.unsized <= L.unsized ? "The page doesn’t jump as pictures arrive" : "The page jumps as these pictures arrive — shoppers tap the wrong thing", how: "These come from custom code or video blocks. Give each picture a width and height, or swap it for the theme’s own image block", items: w.loose.slice(0, 8) });
+  out.push({ key: "lazy", name: "Pictures wait their turn", ok: w.notLazy <= L.notLazy, value: `${w.notLazy} of ${w.pictures} load early`, n: String(w.notLazy),
+    detail: w.notLazy <= L.notLazy ? "Pictures below the first view load only when scrolled to" : "Pictures far down the page load before the shopper can see them", how: "Set these pictures to load “lazy” in the theme", items: w.early.slice(0, 8) });
+  out.push({ key: "sized", name: "Pictures keep their place", ok: w.unsized <= L.unsized, value: `${w.unsized} without a set size`, n: String(w.unsized),
+    detail: w.unsized <= L.unsized ? "The page doesn’t jump as pictures arrive" : "The page jumps as these pictures arrive — shoppers tap the wrong thing", how: "Give these pictures a width and height in the theme", items: w.loose.slice(0, 8) });
   return out;
 }
 
