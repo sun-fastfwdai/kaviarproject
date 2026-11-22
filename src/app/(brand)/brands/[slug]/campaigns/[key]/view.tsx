@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
@@ -13,7 +13,7 @@ import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey
 import { makeAds } from "../../plan/actions";
 import { setAdStatus } from "../../creative/actions";
 import { decide, setMode } from "../../optimize/actions";
-import { approvePlanFor, deleteOwnPlan, launchPlan, setPlanBudget } from "../actions";
+import { addReference, approvePlanFor, deleteOwnPlan, launchPlan, removeReference, saveBrief, setPlanBudget } from "../actions";
 
 /**
  * One campaign, whole. The brand never leaves this page to run it: approve the budget, have the ads written (progress shows at the
@@ -24,11 +24,11 @@ const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your result
 const DAYS = [7, 14, 28];
 type Props = {
   slug: string; currency: string; plan: PlanCard; input: Omit<PlanInput, "candidates">; minBudget: number; level: 0 | 1 | 2;
-  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
+  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
 };
 const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
 
-export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot }: Props) {
+export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -39,6 +39,11 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [days, setDays] = useState(p.days);
   const [mode, setM] = useState<Mode>(pilot.mode);
   const clear = useCallback(() => setWork(null), []);
+  // What Remy works from: the brand's own pictures and words, and whether to shoot new pictures in the references' style.
+  const [note, setNote] = useState(brief.note);
+  const [shootNew, setShootNew] = useState(brief.shoot);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const addRefs = (files: File[]) => { if (!files.length) return; setErr(null); setDoing("ref"); start(async () => { for (const f of files.slice(0, 8)) { const fd = new FormData(); fd.set("file", f); const r = await addReference(slug, p.key, fd); if (r.error) { setErr(r.error); break; } } router.refresh(); setDoing(null); }); };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const [lo, mid, hi] = forecast(p.c, budget, days, input), changed = budget !== p.budget || days !== p.days;
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
@@ -48,10 +53,12 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
   // Remy writes the ads while the brand stays here: the dock at the bottom says so, and the ads appear below when he is done.
   const write = () => {
-    setErr(null); setDoing("make"); setWork({ who: "builder", what: `Remy is writing 3 ads for “${p.title}”`, usually: "Usually under a minute", since: Date.now() });
+    const shooting = shootNew && brief.refs.length > 0;
+    setErr(null); setDoing("make"); setWork({ who: "builder", what: shooting ? `Remy is writing 3 ads and shooting their pictures` : `Remy is writing 3 ads for “${p.title}”`, usually: shooting ? "Usually two to three minutes" : "Usually under a minute", since: Date.now() });
     start(async () => {
+      await saveBrief(slug, p.key, note, shootNew);
       const r = await makeAds(slug, p.key, true);
-      if (r?.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: "3 ads are ready — say yes or no to each, below" }); setTimeout(() => document.getElementById("ads")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400); }
+      if (r?.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork(r?.note ? { done: r.note, bad: true } : { done: "3 ads are ready — say yes or no to each, below" }); setTimeout(() => document.getElementById("ads")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400); }
       setDoing(null);
     });
   };
@@ -197,10 +204,37 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               {a && <Link className="btn quiet sm" href={`${base}/creative/${a.batchId}`} title="Change the words or the picture">Edit in the studio<Icon name="arrow-r" size={11} /></Link>}
             </span>
           </div>
+          {/* what Remy works from: the product photo, the brand's own pictures and its own words */}
+          {!p.meta && <div className="col g10" style={{ padding: "12px 14px", borderRadius: 14, background: "var(--tray)" }}>
+            <div className="row g8" style={{ flexWrap: "wrap", alignItems: "center" }}>
+              <span className="xs i2 w5" style={{ width: "100%" }}>Work from</span>
+              {productPhoto && <span title="The product’s own photo — the product in every picture stays exactly this" style={{ position: "relative", flexShrink: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={productPhoto} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
+                <span style={{ position: "absolute", left: 3, bottom: 3, padding: "0 5px", borderRadius: 5, fontSize: 9.5, lineHeight: "14px", background: "rgba(18,18,18,.78)", color: "#fff" }}>Product</span></span>}
+              {brief.refs.map((r) => (
+                <span key={r.id} title={r.name} style={{ position: "relative", flexShrink: 0 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/assets/${r.id}?w=480`} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
+                  <button type="button" aria-label={`Remove ${r.name}`} disabled={busy} onClick={() => go(r.id, () => removeReference(slug, p.key, r.id))} style={{ position: "absolute", right: -5, top: -5, width: 18, height: 18, borderRadius: 99, background: "#121212", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={9} color="#fff" /></button>
+                </span>))}
+              <button type="button" className="btn sm" disabled={busy || brief.refs.length >= 8} onClick={() => fileRef.current?.click()} title="Your own photos, or pictures whose look you like — up to 8, 4 MB each" style={{ height: 56, borderStyle: "dashed" }}>{doing === "ref" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="plus" size={13} />}Add reference pictures</button>
+              <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; addRefs(fs); }} />
+            </div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 600))} onBlur={() => { if (note !== brief.note) void saveBrief(slug, p.key, note, shootNew); }} rows={2} aria-label="Your notes for this campaign" placeholder="Anything Remy should use — the offer, a line you like, what to leave out"
+              style={{ width: "100%", padding: "9px 11px", borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", font: "inherit", fontSize: 13.5, lineHeight: "19px", resize: "vertical" }} />
+            <div className="row g10" style={{ flexWrap: "wrap" }}>
+              {brief.refs.length > 0 && <div className="seg" role="radiogroup" aria-label="Where the pictures come from">
+                {([[false, "Use my pictures"], [true, "Shoot new ones in their style"]] as const).map(([v, text]) => <button key={text} type="button" role="radio" aria-checked={shootNew === v} className={`o${shootNew === v ? " on" : ""}`} title={v ? "New pictures are made from your product photo, lit and composed like your references. Each one is charged by the image service." : "Your reference pictures go on the ads as they are"} onClick={() => setShootNew(v)}>{text}</button>)}
+              </div>}
+              <span className="fill" />
+              {p.stage !== "suggested" && <button type="button" className={`btn sm${ads.length ? "" : " dark"}`} disabled={busy} onClick={write}>{doing === "make" ? <Icon name="spinner" size={12} className="spin" color={ads.length ? undefined : "#fff"} /> : null}{ads.length ? "Make 3 new ads" : "Make 3 ads"}</button>}
+            </div>
+          </div>}
           {ads.length === 0 ? (
             <div className="row g12" style={{ padding: "8px 0 4px" }}>
               <span className="sm i3 fill">{p.stage === "suggested" ? "Ads are written once you approve the plan." : doing === "make" ? "Remy is writing them now…" : "None yet."}</span>
-              {p.stage === "approved" && doing !== "make" && <button type="button" className="btn dark sm" disabled={busy} onClick={write}>Make 3 ads</button>}
+
             </div>
           ) : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
             {ads.map((ad) => (

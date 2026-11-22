@@ -168,6 +168,7 @@ export async function buildPipeline(slug: string, brief: PlanBrief, stay = false
   const angles = (Array.isArray(brief.angles) ? brief.angles : []).map((a) => String(a).slice(0, 90)).slice(0, 4);
   const product = String(brief.product ?? "").slice(0, 200), audience = String(brief.audience ?? "").slice(0, 200), look = String(brief.look ?? "").slice(0, 200);
   const direction = `Plan agreed with the team — ${format === "full" ? "a full video ad" : `${format} ads`}${product ? ` for ${product}` : ""}${audience ? `, for ${audience}` : ""}. Messages to test: ${angles.join("; ") || "your best angles"}.${look ? ` Look: ${look}.` : ""}`;
+  const said = String(brief.note ?? "").trim().slice(0, 600), told = said ? `${direction} The brand’s own notes for this campaign, to follow closely: “${said}”.` : direction;
   // The buyer or plan it's for, re-read from the brand's own data.
   let signal: { key: string; data: string; value: string | null; use: string; evidence: [string, string][] } | undefined;
   const key = String(brief.signal ?? "");
@@ -181,7 +182,7 @@ export async function buildPipeline(slug: string, brief: PlanBrief, stay = false
   }
   if (!signal && key && brief.reason) signal = { key, data: String(brief.reason.data).slice(0, 300), value: brief.reason.value, use: String(brief.reason.use).slice(0, 300), evidence: (brief.reason.evidence ?? []).slice(0, 6) };
   const kind: BatchKind = format === "full" ? "video" : format;
-  const id = await createBatch(brand.id, me.id, { ...(signal ? { signal } : { idea: direction }), direction, count, kind });
+  const id = await createBatch(brand.id, me.id, { ...(signal ? { signal } : { idea: told }), direction: told, count, kind });
   if (!id) return fail("Remy couldn’t write the ads right now. Try again in a minute.");
   if (stay) return { at: Date.now(), batchId: id }; // asked for from a plan's own page: the ads appear there, nobody is sent to Shoots
   const q = new URLSearchParams({ batch: id, layout: format, n: String(count), plan: "1" });

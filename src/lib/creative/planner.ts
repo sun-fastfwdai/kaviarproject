@@ -12,7 +12,9 @@ import { AD_LOOKS, lookNamed, shortLook } from "./layouts";
 export type PlanFormat = "static" | "video" | "ugc" | "full";
 export type PlanBrief = { format: PlanFormat; product: string; signal: string; audience: string; angles: string[]; count: number; look: string; adLook: string; seconds: number; why: string;
   /** The reason behind the plan, when it isn't one of the store's saved signals — a holiday, stock sitting unsold. The batch is filed under `signal` with these facts. */
-  reason?: { data: string; value: string | null; use: string; evidence: [string, string][] } };
+  reason?: { data: string; value: string | null; use: string; evidence: [string, string][] };
+  /** The brand's own words for this campaign — an offer, a line it likes, what to leave out. Remy writes from them. */
+  note?: string };
 export type PlanTurn = { who: "you" | "remy"; text: string };
 export type PlanReply = { say: string; questions: { text: string; options: string[] }[]; brief: PlanBrief | null };
 export type PlanOption = { key: string; title: string; why: string };

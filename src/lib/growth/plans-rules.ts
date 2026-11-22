@@ -21,7 +21,9 @@ export type PlanCard = {
   c: Candidate; image: string | null; budget: number; days: number; out: [Outcome, Outcome, Outcome];
   stage: Stage; ads: PlanAds | null; urgent: boolean; approvedAt: string | null; approvedBy?: string | null; meta?: OnMeta | null;
 };
-export type SavedPlans = { target?: number; plans?: Record<string, { budget?: number; days?: number; approvedAt?: string; by?: string; meta?: OnMeta }>; own?: OwnPlan[] };
+/** What the brand gives Remy to work from for one plan: its own pictures, its own words, and whether new pictures should be shot in their style. */
+export type Brief = { refs: string[]; note: string; shoot: boolean };
+export type SavedPlans = { target?: number; plans?: Record<string, { budget?: number; days?: number; approvedAt?: string; by?: string; meta?: OnMeta; brief?: Brief }>; own?: OwnPlan[] };
 
 // ---------------------------------------------------------------- the calendar
 export type Moment = { key: string; name: string; date: string; days: number };

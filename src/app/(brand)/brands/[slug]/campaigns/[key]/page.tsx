@@ -20,7 +20,7 @@ export default async function PlanPage({ params }: PageProps<"/brands/[slug]/cam
     <>
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Campaigns", href: `/brands/${slug}/campaigns` }, { label: plan.title }]} />
       <PlanView slug={slug} currency={plans.currency} plan={plan} input={plans.input} minBudget={plans.minBudget} level={plans.level}
-        ads={x.ads} facts={x.facts} shop={plans.shop} results={x.results} pilot={{ mode: x.pilot.mode, last: x.pilot.last ? ago(new Date(x.pilot.last)) : null, canAct: x.pilot.canAct, changes: x.pilot.changes }} />
+        ads={x.ads} facts={x.facts} shop={plans.shop} results={x.results} brief={x.brief} productPhoto={x.productPhoto} pilot={{ mode: x.pilot.mode, last: x.pilot.last ? ago(new Date(x.pilot.last)) : null, canAct: x.pilot.canAct, changes: x.pilot.changes }} />
     </>
   );
 }

@@ -2,7 +2,11 @@
 import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
-import { addOwnPlan, getPlans, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
+import { and, eq, sql } from "drizzle-orm";
+import { schema } from "@/lib/db";
+import { deleteAssets, saveAsset } from "@/lib/assets/storage";
+import { imageSize } from "@/lib/creative/higgsfield";
+import { addOwnPlan, getPlans, planBrief, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
 import { createPausedCampaign } from "@/lib/meta/apply";
 
 const fresh = (slug: string) => { for (const p of ["campaigns", "today"]) revalidatePath(`/brands/${slug}/${p}`, p === "campaigns" ? "layout" : "page"); };
@@ -64,5 +68,40 @@ export async function deleteOwnPlan(slug: string, key: string): Promise<void> {
   await requireMember();
   if (!key.startsWith("own:")) return;
   await removeOwnPlan((await getBrand(slug)).id, key);
+  fresh(slug);
+}
+
+// ---------------------------------------------------------------- what the brand gives Remy to work from
+const MAX_REF = 4 * 1024 * 1024; // a request can't carry more than 4.5 MB
+
+/** A reference picture for one plan: the brand's own photo, a look it likes. Kept with the plan and with Brand assets. */
+export async function addReference(slug: string, key: string, form: FormData): Promise<{ id?: string; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug), f = form.get("file");
+  if (!(f instanceof File) || !f.size) return { error: "Pick a picture." };
+  if (!/^image\/(png|jpeg|webp)$/.test(f.type)) return { error: `${f.name} isn’t a PNG, JPG or WebP picture.` };
+  if (f.size > MAX_REF) return { error: `${f.name} is over 4 MB.` };
+  const b = await planBrief(brand.id, key);
+  if (b.refs.length >= 8) return { error: "Eight references at most — remove one first." };
+  const buf = Buffer.from(await f.arrayBuffer());
+  const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name: f.name.slice(0, 120), mime: f.type, size: f.size, data: buf, meta: { ...(imageSize(buf) ?? {}), plan: key, ref: true }, createdBy: me.id });
+  await savePlanChoice(brand.id, key, { brief: { ...b, refs: [...b.refs, row.id] } });
+  fresh(slug);
+  return { id: row.id };
+}
+export async function removeReference(slug: string, key: string, id: string): Promise<void> {
+  await requireMember();
+  const brand = await getBrand(slug), b = await planBrief(brand.id, key);
+  if (!b.refs.includes(id)) return;
+  await savePlanChoice(brand.id, key, { brief: { ...b, refs: b.refs.filter((x) => x !== id) } });
+  // The file goes too, unless an ad is already using it.
+  await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id), sql`${schema.brandAssets.meta}->>'ref' = 'true'`, sql`not exists (select 1 from ads a where a.image_url = '/api/assets/' || ${id})`));
+  fresh(slug);
+}
+/** The brand's own words for the campaign, and whether new pictures should be shot in the references' style. */
+export async function saveBrief(slug: string, key: string, note: string, shoot: boolean): Promise<void> {
+  await requireMember();
+  const brand = await getBrand(slug), b = await planBrief(brand.id, key);
+  await savePlanChoice(brand.id, key, { brief: { ...b, note: note.trim().slice(0, 600), shoot } });
   fresh(slug);
 }

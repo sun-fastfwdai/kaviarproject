@@ -9,7 +9,7 @@ import { planData } from "./plan-data";
 import { planFor } from "./plan-for";
 import { halves, sumOf, type Day } from "./trend";
 import { levelOf, type Candidate, type PlanInput } from "./plan";
-import { forecast, inDays, moments, rankPlans, salesReason, stageOf, type OnMeta, type OwnPlan, type PlanAds, type PlanCard, type Reason, type SavedPlans } from "./plans-rules";
+import { forecast, inDays, moments, rankPlans, salesReason, stageOf, type Brief, type OnMeta, type OwnPlan, type PlanAds, type PlanCard, type Reason, type SavedPlans } from "./plans-rules";
 import { campaigns } from "../queries/growth";
 import { SALE } from "../queries/common";
 import { rivalAds } from "../seo/bench";
@@ -45,7 +45,7 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
       approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(60),
     db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
     db.execute(sql`select * from (select a.batch_id as batch, a.position, ${realPic} as url from ads a join ad_batches b on b.id = a.batch_id
-        left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false)
+        left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) and ai.meta->>'plan' is null
         where b.brand_id = ${brand.id} and a.status in ('review', 'approved')) x where x.url is not null order by x.batch, x.position`).then((r) => r.rows as { batch: string; url: string }[]).catch(() => []),
   ]);
   const { p, input } = planFor(d), { candidates, ...rest } = input, plans = saved?.plans ?? {}, target = saved?.target && saved.target > 0 ? saved.target : null;
@@ -121,10 +121,14 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
   return { list: rankPlans(worth), options, shop, input: rest, minBudget: round(p.minToLearn), currency, level: levelOf(d.history), sales: { ...sales, on: sr.on, why: sr.why }, target, loose };
 }
 
-export async function savePlanChoice(brandId: string, key: string, v: { budget?: number; days?: number; approve?: boolean; by?: string; meta?: OnMeta }): Promise<void> {
+export async function planBrief(brandId: string, key: string): Promise<Brief> {
+  const b = (await read<SavedPlans>(brandId, KEY))?.plans?.[key]?.brief;
+  return { refs: b?.refs ?? [], note: b?.note ?? "", shoot: Boolean(b?.shoot) };
+}
+export async function savePlanChoice(brandId: string, key: string, v: { budget?: number; days?: number; approve?: boolean; by?: string; meta?: OnMeta; brief?: Brief }): Promise<void> {
   const cur = (await read<SavedPlans>(brandId, KEY)) ?? {}, was = cur.plans?.[key] ?? {};
   const budget = v.budget && Number.isFinite(v.budget) ? Math.min(1_000_000, Math.max(50, Math.round(v.budget))) : was.budget, days = v.days && Number.isFinite(v.days) ? Math.min(90, Math.max(3, Math.round(v.days))) : was.days;
-  await write(brandId, KEY, { ...cur, plans: { ...(cur.plans ?? {}), [key]: { ...was, budget, days, ...(v.approve ? { approvedAt: new Date().toISOString(), by: v.by } : {}), ...(v.meta ? { meta: v.meta } : {}) } } });
+  await write(brandId, KEY, { ...cur, plans: { ...(cur.plans ?? {}), [key]: { ...was, budget, days, ...(v.approve ? { approvedAt: new Date().toISOString(), by: v.by } : {}), ...(v.meta ? { meta: v.meta } : {}), ...(v.brief ? { brief: { refs: v.brief.refs.slice(0, 8), note: v.brief.note.slice(0, 600), shoot: v.brief.shoot } } : {}) } } });
 }
 export async function saveTarget(brandId: string, target: number | null): Promise<void> {
   const cur = (await read<SavedPlans>(brandId, KEY)) ?? {};
@@ -155,13 +159,14 @@ export type PlanFacts = {
 };
 export type PlanExtras = {
   ads: PlanAd[]; facts: PlanFacts;
+  brief: { note: string; shoot: boolean; refs: { id: string; name: string }[] }; productPhoto: string | null;
   results: { status: string | null; spend: number; orders: number; revenue: number } | null; // null until the campaign is on Meta
   pilot: { mode: Mode; last: string | null; canAct: boolean; changes: { id: string; kind: string; title: string; why: string; before: string; after: string }[] };
 };
 export async function planExtras(brand: { id: string; timezone: string }, p: PlanCard): Promise<PlanExtras> {
   const [ads, pilot, camps, changes] = await Promise.all([
     p.ads ? db.execute(sql`select a.id, a.status, a.hook, a.headline, a.primary_text as text, a.cta, ${realPic} as image from ads a
-        left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false)
+        left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) and ai.meta->>'plan' is null
         where a.batch_id = ${p.ads.batchId} and a.status in ('review', 'approved') order by a.position limit 12`).then((r) => r.rows as PlanAd[]).catch(() => []) : Promise.resolve([] as PlanAd[]),
     getPilot(brand.id),
     p.meta ? campaigns(brand.id, brand.timezone, 90).catch(() => []) : Promise.resolve([]),
@@ -187,7 +192,9 @@ export async function planExtras(brand: { id: string; timezone: string }, p: Pla
     rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), brands: rivals.rows.length, new30: rivals.rows.reduce((k, x) => k + x.new30, 0), angle: top ? { name: top.name, share: Math.round(top.share) } : null, gap: gap?.text ?? null } : null,
     page: audit?.at && fixes != null ? { open: fixes, stars: audit.site?.find((x) => x.key === "reviews")?.ok ?? null } : null,
   };
+  const b = await planBrief(brand.id, p.key);
+  const refs = b.refs.length ? (await db.select({ id: schema.brandAssets.id, name: schema.brandAssets.name }).from(schema.brandAssets).where(sql`${schema.brandAssets.brandId} = ${brand.id} and ${schema.brandAssets.id}::text in (${sql.join(b.refs.map((x) => sql`${x}`), sql`, `)})`).catch(() => [])) : [];
   const c = p.meta ? camps.find((x) => x.id === p.meta!.campaignId) : undefined;
-  return { ads, facts, results: p.meta ? { status: c?.status ?? null, spend: c?.spend ?? 0, orders: c?.verifiedOrders ?? 0, revenue: c?.verifiedRevenue ?? 0 } : null,
+  return { ads, facts, brief: { note: b.note, shoot: b.shoot, refs: b.refs.map((id) => refs.find((r) => r.id === id)).filter((r): r is { id: string; name: string } => Boolean(r)) }, productPhoto: p.image, results: p.meta ? { status: c?.status ?? null, spend: c?.spend ?? 0, orders: c?.verifiedOrders ?? 0, revenue: c?.verifiedRevenue ?? 0 } : null,
     pilot: { mode: pilot.mode, last: pilot.runs[0]?.at ?? null, canAct: pilot.canAct, changes } };
 }
