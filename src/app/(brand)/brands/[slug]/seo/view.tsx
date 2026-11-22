@@ -30,9 +30,9 @@ const num = (gid: string) => gid.slice(gid.lastIndexOf("/") + 1);
 function Meter({ k, p }: { k: string; p: Part }) {
   const pct = p.total ? Math.round((p.ok / p.total) * 100) : 0, good = p.total > 0 && p.ok === p.total;
   return (
-    <div className="col g6 fill" style={{ minWidth: 130 }}>
+    <div className="col g4 fill" style={{ minWidth: 130 }}>
       <span style={{ fontSize: 11.5, color: DIM }}>{k}</span>
-      <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "26px", fontWeight: 600, color: good ? "#6EE7A8" : "#fff" }}>{p.ok}</span><span className="tnum" style={{ fontSize: 12.5, color: DIM }}>of {p.total} fine</span></span>
+      <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 18, lineHeight: "22px", fontWeight: 600, color: good ? "#6EE7A8" : "#fff" }}>{p.ok}</span><span className="tnum" style={{ fontSize: 12.5, color: DIM }}>of {p.total} fine</span></span>
       <span style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.14)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${pct}%`, borderRadius: 99, background: good ? "#34C77B" : pct >= 60 ? "#E9B949" : "#FF9B73" }} /></span>
     </div>
   );
@@ -41,7 +41,7 @@ function Meter({ k, p }: { k: string; p: Part }) {
 const TONE = { good: "#34C77B", ok: "#E9B949", poor: "#FF8A5C" } as const;
 /** A score out of 100 as a ring, with one word under it. What it means is in the tooltip, not on the screen. */
 const STAND = { ahead: ["#E4F4EB", "#1F7A52"], level: ["rgba(255,255,255,.16)", "#fff"], behind: ["#FBEDE6", "#B4532A"] } as const;
-function Dial({ v, text, label, sub, hint, size = 64, dark = true, stand, share = false }: { v: number | null; text?: string; label: string; sub?: string; hint?: string; size?: number; dark?: boolean; stand?: { verdict: Verdict; avg: number }; share?: boolean }) {
+function Dial({ v, text, label, sub, hint, size = 54, dark = true, stand, share = false }: { v: number | null; text?: string; label: string; sub?: string; hint?: string; size?: number; dark?: boolean; stand?: { verdict: Verdict; avg: number }; share?: boolean }) {
   const r = (size - 8) / 2, c = 2 * Math.PI * r, tone = v == null ? "#8B8883" : TONE[band(v)], big = size > 70;
   return (
     <div className="row g10" title={hint}>
@@ -130,7 +130,7 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
   const check = () => go("check", async () => { const r = await checkStore(slug); if (r.error) setMsg({ text: r.error, bad: true }); });
   const copy = (id: string, text: string) => { void navigator.clipboard?.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 1400); };
   const pick = (v: boolean) => { setAuto(v); go("mode", () => setStoreAuto(slug, v)); };
-  const pill = (dark: boolean) => ({ height: 38, padding: "0 16px", borderRadius: 99, fontSize: 13.5, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
+  const pill = (dark: boolean) => ({ height: 34, padding: "0 14px", borderRadius: 99, fontSize: 13, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
 
   const Row = (f: Fix, i: number) => {
     const on = editing?.id === f.id;
@@ -183,23 +183,28 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
         {/* ---- the store's last 30 days; each number opens the orders behind it */}
         {kpis.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>{kpis.map((k, i) => <StatTile key={k.label} k={k} tray={i % 2 === 1} />)}</div>}
         {/* ---- the state of the store, and the two buttons that matter */}
-        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 20px" }}>
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "16px 20px 16px" }}>
           <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${open.length ? "rgba(91,111,214,.34)" : "rgba(52,199,123,.30)"}, transparent)` }} />
-          <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
-            <div className="row top g14" style={{ minWidth: 0 }}>
-              <AgentFace kind="catalog" size={40} mood={open.length ? "up" : "happy"} />
-              <div className="col g4">
-                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>SEO · AI search · Speed</span>
-                {!audit ? <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.02em" }}>Let Cleo read {brand}’s store</span>
-                  : <span className="row g12" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
-                    <span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{open.length}</span>
-                    <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em" }}>{open.length === 1 ? "thing to fix" : "things to fix"}</span>
+          <div className="row between g16" style={{ position: "relative", flexWrap: "wrap" }}>
+            <div className="row g12" style={{ minWidth: 0 }}>
+              <AgentFace kind="catalog" size={34} mood={open.length ? "up" : "happy"} />
+              <div className="col">
+                                {!audit ? <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em" }}>Let Cleo read {brand}’s store</span>
+                  : <span className="row g8" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
+                    <span className="tnum" style={{ fontSize: 30, lineHeight: "34px", fontWeight: 600, letterSpacing: "-0.03em" }}>{open.length}</span>
+                    <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>{open.length === 1 ? "thing to fix" : "things to fix"}</span>
 
                   </span>}
                 <span style={{ fontSize: 12.5, color: DIM }}>{audit ? `${audit.products} products · ${audit.pictures} pictures · checked ${checked}` : "About a minute. Nothing changes on the store until you say so."}</span>
               </div>
             </div>
             <div className="row g8" style={{ flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {audit && <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone"
+                title={!canFix ? "Kaviar can read this store, not change it" : auto ? "Fills empty fields every morning. Never replaces your words." : "Nothing is saved until you press Fix"}>
+                {([[false, "Ask me first"], [true, "Fix automatically"]] as const).map(([v, label]) => (
+                  <button key={label} type="button" role="radio" aria-checked={auto === v} disabled={busy} onClick={() => pick(v)} style={{ height: 28, padding: "0 12px", borderRadius: 99, fontSize: 12.5, fontWeight: 500, background: auto === v ? "#fff" : "transparent", color: auto === v ? "#121212" : "rgba(255,255,255,.75)" }}>{label}</button>))}
+              </div>}
+              {audit && !canFix && !ready.length && <a href={allow} className="row g6" style={pill(false)}>Allow in Shopify<Icon name="arrow-r" size={11} /></a>}
               <button type="button" disabled={busy} onClick={check} className="row g6" style={pill(!audit)}>{doing === "check" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}{doing === "check" ? "Reading the store…" : audit ? "Check again" : "Read my store"}</button>
               {audit && ready.length > 0 && (canFix
                 ? <button type="button" disabled={busy} onClick={() => save("all", "all")} className="row g6" style={pill(true)}>{doing === "all" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="check" size={13} />}Fix all {ready.length}</button>
@@ -208,28 +213,16 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
           </div>
 
           {audit && <>
-            {sco && sc && <div style={{ position: "relative", marginTop: 22, padding: "16px 20px", borderRadius: 16, background: "rgba(255,255,255,.06)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "center" }}>
-              <Dial v={sco.overall} label="Overall" sub={`${sc.ok} of ${sc.total} checks pass`} hint={sco.speed != null ? "SEO, AI search and Google’s speed score together" : "SEO and AI search together. Speed joins once Google’s speed test is on."} size={84} />
+            {sco && sc && <div style={{ position: "relative", marginTop: 14, padding: "12px 16px", borderRadius: 14, background: "rgba(255,255,255,.06)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, alignItems: "center" }}>
+              <Dial v={sco.overall} label="Overall" sub={`${sc.ok} of ${sc.total} checks pass`} hint={sco.speed != null ? "SEO, AI search and Google’s speed score together" : "SEO and AI search together. Speed joins once Google’s speed test is on."} size={72} />
               <Dial v={sco.seo} stand={stands.seo} label="SEO" sub={left(audit, "seo")} hint="How well Google can list and describe the store: search titles, descriptions, picture descriptions, and the store-wide checks" />
               <Dial v={sco.ai} stand={stands.ai} label="AI search" sub={left(audit, "ai")} hint="How well ChatGPT, Claude and others can read and quote the store: descriptions, page text, crawlers let in, price and stock readable" />
               {sco.speed != null ? <Dial v={sco.speed} stand={stands.speed} label="Speed" sub="Google · on a phone" hint="Google’s speed score on a phone" />
                 : sco.speedChecks.total > 0 ? <Dial v={Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)} text={`${sco.speedChecks.ok}/${sco.speedChecks.total}`} stand={stands.speed} share label="Speed checks" sub={sco.speedChecks.ok === sco.speedChecks.total ? "All fine" : `${sco.speedChecks.total - sco.speedChecks.ok} to fix`} hint="Kaviar’s own page checks that pass. Google’s speed score isn’t on yet, so speed is not part of the overall score." />
                 : <Dial v={null} label="Speed" sub="Not measured yet" hint="Press Check again" />}
             </div>}
-            <div className="row g20" style={{ position: "relative", marginTop: 20, flexWrap: "wrap" }}>
+            <div className="row g20" style={{ position: "relative", marginTop: 14, flexWrap: "wrap" }}>
               <Meter k="Search titles" p={audit.title} /><Meter k="Search descriptions" p={audit.description} /><Meter k="Pictures described" p={audit.alt} /><Meter k="Pages with enough text" p={audit.text} />
-            </div>
-            <div className="row g12" style={{ position: "relative", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.12)", flexWrap: "wrap" }}>
-              <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone">
-                {([[false, "Ask me first"], [true, "Fix automatically"]] as const).map(([v, label]) => (
-                  <button key={label} type="button" role="radio" aria-checked={auto === v} disabled={busy} onClick={() => pick(v)} style={{ height: 30, padding: "0 14px", borderRadius: 99, fontSize: 12.5, fontWeight: 500, background: auto === v ? "#fff" : "transparent", color: auto === v ? "#121212" : "rgba(255,255,255,.75)" }}>{label}</button>))}
-              </div>
-              <span className="fill" style={{ fontSize: 12.5, color: DIM, minWidth: 220 }}>
-                {!canFix ? "Kaviar can read this store, not change it."
-                  : auto ? "Fills empty fields every morning. Never replaces your words."
-                  : "Nothing is saved until you press Fix."}
-              </span>
-              {!canFix && <a href={allow} className="row g6" style={{ ...pill(false), height: 30, fontSize: 12.5 }}>Allow in Shopify<Icon name="arrow-r" size={11} /></a>}
             </div>
           </>}
         </div>

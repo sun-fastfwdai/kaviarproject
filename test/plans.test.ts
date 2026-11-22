@@ -54,7 +54,8 @@ describe("one plan", () => {
     expect([s.now, s.steps[1].done, s.steps[1].note]).toEqual(["budget", false, "Waiting for your yes"]);
     expect(stepsOf(card({ stage: "approved" })).now).toBe("ads");
     const r = stepsOf(card({ stage: "review", ads: ads({ review: 3 }) }));
-    expect([r.now, r.steps[2].note, r.steps[1].done]).toEqual(["ads", "3 ads to review", true]);
+    expect([r.now, r.steps[2].note, r.steps[1].done, r.steps[1].note]).toEqual(["ads", "3 ads to review", false, "Not approved yet"]); // ads made before anyone approved
+    expect(stepsOf(card({ stage: "approved", approvedAt: "2026-11-22T10:00:00Z", approvedBy: "Kris Singh" })).steps[1]).toMatchObject({ done: true, note: "Approved by Kris · Nov 22" });
     expect(stepsOf(card({ stage: "test", ads: ads({ approved: 3 }) }))).toMatchObject({ now: "test" });
     expect(stepsOf(card({ stage: "ready", ads: ads({ approved: 3, tested: true }) })).now).toBe("launch");
   });

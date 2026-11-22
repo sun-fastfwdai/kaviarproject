@@ -85,6 +85,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level }: P
                 <span className="col" style={{ maxWidth: 210 }}><span style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>Selling</span><span className="ell" style={{ fontSize: 13, fontWeight: 500 }}>{p.c.product}</span></span>
               </span>
               <span className="row g8">
+                {!p.approvedAt && p.stage !== "suggested" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days))}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
                 {changed && p.stage !== "suggested" && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("save", () => setPlanBudget(slug, p.key, budget, days))}>{spin("save")}Save the change</button>}
                 {act(now)}
               </span>
@@ -115,6 +116,34 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level }: P
         </div>
 
         {err && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" />{err}</div>}
+
+        {/* ---- how the money comes back: each step of the sum, with the rate it rests on */}
+        <div className="col g12" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+          <div className="row between g12" style={{ flexWrap: "wrap" }}>
+            <span className="xs i3" style={{ letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>How {usd(budget)} comes back</span>
+            <Link className="btn quiet sm" href={`${base}/plan`} title="Your margin, offer and goal — used by every plan">Margin &amp; assumptions<Icon name="arrow-r" size={11} /></Link>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+            {([
+              ["People who see it", Math.round(mid.seen).toLocaleString("en-US"), `${usd(input.rates.cpm[1])} per 1,000 views`],
+              ["Click", Math.round(mid.clicks).toLocaleString("en-US"), `${(input.rates.ctr[1] * 100).toFixed(1)}% of them`],
+              ["Order", String(Math.round(mid.orders)), `${(input.rates.cvr[p.c.kind][1] * 100).toFixed(1)}% of clicks`],
+              ["Sales", usd(mid.revenue), `${usd(p.c.price)} an order`],
+              ["Profit", `${mid.profit >= 0 ? "+" : "−"}${usd(Math.abs(mid.profit))}`, `after ${usd(mid.cost)} of goods and ${usd(budget)} of ads`],
+            ] as const).map(([k, v, how], i) => (
+              <div key={k} className="col g2" style={{ padding: "11px 13px", borderRadius: 14, background: i === 4 ? (mid.profit >= 0 ? "var(--green-bg)" : "var(--red-bg)") : "var(--tray)", minWidth: 0 }}>
+                <span className="xs i3">{k}</span>
+                <span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em", color: i === 4 ? (mid.profit >= 0 ? "var(--green)" : "var(--red)") : "var(--ink)" }}>{v}</span>
+                <span className="xs i3 ell" title={how}>{how}</span>
+              </div>))}
+          </div>
+          <div className="row g8 xs" style={{ flexWrap: "wrap" }}>
+            <span className="pill" style={{ height: 24 }} title="The cautious rates">If it goes badly · {Math.round(lo.orders)} orders · {usd(lo.revenue)}</span>
+            <span className="pill" style={{ height: 24 }} title="The strong rates">If it goes well · {Math.round(hi.orders)} orders · {usd(hi.revenue)}</span>
+            <span className="pill" style={{ height: 24 }} title={level === 0 ? "Starting assumptions for a brand with no ad history — they are replaced by your own results as ads run" : "From your own ad results"}>{level === 0 ? "Rates are starting assumptions" : "Rates from your results"}</span>
+            <span className="pill" style={{ height: 24 }}>{Math.round(input.margin * 100)}% margin</span>
+          </div>
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: 12 }}>
           {/* ---- why now */}

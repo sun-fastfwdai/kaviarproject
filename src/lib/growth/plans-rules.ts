@@ -14,7 +14,7 @@ export type PlanAds = { batchId: string; review: number; approved: number; teste
 export type PlanCard = {
   key: string; reason: Reason; title: string; why: string; when?: string; // when: for a holiday, how soon ("in 4 days")
   c: Candidate; image: string | null; budget: number; days: number; out: [Outcome, Outcome, Outcome];
-  stage: Stage; ads: PlanAds | null; urgent: boolean; approvedAt: string | null;
+  stage: Stage; ads: PlanAds | null; urgent: boolean; approvedAt: string | null; approvedBy?: string | null;
 };
 export type SavedPlans = { target?: number; plans?: Record<string, { budget?: number; days?: number; approvedAt?: string; by?: string }> };
 
@@ -66,7 +66,8 @@ export function stepsOf(p: PlanCard): { steps: Step[]; now: StepKey } {
   const a = p.ads, s = p.stage, n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
   const steps: Step[] = [
     { key: "why", label: "Why now", note: REASON_NAME[p.reason], done: true },
-    { key: "budget", label: "Budget", note: s === "suggested" ? "Waiting for your yes" : "Approved", done: s !== "suggested" },
+    // Approved means somebody said yes to this plan. Ads written before plans existed don't count as a yes.
+    { key: "budget", label: "Budget", note: p.approvedAt ? `Approved${p.approvedBy ? ` by ${p.approvedBy.split(/\s+/)[0]}` : ""} · ${new Date(p.approvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : s === "suggested" ? "Waiting for your yes" : "Not approved yet", done: Boolean(p.approvedAt) },
     { key: "ads", label: "Ads", note: !a ? "Not made yet" : a.review ? `${n(a.review, "ad")} to review` : `${n(a.approved, "ad")} approved`, done: s === "test" || s === "ready" },
     { key: "test", label: "Test", note: s === "ready" ? "Winner chosen" : "Before spending", done: s === "ready" },
     { key: "launch", label: "Launch", note: s === "ready" ? "Ready to go live" : "On Meta", done: false },

@@ -54,7 +54,7 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
     const s = plans[c.key] ?? {}, funded = p.rows.find((r) => r.c.key === c.key);
     const budget = s.budget && s.budget > 0 ? s.budget : round(funded?.spend ?? p.minToLearn), days = s.days && s.days > 0 ? s.days : o.days ?? 14;
     const ads = adsFor(c.signal), stage = stageOf(Boolean(s.approvedAt), ads);
-    return { key: c.key, reason, title, why, when: o.when, c, image: pic(c.product), budget, days, out: forecast(c, budget, days, rest), stage, ads, urgent: Boolean(o.urgent) && stage !== "ready", approvedAt: s.approvedAt ?? null };
+    return { key: c.key, reason, title, why, when: o.when, c, image: pic(c.product), budget, days, out: forecast(c, budget, days, rest), stage, ads, urgent: Boolean(o.urgent) && stage !== "ready", approvedAt: s.approvedAt ?? null, approvedBy: s.by ?? null };
   };
   const list: PlanCard[] = [], hero = d.hero, top = candidates[0] ?? null, n = (v: number) => v.toLocaleString("en-US");
 
