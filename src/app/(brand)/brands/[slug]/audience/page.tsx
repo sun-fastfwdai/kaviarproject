@@ -47,7 +47,7 @@ export default async function AudiencePage({ params, searchParams }: PageProps<"
     return { id: x.id, title: x.title, status: x.stale ? "error" as const : x.status, kind: kindOf.get(x.panelId) ?? kind, createdAt: x.createdAt.toISOString(), items: x.items.length,
       winner: top ? x.items.find((i) => i.key === top.key)?.label ?? null : null, top: top?.score ?? null };
   });
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Audience test" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Ads" }, { label: "Audience test" }];
   return (
     <>
       <Bar crumbs={crumbs}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="audience" /></Bar>

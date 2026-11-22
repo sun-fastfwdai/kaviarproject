@@ -14,7 +14,7 @@ export default async function PlanPage({ params }: PageProps<"/brands/[slug]/pla
   const data = await planData(brand.id, brand.currency ?? "USD");
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Spend plan" }]}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="plan" /></Bar>
+      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Ads" }, { label: "Spend plan" }]}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="plan" /></Bar>
       <SpendPlan slug={slug} data={data} />
     </>
   );

@@ -71,7 +71,7 @@ export default async function ShopifyPage({ params, searchParams }: PageProps<"/
   const view = sp.view === "day" ? "day" : "table";
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Shopify data" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Store" }, { label: "Shopify data" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="orders and products" /></div></>);
 
   const base = `/brands/${slug}/shopify`;

@@ -32,7 +32,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
   const me = await requireMember();
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Results" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Ads" }, { label: "Results" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="sales next to ad spend" /></div></>);
 
   const tz = brand.timezone, cur = brand.currency;

@@ -8,6 +8,7 @@ import type { Action, Today } from "@/lib/growth/today";
 import { MODES, type Mode } from "@/lib/growth/pilot";
 import { approvePlan, makeAds } from "../plan/actions";
 import { checkNow, setMode } from "../optimize/actions";
+import { fix } from "../seo/actions";
 
 /**
  * Today. Top: the plan in one sentence — money in, money back — and the six steps with "you are here". Then the one thing to do now,
@@ -16,11 +17,26 @@ import { checkNow, setMode } from "../optimize/actions";
  */
 const TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
 const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your results"];
+const TAG = { good: ["#E4F4EB", "#1F7A52"], bad: ["#FBEDE6", "#B4532A"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
+
+/** Thirty days as a line — the shape, not the numbers. */
+function Spark({ data, color = "#1F8A5B" }: { data: number[]; color?: string }) {
+  const max = Math.max(...data, 0), w = 120, h = 30;
+  if (data.length < 2 || max <= 0) return null;
+  const pts = data.map((v, i) => `${((i / (data.length - 1)) * w).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }} aria-hidden>
+      <polygon points={`0,${h} ${pts} ${w},${h}`} fill={color} opacity={0.1} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const base = `/brands/${slug}`;
   const [making, setMaking] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   const [busy, start] = useTransition();
   const router = useRouter();
@@ -30,13 +46,28 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: t.currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const make = (a: Action) => { setMaking(a.key); setErr(null); start(async () => { const r = await makeAds(slug, a.make!); if (r?.error) { setErr(r.error); setMaking(null); } }); };
   const [first, ...rest] = t.actions, pl = t.plan, nowAt = t.flow.findIndex((x) => x.key === t.now);
-  const Button = (a: Action, big: boolean) => a.make
+  // Done here, without leaving Today: save every written fix to the store.
+  const fixStore = () => { setDoing("store-fix"); setErr(null); setDone(null); start(async () => { const r = await fix(slug, "all"); if (r.fields) setDone(`Saved ${r.fields} fix${r.fields === 1 ? "" : "es"} to your store`); if (!r.fields || r.failed) setErr(r.error ?? (r.failed ? `${r.failed} didn’t save` : "Nothing was saved")); router.refresh(); setDoing(null); }); };
+  const Button = (a: Action, big: boolean) => a.run === "store-fix"
+    ? <button type="button" className={`btn${big ? " dark" : ""}`} disabled={busy} onClick={fixStore} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{doing === "store-fix" ? <><Icon name="spinner" size={13} className="spin" color={big ? "#fff" : undefined} />Saving to your store…</> : <><Icon name="check" size={12} color={big ? "#fff" : undefined} />{a.cta}</>}</button>
+    : a.make
     ? <button type="button" className={`btn${big ? " dark" : ""}`} disabled={making != null} onClick={() => make(a)} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{making === a.key ? <><Icon name="spinner" size={13} className="spin" color={big ? "#fff" : undefined} />Remy is writing…</> : a.cta}</button>
     : <Link className={`btn${big ? " dark" : ""}`} href={a.href ?? base} style={{ flexShrink: 0, ...(big ? { height: 44, padding: "0 20px", fontSize: 14.5 } : {}) }}>{a.cta}<Icon name="arrow-r" size={12} color={big ? "#fff" : undefined} /></Link>;
 
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
+        {/* ---- how the store is doing: each number opens where it comes from */}
+        {t.status.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+          {t.status.map((k) => (
+            <Link key={k.label} href={k.href} title={k.hint} className="col hv" style={{ padding: "12px 14px 10px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", minWidth: 0, gap: 4 }}>
+              <span className="xs i3 ell">{k.label}</span>
+              <span className="row g8" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{k.value}</span>
+                {k.change != null && <span className="xs tnum w5" style={{ color: k.change >= 0 ? "#1F7A52" : "#B4532A" }}>{k.change >= 0 ? "↑" : "↓"} {Math.abs(k.change)}%</span>}</span>
+              {k.tag ? <span style={{ alignSelf: "flex-start", height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 500, lineHeight: "20px", marginTop: 5, marginBottom: 5, background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>
+                : k.spark ? <Spark data={k.spark} color={k.change != null && k.change < 0 ? "#C9705A" : "#1F8A5B"} /> : <span style={{ height: 30 }} />}
+            </Link>))}
+        </div>}
         {/* ---- the plan in one sentence, and where you are */}
         <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
           <div aria-hidden style={{ position: "absolute", right: -120, top: -160, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${pl && pl.profit < 0 ? "rgba(235,122,60,.30)" : "rgba(52,199,123,.30)"}, transparent)` }} />
@@ -115,6 +146,7 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
             : <Link href={`${base}/performance#autopilot`} className="btn quiet sm">Nothing to decide<Icon name="arrow-r" size={11} /></Link>}
         </div>
 
+        {done && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#E9F6EF", color: "#1F7A52" }}><Icon name="check-circle" size={15} />{done}</div>}
         {err && <span className="xs c-amber">{err}</span>}
 
         {/* ---- the one thing to do now */}

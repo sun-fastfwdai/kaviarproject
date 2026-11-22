@@ -11,10 +11,10 @@ export default async function TodayPage({ params }: PageProps<"/brands/[slug]/to
   const { slug } = await params;
   const brand = await getBrand(slug);
   const conns = await getConnections(brand.id);
-  const t = await today({ id: brand.id, currency: brand.currency ?? null }, slug, conns);
+  const t = await today({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }, slug, conns);
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Growth" }, { label: "Today" }]} />
+      <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Today" }]} />
       <TodayView slug={slug} t={t} />
     </>
   );

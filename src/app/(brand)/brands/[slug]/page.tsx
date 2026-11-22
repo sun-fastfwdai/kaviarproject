@@ -75,7 +75,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
   const hasSales = live(conns.shopify);
   const best = camps.filter((c) => c.spend > 0).map((c) => ({ ...c, v: c.verifiedRevenue / c.spend })).sort((a, b) => b.v - a.v);
 
-  const todo = await today({ id: brand.id, currency: brand.currency ?? null }, slug, conns).catch(() => ({ actions: [], later: [], plan: null, currency: cur }));
+  const todo = await today({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }, slug, conns).catch(() => ({ actions: [], later: [], plan: null, currency: cur }));
   // “Needs the team”: real follow-ups from the data, most urgent first.
   const needs: { agent: Agent | null; title: string; sub: string; cta: string; href: string }[] = [];
   if (conns.shopify?.status === "needs_reauth") needs.push({ agent: "catalog", title: "Reconnect Shopify", sub: "The store stopped accepting Kaviar’s access · Cleo", cta: "Reconnect", href: `${base}/integrations` });

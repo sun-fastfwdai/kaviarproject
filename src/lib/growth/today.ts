@@ -7,7 +7,10 @@ import { getPilot, watching } from "./autopilot";
 import type { Mode, Run } from "./pilot";
 import { ago } from "../format";
 import { planData, type PlanData } from "./plan-data";
-import { storeWaiting } from "../seo/run";
+import { currentAudit, getStore, storeWaiting } from "../seo/run";
+import { benchGaps } from "../seo/bench";
+import { scores } from "../seo/types";
+import { daily, summary } from "../queries/growth";
 import { storeAccess } from "../seo/apply";
 
 /**
@@ -16,8 +19,11 @@ import { storeAccess } from "../seo/apply";
  * what it should bring. Code decides and counts; nothing here is written by a model.
  */
 export type Who = "analyst" | "builder" | "qa" | "catalog";
-export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; urgent?: boolean };
+export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; run?: "store-fix"; urgent?: boolean }; // run: done right here on Today, without leaving the page
+/** One number about how the store is doing, opening the place it comes from. */
+export type Tile = { label: string; value: string; change?: number | null; href: string; spark?: number[]; hint?: string; tag?: { text: string; tone: "good" | "bad" | "flat" } };
 export type Today = {
+  status: Tile[]; // the store's last 30 days
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
@@ -36,10 +42,15 @@ export function planFor(d: PlanData): { p: Plan; budget: number; days: number; m
   return { p: plan({ budget, days, goal: s.goal ?? "profit", discount: s.discount ?? 0, margin, repeat, rates: ratesFrom(d.history), candidates }), budget, days, margin };
 }
 
-export async function today(brand: { id: string; currency: string | null }, slug: string, conns: { shopify?: { status: string } | null; meta?: { status: string } | null }): Promise<Today> {
+export async function today(brand: { id: string; currency: string | null; timezone?: string | null }, slug: string, conns: { shopify?: { status: string } | null; meta?: { status: string } | null }): Promise<Today> {
   const base = `/brands/${slug}`, currency = brand.currency ?? "USD";
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const B = schema.adBatches;
+  const tz = brand.timezone ?? "UTC";
+  const [sum, byDay, audit, bench] = await Promise.all([
+    summary(brand.id, tz, 30).catch(() => null), daily(brand.id, tz, 30).catch(() => []),
+    getStore(brand.id).then((x) => currentAudit(brand.id, x.audit)).catch(() => null), benchGaps(brand.id).catch(() => null),
+  ]);
   const [flow, pilot, watched, shop, shopAccess, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
     flowState(brand.id), getPilot(brand.id), watching(brand.id), storeWaiting(brand.id).catch(() => null), storeAccess(brand.id).catch(() => null),
     db.execute(sql`select count(*)::int as n from optimize_changes where brand_id = ${brand.id} and status = 'approved'`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
@@ -92,8 +103,15 @@ export async function today(brand: { id: string; currency: string | null }, slug
     const n = (k: number, one: string) => (k ? `${k} ${one}${k === 1 ? "" : "s"}` : null);
     a.push({ key: "store", group: "Store", who: "catalog", title: `Fix ${shop.open} thing${shop.open === 1 ? "" : "s"} on your store`,
       why: `${[n(shop.title, "search title"), n(shop.description, "search description"), n(shop.alt, "picture") && `${n(shop.alt, "picture")} with no description`].filter(Boolean).join(", ")} — Cleo has written each one.`,
-      effect: "No ad spend", cta: shopAccess?.canFix ? "Fix them" : "See the fixes", href: `${base}/seo` });
+      effect: "No ad spend", cta: shopAccess?.canFix ? `Fix all ${shop.open}` : "See the fixes", href: `${base}/seo`, ...(shopAccess?.canFix ? { run: "store-fix" as const } : {}) });
   }
+  // Store, against competitors: what the sites Kaviar read do that this one doesn't. (Titles, descriptions and pictures are the fixes above.)
+  const gap = (k: string) => bench?.gaps.find((g) => g.key === k), n = bench?.sites ?? 0, them = `competitor${n === 1 ? "" : "s"}`;
+  if (gap("reviews")) a.push({ key: "gap-reviews", group: "Store", who: "analyst", title: "Show review stars in Google", why: `${gap("reviews")!.they.replace(" have it", "")} ${them} publish their ratings. Your store doesn’t.`, cta: "See how", href: `${base}/seo` });
+  if (gap("aiOpen")) a.push({ key: "gap-ai", group: "Store", who: "analyst", title: "Let AI assistants read your store", why: `Your store shuts AI crawlers out. ${gap("aiOpen")!.they.replace(" have it", "")} ${them} let them in.`, cta: "See how", href: `${base}/seo` });
+  if (gap("facts")) a.push({ key: "gap-facts", group: "Store", who: "analyst", title: "Publish price and stock for Google", why: `${gap("facts")!.they.replace(" have it", "")} ${them} do. Yours can’t be read by machines.`, cta: "See how", href: `${base}/seo` });
+  const slow = ["speed", "answer", "code", "apps"].map(gap).find(Boolean);
+  if (slow) a.push({ key: "gap-speed", group: "Store", who: "analyst", title: "Your store is slower than competitors", why: `${slow.name}: you ${slow.you}, ${slow.they}.`, cta: "See what slows it", href: `${base}/seo#speed` });
 
   // Set up: the inputs that make the numbers real.
   if (d.margin.from === "none") a.push({ key: "margin", group: "Set up", who: "analyst", title: "Tell us your margin", why: "Profit is assuming 60% until you set it.", effect: "Unlocks real profit", cta: "Set it", href: `${base}/plan` });
@@ -112,7 +130,23 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const sorted = [...a].sort((x, y) => rank(x) - rank(y));
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
   const sells = p.rows[0]?.c.product ?? null;
-  return { actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
+  // The store's status: its own orders and ad spend for the last 30 days, and how findable it is.
+  const status: Tile[] = [];
+  if (sum && (sum.orders || sum.prevRevenue)) status.push(
+    { label: "Sales · 30 days", value: usd(sum.revenue), change: sum.prevRevenue > 0 ? Math.round(((sum.revenue - sum.prevRevenue) / sum.prevRevenue) * 100) : null, href: `${base}/shopify`, spark: byDay.map((x) => x.revenue), hint: "From Shopify orders, after refunds. The arrow compares with the 30 days before." },
+    { label: "Orders", value: String(sum.orders), href: `${base}/shopify`, hint: "Paid orders in the last 30 days" },
+    { label: "Average order", value: sum.orders ? usd(sum.revenue / sum.orders) : "–", href: `${base}/shopify`, hint: "Sales ÷ orders" });
+  if (sum && sum.spend > 0) status.push(
+    { label: "Ad spend", value: usd(sum.spend), href: `${base}/performance`, spark: byDay.map((x) => x.spend), hint: "What Meta charged in the last 30 days" },
+    { label: "Back per $1 of ads", value: `${(sum.metaRevenue / sum.spend).toFixed(2)}×`, href: `${base}/performance`, hint: "Shopify sales that came from Meta ads ÷ Meta spend" });
+  if (audit) {
+    // One word on where it stands, naming the score: behind comes first, because that is the one to act on.
+    const NAME = { seo: "SEO", ai: "AI search", speed: "speed" } as const, st = Object.entries(bench?.stands ?? {}) as [keyof typeof NAME, { verdict: string }][], sc = scores(audit);
+    const at = (v: string) => st.find(([, x]) => x.verdict === v)?.[0];
+    status.push({ label: "Store score", value: String(sc.overall), href: `${base}/seo`, hint: "How well Google and AI assistants can find and describe the store, out of 100",
+      ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
+  }
+  return { status, actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };

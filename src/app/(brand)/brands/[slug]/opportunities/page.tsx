@@ -45,7 +45,7 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
 
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: base }, { label: "Growth" }, { label: "Opportunities" }]}><LoopStrip base={base} brandId={brand.id} step="opportunities" /></Bar>
+      <Bar crumbs={[{ label: brand.name, href: base }, { label: "Ads" }, { label: "Opportunities" }]}><LoopStrip base={base} brandId={brand.id} step="opportunities" /></Bar>
       <div className="scroll" style={{ padding: "22px 24px 48px" }}>
         <div className="col g16">
           <div className="row between" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>

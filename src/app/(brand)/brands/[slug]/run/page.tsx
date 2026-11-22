@@ -25,7 +25,7 @@ export default async function RunPage({ params }: PageProps<"/brands/[slug]/run"
 
   return (
     <>
-      <Bar crumbs={[{ label: brand.name, href: base }, { label: "Growth" }, { label: "Run ads" }]}><LoopStrip base={base} brandId={brand.id} step="run" /></Bar>
+      <Bar crumbs={[{ label: brand.name, href: base }, { label: "Ads" }, { label: "Run ads" }]}><LoopStrip base={base} brandId={brand.id} step="run" /></Bar>
       <div className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
         <div className="col g4"><h1 className="h1">Run ads</h1><p className="sm i3">Approved ads, ready to go live as a small, paused test.</p></div>
         {ready.length === 0 ? (

@@ -30,7 +30,7 @@ export default async function ResearchPage({ params, searchParams }: PageProps<"
     id: r.id, status: r.status, stale: Boolean(r.stale), steps: r.steps, report: r.report, rivals: r.rivals, manual: r.manual, evidence: r.evidence ?? [],
     adsRead: r.adsRead, plan: r.plan, positioning: r.positioning, error: r.error, updatedAt: r.updatedAt.toISOString(), startedAt: r.startedAt?.toISOString() ?? null, finishedAt: r.finishedAt?.toISOString() ?? null,
   } : null;
-  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Opportunities", href: `/brands/${slug}/opportunities` }, { label: "Market research" }];
+  const crumbs = [{ label: brand.name, href: `/brands/${slug}` }, { label: "Market" }, { label: "Market research" }];
   return (
     <>
       <Bar crumbs={crumbs}><LoopStrip base={`/brands/${slug}`} brandId={brand.id} step="research" /></Bar>

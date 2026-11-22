@@ -14,11 +14,11 @@ import type { Audit, StoreRun } from "./types";
 const N = schema.agentNotes;
 const SET = "store-pilot", LOG = "store-log", AUDIT = "store-audit", KEEP = 30;
 
-async function read<T>(brandId: string, key: string): Promise<T | null> {
+export async function read<T>(brandId: string, key: string): Promise<T | null> {
   const [r] = await db.select({ body: N.body }).from(N).where(and(eq(N.brandId, brandId), eq(N.key, key))).limit(1);
   return (r?.body as T | undefined) ?? null;
 }
-async function write(brandId: string, key: string, body: Record<string, unknown>): Promise<void> {
+export async function write(brandId: string, key: string, body: Record<string, unknown>): Promise<void> {
   await db.insert(N).values({ brandId, key, body, factsHash: "kaviar", model: "kaviar" } as unknown as typeof N.$inferInsert)
     .onConflictDoUpdate({ target: [N.brandId, N.key], set: { body, createdAt: new Date() } });
 }
@@ -27,6 +27,14 @@ export type Store = { access: StoreAccess; auto: boolean; audit: Audit | null; r
 export async function getStore(brandId: string): Promise<Store> {
   const [access, set, log, a] = await Promise.all([storeAccess(brandId), read<{ auto?: boolean }>(brandId, SET), read<{ runs?: StoreRun[] }>(brandId, LOG), read<Audit>(brandId, AUDIT)]);
   return { access, auto: Boolean(set?.auto), audit: a?.at ? a : null, runs: log?.runs ?? [] };
+}
+
+/** The last check's counts, less what has been fixed since — so a fix shows at once, not tomorrow. Used wherever a score is shown. */
+export async function currentAudit(brandId: string, a: Audit | null): Promise<Audit | null> {
+  if (!a) return null;
+  const rows = (await db.execute(sql`select kind, count(*)::int as n from store_fixes where brand_id = ${brandId} and status <> 'applied' group by kind`)).rows as { kind: string; n: number }[];
+  const open = (k: string) => rows.find((r) => r.kind === k)?.n ?? 0, left = (k: string, p: { ok: number; total: number }) => ({ total: p.total, ok: Math.max(0, Math.min(p.total, p.total - open(k))) });
+  return { ...a, title: left("search_title", a.title), description: left("search_description", a.description), alt: left("alt", a.alt), text: left("thin", a.text) };
 }
 
 /** What is waiting on the store, for Today and the sidebar: open fixes with a replacement written, and how many of each kind. */
@@ -64,9 +72,9 @@ export async function storeRun(brand: { id: string; timezone: string }, by: Stor
 /** The hourly job calls this: every brand with a real store gets one check a day, from six in the morning its own time. */
 export async function runStoreAll(minHour = 6, budgetMs = 240_000): Promise<{ brands: number; ran: number; failed: number }> {
   const t0 = Date.now();
-  const list = (await db.execute(sql`select b.id, coalesce(b.timezone, 'UTC') as timezone, to_char((now() at time zone coalesce(b.timezone, 'UTC'))::date, 'YYYY-MM-DD') as day,
+  const list = (await db.execute(sql`select b.id, b.name, coalesce(b.timezone, 'UTC') as timezone, to_char((now() at time zone coalesce(b.timezone, 'UTC'))::date, 'YYYY-MM-DD') as day,
       extract(hour from now() at time zone coalesce(b.timezone, 'UTC'))::int as hour
-    from brands b where b.deleted_at is null and exists (select 1 from connections c where c.brand_id = b.id and c.provider = 'shopify' and c.status = 'connected')`)).rows as { id: string; timezone: string; day: string; hour: number }[];
+    from brands b where b.deleted_at is null and exists (select 1 from connections c where c.brand_id = b.id and c.provider = 'shopify' and c.status = 'connected')`)).rows as { id: string; name: string; timezone: string; day: string; hour: number }[];
   let ran = 0, failed = 0;
   for (const b of list) {
     const left = budgetMs - (Date.now() - t0);
@@ -77,6 +85,8 @@ export async function runStoreAll(minHour = 6, budgetMs = 240_000): Promise<{ br
       if (log?.runs?.some((r) => r.by === "schedule" && r.day === b.day)) continue;
       await storeRun(b, "schedule", Math.min(150_000, left - 20_000));
       ran++;
+      // Once a week, and only with time to spare: read the competitors again so the baseline stays current.
+      if (budgetMs - (Date.now() - t0) > 170_000) await (await import("./bench")).refreshBench(b).catch((e) => console.error("bench refresh", b.id, (e as Error).message.slice(0, 160)));
     } catch (e) { console.error("store check", b.id, (e as Error).message.slice(0, 160)); failed++; }
   }
   return { brands: list.length, ran, failed };

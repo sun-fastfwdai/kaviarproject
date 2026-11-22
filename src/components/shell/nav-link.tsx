@@ -16,3 +16,22 @@ export function NavLink({
     </Link>
   );
 }
+
+/**
+ * One of the few tabs in the sidebar. Its pages are listed under it only while one of them is open, so the sidebar stays short:
+ * the tabs, plus the pages of the tab you are in.
+ */
+export function NavGroup({ href, icon, label, count, match, children }: { href: string; icon?: React.ReactNode; label: string; count?: React.ReactNode; match: string[]; children?: React.ReactNode }) {
+  const path = usePathname();
+  const open = match.some((h) => path === h || path.startsWith(`${h}/`));
+  return (
+    <>
+      <Link href={href} className={open && !children ? "ni on" : "ni"} style={open ? { color: "var(--ink)", fontWeight: 500 } : undefined} aria-expanded={children ? open : undefined} aria-current={open && !children ? "page" : undefined}>
+        {icon}
+        {label}
+        {count != null && !open && <span className="ct">{count}</span>}
+      </Link>
+      {open && children && <div className="nav-sub">{children}</div>}
+    </>
+  );
+}

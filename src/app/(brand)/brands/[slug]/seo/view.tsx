@@ -5,6 +5,8 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { KIND, score, type Audit, type Fix, type Part, type Scores } from "@/lib/seo/types";
 import { band, secs, type SpeedPage } from "@/lib/seo/speed-rules";
+import Link from "next/link";
+import { VERDICT_NAME, type Verdict } from "@/lib/seo/bench-rules";
 import { checkStore, edit, fix, mark, setStoreAuto, undo } from "./actions";
 
 /**
@@ -14,6 +16,9 @@ import { checkStore, edit, fix, mark, setStoreAuto, undo } from "./actions";
 type Props = {
   slug: string; brand: string; audit: Audit | null; scores: Scores | null; checked: string | null; auto: boolean; canFix: boolean; allow: string; admin: string | null;
   fixes: Fix[]; runs: { when: string; line: string; auto: boolean }[];
+  kpis: { label: string; value: string; change: number | null; href: string }[]; // the store's last 30 days, each opening its own numbers
+  // Where the store stands against the competitors Kaviar read (Market › Competitors): a word on each score, and what it is behind on.
+  stands: Partial<Record<"seo" | "ai" | "speed", { verdict: Verdict; avg: number }>>; base: { sites: number; gaps: { key: string; name: string; hint: string; you: string; they: string }[] } | null;
 };
 type Tab = "open" | "you" | "done" | "skipped";
 const DIM = "rgba(255,255,255,.55)";
@@ -33,7 +38,8 @@ function Meter({ k, p }: { k: string; p: Part }) {
 
 const TONE = { good: "#34C77B", ok: "#E9B949", poor: "#FF8A5C" } as const;
 /** A score out of 100 as a ring, with one word under it. What it means is in the tooltip, not on the screen. */
-function Dial({ v, text, label, sub, hint, size = 64, dark = true }: { v: number | null; text?: string; label: string; sub?: string; hint?: string; size?: number; dark?: boolean }) {
+const STAND = { ahead: ["#E4F4EB", "#1F7A52"], level: ["rgba(255,255,255,.16)", "#fff"], behind: ["#FBEDE6", "#B4532A"] } as const;
+function Dial({ v, text, label, sub, hint, size = 64, dark = true, stand }: { v: number | null; text?: string; label: string; sub?: string; hint?: string; size?: number; dark?: boolean; stand?: { verdict: Verdict; avg: number } }) {
   const r = (size - 8) / 2, c = 2 * Math.PI * r, tone = v == null ? "#8B8883" : TONE[band(v)], big = size > 70;
   return (
     <div className="row g10" title={hint}>
@@ -44,7 +50,8 @@ function Dial({ v, text, label, sub, hint, size = 64, dark = true }: { v: number
         </svg>
         <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: text ? 14 : big ? 28 : 18, fontWeight: 600, letterSpacing: "-0.02em", color: dark ? "#fff" : "var(--ink)" }}>{text ?? v ?? "–"}</span>
       </span>
-      <span className="col" style={{ minWidth: 0 }}><span style={{ fontSize: big ? 15 : 13.5, fontWeight: 600, color: dark ? "#fff" : "var(--ink)" }}>{label}</span>{sub && <span className="ell" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>{sub}</span>}</span>
+      <span className="col" style={{ minWidth: 0 }}><span className="row g6"><span style={{ fontSize: big ? 15 : 13.5, fontWeight: 600, color: dark ? "#fff" : "var(--ink)" }}>{label}</span>
+        {stand && <span title={`Competitors average ${Math.round(stand.avg)}`} style={{ height: 18, padding: "0 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, lineHeight: "18px", background: STAND[stand.verdict][0], color: STAND[stand.verdict][1] }}>{VERDICT_NAME[stand.verdict]}</span>}</span>{sub && <span className="ell" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>{sub}</span>}</span>
     </div>
   );
 }
@@ -94,7 +101,7 @@ function SpeedCard({ p, admin }: { p: SpeedPage; admin: string | null }) {
   );
 }
 
-export function StoreView({ slug, brand, audit, scores: sco, checked, auto: saved, canFix, allow, admin, fixes, runs }: Props) {
+export function StoreView({ slug, brand, audit, scores: sco, checked, auto: saved, canFix, allow, admin, fixes, runs, kpis, stands, base }: Props) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -170,6 +177,15 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
+        {/* ---- the store's last 30 days; each number opens the orders behind it */}
+        {kpis.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+          {kpis.map((k) => (
+            <Link key={k.label} href={k.href} className="col g4 hv" style={{ padding: "12px 14px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+              <span className="xs i3">{k.label}</span>
+              <span className="row g8" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{k.value}</span>
+                {k.change != null && <span className="xs tnum w5" title="Against the 30 days before" style={{ color: k.change >= 0 ? "#1F7A52" : "#B4532A" }}>{k.change >= 0 ? "↑" : "↓"} {Math.abs(k.change)}%</span>}</span>
+            </Link>))}
+        </div>}
         {/* ---- the state of the store, and the two buttons that matter */}
         <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 20px" }}>
           <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${open.length ? "rgba(91,111,214,.34)" : "rgba(52,199,123,.30)"}, transparent)` }} />
@@ -198,10 +214,10 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
           {audit && <>
             {sco && sc && <div style={{ position: "relative", marginTop: 22, padding: "16px 20px", borderRadius: 16, background: "rgba(255,255,255,.06)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "center" }}>
               <Dial v={sco.overall} label="Overall" sub={`${sc.ok} of ${sc.total} checks pass`} hint={sco.speed != null ? "SEO, AI search and Google’s speed score together" : "SEO and AI search together. Speed joins once Google’s speed test is on."} size={84} />
-              <Dial v={sco.seo} label="SEO" sub={left(audit, "seo")} hint="How well Google can list and describe the store: search titles, descriptions, picture descriptions, and the store-wide checks" />
-              <Dial v={sco.ai} label="AI search" sub={left(audit, "ai")} hint="How well ChatGPT, Claude and others can read and quote the store: descriptions, page text, crawlers let in, price and stock readable" />
-              {sco.speed != null ? <Dial v={sco.speed} label="Speed" sub="Google · on a phone" hint="Google’s speed score on a phone" />
-                : sco.speedChecks.total > 0 ? <Dial v={Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)} text={`${sco.speedChecks.ok}/${sco.speedChecks.total}`} label="Speed checks" sub={sco.speedChecks.ok === sco.speedChecks.total ? "All fine" : `${sco.speedChecks.total - sco.speedChecks.ok} to fix`} hint="Kaviar’s own page checks that pass. Google’s speed score isn’t on yet, so speed is not part of the overall score." />
+              <Dial v={sco.seo} stand={stands.seo} label="SEO" sub={left(audit, "seo")} hint="How well Google can list and describe the store: search titles, descriptions, picture descriptions, and the store-wide checks" />
+              <Dial v={sco.ai} stand={stands.ai} label="AI search" sub={left(audit, "ai")} hint="How well ChatGPT, Claude and others can read and quote the store: descriptions, page text, crawlers let in, price and stock readable" />
+              {sco.speed != null ? <Dial v={sco.speed} stand={stands.speed} label="Speed" sub="Google · on a phone" hint="Google’s speed score on a phone" />
+                : sco.speedChecks.total > 0 ? <Dial v={Math.round((sco.speedChecks.ok / sco.speedChecks.total) * 100)} text={`${sco.speedChecks.ok}/${sco.speedChecks.total}`} stand={stands.speed} label="Speed checks" sub={sco.speedChecks.ok === sco.speedChecks.total ? "All fine" : `${sco.speedChecks.total - sco.speedChecks.ok} to fix`} hint="Kaviar’s own page checks that pass. Google’s speed score isn’t on yet, so speed is not part of the overall score." />
                 : <Dial v={null} label="Speed" sub="Not measured yet" hint="Press Check again" />}
             </div>}
             <div className="row g20" style={{ position: "relative", marginTop: 20, flexWrap: "wrap" }}>
@@ -233,14 +249,24 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
             </span>))}
         </div>}
 
+        {/* ---- against competitors: what the store is behind on, each chip jumping to its fix */}
+        {audit && <div className="row g6" style={{ flexWrap: "wrap", padding: "10px 12px 10px 16px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+          <span className="sm w5 i1" style={{ flexShrink: 0 }}>Against competitors</span>
+          {!base ? <span className="xs i3 fill">Not compared yet</span>
+            : !base.gaps.length ? <span className="row g6 xs i2 fill"><Icon name="check-circle" size={14} weight="fill" color="#1F8A5B" />Level or ahead of {base.sites} competitor{base.sites === 1 ? "" : "s"}</span>
+            : <span className="row g6 fill" style={{ flexWrap: "wrap" }}><span className="xs i3">Behind on</span>{base.gaps.slice(0, 5).map((g) => (
+              <a key={g.key} href={["speed", "answer", "code", "apps"].includes(g.key) ? "#speed" : "#fixes"} title={g.hint} className="row g6 xs" style={{ height: 24, padding: "0 10px", borderRadius: 99, background: "#FBEDE6", color: "#B4532A" }}><b className="w5">{g.name}</b><span className="tnum">{g.you} · {g.they}</span></a>))}</span>}
+          <Link href={`/brands/${slug}/competitors`} className={`btn sm${base ? " quiet" : " dark"}`} style={{ flexShrink: 0 }}>{base ? "See the comparison" : "Compare"}<Icon name="arrow-r" size={11} color={base ? undefined : "#fff"} /></Link>
+        </div>}
+
         {/* ---- speed on a phone */}
-        {audit?.speed && audit.speed.pages.length > 0 && <div className="col g8">
+        {audit?.speed && audit.speed.pages.length > 0 && <div className="col g8" id="speed">
           <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Speed on a phone</span>
           <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>{audit.speed.pages.map((p) => <SpeedCard key={p.key} p={p} admin={admin} />)}</div>
         </div>}
 
         {/* ---- every fix, by product */}
-        {audit && <div className="col g10">
+        {audit && <div className="col g10" id="fixes">
           <div className="row between" style={{ borderBottom: "1px solid var(--line)" }}>
             <div className="tabs" style={{ borderBottom: 0 }} role="tablist">
               {([["open", "To fix", open.length], ["you", "Needs your words", you.length], ["done", "Fixed", done.length], ["skipped", "Skipped", skipped.length]] as const).map(([k, label, n]) => (

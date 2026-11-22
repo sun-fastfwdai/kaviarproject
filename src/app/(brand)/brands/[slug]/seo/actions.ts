@@ -9,7 +9,7 @@ import { setAuto, storeRun } from "@/lib/seo/run";
 import { fit, LIMIT } from "@/lib/seo/types";
 
 const F = schema.storeFixes;
-const fresh = (slug: string) => { revalidatePath(`/brands/${slug}/seo`); revalidatePath(`/brands/${slug}/today`); };
+const fresh = (slug: string) => { revalidatePath(`/brands/${slug}/seo`); revalidatePath(`/brands/${slug}/today`); revalidatePath(`/brands/${slug}/competitors`); };
 const ref = (b: { id: string; timezone: string | null }) => ({ id: b.id, timezone: b.timezone ?? "UTC" });
 
 /** Read the store again now, and have Cleo write whatever is new. */
@@ -62,3 +62,4 @@ export async function setStoreAuto(slug: string, auto: boolean): Promise<void> {
   await setAuto(ref(await getBrand(slug)), auto, me.id);
   fresh(slug);
 }
+
