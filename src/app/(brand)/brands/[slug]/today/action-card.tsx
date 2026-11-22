@@ -100,7 +100,7 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
       {a.thumbs && a.thumbs.length > 0 ? <div className="row g8" style={{ overflow: "hidden" }}>
         {a.thumbs.slice(0, 5).map((u) => (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={u} src={u} alt="" loading="lazy" style={{ width: 68, height: 86, borderRadius: 10, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />))}
+          <img key={u} src={u} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 68, height: 86, borderRadius: 10, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />))}
       </div> : a.viz ? <div className="row" style={{ minHeight: 86, alignItems: "center" }}><VizView v={a.viz} /></div> : null}
       {msg && <span className="xs" style={{ color: msg.bad ? "#B4532A" : "#1F7A52" }}>{msg.text}</span>}
       <div className="row between g12" style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--line)" }}>

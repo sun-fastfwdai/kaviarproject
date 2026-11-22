@@ -25,14 +25,18 @@ describe("inventory forecast", () => {
     const idle = forecast(p({ inventory: 50, units30: 0, cost: null }), 14, TODAY);
     expect([idle.state, idle.runway, idle.outOn, idle.tied, idle.tiedAt]).toEqual(["idle", null, null, 1500, "price"]);
   });
-  it("treats nothing left as sold out, with the whole restock time as the gap if it was selling", () => {
+  it("treats nothing left as sold out only if it was selling — otherwise it simply isn't stocked", () => {
     expect(forecast(p({ inventory: 0, units30: 30 }), 14, TODAY)).toMatchObject({ state: "out", gap: 14, outOn: null });
-    expect(forecast(p({ inventory: -3, units30: 0 }), 14, TODAY)).toMatchObject({ state: "out", gap: 0, tied: 0 });
+    expect(forecast(p({ inventory: -3, units30: 0 }), 14, TODAY)).toMatchObject({ state: "none", gap: 0, tied: 0 });
   });
   it("puts the most urgent first and totals each kind", () => {
-    const rows = forecastAll([p({ id: "ok", inventory: 100 }), p({ id: "over", inventory: 1000, units30: 30 }), p({ id: "risk", inventory: 18 }), p({ id: "low", inventory: 40 }), p({ id: "out", inventory: 0 }), p({ id: "risk2", inventory: 6 })], 14, TODAY);
-    expect(rows.map((r) => r.id)).toEqual(["out", "risk2", "risk", "low", "over", "ok"]);
-    expect(stockTotals(rows)).toMatchObject({ soon: 3, reorder: 1, over: 1, tied: 9100, atCost: true });
+    const rows = forecastAll([p({ id: "ok", inventory: 100 }), p({ id: "over", inventory: 1000, units30: 30 }), p({ id: "risk", inventory: 18 }), p({ id: "low", inventory: 40 }), p({ id: "out", inventory: 0 }), p({ id: "risk2", inventory: 6 }), p({ id: "none", inventory: 0, units30: 0 })], 14, TODAY);
+    expect(rows.map((r) => r.id)).toEqual(["out", "risk2", "risk", "low", "over", "ok", "none"]);
+    expect(stockTotals(rows)).toMatchObject({ soon: 3, reorder: 1, over: 1, tied: 9100, atCost: true, units: 910 });
+  });
+  it("counts units, not money, when Shopify has no cost for what is sitting", () => {
+    const t = stockTotals(forecastAll([p({ id: "a", inventory: 1000, units30: 30 }), p({ id: "b", inventory: 50, units30: 0, cost: null })], 14, TODAY));
+    expect([t.atCost, t.units, t.over]).toEqual([false, 960, 2]);
   });
   it("writes a pace a person can read", () => expect([paceText(0), paceText(0.23), paceText(1.5), paceText(2), paceText(14.4)]).toEqual(["0", "0.23", "1.5", "2", "14"]));
 });

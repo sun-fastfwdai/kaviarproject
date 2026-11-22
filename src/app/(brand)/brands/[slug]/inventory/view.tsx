@@ -14,7 +14,7 @@ import { saveLead } from "./actions";
  * runs out and one button: restock it, or advertise what is sitting.
  */
 const DIM = "rgba(255,255,255,.55)";
-const TONE: Record<StockState, [string, string]> = { out: ["#FBEDE6", "#B4532A"], risk: ["#FBEDE6", "#B4532A"], low: ["#FBF3DD", "#8A6A14"], ok: ["#E4F4EB", "#1F7A52"], over: ["#ECEEFB", "#4553B8"], idle: ["var(--tray-2)", "var(--ink-2)"] };
+const TONE: Record<StockState, [string, string]> = { out: ["#FBEDE6", "#B4532A"], risk: ["#FBEDE6", "#B4532A"], low: ["#FBF3DD", "#8A6A14"], ok: ["#E4F4EB", "#1F7A52"], over: ["#ECEEFB", "#4553B8"], idle: ["var(--tray-2)", "var(--ink-2)"], none: ["var(--tray-2)", "var(--ink-3)"] };
 const date = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "–");
 const days = (n: number | null) => (n == null ? "–" : n >= 365 ? "1 year+" : `${Math.floor(n)} day${Math.floor(n) === 1 ? "" : "s"}`);
 
@@ -41,7 +41,8 @@ export function InventoryView({ slug, currency, stock, admin }: { slug: string; 
     ["Run out first", String(t.soon), `Sold out, or gone before a ${stock.leadDays}-day restock lands`, t.soon > 0],
     ["Reorder now", String(t.reorder), `Fewer than ${STOCK.soonDays} days of slack before the last day to order`, t.reorder > 0],
     ["Overstock", String(t.over), `More than ${STOCK.overDays} days of stock, or nothing sold in ${STOCK.windowDays} days`, false],
-    ["Sitting in stock", usd(t.tied), `Stock beyond ${STOCK.keepDays} days of sales, ${t.atCost ? "at what it cost" : "at the selling price where the cost isn’t in Shopify"}`, false],
+    t.atCost ? ["Sitting in stock", usd(t.tied), `Stock beyond ${STOCK.keepDays} days of sales, at what it cost`, false]
+      : ["Units sitting", t.units.toLocaleString("en-US"), `Units beyond ${STOCK.keepDays} days of sales. Add each product’s cost in Shopify to see this as money.`, false],
   ];
 
   return (
@@ -104,9 +105,9 @@ export function InventoryView({ slug, currency, stock, admin }: { slug: string; 
                 <span className="row g10" style={{ minWidth: 0 }}><Thumb r={r} size={32} /><span className="sm w5 ell" title={r.title}>{r.title}</span></span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{r.inventory.toLocaleString("en-US")}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={`${r.units30} sold in the last ${STOCK.windowDays} days`}>{paceText(r.pace)}</span>
-                <span className="sm tnum" style={{ textAlign: "right" }}>{r.state === "out" ? "–" : days(r.runway)}</span>
+                <span className="sm tnum" style={{ textAlign: "right" }}>{r.state === "out" || r.state === "none" ? "–" : days(r.runway)}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={r.reorderBy ? `Order by ${date(r.reorderBy)} for a ${stock.leadDays}-day restock` : undefined}>{r.runway != null && r.runway < 365 ? date(r.outOn) : "–"}</span>
-                <span style={{ paddingLeft: 12 }}><span title={r.tied ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span></span>
+                <span style={{ paddingLeft: 12 }}><span title={r.tied && r.tiedAt === "cost" ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span></span>
                 <span style={{ display: "flex", justifyContent: "flex-end" }}>{Act(r)}</span>
               </div>))}
           </div></div>
