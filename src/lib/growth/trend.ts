@@ -11,6 +11,7 @@ export type Delta = { text: string; dir: "up" | "down" | "flat"; good: boolean |
 export type Tile = {
   label: string; value: string; unit?: string; sub?: string; delta?: Delta; href: string; hint?: string;
   spark?: number[]; chart?: "line" | "bars"; icon?: string; kind?: "hero" | "score"; tone?: "good" | "warn";
+  points?: { label: string; text: string }[]; // each day's date and value in words, for reading the chart
   tag?: { text: string; tone: "good" | "bad" | "flat" }; meter?: number; parts?: { label: string; value: string }[];
 };
 

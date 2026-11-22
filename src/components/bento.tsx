@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Icon, type IconName } from "./icon";
 import type { Tile } from "@/lib/growth/trend";
+import { HeroChart } from "./hero-chart";
 
 /**
  * The board: a store's numbers as blocks of different sizes. One ink block for sales with the month's chart, a field of small blocks
@@ -36,10 +37,10 @@ function Bars({ data, color, h = 34 }: { data: number[]; color: string; h?: numb
 }
 
 /** An ordinary block: a number with its change and tiny chart, or with its unit and one fact. */
-export function StatTile({ k, tray = false, span }: { k: Tile; tray?: boolean; span?: number }) {
-  const c = tone(k), cls = `bt${k.tone ? ` ${k.tone}` : tray ? " tray" : ""}`;
+export function StatTile({ k, tray = false, span, i = 0 }: { k: Tile; tray?: boolean; span?: number; i?: number }) {
+  const c = tone(k), cls = `bt rise${k.tone ? ` ${k.tone}` : tray ? " tray" : ""}`;
   return (
-    <Link href={k.href} title={k.hint} className={cls} style={{ padding: "13px 15px 12px", gap: 2, ...(span ? { gridColumn: `span ${span}` } : {}) }}>
+    <Link href={k.href} title={k.hint} className={cls} style={{ padding: "13px 15px 12px", gap: 2, ...(span ? { gridColumn: `span ${span}` } : {}), ["--i" as string]: i }}>
       <span className="row between g8"><span className="ell" style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{k.label}</span>{k.icon && <Icon name={k.icon as IconName} size={15} color="#8B8883" />}</span>
       <span className="row g6" style={{ alignItems: "baseline", minWidth: 0 }}><span className="bt-n" style={{ fontSize: 27, lineHeight: "36px" }}>{k.value}</span>{k.unit && <span className="xs i2 ell" style={{ fontWeight: 500 }}>{k.unit}</span>}</span>
       {k.delta ? <span className="row g4 tnum" style={{ fontSize: 12 }}><span style={{ color: c, fontWeight: 600 }}>{arrow(k.delta)} {k.delta.text}</span><span className="i3">vs prior</span></span>
@@ -52,26 +53,22 @@ export function StatTile({ k, tray = false, span }: { k: Tile; tray?: boolean; s
 
 /** The ink block: the month's sales, large, over its chart. */
 function Hero({ k }: { k: Tile }) {
-  const d = k.delta, up = d ? d.good !== false : true, line = up ? "#6EE7A8" : "#FF9B73", data = k.spark ?? [], h = 96;
-  const max = Math.max(...data, 0), y = (v: number) => 6 + (1 - (max > 0 ? v / max : 0)) * (h - 10), pts = data.map((v, i) => `${((i / Math.max(1, data.length - 1)) * 100).toFixed(2)},${y(v).toFixed(1)}`).join(" ");
+  const d = k.delta, up = d ? d.good !== false : true, line = up ? "#6EE7A8" : "#FF9B73";
   return (
-    <Link href={k.href} title={k.hint} className="bt ink" style={{ padding: "18px 20px 14px", minHeight: 262 }}>
+    <div className="bt ink rise" style={{ padding: "18px 20px 14px", minHeight: 262 }}>
       <div aria-hidden style={{ position: "absolute", right: -150, top: -190, width: 460, height: 460, borderRadius: 999, background: `radial-gradient(closest-side, ${up ? "rgba(52,199,123,.26)" : "rgba(235,122,60,.24)"}, transparent)` }} />
-      <span className="row between g8" style={{ position: "relative" }}><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "rgba(255,255,255,.6)" }}>{k.label}</span><Icon name="arrow-ur" size={14} color="rgba(255,255,255,.5)" /></span>
-      <span className="bt-n" style={{ position: "relative", fontSize: 52, lineHeight: "60px", marginTop: 6 }}>{k.value}</span>
-      {d && <span className="row g6" style={{ position: "relative", marginTop: 2 }}>
-        <span className="tnum" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, lineHeight: "22px", background: up ? "rgba(110,231,168,.16)" : "rgba(255,155,115,.16)", color: up ? "#8BE8B4" : "#FFB49A" }}>{arrow(d)} {d.text}</span>
-        <span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>vs the 30 days before</span></span>}
-      <div style={{ position: "relative", marginTop: "auto", paddingTop: 14 }} aria-hidden>
-        {data.length > 1 && max > 0 ? <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
-          <defs><linearGradient id="bento-hero" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={line} stopOpacity=".3" /><stop offset="1" stopColor={line} stopOpacity="0" /></linearGradient></defs>
-          {[0.33, 0.66].map((g) => <line key={g} x1="0" x2="100" y1={h * g} y2={h * g} stroke="rgba(255,255,255,.08)" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
-          <polygon points={`0,${h} ${pts} 100,${h}`} fill="url(#bento-hero)" />
-          <polyline points={pts} fill="none" stroke={line} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        </svg> : <div style={{ height: h, borderTop: "1px dashed rgba(255,255,255,.16)" }} />}
+      <Link href={k.href} title={k.hint} className="col" style={{ position: "relative" }}>
+        <span className="row between g8"><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "rgba(255,255,255,.6)" }}>{k.label}</span><Icon name="arrow-ur" size={14} color="rgba(255,255,255,.5)" /></span>
+        <span className="bt-n" style={{ fontSize: 52, lineHeight: "60px", marginTop: 6 }}>{k.value}</span>
+        {d && <span className="row g6" style={{ marginTop: 2 }}>
+          <span className="tnum" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, lineHeight: "22px", background: up ? "rgba(110,231,168,.16)" : "rgba(255,155,115,.16)", color: up ? "#8BE8B4" : "#FFB49A" }}>{arrow(d)} {d.text}</span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>vs the 30 days before</span></span>}
+      </Link>
+      <div style={{ position: "relative", marginTop: "auto", paddingTop: 34 }}>
+        <HeroChart data={k.spark ?? []} points={k.points} color={line} />
         <div className="row between" style={{ fontSize: 11, color: "rgba(255,255,255,.45)", paddingTop: 6 }}><span>30 days ago</span><span>Today</span></div>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -80,13 +77,13 @@ function Score({ k }: { k: Tile }) {
   const v = k.meter ?? 0, size = 92, r = (size - 10) / 2, c = 2 * Math.PI * r, ring = v >= 90 ? "#34C77B" : v >= 50 ? "#E9B949" : "#FF8A5C";
   const TAG = { good: ["var(--green-bg)", "var(--green)"], bad: ["var(--red-bg)", "var(--red)"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
   return (
-    <Link href={k.href} title={k.hint} className="bt" style={{ padding: "13px 15px 12px", gap: 10 }}>
+    <Link href={k.href} title={k.hint} className="bt rise" style={{ padding: "13px 15px 12px", gap: 10, ["--i" as string]: 9 }}>
       <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{k.label}</span><Icon name="store" size={15} color="#8B8883" /></span>
       <div className="col" style={{ alignItems: "center", gap: 8, padding: "4px 0" }}>
         <span style={{ position: "relative", width: size, height: size }}>
           <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden>
             <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--tray-2)" strokeWidth={8} />
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ring} strokeWidth={8} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} />
+            <circle className="ring-in" cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ring} strokeWidth={8} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} style={{ ["--c" as string]: c }} />
           </svg>
           <span className="bt-n" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30 }}>{k.value}</span>
         </span>
@@ -103,13 +100,13 @@ export function Bento({ tiles }: { tiles: Tile[] }) {
   const hero = tiles.find((t) => t.kind === "hero"), score = tiles.find((t) => t.kind === "score"), rest = tiles.filter((t) => !t.kind);
   if (!tiles.length) return null;
   // Without a month of sales there is no ink block: the blocks sit in one even row.
-  if (!hero) return <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>{rest.map((k, i) => <StatTile key={k.label} k={k} tray={i % 2 === 1} />)}{score && <Score k={score} />}</div>;
+  if (!hero) return <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>{rest.map((k, i) => <StatTile key={k.label} k={k} tray={i % 2 === 1} i={i} />)}{score && <Score k={score} />}</div>;
   const cols = Math.max(1, Math.ceil(rest.length / 2)), odd = rest.length % 2 === 1 && rest.length > 1;
   return (
     <div className={`bento${score ? "" : " two"}`}>
       <Hero k={hero} />
       {rest.length > 0 && <div className="bento-mid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {rest.map((k, i) => <StatTile key={k.label} k={k} tray={(i + Math.floor(i / cols)) % 2 === 1} span={odd && i === rest.length - 1 ? 2 : undefined} />)}
+        {rest.map((k, i) => <StatTile key={k.label} k={k} i={i + 1} tray={(i + Math.floor(i / cols)) % 2 === 1} span={odd && i === rest.length - 1 ? 2 : undefined} />)}
       </div>}
       {score && <Score k={score} />}
     </div>

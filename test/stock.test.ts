@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forecast, forecastAll, paceText, stockTotals, type StockIn } from "@/lib/store/stock-rules";
+import { forecast, forecastAll, lastsUntil, paceText, stockTotals, suggestQty, supplierNote, type StockIn } from "@/lib/store/stock-rules";
 import { halves, pctDelta, rolling, sumOf, type Day } from "@/lib/growth/trend";
 
 const p = (over: Partial<StockIn>): StockIn => ({ id: "1", title: "Toner", image: null, price: 30, cost: 10, inventory: 100, units30: 60, ...over });
@@ -39,6 +39,32 @@ describe("inventory forecast", () => {
     expect([t.atCost, t.units, t.over]).toEqual([false, 960, 2]);
   });
   it("writes a pace a person can read", () => expect([paceText(0), paceText(0.23), paceText(1.5), paceText(2), paceText(14.4)]).toEqual(["0", "0.23", "1.5", "2", "14"]));
+});
+
+describe("restocking", () => {
+  it("suggests enough for the wait plus two months of sales, less what is on the shelf", () => {
+    expect(suggestQty({ pace: 2, inventory: 18 }, 14)).toBe(130); // 2 × (14 + 60) − 18
+    expect(suggestQty({ pace: 0.07, inventory: 0 }, 14)).toBe(6);
+    expect(suggestQty({ pace: 0, inventory: 0 }, 14)).toBe(1);
+  });
+  it("says how long an order would last once it lands", () => {
+    expect(lastsUntil({ pace: 2, inventory: 18 }, 130, 14, TODAY)).toBe("2027-02-09"); // lands in 14 days with nothing left, then 65 days of stock
+    expect(lastsUntil({ pace: 2, inventory: 100 }, 20, 14, TODAY)).toBe("2027-01-21"); // 72 still on the shelf when it lands
+    expect(lastsUntil({ pace: 0, inventory: 5 }, 20, 14, TODAY)).toBeNull();
+  });
+  it("writes the order to the supplier from the forecast's own facts", () => {
+    const n = supplierNote({ brand: "Acme", title: "Marine Toner", sku: "MT-300", qty: 130, left: 18, outOn: "2026-12-01", needBy: "2026-12-01" });
+    expect(n.subject).toBe("Reorder: 130 × Marine Toner");
+    expect(n.body).toContain("130 units of Marine Toner (SKU MT-300)");
+    expect(n.body).toContain("We have 18 left and expect to run out around December 1");
+    expect(supplierNote({ brand: "Acme", title: "Toner", qty: 6, left: 0, outOn: null, needBy: "2026-12-06" }).body).toContain("We are out of stock");
+  });
+  it("stops counting a product as needing a decision once its restock is on order", () => {
+    const placed = { qty: 130, eta: "2026-12-06", at: "2026-11-22T00:00:00Z" };
+    const rows = forecastAll([p({ id: "ordered", inventory: 6, ordered: placed }), p({ id: "risk", inventory: 18 }), p({ id: "ok", inventory: 100 })], 14, TODAY);
+    expect(rows.map((r) => r.id)).toEqual(["risk", "ordered", "ok"]);
+    expect(stockTotals(rows)).toMatchObject({ soon: 1, reorder: 0, ordered: 1 });
+  });
 });
 
 describe("today's numbers against the 30 days before", () => {

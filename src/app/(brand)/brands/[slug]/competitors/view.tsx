@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
+import { Modal } from "@/components/modal";
 import { show, stand, VERDICT_NAME, type Measure, type Rival, type Verdict } from "@/lib/seo/bench-rules";
 import type { RivalAdLine } from "@/lib/seo/bench";
 import { addCompetitor, readRivals, removeCompetitor } from "./actions";
@@ -103,31 +104,25 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
           </div>}
         </div>
 
-        {msg && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" />{msg}</div>}
+        {msg && !adding && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" />{msg}</div>}
 
         {/* ---- every site, side by side */}
-        <div className="card" style={{ padding: "14px 16px 10px" }}>
-          <div className="row between g12">
+        <div className="card" style={{ padding: "14px 8px 12px" }}>
+          <div className="row between g12" style={{ padding: "0 12px" }}>
             <span className="h3 row g6" title={basis ?? undefined}>Site by site{basis && <Icon name="info" size={13} color="#8B8883" />}</span>
-            {!adding && <button type="button" className="btn sm" onClick={() => setAdding(true)}><Icon name="plus" size={12} />Add competitor</button>}
+            <button type="button" className="btn sm" onClick={() => { setMsg(null); setAdding(true); }}><Icon name="plus" size={12} />Add competitor</button>
           </div>
-          {adding && <div className="row g8" style={{ flexWrap: "wrap", paddingTop: 12 }}>
-            <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ width: 150, height: 32 }} aria-label="Competitor’s name" />
-            <input className="input fill" placeholder="theirstore.com" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} style={{ minWidth: 180, height: 32 }} aria-label="Competitor’s website" autoFocus />
-            <button type="button" className="btn dark sm" style={{ height: 32 }} disabled={busy || !form.url.trim()} onClick={submit}>{doing === "add" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="plus" size={12} color="#fff" />}{doing === "add" ? "Reading…" : "Add"}</button>
-            <button type="button" className="btn quiet sm" style={{ height: 32 }} onClick={() => setAdding(false)}>Cancel</button>
-          </div>}
-          {!all.length ? <span className="sm i3" style={{ padding: "12px 0 8px" }}>Add a competitor’s website, or press “Read my competitors” to start from the ones Iris found.</span>
+          {!all.length ? <span className="sm i3" style={{ padding: "12px 12px 8px" }}>Add a competitor’s website, or press “Read my competitors” to start from the ones Iris found.</span>
             : <div style={{ overflowX: "auto", marginTop: 8 }}>
               <div style={{ minWidth: 860 }}>
-                <div style={{ display: "grid", gridTemplateColumns: cols, gap: 8, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: cols, gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--line)" }}>
                   <span className="xs i3">Site</span>
                   {TABLE.map((k) => { const m = table.find((x) => x.key === k); return <span key={k} className="xs i3" title={m?.hint} style={{ textAlign: "center" }}>{m?.name ?? ""}</span>; })}<span />
                 </div>
                 {all.map((s, i) => {
                   const ri = s.me ? -1 : sites.findIndex((x) => x.url === s.url);
                   return (
-                    <div key={s.url + i} style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "10px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: s.me ? "var(--tray)" : ri === one && one >= 0 ? "#F6F7FE" : undefined, borderRadius: s.me ? 10 : 0 }}>
+                    <div key={s.url + i} style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "11px 12px", borderBottom: s.me ? 0 : "1px solid var(--line)", background: s.me ? "var(--tray)" : ri === one && one >= 0 ? "var(--blue-bg)" : undefined, borderRadius: s.me ? 12 : 0, marginTop: s.me ? 6 : 0 }}>
                       <span className="col" style={{ minWidth: 0 }}>
                         <span className="sm w5 ell">{s.me ? `You · ${brand}` : s.name}</span>
                         {s.me && !s.read ? <Link className="xs lnk" style={{ color: "#B4532A" }} href={storeHref}>{s.note} →</Link>
@@ -140,13 +135,13 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                       {s.me ? <span /> : <button type="button" className="btn quiet sm ic" title={`Remove ${s.name}`} aria-label={`Remove ${s.name}`} disabled={busy} onClick={() => go(s.url, () => removeCompetitor(slug, s.url))}>{doing === s.url ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="x" size={12} />}</button>}
                     </div>);
                 })}
-                {readN > 0 && <div style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "10px 0 4px" }}>
+                {readN > 0 && <div style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "10px 12px 4px" }}>
                   <span className="xs i3">Their average</span>
                   {TABLE.map((k) => { const m = table.find((x) => x.key === k), s = m ? stand(m, m.you, m.each) : null; return <span key={k} className="xs i3 tnum" style={{ textAlign: "center" }}>{!m || !s ? "–" : m.unit === "yes" ? (s.avg == null ? "–" : `${Math.round(s.avg * s.n)} of ${s.n}`) : show(m, s.avg)}</span>; })}<span />
                 </div>}
               </div>
             </div>}
-          {checked && readN > 0 && <div className="row g6" style={{ flexWrap: "wrap", paddingTop: 10, marginTop: 6, borderTop: "1px solid var(--line)" }}>
+          {checked && readN > 0 && <div className="row g6" style={{ flexWrap: "wrap", padding: "10px 12px 0", marginTop: 6, borderTop: "1px solid var(--line)" }}>
             {!behind.length ? <span className="row g6 xs i2"><Icon name="check-circle" size={14} weight="fill" color="#1F8A5B" />Level or ahead on all {rows.filter((r) => st(r).verdict).length} measures</span>
               : <><span className="xs i3" style={{ alignSelf: "center" }}>Behind on</span>{behind.map(({ r, s }) => (
                 <Link key={r.key} href={`/brands/${slug}/seo#${SPEED.includes(r.key) ? "speed" : "fixes"}`} title={`${r.hint} — fixed in Store`} className="row g6 xs" style={{ height: 26, padding: "0 10px", borderRadius: 99, background: "#FBEDE6", color: "#B4532A" }}>
@@ -187,6 +182,14 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
           </div>}
         </div>
       </div>
+      {adding && <Modal icon={<Icon name="globe" size={16} />} title="Add a competitor" sub="Kaviar opens their site and reads it by the same rules as your store." onClose={() => setAdding(false)} width={460}
+        footer={<><button type="button" className="btn quiet" onClick={() => setAdding(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !form.url.trim()} onClick={submit}>{doing === "add" ? <><Icon name="spinner" size={13} className="spin" color="#fff" />Reading their site…</> : "Add and read"}</button></>}>
+        <div className="col g12">
+          <label className="col g4"><span className="xs i2 w5">Website</span><input className="input" placeholder="theirstore.com" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} autoFocus /></label>
+          <label className="col g4"><span className="xs i2 w5">Name <span className="i3" style={{ fontWeight: 400 }}>· optional</span></span><input className="input" placeholder="Taken from the address if left empty" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} /></label>
+          {msg && <span className="xs" style={{ color: "#B4532A" }}>{msg}</span>}
+        </div>
+      </Modal>}
     </div>
   );
 }

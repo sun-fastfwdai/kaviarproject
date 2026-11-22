@@ -62,8 +62,8 @@ export async function today(brand: { id: string; currency: string | null; timezo
   const [flow, pilot, watched, shop, shopAccess, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
     flowState(brand.id), getPilot(brand.id), watching(brand.id), storeWaiting(brand.id).catch(() => null), storeAccess(brand.id).catch(() => null),
     db.execute(sql`select count(*)::int as n from optimize_changes where brand_id = ${brand.id} and status = 'approved'`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
-    // A few of the ads themselves, so "review" and "test" show what is waiting rather than describe it.
-    db.execute(sql`select a.batch_id as batch, a.status, a.image_url as url from ads a join ad_batches b on b.id = a.batch_id where b.brand_id = ${brand.id} and a.status in ('review', 'approved') and a.image_url is not null order by b.created_at desc, a.position limit 60`)
+    // The pictures behind the ads that are waiting — the brand's own photos only: where an ad's picture was AI-made, its product's Shopify photo stands in.
+    db.execute(sql`select * from (select a.batch_id as batch, a.status, coalesce(case when ai.id is null then a.image_url end, (select sp.image_url from shop_products sp where sp.brand_id = a.brand_id and sp.title = a.product and sp.image_url is not null limit 1)) as url, b.created_at, a.position from ads a join ad_batches b on b.id = a.batch_id left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) where b.brand_id = ${brand.id} and a.status in ('review', 'approved')) x where x.url is not null order by x.created_at desc, x.position limit 120`)
       .then((r) => r.rows as { batch: string; status: string; url: string }[]).catch(() => []),
     planData(brand.id, currency),
     db.select({ id: B.id, title: B.title, signal: B.signal,
@@ -83,11 +83,11 @@ export async function today(brand: { id: string; currency: string | null; timezo
 
   // Protect: stock decides what ads may sell. From the forecast — what runs out before a restock could arrive, soonest first.
   const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "");
-  for (const r of (stock?.rows ?? []).filter((x) => x.pace > 0 && (x.state === "out" || x.state === "risk" || x.state === "low")).slice(0, 2)) {
+  for (const r of (stock?.rows ?? []).filter((x) => x.pace > 0 && !x.ordered && (x.state === "out" || x.state === "risk" || x.state === "low")).slice(0, 2)) {
     const left = Math.floor(r.runway ?? 0);
     a.push({ key: `stock:${r.id}`, group: "Protect", who: "qa", title: r.state === "out" ? `${r.title} is sold out` : `${r.title} runs out in ${left} day${left === 1 ? "" : "s"}`,
       why: `${r.inventory.toLocaleString("en-US")} left · sells ${paceText(r.pace)} a day`, effect: r.gap > 0 ? `${r.gap} day${r.gap === 1 ? "" : "s"} with nothing to sell` : `Order by ${nice(r.reorderBy)}`,
-      cta: "See the forecast", href: `${base}/inventory`, urgent: r.state !== "low",
+      cta: "Restock", href: `${base}/inventory?restock=${r.id}`, urgent: r.state !== "low",
       viz: { kind: "bars", rows: [{ label: "Stock lasts", value: left, text: `${left} day${left === 1 ? "" : "s"}`, tone: "warn" }, { label: "A restock takes", value: stock!.leadDays, text: `${stock!.leadDays} days`, tone: "calm" }] } });
   }
 
@@ -142,10 +142,14 @@ export async function today(brand: { id: string; currency: string | null; timezo
   // Urgent first; then finish what is already in hand (review, test, launch) before deciding and making more.
   const ORDER: Action["group"][] = ["Fix", "Protect", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Store", "Set up"];
   const rank = (x: Action) => (x.urgent ? 0 : 100) + ORDER.indexOf(x.group);
-  const pic = (status: string, batch?: string) => pics.filter((x) => x.status === status && (!batch || x.batch === batch)).slice(0, 5).map((x) => x.url);
+  const pic = (status: string, batch?: string) => [...new Set(pics.filter((x) => x.status === status && (!batch || x.batch === batch)).map((x) => x.url))].slice(0, 5);
   for (const x of a) {
     if (x.group === "Review") x.thumbs = pic("review", x.key.startsWith("review:") ? x.key.slice(7) : undefined);
     if (x.group === "Test" || x.group === "Launch") x.thumbs = pic("approved", x.key.split(":")[1]);
+    // No picture to show: the count, so the card still says what is waiting.
+    if (x.group === "Review" && !x.thumbs?.length) x.viz = { kind: "counts", items: [{ label: "Ads to review", n: ads }, { label: toReview.length === 1 ? "Batch" : "Batches", n: toReview.length }] };
+    if (x.group === "Test" && !x.thumbs?.length && toTest[0]) x.viz = { kind: "counts", items: [{ label: "Approved ads", n: toTest[0].approved }, { label: "Batches to test", n: toTest.length }] };
+    if (x.group === "Launch" && !x.thumbs?.length && toLaunch[0]) x.viz = { kind: "counts", items: [{ label: "Ads ready", n: toLaunch[0].approved }, { label: "Tested batches", n: toLaunch.length }] };
   }
   const sorted = [...a].sort((x, y) => rank(x) - rank(y));
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
@@ -155,7 +159,9 @@ export async function today(brand: { id: string; currency: string | null; timezo
   const [rev, rev0] = t("revenue"), [ord, ord0] = t("orders"), [sp, sp0] = t("spend"), [meta, meta0] = t("meta"), [fresh, fresh0] = t("fresh");
   if (ord || ord0) {
     status.push(
-      { kind: "hero", label: "Sales · last 30 days", value: usd(rev), delta: pctDelta(rev, rev0), href: `${base}/shopify`, spark: cur.map((x) => x.revenue), hint: "From Shopify orders, after refunds — against the 30 days before" },
+      { kind: "hero", label: "Sales · last 30 days", value: usd(rev), delta: pctDelta(rev, rev0), href: `${base}/shopify`, spark: cur.map((x) => x.revenue),
+        points: cur.map((x) => ({ label: new Date(`${x.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }), text: `${usd(x.revenue)} · ${x.orders} order${x.orders === 1 ? "" : "s"}` })),
+        hint: "From Shopify orders, after refunds — against the 30 days before" },
       { label: "Orders", icon: "bag", value: ord.toLocaleString("en-US"), delta: pctDelta(ord, ord0), href: `${base}/shopify`, spark: cur.map((x) => x.orders), chart: "bars", hint: "Paid orders, last 30 days" },
       { label: "Average order", icon: "receipt", value: ord ? usd(rev / ord) : "–", delta: ord && ord0 ? pctDelta(rev / ord, rev0 / ord0) : undefined, href: `${base}/shopify`, spark: rolling(byDay, "revenue", "orders", N), hint: "Sales ÷ orders. The line is each week’s average." });
     if (sp > 0) {

@@ -26,7 +26,7 @@ export async function get(url: string): Promise<{ url: string; status: number; t
     const t0 = performance.now();
     const res = await fetch(url, { redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(12_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; KaviarStoreCheck/1.0)", Accept: "text/html,text/plain,*/*" } });
     const ms = performance.now() - t0; // until the store starts answering — the page is only opened once, so the store is never hammered
-    return { url: res.url, status: res.status, text: (await res.text()).slice(0, 1_500_000), ms };
+    return { url: res.url, status: res.status, text: (await res.text()).slice(0, 3_000_000), ms };
   } catch { return null; }
 }
 /** The store-wide checks, read from the public storefront like any visitor. */

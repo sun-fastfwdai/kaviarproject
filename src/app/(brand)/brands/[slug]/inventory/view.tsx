@@ -7,6 +7,7 @@ import { AgentFace } from "@/components/agent";
 import type { Stock } from "@/lib/store/stock";
 import { paceText, STATE_NAME, STOCK, type StockRow, type StockState } from "@/lib/store/stock-rules";
 import { saveLead } from "./actions";
+import { Restock } from "./restock";
 
 /**
  * Store · Inventory. Top (dark): how many products run out before a restock could arrive, and the one setting the forecast rests on —
@@ -24,18 +25,20 @@ function Thumb({ r, size = 36 }: { r: StockRow; size?: number }) {
     : <span style={{ width: size, height: size, borderRadius: 8, background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="box" size={15} color="#8B8883" /></span>;
 }
 
-export function InventoryView({ slug, currency, stock, admin }: { slug: string; currency: string; stock: Stock; admin: string | null }) {
+export function InventoryView({ slug, brand, currency, stock, admin, canAdd, allow, open }: { slug: string; brand: string; currency: string; stock: Stock; admin: string | null; canAdd: boolean; allow: string | null; open: string | null }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [lead, setL] = useState(String(stock.leadDays));
   const [filter, setFilter] = useState<"all" | "act" | "over">("all");
+  const [restock, setRestock] = useState<string | null>(open); // the product being restocked (opened straight from Today when it sends one)
+  const picked = restock ? stock.rows.find((r) => r.id === restock) ?? null : null;
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const save = () => { const n = Number(lead); if (!Number.isFinite(n) || n < 1 || n === stock.leadDays) { setL(String(stock.leadDays)); return; } start(async () => { await saveLead(slug, n); router.refresh(); }); };
-  const t = stock.totals, urgent = stock.rows.filter((r) => r.state === "out" || r.state === "risk" || r.state === "low"), top = urgent.slice(0, 2);
+  const t = stock.totals, urgent = stock.rows.filter((r) => (r.state === "out" || r.state === "risk" || r.state === "low") && !r.ordered), top = urgent.slice(0, 2);
   const rows = stock.rows.filter((r) => (filter === "all" ? true : filter === "act" ? ["out", "risk", "low"].includes(r.state) : ["over", "idle"].includes(r.state)));
-  const line = !stock.rows.length ? "No stock to forecast yet" : t.soon ? `${t.soon} product${t.soon === 1 ? " runs" : "s run"} out before a restock arrives` : t.reorder ? `Reorder ${t.reorder} product${t.reorder === 1 ? "" : "s"} now` : "Stock is healthy";
+  const line = !stock.rows.length ? "No stock to forecast yet" : !t.soon && !t.reorder && t.ordered ? `${t.ordered} restock${t.ordered === 1 ? "" : "s"} on the way` : t.soon ? `${t.soon} product${t.soon === 1 ? " runs" : "s run"} out before a restock arrives` : t.reorder ? `Reorder ${t.reorder} product${t.reorder === 1 ? "" : "s"} now` : "Stock is healthy";
   const Act = (r: StockRow, dark = false) => ["out", "risk", "low"].includes(r.state)
-    ? (admin ? <a className={`btn sm${dark ? " dark" : ""}`} href={`${admin}/products/${r.id}`} target="_blank" rel="noreferrer">Restock<Icon name="external" size={11} color={dark ? "#fff" : undefined} /></a> : null)
+    ? <button type="button" className={`btn sm${dark && !r.ordered ? " dark" : ""}`} onClick={() => setRestock(r.id)}>{r.ordered ? "It arrived" : "Restock"}</button>
     : r.state === "over" || r.state === "idle" ? <Link className="btn sm" href={`/brands/${slug}/plan`} title="Put ad budget behind it in the Spend plan">Advertise it<Icon name="arrow-r" size={11} /></Link> : null;
   const tiles: [string, string, string, boolean][] = [
     ["Run out first", String(t.soon), `Sold out, or gone before a ${stock.leadDays}-day restock lands`, t.soon > 0],
@@ -107,12 +110,15 @@ export function InventoryView({ slug, currency, stock, admin }: { slug: string; 
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={`${r.units30} sold in the last ${STOCK.windowDays} days`}>{paceText(r.pace)}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{r.state === "out" || r.state === "none" ? "–" : days(r.runway)}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={r.reorderBy ? `Order by ${date(r.reorderBy)} for a ${stock.leadDays}-day restock` : undefined}>{r.runway != null && r.runway < 365 ? date(r.outOn) : "–"}</span>
-                <span style={{ paddingLeft: 12 }}><span title={r.tied && r.tiedAt === "cost" ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span></span>
+                <span style={{ paddingLeft: 12 }}>{r.ordered && ["out", "risk", "low"].includes(r.state)
+                  ? <span title={`${r.ordered.qty.toLocaleString("en-US")} ordered`} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: "var(--green-bg)", color: "var(--green)" }}>Ordered · due {date(r.ordered.eta)}</span>
+                  : <span title={r.tied && r.tiedAt === "cost" ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span>}</span>
                 <span style={{ display: "flex", justifyContent: "flex-end" }}>{Act(r)}</span>
               </div>))}
           </div></div>
         </div>
       </div>
+      {picked && <Restock slug={slug} brand={brand} r={picked} leadDays={stock.leadDays} canAdd={canAdd} allow={allow} admin={admin} onClose={() => setRestock(null)} />}
     </div>
   );
 }

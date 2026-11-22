@@ -56,7 +56,7 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
     : a.make ? <button type="button" className={cls} disabled={busy} onClick={make}>{busy ? <><Icon name="spinner" size={13} className="spin" color={ink} />Remy is writing…</> : a.cta}</button>
     : <Link className={cls} href={a.href ?? `/brands/${slug}`}>{a.cta}<Icon name="arrow-r" size={12} color={ink} /></Link>;
   return (
-    <div className="col" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: primary ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0 }}>
+    <div className="col fill" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: primary ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0 }}>
       <div className="row between g10">
         <span className="row g8" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}><span className="tnum i3">{String(n).padStart(2, "0")}</span><span style={{ color: GROUP_TONE[a.group] }}>{a.group}</span></span>
         {(a.effect || a.urgent) && <span className="ell" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", maxWidth: "60%", background: a.urgent ? "#FBEDE6" : "#E4F4EB", color: a.urgent ? "#B4532A" : "#1F7A52" }}>{a.effect ?? "Urgent"}</span>}

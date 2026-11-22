@@ -12,13 +12,14 @@ import { Bento } from "@/components/bento";
 import { ActionCard, GROUP_TONE as TONE } from "./action-card";
 
 /**
- * Today, as a dashboard. Top: the last 30 days in a few numbers, each with its change and its line. Then what is ready for action —
- * up to four cards, each one decision with its evidence as a picture and one button. Then the plan in one sentence with the six steps,
- * Autopilot, and a line each for campaigns, customers and stock. Nothing is only there to be read: every number opens where it comes from.
+ * Today, as a dashboard. Top: the day, a greeting and Autopilot's controls. Then the board — the month in blocks — and the plan in one
+ * sentence with the six steps. Then
+ * what is ready for action: up to four cards, each one decision with its evidence as a picture and one button. Nothing is only there
+ * to be read: every number opens where it comes from.
  */
 const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your results"];
 
-export function TodayView({ slug, t }: { slug: string; t: Today }) {
+export function TodayView({ slug, t, day, hello }: { slug: string; t: Today; day: string; hello: string }) {
   const base = `/brands/${slug}`;
   const [more, setMore] = useState(false);
   const [busy, start] = useTransition();
@@ -33,29 +34,26 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
+        {/* ---- the day, a greeting, and the agents at work: Autopilot is switched, run and answered from here */}
+        <div className="row between g16" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="col g2" style={{ minWidth: 0 }}>
+            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>{day}</span>
+            <span style={{ fontSize: 30, lineHeight: "38px", fontWeight: 600, letterSpacing: "-0.03em" }}>{hello}</span>
+          </div>
+          <div className="row g10 rise" style={{ padding: "7px 8px 7px 12px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", flexWrap: "wrap" }}
+            title={`${t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · ${t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}${t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}`}>
+            <span className="row" aria-hidden>{(["analyst", "builder", "qa", "catalog"] as const).map((k, i) => <span key={k} style={{ marginLeft: i ? -7 : 0, borderRadius: 99, boxShadow: "0 0 0 2px #fff", display: "flex" }}><AgentFace kind={k} size={24} mood="happy" /></span>)}</span>
+            <span className="col" style={{ lineHeight: 1.2 }}><span className="row g6 sm w5"><span style={{ width: 7, height: 7, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 3px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite" }} />Autopilot</span><span className="xs i3">{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"}</span></span>
+            <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
+              {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
+            </div>
+            <button type="button" className="btn sm" style={{ borderRadius: 99 }} disabled={busy} onClick={() => go("check", () => checkNow(slug))}>{doing === "check" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Check now</button>
+            {t.pilot.waiting > 0 && <Link href={`${base}/performance#autopilot`} className="btn dark sm" style={{ borderRadius: 99 }}>Decide {t.pilot.waiting}<Icon name="arrow-r" size={11} color="#fff" /></Link>}
+          </div>
+        </div>
+
         {/* ---- the board: the month in blocks — sales, the numbers around it, campaigns, customers, stock and the store's score */}
         <Bento tiles={t.status} />
-
-        {/* ---- ready for action: each decision with its evidence and one button */}
-        {total > 0 ? <div className="col g10">
-          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Ready for action · {total}</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{t.actions.map((a, i) => <ActionCard key={a.key} slug={slug} a={a} n={i + 1} primary={i === 0} />)}</div>
-          {t.later.length > 0 && <div className="card" style={{ padding: "0 16px" }}>
-            {more && t.later.map((a, i) => (
-              <div key={a.key} className="row g12" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
-                <span className="tnum xs i3 w5" style={{ width: 20, flexShrink: 0 }}>{String(t.actions.length + i + 1).padStart(2, "0")}</span>
-                <AgentFace kind={a.who} size={22} mood={a.urgent ? "worried" : "happy"} />
-                <div className="col fill" style={{ minWidth: 0 }}>
-                  <span className="row g8"><span className="sm w5 i1 ell">{a.title}</span><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: TONE[a.group], flexShrink: 0 }}>{a.group}</span></span>
-                  <span className="xs i3 ell" title={a.why}>{a.effect ? `${a.effect} · ` : ""}{a.why}</span>
-                </div>
-                {Go(a)}
-              </div>))}
-            <button type="button" className="lnk xs i3" style={{ padding: "10px 0", width: "100%", textAlign: "left" }} onClick={() => setMore((v) => !v)}>{more ? "Show fewer" : `${t.later.length} more`}</button>
-          </div>}
-        </div> : (
-          <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={36} mood="happy" /><span className="col"><span style={{ fontSize: 20, fontWeight: 600 }}>Nothing needs you today</span><span className="sm i3">Kaviar is watching stock, ads and orders.</span></span></div>
-        )}
 
         {/* ---- the plan in one sentence, and where you are */}
         <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
@@ -121,19 +119,26 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
           </div>
         </div>
 
-        {/* ---- working in the background: switch it, run it, decide — all from here */}
-        <div className="row g12" style={{ padding: "10px 12px 10px 16px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite", flexShrink: 0 }} />
-          <span className="sm w5 i1" style={{ flexShrink: 0 }}>Autopilot</span>
-          <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone" style={{ flexShrink: 0 }}>
-            {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
-          </div>
-          <span className="xs i3 ell fill" style={{ minWidth: 160 }}>{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · {t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}{t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}</span>
-          <button type="button" className="btn sm" disabled={busy} onClick={() => go("check", () => checkNow(slug))}>{doing === "check" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Check now</button>
-          {t.pilot.waiting
-            ? <Link href={`${base}/performance#autopilot`} className="btn dark sm">Decide {t.pilot.waiting} change{t.pilot.waiting === 1 ? "" : "s"}<Icon name="arrow-r" size={11} color="#fff" /></Link>
-            : <Link href={`${base}/performance#autopilot`} className="btn quiet sm">Nothing to decide<Icon name="arrow-r" size={11} /></Link>}
-        </div>
+        {/* ---- ready for action: each decision with its evidence and one button */}
+        {total > 0 ? <div className="col g10">
+          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Ready for action · {total}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{t.actions.map((a, i) => <div key={a.key} className="rise" style={{ display: "flex", minWidth: 0, ["--i" as string]: i + 3 }}><ActionCard slug={slug} a={a} n={i + 1} primary={i === 0} /></div>)}</div>
+          {t.later.length > 0 && <div className="card" style={{ padding: "0 16px" }}>
+            {more && t.later.map((a, i) => (
+              <div key={a.key} className="row g12" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
+                <span className="tnum xs i3 w5" style={{ width: 20, flexShrink: 0 }}>{String(t.actions.length + i + 1).padStart(2, "0")}</span>
+                <AgentFace kind={a.who} size={22} mood={a.urgent ? "worried" : "happy"} />
+                <div className="col fill" style={{ minWidth: 0 }}>
+                  <span className="row g8"><span className="sm w5 i1 ell">{a.title}</span><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: TONE[a.group], flexShrink: 0 }}>{a.group}</span></span>
+                  <span className="xs i3 ell" title={a.why}>{a.effect ? `${a.effect} · ` : ""}{a.why}</span>
+                </div>
+                {Go(a)}
+              </div>))}
+            <button type="button" className="lnk xs i3" style={{ padding: "10px 0", width: "100%", textAlign: "left" }} onClick={() => setMore((v) => !v)}>{more ? "Show fewer" : `${t.later.length} more`}</button>
+          </div>}
+        </div> : (
+          <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={36} mood="happy" /><span className="col"><span style={{ fontSize: 20, fontWeight: 600 }}>Nothing needs you today</span><span className="sm i3">Kaviar is watching stock, ads and orders.</span></span></div>
+        )}
 
       </div>
     </div>
