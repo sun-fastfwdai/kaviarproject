@@ -1,17 +1,20 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { Action, Today } from "@/lib/growth/today";
-import { MODES } from "@/lib/growth/pilot";
-import { makeAds } from "../plan/actions";
+import { MODES, type Mode } from "@/lib/growth/pilot";
+import { approvePlan, makeAds } from "../plan/actions";
+import { checkNow, setMode } from "../optimize/actions";
 
 /**
  * Today. Top: the plan in one sentence — money in, money back — and the six steps with "you are here". Then the one thing to do now,
- * shown with the ads it is about, and the short list after it. No paragraphs.
+ * shown with the ads it is about, and the short list after it. No paragraphs — and nothing that is only there to be read: every number
+ * opens the place it is set, every step is a button for what that step needs now, and Autopilot is switched right here.
  */
-const TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", "Set up": "#8B8883" };
+const TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
 const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your results"];
 
 export function TodayView({ slug, t }: { slug: string; t: Today }) {
@@ -19,7 +22,11 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
   const [making, setMaking] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [more, setMore] = useState(false);
-  const [, start] = useTransition();
+  const [busy, start] = useTransition();
+  const router = useRouter();
+  const [doing, setDoing] = useState<string | null>(null);
+  const [mode, setM] = useState<Mode>(t.pilot.mode);
+  const go = (what: string, f: () => Promise<unknown>) => { setDoing(what); setErr(null); start(async () => { await f(); router.refresh(); setDoing(null); }); };
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: t.currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const make = (a: Action) => { setMaking(a.key); setErr(null); start(async () => { const r = await makeAds(slug, a.make!); if (r?.error) { setErr(r.error); setMaking(null); } }); };
   const [first, ...rest] = t.actions, pl = t.plan, nowAt = t.flow.findIndex((x) => x.key === t.now);
@@ -41,10 +48,10 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
                   <span style={{ height: 20, padding: "0 9px", borderRadius: 99, fontSize: 11, display: "inline-flex", alignItems: "center", background: pl.level === 2 ? "rgba(52,199,123,.22)" : "rgba(255,255,255,.12)", color: pl.level === 2 ? "#8BE8B4" : "rgba(255,255,255,.75)" }}>{LEVEL[pl.level]}</span>
                 </span>
                 <div className="row g14" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
-                  <span className="col"><span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)" }}>{usd(pl.budget)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>you spend</span></span>
+                  <Link href={`${base}/plan`} className="col" title="Change the budget"><span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)" }}>{usd(pl.budget)}</span><span className="row g4" style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>you spend<Icon name="pencil" size={10} /></span></Link>
                   <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)" }}>→</span>
-                  <span className="col"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{usd(pl.mid)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in {pl.weeks} weeks</span></span>
-                  <span className="col" style={{ paddingLeft: 6 }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, color: pl.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{pl.profit >= 0 ? "+" : "−"}{usd(Math.abs(pl.profit))}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>{pl.profit >= 0 ? "profit after costs" : "short of break-even"}</span></span>
+                  <Link href={`${base}/plan#how`} className="col" title="See how this number is reached"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{usd(pl.mid)}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in {pl.weeks} weeks</span></Link>
+                  <Link href={`${base}/plan#how`} className="col" style={{ paddingLeft: 6 }} title="See the costs"><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, color: pl.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{pl.profit >= 0 ? "+" : "−"}{usd(Math.abs(pl.profit))}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>{pl.profit >= 0 ? "profit after costs" : "short of break-even"}</span></Link>
                 </div>
                 {/* the range from a bad run to a good one */}
                 <div className="col g4" style={{ width: 430, maxWidth: "100%" }}>
@@ -59,12 +66,16 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
               <div className="col g6"><span style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.02em" }}>Connect your store to get a plan</span><span style={{ fontSize: 13, color: "rgba(255,255,255,.6)" }}>Kaviar reads your products, prices and orders, then works out where a budget should go.</span></div>
             )}
             <div className="col g10" style={{ alignItems: "flex-end", flexShrink: 0 }}>
-              {pl?.image && <span className="row g10" style={{ padding: "6px 12px 6px 6px", borderRadius: 14, background: "rgba(255,255,255,.08)" }}>
+              {pl?.image && <Link href={`${base}/plan`} title="Change the product" className="row g10" style={{ padding: "6px 12px 6px 6px", borderRadius: 14, background: "rgba(255,255,255,.08)" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={pl.image} alt="" width={44} height={44} style={{ borderRadius: 10, objectFit: "cover", background: "#fff" }} />
                 <span className="col" style={{ maxWidth: 190 }}><span style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>Selling</span><span className="ell" style={{ fontSize: 13, fontWeight: 500 }}>{pl.product}</span></span>
-              </span>}
-              <Link href={pl ? `${base}/plan` : `${base}/integrations`} className="row g6" style={{ height: 38, padding: "0 16px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 13.5, fontWeight: 500 }}>{pl ? `See how ${pl.campaigns} campaign${pl.campaigns === 1 ? "" : "s"} get there` : "Connect"}<Icon name="arrow-r" size={12} /></Link>
+                <Icon name="pencil" size={11} color="rgba(255,255,255,.5)" />
+              </Link>}
+              <span className="row g8">
+                {pl && !pl.approved && <button type="button" disabled={busy} onClick={() => go("approve", () => approvePlan(slug, { budget: pl.budget }, true))} className="row g6" style={{ height: 38, padding: "0 16px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 13.5, fontWeight: 600 }}>{doing === "approve" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="check" size={13} />}Approve plan</button>}
+                <Link href={pl ? `${base}/plan` : `${base}/integrations`} className="row g6" style={{ height: 38, padding: "0 16px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 13.5, fontWeight: 500 }}>{pl ? `See how ${pl.campaigns} campaign${pl.campaigns === 1 ? "" : "s"} get there` : "Connect"}<Icon name="arrow-r" size={12} /></Link>
+              </span>
             </div>
           </div>
 
@@ -83,21 +94,26 @@ export function TodayView({ slug, t }: { slug: string; t: Today }) {
                     <span className="row g6"><span className="ell" style={{ fontSize: 13, fontWeight: on ? 600 : 500, color: on ? "#fff" : "rgba(255,255,255,.82)" }}>{x.label}</span></span>
                     <span className="ell" style={{ fontSize: 11.5, color: on ? "#8BE8B4" : "rgba(255,255,255,.5)" }}>{on ? `You are here · ${x.note}` : x.note}</span>
                   </span>
+                  <span className="row g4" style={{ alignSelf: "flex-start", height: 26, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 500, whiteSpace: "nowrap", background: on ? "#fff" : "rgba(255,255,255,.1)", color: on ? "#121212" : "rgba(255,255,255,.85)" }}>{x.act}<Icon name="arrow-r" size={10} /></span>
                 </Link>
               );
             })}
           </div>
         </div>
 
-        {/* ---- working in the background */}
-        <Link href={`${base}/performance#autopilot`} className="row g12 hv-card" style={{ padding: "12px 16px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
+        {/* ---- working in the background: switch it, run it, decide — all from here */}
+        <div className="row g12" style={{ padding: "10px 12px 10px 16px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }}>
           <span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.2)", animation: "pulse 2.2s ease-in-out infinite", flexShrink: 0 }} />
           <span className="sm w5 i1" style={{ flexShrink: 0 }}>Autopilot</span>
-          <span className="pill" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>{MODES[t.pilot.mode].name}</span>
-          <span className="xs i3 ell fill">{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · watching {t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"} and ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`} every morning</span>
-          <span className={`pill ${t.pilot.waiting ? "amber" : "green"}`} style={{ height: 22, fontSize: 11, flexShrink: 0 }}>{t.pilot.waiting ? `${t.pilot.waiting} change${t.pilot.waiting === 1 ? "" : "s"} waiting` : "Nothing to decide"}</span>
-          <Icon name="arrow-r" size={12} color="#8B8883" />
-        </Link>
+          <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone" style={{ flexShrink: 0 }}>
+            {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
+          </div>
+          <span className="xs i3 ell fill" style={{ minWidth: 160 }}>{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · {t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}{t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}</span>
+          <button type="button" className="btn sm" disabled={busy} onClick={() => go("check", () => checkNow(slug))}>{doing === "check" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Check now</button>
+          {t.pilot.waiting
+            ? <Link href={`${base}/performance#autopilot`} className="btn dark sm">Decide {t.pilot.waiting} change{t.pilot.waiting === 1 ? "" : "s"}<Icon name="arrow-r" size={11} color="#fff" /></Link>
+            : <Link href={`${base}/performance#autopilot`} className="btn quiet sm">Nothing to decide<Icon name="arrow-r" size={11} /></Link>}
+        </div>
 
         {err && <span className="xs c-amber">{err}</span>}
 

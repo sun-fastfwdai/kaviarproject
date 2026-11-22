@@ -13,11 +13,12 @@ export function normalizeShop(input: string | null | undefined): string | null {
   return SHOP_RE.test(s) ? s : null;
 }
 
-export function authorizeUrl(shop: string, state: string): string {
+export function authorizeUrl(shop: string, state: string, extra: string[] = []): string {
   const { apiKey, scopes } = env.shopify();
+  const all = [...new Set([...scopes, ...extra])];
   const q = new URLSearchParams({
     client_id: apiKey,
-    scope: scopes.join(","),
+    scope: all.join(","),
     redirect_uri: `${env.appUrl()}/api/shopify/callback`,
     state,
   });

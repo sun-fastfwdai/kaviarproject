@@ -36,7 +36,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/bra
       <Bar crumbs={[{ label: brand.name, href: base }, { label: "Opportunities", href: `${base}/opportunities` }, { label: "What Iris read" }]}><LoopStrip base={base} brandId={brand.id} step="opportunities" /></Bar>
       <div className="scroll" style={{ padding: "22px 24px 48px" }}>
         <div className="col g14">
-          <div className="col g4"><h1 className="h1">What Iris read</h1><p className="sm i3">Everything the opportunities are built on. Nothing here is a guess.</p></div>
+          <div className="col g4"><h1 className="h1">What Iris read</h1><p className="sm i3">Everything the opportunities are built on, each with where it came from.</p></div>
           <div className="row g6" style={{ flexWrap: "wrap" }}>
             {TABS.map(([k, label]) => <Link key={k} href={`${base}/opportunities/read?show=${k}`} className="chip" style={{ height: 30, ...(k === tab ? { background: "var(--ink)", color: "#fff" } : {}) }}><b className="tnum w5">{n[k]}</b>&nbsp;{label}</Link>)}
           </div>
@@ -76,12 +76,28 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/bra
               <Link className="lnk xs i3 row g4" href={`${base}/research?tab=ads`} style={{ padding: "10px 0" }}>See the ads themselves<Icon name="arrow-r" size={11} /></Link>
             </> : none("No competitor ads read yet."))}
 
-            {tab === "numbers" && (evidence.length ? evidence.map((e, i) => (
-              <div key={e.id} className="row g12 sm" style={{ ...line, borderTop: i ? line.borderTop : 0 }}>
-                <span className="col g2 fill" style={{ minWidth: 0 }}><span className="i1 w5 ell">{e.subject}</span><span className="xs i3 ell">{e.metric}{e.period ? ` · ${e.period}` : ""}</span></span>
-                <span className="pill" style={{ height: 20, fontSize: 11 }}>{QUALITY_NAME[e.quality]}</span>
-                <span className="tnum i1 w5" style={{ width: 170, textAlign: "right" }}>{evidenceValue(e)}</span>
-              </div>)) : none("No numbers measured yet."))}
+            {tab === "numbers" && (evidence.length ? <>
+              {/* where each kind of number comes from — and what it is not */}
+              <div className="row g8 stretch" style={{ padding: "12px 0 14px", flexWrap: "wrap" }}>
+                {([
+                  ["Measured", "Counted from your own Shopify orders and customers, your Meta ad results, and competitors’ live ads in Meta’s Ad Library."],
+                  ["Calculated", "Worked out from measured numbers — an average order, a repeat rate. No estimates in between."],
+                  ["Platform estimate", "Meta’s own answer to “how many people match this age, gender and these interests?”. It is the size of an audience — not how they buy. Sales for a group are only known after ads run to it."],
+                ] as const).map(([k, v]) => (
+                  <div key={k} className="col g4" style={{ flex: "1 1 240px", minWidth: 0, padding: "10px 12px", borderRadius: 12, background: "var(--tray)" }}>
+                    <span className="row g6"><span className="pill" style={{ height: 20, fontSize: 11, background: "#fff" }}>{k}</span><span className="xs i3 tnum">{evidence.filter((e) => QUALITY_NAME[e.quality] === k).length}</span></span>
+                    <span className="xs i2" style={{ lineHeight: "17px" }}>{v}</span>
+                  </div>))}
+              </div>
+              {evidence.map((e) => (
+              <div key={e.id} className="row g12 sm" style={line}>
+                <span className="col g2 fill" style={{ minWidth: 0 }}><span className="row g8"><span className="i1 w5 ell">{e.subject}</span><span className="xs i3" style={{ flexShrink: 0 }}>{e.source}</span></span>
+                  <span className="xs i3 ell" title={e.note ?? ""}>{e.metric}{e.period ? ` · ${e.period}` : ""}{e.note ? ` · ${e.note}` : ""}</span></span>
+                {e.kind === "audience_size" && <span className="pill amber" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Size only · no sales history yet</span>}
+                <span className="pill" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>{QUALITY_NAME[e.quality]}</span>
+                {e.link ? <a href={e.link} target="_blank" rel="noreferrer" className="tnum i1 w5 lnk" style={{ width: 170, textAlign: "right" }}>{evidenceValue(e)}</a> : <span className="tnum i1 w5" style={{ width: 170, textAlign: "right" }}>{evidenceValue(e)}</span>}
+              </div>))}
+            </> : none("No numbers measured yet."))}
           </div>
         </div>
       </div>

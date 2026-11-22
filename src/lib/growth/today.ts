@@ -7,6 +7,8 @@ import { getPilot, watching } from "./autopilot";
 import type { Mode, Run } from "./pilot";
 import { ago } from "../format";
 import { planData, type PlanData } from "./plan-data";
+import { storeWaiting } from "../seo/run";
+import { storeAccess } from "../seo/apply";
 
 /**
  * Today: the few things that need the brand, worked out from everything Kaviar holds — connections, stock, the spend plan, ads waiting
@@ -14,12 +16,13 @@ import { planData, type PlanData } from "./plan-data";
  * what it should bring. Code decides and counts; nothing here is written by a model.
  */
 export type Who = "analyst" | "builder" | "qa" | "catalog";
-export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; urgent?: boolean };
+export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; urgent?: boolean };
 export type Today = {
   actions: Action[]; later: Action[]; currency: string;
   plan: { approved: boolean; budget: number; weeks: number; lo: number; mid: number; hi: number; profit: number; campaigns: number; level: 0 | 1 | 2; product: string | null; image: string | null } | null;
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
   pilot: { mode: Mode; last: string | null; watched: Run["watched"]; waiting: number; toSwitch: number };
+  store: { open: number; canFix: boolean } | null; // fixes waiting on the Shopify store itself (SEO & AI search)
 };
 const STEP: Partial<Record<Action["group"], FlowKey>> = { Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
 
@@ -37,8 +40,8 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const base = `/brands/${slug}`, currency = brand.currency ?? "USD";
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const B = schema.adBatches;
-  const [flow, pilot, watched, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
-    flowState(brand.id), getPilot(brand.id), watching(brand.id),
+  const [flow, pilot, watched, shop, shopAccess, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
+    flowState(brand.id), getPilot(brand.id), watching(brand.id), storeWaiting(brand.id).catch(() => null), storeAccess(brand.id).catch(() => null),
     db.execute(sql`select count(*)::int as n from optimize_changes where brand_id = ${brand.id} and status = 'approved'`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
     // A few of the ads themselves, so "review" and "test" show what is waiting rather than describe it.
     db.execute(sql`select a.batch_id as batch, a.status, a.image_url as url from ads a join ad_batches b on b.id = a.batch_id where b.brand_id = ${brand.id} and a.status in ('review', 'approved') and a.image_url is not null order by b.created_at desc, a.position limit 60`)
@@ -84,6 +87,14 @@ export async function today(brand: { id: string; currency: string | null }, slug
   else if (changes.length > 1) a.push({ key: "improve", group: "Improve", who: "analyst", title: `Decide ${changes.length} changes Autopilot found`, why: `${lead.title} — and ${changes.length - 1} more.`, effect: lead.kind === "pause" ? "Stops a loss" : undefined, cta: "Decide", href: `${base}/performance#autopilot`, urgent: lead.kind === "pause" });
   if (toSwitch > 0) a.push({ key: "switch", group: "Improve", who: "analyst", title: `Switch ${toSwitch} decided change${toSwitch === 1 ? "" : "s"} in Meta`, why: "Decided already. Kaviar can’t change your Meta ads itself yet — about a minute each.", cta: "See them", href: `${base}/performance#autopilot` });
 
+  // Store: what stops Google and AI assistants describing the store properly — counted by code, each with its fix written.
+  if (shop?.open) {
+    const n = (k: number, one: string) => (k ? `${k} ${one}${k === 1 ? "" : "s"}` : null);
+    a.push({ key: "store", group: "Store", who: "catalog", title: `Fix ${shop.open} thing${shop.open === 1 ? "" : "s"} on your store`,
+      why: `${[n(shop.title, "search title"), n(shop.description, "search description"), n(shop.alt, "picture") && `${n(shop.alt, "picture")} with no description`].filter(Boolean).join(", ")} — Cleo has written each one.`,
+      effect: "No ad spend", cta: shopAccess?.canFix ? "Fix them" : "See the fixes", href: `${base}/seo` });
+  }
+
   // Set up: the inputs that make the numbers real.
   if (d.margin.from === "none") a.push({ key: "margin", group: "Set up", who: "analyst", title: "Tell us your margin", why: "Profit is assuming 60% until you set it.", effect: "Unlocks real profit", cta: "Set it", href: `${base}/plan` });
   const emptyAccount = conns.meta?.status === "connected" && d.metaCampaigns === 0;
@@ -91,7 +102,7 @@ export async function today(brand: { id: string; currency: string | null }, slug
   if (!d.hasResearch) a.push({ key: "research", group: "Set up", who: "analyst", title: "Find your buyer groups", why: "Iris researches who buys and what to say to them.", effect: "Unlocks audiences", cta: "Run research", href: `${base}/research` });
 
   // Urgent first; then finish what is already in hand (review, test, launch) before deciding and making more.
-  const ORDER: Action["group"][] = ["Fix", "Protect", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Set up"];
+  const ORDER: Action["group"][] = ["Fix", "Protect", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Store", "Set up"];
   const rank = (x: Action) => (x.urgent ? 0 : 100) + ORDER.indexOf(x.group);
   const pic = (status: string, batch?: string) => pics.filter((x) => x.status === status && (!batch || x.batch === batch)).slice(0, 5).map((x) => x.url);
   for (const x of a) {
@@ -103,5 +114,6 @@ export async function today(brand: { id: string; currency: string | null }, slug
   const sells = p.rows[0]?.c.product ?? null;
   return { actions: sorted.slice(0, 5), later: sorted.slice(5), currency, flow, now,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
+    store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
 }

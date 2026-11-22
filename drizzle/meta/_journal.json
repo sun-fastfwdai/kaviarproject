@@ -148,6 +148,13 @@
       "when": 1795288405577,
       "tag": "0020_brand_logins",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795357238757,
+      "tag": "0021_store_fixes",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ export const FLOW = [
   ["learn", "performance", "Results", "See what sold — Autopilot keeps improving it"],
 ] as const;
 export type FlowKey = (typeof FLOW)[number][0];
-export type FlowStep = { key: FlowKey; path: string; label: string; what: string; done: boolean; note: string };
+export type FlowStep = { key: FlowKey; path: string; label: string; what: string; done: boolean; note: string; act: string }; // act: the button for this step, right now
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -41,7 +41,16 @@ export async function flowState(brandId: string): Promise<FlowStep[]> {
     launch: [r.live > 0, r.live ? "Ads are live" : r.approved ? `${plural(r.approved, "ad")} ready` : "Nothing live yet"],
     learn: [r.live > 0 && r.proposed === 0, r.proposed ? `${plural(r.proposed, "change")} to decide` : r.live ? `${plural(r.live, "ad")} with results` : "No results yet"],
   };
-  return FLOW.map(([key, path, label, what]) => ({ key, path, label, what, done: note[key][0], note: note[key][1] }));
+  // What pressing the step does now — every step on Today is a button, not a label.
+  const act: Record<FlowKey, string> = {
+    find: r.research ? "See buyer groups" : r.orders ? "Find buyer groups" : "Connect store",
+    plan: r.plan?.approvedAt ? "Change plan" : "Approve plan",
+    create: r.review ? `Review ${r.review}` : r.batches ? "Make more ads" : "Make ads",
+    test: r.tests ? "Test more" : r.approved ? `Test ${r.approved}` : "Test ads",
+    launch: r.live ? "See live ads" : r.approved ? `Put ${r.approved} live` : "Set up ads",
+    learn: r.proposed ? `Decide ${r.proposed}` : "See results",
+  };
+  return FLOW.map(([key, path, label, what]) => ({ key, path, label, what, done: note[key][0], note: note[key][1], act: act[key] }));
 }
 
 /** The only numbers the sidebar shows: things waiting for the brand — ads to review, and changes Autopilot found this week. */

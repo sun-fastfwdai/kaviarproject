@@ -79,10 +79,12 @@ export default async function LaunchPage({ params }: PageProps<"/brands/[slug]/l
           {synced > 0 && <span className="row g6 xs c-green"><Icon name="check-circle" size={13} weight="fill" color="#1F8A5B" />{synced} products are in the Shopify store</span>}
         </Step>
 
+        {brand.features?.storeBuilder && (
         <Step n={4} done={Boolean(build?.finished_at)} title="Build the storefront" who={<><AgentFace kind="builder" size={13} />Remy · <AgentFace kind="qa" size={13} />Otto</>} locked={connected ? undefined : "After the store is connected."}>
           <span className="xs i2">Remy writes the homepage, story and FAQ from the brand profile and the real best-sellers; Otto checks it before publish.</span>
           <Link className="btn sm" href={`${base}/store`} style={{ alignSelf: "flex-start" }}><Icon name="store" size={12} />{build?.finished_at ? "Open Store builder" : "Start the build"}</Link>
         </Step>
+        )}
 
         <Step n={5} done={conns.meta?.status === "connected"} title="Connect Meta and the store apps" who={<><Icon name="plug" size={12} />Integrations</>}>
           <span className="xs i2">The ad account for growth, plus payments, reviews, email and subscriptions — some need the merchant to approve.</span>

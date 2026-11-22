@@ -1,0 +1,209 @@
+"use client";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Icon } from "@/components/icon";
+import { AgentFace } from "@/components/agent";
+import { KIND, score, type Audit, type Fix, type Part } from "@/lib/seo/types";
+import { checkStore, edit, fix, mark, setStoreAuto, undo } from "./actions";
+
+/**
+ * SEO & AI search. Top (dark): how many things are wrong, the four counts they come from, and the two buttons that matter — fix them,
+ * and let Kaviar keep fixing. Then the store-wide checks, then every fix grouped by product: what the store says now → what it should say.
+ */
+type Props = {
+  slug: string; brand: string; audit: Audit | null; checked: string | null; auto: boolean; canFix: boolean; allow: string; admin: string | null;
+  fixes: Fix[]; runs: { when: string; line: string; auto: boolean }[];
+};
+type Tab = "open" | "you" | "done" | "skipped";
+const DIM = "rgba(255,255,255,.55)";
+const ORDER: Fix["kind"][] = ["search_title", "search_description", "alt", "thin"];
+const num = (gid: string) => gid.slice(gid.lastIndexOf("/") + 1);
+
+function Meter({ k, p }: { k: string; p: Part }) {
+  const pct = p.total ? Math.round((p.ok / p.total) * 100) : 0, good = p.total > 0 && p.ok === p.total;
+  return (
+    <div className="col g6 fill" style={{ minWidth: 130 }}>
+      <span style={{ fontSize: 11.5, color: DIM }}>{k}</span>
+      <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "26px", fontWeight: 600, color: good ? "#6EE7A8" : "#fff" }}>{p.ok}</span><span className="tnum" style={{ fontSize: 12.5, color: DIM }}>of {p.total} fine</span></span>
+      <span style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.14)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${pct}%`, borderRadius: 99, background: good ? "#34C77B" : pct >= 60 ? "#E9B949" : "#FF9B73" }} /></span>
+    </div>
+  );
+}
+
+export function StoreView({ slug, brand, audit, checked, auto: saved, canFix, allow, admin, fixes, runs }: Props) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [doing, setDoing] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [tab, setTab] = useState<Tab>("open");
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [auto, setAuto] = useState(saved);
+  const [copied, setCopied] = useState<string | null>(null);
+  const go = (what: string, f: () => Promise<void>) => { setDoing(what); setMsg(null); start(async () => { await f(); router.refresh(); setDoing(null); }); };
+
+  const open = useMemo(() => fixes.filter((f) => f.status === "proposed" && f.kind !== "thin"), [fixes]);
+  const ready = open.filter((f) => f.after), unwritten = open.length - ready.length;
+  const you = fixes.filter((f) => f.kind === "thin" && f.status === "proposed"), done = fixes.filter((f) => f.status === "applied"), skipped = fixes.filter((f) => f.status === "skipped");
+  const list = tab === "open" ? open : tab === "you" ? you : tab === "done" ? done : skipped;
+  const groups = useMemo(() => [...Map.groupBy(list, (f) => f.productGid).values()].map((g) => [...g].sort((x, y) => ORDER.indexOf(x.kind) - ORDER.indexOf(y.kind))), [list]);
+  const sc = audit ? score(audit) : null, bad = audit?.site.filter((c) => c.ok === false) ?? [];
+
+  const save = (ids: string[] | "all", what: string) => go(what, async () => {
+    const r = await fix(slug, ids);
+    setMsg(r.fields ? { text: `Saved ${r.fields} fix${r.fields === 1 ? "" : "es"} to the store${r.failed ? ` · ${r.failed} didn’t save: ${r.error ?? ""}` : ""}`, bad: r.failed > 0 } : { text: r.error ?? "Nothing was saved", bad: true });
+  });
+  const check = () => go("check", async () => { const r = await checkStore(slug); if (r.error) setMsg({ text: r.error, bad: true }); });
+  const copy = (id: string, text: string) => { void navigator.clipboard?.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 1400); };
+  const pick = (v: boolean) => { setAuto(v); go("mode", () => setStoreAuto(slug, v)); };
+  const pill = (dark: boolean) => ({ height: 38, padding: "0 16px", borderRadius: 99, fontSize: 13.5, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
+
+  const Row = (f: Fix, i: number) => {
+    const on = editing?.id === f.id;
+    return (
+      <div key={f.id} className="row top g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+        {f.kind === "alt" && f.image
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={`${f.image}${f.image.includes("?") ? "&" : "?"}width=120`} alt="" loading="lazy" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />
+          : <span style={{ width: 44, height: 44, borderRadius: 8, background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={f.kind === "search_title" ? "search" : f.kind === "thin" ? "file" : "rows"} size={16} color="#8B8883" /></span>}
+        <div className="col g4 fill" style={{ minWidth: 0 }}>
+          <span className="row g8"><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "#5B6FD6", flexShrink: 0 }}>{KIND[f.kind].name}</span><span className="xs i3 ell" title={KIND[f.kind].where}>{f.problem}</span></span>
+          {f.kind === "thin" ? <span className="sm i2">Add in Shopify: who it is for, what is in it, how to use it, and the size. Kaviar won’t invent those.</span> : <>
+            {f.before && <span className="xs i3" style={{ textDecoration: "line-through" }}>{f.before}</span>}
+            {on ? <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ id: f.id, text: e.target.value })} rows={f.kind === "search_description" ? 3 : 2}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--ink)", font: "inherit", fontSize: 13.5, lineHeight: "20px", resize: "vertical" }} />
+              : f.after ? <span className="sm i1" style={{ lineHeight: "20px" }}>{f.after} <span className="xs i3 tnum">· {f.after.length} letters</span></span>
+              : <span className="sm i3">Cleo hasn’t written this one yet — press “Check again”.</span>}
+          </>}
+          {f.error && f.status === "proposed" && <span className="xs" style={{ color: "#B4532A" }}>Not saved: {f.error}</span>}
+        </div>
+        <div className="row g6" style={{ flexShrink: 0, justifyContent: "flex-end" }}>
+          {f.status === "proposed" && f.kind !== "thin" && (on ? <>
+            <button type="button" className="btn dark sm" disabled={busy} onClick={() => { const e = editing!; setEditing(null); go(f.id, () => edit(slug, e.id, e.text)); }}>Keep</button>
+            <button type="button" className="btn quiet sm" onClick={() => setEditing(null)}>Cancel</button>
+          </> : <>
+            {f.after && (canFix
+              ? <button type="button" className="btn dark sm" disabled={busy} onClick={() => save([f.id], f.id)}>{doing === f.id ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="check" size={12} color="#fff" />}Fix it</button>
+              : <button type="button" className="btn dark sm" onClick={() => copy(f.id, f.after!)}><Icon name={copied === f.id ? "check" : "copy"} size={12} color="#fff" />{copied === f.id ? "Copied" : "Copy"}</button>)}
+            {f.after && <button type="button" className="btn sm ic" title="Change the wording" aria-label="Change the wording" onClick={() => setEditing({ id: f.id, text: f.after! })}><Icon name="pencil" size={13} /></button>}
+            {!canFix && f.after && <button type="button" className="btn sm" disabled={busy} title="I pasted it into Shopify" onClick={() => go(f.id, () => mark(slug, [f.id], "applied"))}>Done</button>}
+            <button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(f.id, () => mark(slug, [f.id], "skipped"))}>Skip</button>
+          </>)}
+          {f.status === "proposed" && f.kind === "thin" && <>
+            {admin && <a className="btn dark sm" href={`${admin}/products/${num(f.productGid)}`} target="_blank" rel="noreferrer">Open in Shopify<Icon name="external" size={11} color="#fff" /></a>}
+            <button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(f.id, () => mark(slug, [f.id], "skipped"))}>Skip</button>
+          </>}
+          {f.status === "applied" && <>
+            <span className="pill" style={{ height: 22, fontSize: 11, ...(f.by === "autopilot" ? { background: "#121212", color: "#fff" } : {}) }}>{f.by === "autopilot" ? "Kaviar fixed it" : "Fixed"}{f.appliedAt ? ` · ${f.appliedAt}` : ""}</span>
+            {canFix && <button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(f.id, async () => { const r = await undo(slug, f.id); if (r.error) setMsg({ text: r.error, bad: true }); })}>Undo</button>}
+          </>}
+          {f.status === "skipped" && <button type="button" className="btn quiet sm" disabled={busy} onClick={() => go(f.id, () => mark(slug, [f.id], "proposed"))}>Put back</button>}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="scroll" style={{ padding: "22px 24px 48px" }}>
+      <div className="col g16">
+        {/* ---- the state of the store, and the two buttons that matter */}
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 20px" }}>
+          <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${open.length ? "rgba(91,111,214,.34)" : "rgba(52,199,123,.30)"}, transparent)` }} />
+          <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
+            <div className="row top g14" style={{ minWidth: 0 }}>
+              <AgentFace kind="catalog" size={40} mood={open.length ? "up" : "happy"} />
+              <div className="col g4">
+                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>Found on Google and in AI answers · Cleo</span>
+                {!audit ? <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.02em" }}>Let Cleo read {brand}’s store</span>
+                  : <span className="row g12" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
+                    <span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em", animation: "modalIn .6s ease-out both" }}>{open.length}</span>
+                    <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em" }}>{open.length === 1 ? "thing to fix" : "things to fix"}</span>
+                    {sc && <span className="tnum" style={{ fontSize: 13, color: DIM }}>{sc.ok} of {sc.total} checks pass</span>}
+                  </span>}
+                <span style={{ fontSize: 12.5, color: DIM }}>{audit ? `${audit.products} products and ${audit.pictures} pictures read ${checked} · checked again every morning` : "Every product, picture and page — about a minute. Nothing changes on the store until you say so."}</span>
+              </div>
+            </div>
+            <div className="row g8" style={{ flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button type="button" disabled={busy} onClick={check} className="row g6" style={pill(!audit)}>{doing === "check" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}{doing === "check" ? "Reading the store…" : audit ? "Check again" : "Read my store"}</button>
+              {audit && ready.length > 0 && (canFix
+                ? <button type="button" disabled={busy} onClick={() => save("all", "all")} className="row g6" style={pill(true)}>{doing === "all" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="check" size={13} />}Fix all {ready.length}</button>
+                : <a href={allow} className="row g6" style={pill(true)}>Let Kaviar fix the store<Icon name="arrow-r" size={12} /></a>)}
+            </div>
+          </div>
+
+          {audit && <>
+            <div className="row g20" style={{ position: "relative", marginTop: 22, flexWrap: "wrap" }}>
+              <Meter k="Search titles" p={audit.title} /><Meter k="Search descriptions" p={audit.description} /><Meter k="Pictures described" p={audit.alt} /><Meter k="Pages with enough text" p={audit.text} />
+            </div>
+            <div className="row g12" style={{ position: "relative", marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.12)", flexWrap: "wrap" }}>
+              <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone">
+                {([[false, "Ask me first"], [true, "Fix automatically"]] as const).map(([v, label]) => (
+                  <button key={label} type="button" role="radio" aria-checked={auto === v} disabled={busy} onClick={() => pick(v)} style={{ height: 30, padding: "0 14px", borderRadius: 99, fontSize: 12.5, fontWeight: 500, background: auto === v ? "#fff" : "transparent", color: auto === v ? "#121212" : "rgba(255,255,255,.75)" }}>{label}</button>))}
+              </div>
+              <span className="fill" style={{ fontSize: 12.5, color: DIM, minWidth: 220 }}>
+                {!canFix ? "Kaviar can read this store but not change it yet. Until then: copy each fix into Shopify, or allow Kaviar to save them."
+                  : auto ? "Every morning Kaviar fills in what is empty — search titles, descriptions, picture descriptions. It never replaces words you wrote without asking."
+                  : "Kaviar lists what to fix and writes each one. Nothing is saved to the store until you press Fix."}
+              </span>
+              {!canFix && <a href={allow} className="row g6" style={{ ...pill(false), height: 30, fontSize: 12.5 }}>Allow in Shopify<Icon name="arrow-r" size={11} /></a>}
+            </div>
+          </>}
+        </div>
+
+        {msg && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: msg.bad ? "#FBEDE6" : "#E9F6EF", color: msg.bad ? "#B4532A" : "#1F7A52" }}><Icon name={msg.bad ? "warning-circle" : "check-circle"} size={15} />{msg.text}</div>}
+
+        {/* ---- store-wide checks */}
+        {audit && <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>
+          {audit.site.map((c) => (
+            <div key={c.key} className="col g4" style={{ flex: "1 1 200px", minWidth: 0, padding: "12px 14px", borderRadius: 14, background: "#fff", boxShadow: `0 0 0 1px ${c.ok === false ? "#EBC9B8" : "var(--line)"}` }}>
+              <span className="row g6"><Icon name={c.ok ? "check-circle" : c.ok === false ? "warning-circle" : "circle"} size={15} weight={c.ok == null ? "regular" : "fill"} color={c.ok ? "#1F8A5B" : c.ok === false ? "#B4532A" : "#B5B2AC"} /><span className="sm w5 i1 ell">{c.name}</span></span>
+              <span className="xs i3" style={{ lineHeight: "17px" }}>{c.detail}</span>
+              {c.ok === false && c.how && <span className="xs i1" style={{ lineHeight: "17px" }}><b className="w5">Fix:</b> {c.how}</span>}
+            </div>))}
+        </div>}
+        {audit && bad.length > 0 && <span className="xs i3">The {bad.length === 1 ? "one" : bad.length} marked above {bad.length === 1 ? "is" : "are"} set in the store’s theme or settings, so they are yours to change — Kaviar checks them again every morning.</span>}
+
+        {/* ---- every fix, by product */}
+        {audit && <div className="col g10">
+          <div className="row between" style={{ borderBottom: "1px solid var(--line)" }}>
+            <div className="tabs" style={{ borderBottom: 0 }} role="tablist">
+              {([["open", "To fix", open.length], ["you", "Needs your words", you.length], ["done", "Fixed", done.length], ["skipped", "Skipped", skipped.length]] as const).map(([k, label, n]) => (
+                <button key={k} role="tab" aria-selected={tab === k} className={`tab${tab === k ? " on" : ""}`} onClick={() => { setTab(k); setOpenAt(null); }}>{label}<span className="n">{n}</span></button>))}
+            </div>
+            {tab === "open" && unwritten > 0 && <span className="xs i3" style={{ paddingBottom: 6 }}>{unwritten} still to be written — “Check again” finishes them</span>}
+          </div>
+          {groups.length === 0 ? (
+            <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 16, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={32} mood="happy" /><span className="col"><span className="sm w5 i1">{tab === "open" ? "Nothing to fix" : tab === "you" ? "Every product page has enough text" : tab === "done" ? "Nothing fixed yet" : "Nothing skipped"}</span><span className="xs i3">{tab === "open" ? "Kaviar reads the store again every morning." : ""}</span></span></div>
+          ) : groups.map((g, gi) => {
+            const p = g[0], isOpen = openAt ? openAt === p.productGid : gi === 0, can = g.filter((f) => f.status === "proposed" && f.after && f.kind !== "thin");
+            const kinds = [...Map.groupBy(g, (f) => f.kind).entries()].map(([k, v]) => `${v.length} ${v.length === 1 ? KIND[k].name.toLowerCase() : KIND[k].many}`).join(" · ");
+            return (
+              <div key={p.productGid} style={{ background: "#fff", borderRadius: 16, boxShadow: "0 0 0 1px var(--line)", overflow: "hidden" }}>
+                <div className="row g12 hv" role="button" tabIndex={0} onClick={() => setOpenAt(isOpen ? "none" : p.productGid)} onKeyDown={(e) => { if (e.key === "Enter") setOpenAt(isOpen ? "none" : p.productGid); }} style={{ padding: "12px 16px", cursor: "pointer" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {(g.find((f) => f.kind !== "alt")?.image ?? p.image) ? <img src={`${g.find((f) => f.kind !== "alt")?.image ?? p.image}${(g.find((f) => f.kind !== "alt")?.image ?? p.image)!.includes("?") ? "&" : "?"}width=120`} alt="" loading="lazy" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", background: "var(--tray-2)", flexShrink: 0 }} /> : <span style={{ width: 40, height: 40, borderRadius: 10, background: "var(--tray-2)", flexShrink: 0 }} />}
+                  <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{p.productTitle}</span><span className="xs i3 ell">{kinds}</span></div>
+                  {tab === "open" && can.length > 0 && canFix && <button type="button" className="btn sm" disabled={busy} onClick={(e) => { e.stopPropagation(); save(can.map((f) => f.id), p.productGid); }}>{doing === p.productGid ? <Icon name="spinner" size={12} className="spin" /> : null}Fix {can.length}</button>}
+                  {admin && <a className="btn quiet sm ic" href={`${admin}/products/${num(p.productGid)}`} target="_blank" rel="noreferrer" title="Open in Shopify" aria-label="Open in Shopify" onClick={(e) => e.stopPropagation()}><Icon name="external" size={13} /></a>}
+                  <Icon name="chev-d" size={13} color="#8B8883" style={{ transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform .15s" }} />
+                </div>
+                {isOpen && <div style={{ padding: "0 16px 6px", borderTop: "1px solid var(--line)" }}>{g.map(Row)}</div>}
+              </div>
+            );
+          })}
+        </div>}
+
+        {/* ---- what Kaviar did, and when */}
+        {runs.length > 0 && <div className="col g6">
+          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Checks</span>
+          <div className="card" style={{ padding: "2px 16px" }}>
+            {runs.map((r, i) => (
+              <div key={i} className="row g12 xs" style={{ padding: "9px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+                <span className="i3 tnum" style={{ width: 84, flexShrink: 0 }}>{r.when}</span><span className="i2 fill ell" title={r.line}>{r.line}</span><span className="i3">{r.auto ? "morning check" : "by the team"}</span>
+              </div>))}
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+}

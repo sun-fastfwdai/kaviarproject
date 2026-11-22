@@ -41,7 +41,7 @@ export type BrandRow = Brand & {
 export async function listBrands(): Promise<BrandRow[]> {
   const me = await requireMember();
   return (await rows<BrandRow>(sql`
-    select b.id, b.slug, b.name, b.category, b.currency, b.timezone, b.image_url as "imageUrl", b.is_sample as "isSample", b.created_at as "createdAt",
+    select b.id, b.slug, b.name, b.category, b.currency, b.timezone, b.image_url as "imageUrl", b.is_sample as "isSample", b.created_at as "createdAt", b.features,
       s.external_id as "shopDomain", s.status as "shopStatus", m.status as "metaStatus", m.display_name as "metaName",
       coalesce(r.revenue, 0)::float8 as "revenue30", coalesce(r.orders, 0)::int as "orders30",
       (select max(finished_at) from sync_runs x where x.brand_id = b.id and x.status = 'success') as "lastSync",

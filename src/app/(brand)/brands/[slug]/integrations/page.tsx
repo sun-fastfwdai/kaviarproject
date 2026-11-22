@@ -25,7 +25,7 @@ const ERRORS: Record<string, string> = {
 };
 
 const SHOPIFY_SCOPES = ["read_orders", "read_all_orders", "read_products", "read_inventory", "read_customers"];
-const nice = (s: string) => s === "write_themes" ? "edit themes" : s.replace(/^read_/, "").replace(/_/g, " ").replace(/^all orders$/, "order history");
+const nice = (s: string) => s === "write_themes" ? "edit themes" : s === "write_products" ? "edit products" : s.replace(/^read_/, "").replace(/_/g, " ").replace(/^all orders$/, "order history");
 
 function Summary({ provider, conn, lastSync, action }: { provider: "shopify" | "meta"; conn: ConnectionView; lastSync: Date | null; action: React.ReactNode }) {
   const daysLeft = provider === "meta" && conn.accessExpiresAt ? daysUntil(conn.accessExpiresAt) : null;

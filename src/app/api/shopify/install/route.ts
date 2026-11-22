@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { authorizeUrl, normalizeShop, verifyQueryHmac } from "@/lib/shopify/oauth";
 import { resolveShopDomain } from "@/lib/shopify/resolve";
 import { startOAuth } from "@/lib/oauth-state";
+import { WRITE_SCOPE } from "@/lib/seo/apply";
 
 /**
  * Starts the Shopify install. Two entry points:
@@ -35,6 +36,12 @@ export async function GET(req: NextRequest) {
       .where(and(eq(schema.connections.provider, "shopify"), eq(schema.connections.externalId, shop))).limit(1);
     brandId = c?.brandId ?? null;
   }
+  // Editing products is asked for only when the brand chooses "Let Kaviar fix the store" — and kept on later reconnects once granted.
+  let extra: string[] = q.get("write") === "1" ? [WRITE_SCOPE] : [];
+  if (brandId && !extra.length) {
+    const [had] = await db.select({ scopes: schema.connections.scopes }).from(schema.connections).where(and(eq(schema.connections.brandId, brandId), eq(schema.connections.provider, "shopify"))).limit(1);
+    if (had?.scopes.includes(WRITE_SCOPE)) extra = [WRITE_SCOPE];
+  }
   const state = await startOAuth("kv_shopify_oauth", { brandId, shop, memberId: member.id });
-  return NextResponse.redirect(authorizeUrl(shop, state));
+  return NextResponse.redirect(authorizeUrl(shop, state, extra));
 }

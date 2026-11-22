@@ -142,7 +142,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               {moving ? <>
                 <Step done={steps[0]} label="Create the brand’s Shopify store" hint={`${brand.name} sells on ${ob.scan?.platform ?? "its own website"} today — Kaviar sets up the new store`} href={`${base}/launch`} cta="Launch on Shopify" />
                 <Step done={steps[1]} label="Move the catalog" hint="Cleo reads the old site and builds Shopify’s product import file" href={`${base}/launch`} cta="Open" />
-                <Step done={steps[2]} label="Build the storefront" hint="Remy writes the homepage, story and FAQ; Otto checks it" href={`${base}/store`} cta="Store builder" />
+                {brand.features?.storeBuilder && <Step done={steps[2]} label="Build the storefront" hint="Remy writes the homepage, story and FAQ; Otto checks it" href={`${base}/store`} cta="Store builder" />}
                 <Step done={steps[3]} label="Connect the Meta ad account" hint="Spend, campaigns and ads, read-only" href={`${base}/integrations`} cta="Connect" />
               </> : <>
               <Step done={steps[0]} label="Connect the Shopify store" hint="Read-only access to orders, products and customers" href={`${base}/integrations`} cta="Connect" />

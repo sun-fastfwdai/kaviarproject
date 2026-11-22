@@ -57,6 +57,7 @@ export default async function BrandsPage() {
       shopStatus: b.shopStatus, metaStatus: b.metaStatus, metaName: b.metaName, revenue: money(b.revenue30, b.currency), orders: b.orders30,
       status: st, statusText: text, owner: b.ownerName,
       activity: b.syncing ? "Syncing now" : b.lastSync ? "Data synced" : "Brand created", activityAt: ago(b.lastSync ?? b.createdAt),
+      features: b.features ?? {},
     };
   });
 
@@ -117,7 +118,7 @@ export default async function BrandsPage() {
                   </div>
                 </div>
               )}
-              <BrandsTable brands={items} canRemove={me.role === "owner"} />
+              <BrandsTable brands={items} canRemove={me.role === "owner"} canSet={!me.brands} />
             </>
           )}
         </div>

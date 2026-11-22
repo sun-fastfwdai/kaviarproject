@@ -25,8 +25,9 @@ export default async function StorePage({ params, searchParams }: PageProps<"/br
   const { slug } = await params;
   const sp = await searchParams;
   const brand = await getBrand(slug);
-  const conns = await getConnections(brand.id);
   const base = `/brands/${slug}`;
+  if (!brand.features?.storeBuilder) redirect(`${base}/seo`); // off for this brand — the team switches it on from the Brands list
+  const conns = await getConnections(brand.id);
   const crumbs = [{ label: brand.name, href: base }, { label: "Store builder" }];
   if (!conns.shopify) return (<><Bar crumbs={crumbs} /><div className="scroll" style={{ padding: 24 }}><NeedsSource slug={slug} provider="shopify" what="the products the store is built from" /></div></>);
 

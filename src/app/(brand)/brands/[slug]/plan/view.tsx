@@ -173,7 +173,7 @@ export function SpendPlan({ slug, data }: { slug: string; data: PlanData }) {
                   <span className="tnum xs w5" style={{ color: o.profit >= 0 ? GOOD : BAD }}>{o.profit >= 0 ? "+" : "−"}{usd(Math.abs(o.profit))} profit</span></div>)}
               </div>
             </div>
-            <div style={{ marginTop: 14 }}>
+            <div id="how" style={{ marginTop: 14, scrollMarginTop: 16 }}>
               <div className="col g10" style={{ padding: "14px 0", borderTop: "1px solid var(--line)" }}>
                 <div className="row between"><span className="sm w5">How we get this number</span><button type="button" className="lnk xs i3" onClick={() => setOpen(true)}>{lvl === 0 ? "Typical starting rates — change them" : `From ${data.history?.days ?? 0} days of your ads`}</button></div>
                 <Funnel steps={[

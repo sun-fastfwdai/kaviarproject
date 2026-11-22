@@ -57,10 +57,13 @@ export const brands = pgTable("brands", {
   onboarding: jsonb("onboarding").$type<Onboarding>().notNull().default({}),
   // Store apps (Recharge, Judge.me, Klaviyo…): requested of the merchant / connected, set by the team.
   integrations: jsonb("integrations").$type<Record<string, { status: "requested" | "connected"; at: string; by?: string }>>().notNull().default({}),
+  // What the Kaviar team has switched on for this brand (set from the Brands list, not by the brand). Store builder is off unless switched on.
+  features: jsonb("features").$type<BrandFeatures>().notNull().default({}),
   createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
 
+export type BrandFeatures = { storeBuilder?: boolean };
 export type Provider = "shopify" | "meta";
 export type ConnectionStatus = "connected" | "choose_account" | "needs_reauth" | "disconnected" | "sample";
 
@@ -625,4 +628,33 @@ export const audienceTests = pgTable(
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
   (t) => [index("audience_tests_brand").on(t.brandId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------- SEO & AI search: one row per field on the Shopify store that should change
+export type FixKind = "search_title" | "search_description" | "alt" | "thin";
+export type FixStatus = "proposed" | "applied" | "skipped";
+export const storeFixes = pgTable(
+  "store_fixes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandId: uuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // kind:product[:picture] — one row per field, so checking again never duplicates
+    kind: text("kind").$type<FixKind>().notNull(),
+    productGid: text("product_gid").notNull(),
+    productTitle: text("product_title").notNull(),
+    handle: text("handle"),
+    image: text("image"), // the product's picture; for "alt", the picture being described
+    mediaGid: text("media_gid"),
+    problem: text("problem").notNull(), // what the check found, in plain words — written by code
+    before: text("before").notNull().default(""), // what the store says now ("" = empty)
+    after: text("after"), // Cleo's replacement; null until written ("thin" never gets one — it needs the brand's own facts)
+    status: text("status").$type<FixStatus>().notNull().default("proposed"),
+    by: text("by").$type<"team" | "autopilot">(),
+    decidedBy: uuid("decided_by").references(() => members.id, { onDelete: "set null" }),
+    appliedAt: tz("applied_at"),
+    error: text("error"),
+    createdAt: tz("created_at").notNull().defaultNow(),
+    updatedAt: tz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("store_fixes_key").on(t.brandId, t.key), index("store_fixes_brand").on(t.brandId, t.status)],
 );
