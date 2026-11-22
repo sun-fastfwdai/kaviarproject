@@ -179,6 +179,7 @@ export async function buildPipeline(slug: string, brief: PlanBrief): Promise<Sta
     const row = buildSignals(`/brands/${slug}`, brand, d, notes).find((r) => r.key === key);
     if (row) signal = { key: row.key, data: row.data, value: row.value, use: row.use, evidence: row.evidence };
   }
+  if (!signal && key && brief.reason) signal = { key, data: String(brief.reason.data).slice(0, 300), value: brief.reason.value, use: String(brief.reason.use).slice(0, 300), evidence: (brief.reason.evidence ?? []).slice(0, 6) };
   const kind: BatchKind = format === "full" ? "video" : format;
   const id = await createBatch(brand.id, me.id, { ...(signal ? { signal } : { idea: direction }), direction, count, kind });
   if (!id) return fail("Remy couldn’t write the ads right now. Try again in a minute.");

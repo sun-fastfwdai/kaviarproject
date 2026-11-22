@@ -12,7 +12,7 @@ import { fix } from "../seo/actions";
  * The action card Today and Campaigns share: one decision, the evidence for it as a picture (the ads, stock against restock time, you
  * against competitors), and one button that does it here where it can.
  */
-export const GROUP_TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
+export const GROUP_TONE: Record<Action["group"], string> = { Fix: "#B4532A", Protect: "#B4832A", Plan: "#121212", Decide: "#121212", Create: "#1AA7C8", Review: "#1AA7C8", Test: "#EB7A3C", Launch: "#1F7A52", Improve: "#6A8FD6", Store: "#5B6FD6", "Set up": "#8B8883" };
 const WHO = { analyst: "Iris", builder: "Remy", qa: "Otto", catalog: "Cleo" } as const;
 
 export function VizView({ v }: { v: Viz }) {
@@ -58,7 +58,7 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
   return (
     <div className="col fill" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: primary ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0 }}>
       <div className="row between g10">
-        <span className="row g8" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}><span className="tnum i3">{String(n).padStart(2, "0")}</span><span style={{ color: GROUP_TONE[a.group] }}>{a.group}</span></span>
+        <span className="row g8" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}><span className="tnum i3">{String(n).padStart(2, "0")}</span><span style={{ color: GROUP_TONE[a.group] }}>{a.label ?? a.group}</span></span>
         {(a.effect || a.urgent) && <span className="ell" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", maxWidth: "60%", background: a.urgent ? "#FBEDE6" : "#E4F4EB", color: a.urgent ? "#B4532A" : "#1F7A52" }}>{a.effect ?? "Urgent"}</span>}
       </div>
       <div className="col g2"><span style={{ fontSize: 19, lineHeight: "25px", fontWeight: 600, letterSpacing: "-0.015em" }}>{a.title}</span><span className="xs i3" title={a.why} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.why}</span></div>
@@ -67,6 +67,7 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
           // eslint-disable-next-line @next/next/no-img-element
           <img key={u} src={u} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 68, height: 86, borderRadius: 10, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />))}
       </div> : a.viz ? <div className="row" style={{ minHeight: 86, alignItems: "center" }}><VizView v={a.viz} /></div> : null}
+      {a.thumbs && a.thumbs.length > 0 && a.viz?.kind === "flow" && <span className="xs i3 tnum">{a.viz.from} {a.viz.fromLabel} → <b className="i1 w5">{a.viz.to}</b> {a.viz.toLabel}</span>}
       {msg && <span className="xs" style={{ color: msg.bad ? "#B4532A" : "#1F7A52" }}>{msg.text}</span>}
       <div className="row between g12" style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--line)" }}>
         <span className="row g8 xs i3"><AgentFace kind={a.who} size={22} mood={a.urgent ? "worried" : "happy"} />{WHO[a.who]}</span>

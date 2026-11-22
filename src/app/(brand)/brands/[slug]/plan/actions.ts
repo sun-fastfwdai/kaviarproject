@@ -2,8 +2,10 @@
 import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
-import { planData, savePlan, savedPlan, type SavedPlan } from "@/lib/growth/plan-data";
+import { savePlan, savedPlan, type SavedPlan } from "@/lib/growth/plan-data";
 import { readyTests } from "@/lib/research/context";
+import { getPlans } from "@/lib/growth/plans";
+import { REASON_NAME } from "@/lib/growth/plans-rules";
 import { buildPipeline } from "../creative/actions";
 
 /** Keep the brand's choices (margin, budget, period, goal, offer) and mark the plan approved. */
@@ -21,17 +23,19 @@ export async function approvePlan(slug: string, input: SavedPlan, approve: boole
 }
 
 /**
- * One campaign from the plan, handed to the Creative studio: Remy writes the ads for that audience with the messages research found,
- * and Shoots opens with the pipeline ready. The team reviews before anything is spent.
+ * The ads for one plan. Ads are never made for their own sake: the plan must exist — which means its reason holds today — and the
+ * brand must have approved it. Then Remy writes three for that audience, filed under the plan, and Shoots opens with them.
  */
 export async function makeAds(slug: string, key: string): Promise<{ error?: string } | undefined> {
   await requireMember();
   const brand = await getBrand(slug);
-  const [d, tests] = await Promise.all([planData(brand.id, brand.currency ?? "USD"), readyTests(brand.id).catch(() => [])]);
-  const c = d.candidates.find((x) => x.key === key);
-  if (!c) return { error: "That campaign is no longer in the plan — open the Spend plan." };
-  const t = tests.find((x) => x.key === c.signal);
-  const r = await buildPipeline(slug, { format: "static", product: d.saved?.product ?? c.product, signal: c.signal ?? "", audience: t?.who ?? `${c.name} — ${c.why}`.slice(0, 200),
-    angles: t?.messages?.length ? t.messages : [c.why.slice(0, 90)], count: 6, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? c.why });
+  const [plans, tests] = await Promise.all([getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }), readyTests(brand.id).catch(() => [])]);
+  const p = plans.list.find((x) => x.key === key);
+  if (!p) return { error: "That plan’s reason no longer holds — open Campaigns for today’s plans." };
+  if (p.stage === "suggested") return { error: "Approve the plan first — ads are made once you’ve said yes to it." };
+  const c = p.c, t = tests.find((x) => x.key === c.signal);
+  const r = await buildPipeline(slug, { format: "static", product: c.product, signal: c.signal ?? key, audience: t?.who ?? `${c.name} — ${c.why}`.slice(0, 200),
+    angles: t?.messages?.length ? t.messages : [`${p.title}`.slice(0, 90)], count: 3, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? p.why,
+    reason: { data: p.title, value: p.when ?? null, use: `${REASON_NAME[p.reason]} — ${p.why}`, evidence: [["Why now", p.title], ["Detail", p.why], ["Budget", `${p.budget} over ${p.days} days`]] } });
   return r?.error ? { error: r.error } : undefined;
 }

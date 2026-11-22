@@ -1,14 +1,18 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
-import { levelOf, plan, ratesFrom, type Plan } from "./plan";
+import { levelOf } from "./plan";
+import { planFor } from "./plan-for";
+export { planFor } from "./plan-for";
 import { flowState, type FlowKey, type FlowStep } from "./flow";
 import { getPilot, watching } from "./autopilot";
 import type { Mode, Run } from "./pilot";
 import { ago } from "../format";
-import { planData, type PlanData } from "./plan-data";
+import { planData } from "./plan-data";
 import { currentAudit, getStore, storeWaiting } from "../seo/run";
 import { benchGaps } from "../seo/bench";
+import { getPlans } from "./plans";
+import { REASON_NAME } from "./plans-rules";
 import { scores } from "../seo/types";
 import { summary, trend } from "../queries/growth";
 import { getStock } from "../store/stock";
@@ -23,7 +27,8 @@ import { storeAccess } from "../seo/apply";
  * what it should bring. Code decides and counts; nothing here is written by a model.
  */
 export type Who = "analyst" | "builder" | "qa" | "catalog";
-export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; run?: "store-fix"; urgent?: boolean; viz?: Viz }; // run: done right here on Today, without leaving the page
+/** `label` is a plan's reason, shown in place of the group name. */
+export type Action = { thumbs?: string[]; key: string; group: "Fix" | "Protect" | "Plan" | "Decide" | "Create" | "Review" | "Test" | "Launch" | "Improve" | "Store" | "Set up"; label?: string; who: Who; title: string; why: string; effect?: string; cta: string; href?: string; make?: string; run?: "store-fix"; urgent?: boolean; viz?: Viz }; // run: done right here on Today, without leaving the page
 /** What a card shows between its headline and its button: the evidence, as a picture rather than a sentence. */
 export type Viz =
   | { kind: "bars"; rows: { label: string; value: number; text: string; tone: "warn" | "calm" }[] } // stock cover against restock time
@@ -38,39 +43,20 @@ export type Today = {
   pilot: { mode: Mode; last: string | null; watched: Run["watched"]; waiting: number; toSwitch: number };
   store: { open: number; canFix: boolean } | null; // fixes waiting on the Shopify store itself (SEO & AI search)
 };
-const STEP: Partial<Record<Action["group"], FlowKey>> = { Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
-
-/** The plan as the team last set it (or the defaults the Spend plan opens with). */
-export function planFor(d: PlanData): { p: Plan; budget: number; days: number; margin: number } {
-  const s = d.saved ?? {}, budget = s.budget ?? 1500, days = s.days ?? 28, margin = d.margin.value ?? s.margin ?? 0.6;
-  const repeat = d.orders.buyers >= 50 ? Math.min(0.5, d.orders.repeaters / d.orders.buyers) : 0;
-  const chosen = d.products.find((x) => x.title === s.product) ?? null;
-  const avg = d.orders.count >= 10 && d.orders.aov ? Math.round(d.orders.aov) : null; // their real average order, once there are enough
-  const candidates = d.candidates.map((c) => ({ ...c, product: chosen?.title ?? c.product, price: s.order && s.order > 0 ? s.order : avg ?? chosen?.price ?? c.price, stock: chosen ? chosen.stock : c.stock }));
-  return { p: plan({ budget, days, goal: s.goal ?? "profit", discount: s.discount ?? 0, margin, repeat, rates: ratesFrom(d.history), candidates }), budget, days, margin };
-}
+const STEP: Partial<Record<Action["group"], FlowKey>> = { Plan: "plan", Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
 
 export async function today(brand: { id: string; currency: string | null; timezone?: string | null }, slug: string, conns: { shopify?: { status: string } | null; meta?: { status: string } | null }): Promise<Today> {
   const base = `/brands/${slug}`, currency = brand.currency ?? "USD";
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
-  const B = schema.adBatches;
   const tz = brand.timezone ?? "UTC";
   const [sum, byDay, stock, audit, bench] = await Promise.all([
     summary(brand.id, tz, 30).catch(() => null), trend(brand.id, tz, 30).catch(() => []), conns.shopify ? getStock(brand.id, tz).catch(() => null) : Promise.resolve(null),
     getStore(brand.id).then((x) => currentAudit(brand.id, x.audit)).catch(() => null), benchGaps(brand.id).catch(() => null),
   ]);
-  const [flow, pilot, watched, shop, shopAccess, toSwitch, pics, d, batches, tested, changes] = await Promise.all([
+  const [flow, pilot, watched, shop, shopAccess, toSwitch, d, changes] = await Promise.all([
     flowState(brand.id), getPilot(brand.id), watching(brand.id), storeWaiting(brand.id).catch(() => null), storeAccess(brand.id).catch(() => null),
     db.execute(sql`select count(*)::int as n from optimize_changes where brand_id = ${brand.id} and status = 'approved'`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => 0),
-    // The pictures behind the ads that are waiting — the brand's own photos only: where an ad's picture was AI-made, its product's Shopify photo stands in.
-    db.execute(sql`select * from (select a.batch_id as batch, a.status, coalesce(case when ai.id is null then a.image_url end, (select sp.image_url from shop_products sp where sp.brand_id = a.brand_id and sp.title = a.product and sp.image_url is not null limit 1)) as url, b.created_at, a.position from ads a join ad_batches b on b.id = a.batch_id left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) where b.brand_id = ${brand.id} and a.status in ('review', 'approved')) x where x.url is not null order by x.created_at desc, x.position limit 120`)
-      .then((r) => r.rows as { batch: string; status: string; url: string }[]).catch(() => []),
     planData(brand.id, currency),
-    db.select({ id: B.id, title: B.title, signal: B.signal,
-      review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
-      approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int`,
-      total: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id")::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(30),
-    db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
     db.select({ id: schema.optimizeChanges.id, kind: schema.optimizeChanges.kind, title: schema.optimizeChanges.title, why: schema.optimizeChanges.why, before: schema.optimizeChanges.before, after: schema.optimizeChanges.after })
       .from(schema.optimizeChanges).where(and(eq(schema.optimizeChanges.brandId, brand.id), eq(schema.optimizeChanges.status, "proposed"), sql`${schema.optimizeChanges.week} > current_date - 7`)).orderBy(desc(schema.optimizeChanges.createdAt)).limit(20).catch(() => []),
   ]);
@@ -92,23 +78,16 @@ export async function today(brand: { id: string; currency: string | null; timezo
       viz: { kind: "bars", rows: [{ label: "Stock lasts", value: left, text: `${left} day${left === 1 ? "" : "s"}`, tone: "warn" }, { label: "A restock takes", value: stock!.leadDays, text: `${stock!.leadDays} days`, tone: "calm" }] } });
   }
 
-  // Decide: the plan itself.
-  if (!approved && p.rows.length) a.push({ key: "plan", group: "Decide", who: "analyst", title: `Approve your ${usd(budget)} spend plan`, why: `${p.rows.length} campaign${p.rows.length === 1 ? "" : "s"} over ${Math.round(days / 7)} weeks, sized so each gives a result you can read.`, effect: `Likely ${usd(mid.revenue)} back`, cta: "Open plan", href: `${base}/plan`,
-    viz: { kind: "flow", from: usd(budget), fromLabel: "you spend", to: usd(mid.revenue), toLabel: `likely back in ${Math.round(days / 7)} weeks` } });
-
-  // Create → Review → Test → Launch, campaign by campaign.
-  // A batch with no ads left in it (they were deleted) hasn't been made: the campaign asks for its ads again.
-  const forSignal = (sig: string | null) => (sig ? batches.find((b) => b.signal === sig && b.total > 0) : undefined);
-  if (approved) for (const r of p.rows) if (!forSignal(r.c.signal)) a.push({ key: `make:${r.c.key}`, group: "Create", who: "builder", title: `Make the ads for ${r.c.name}`, why: `${usd(r.spend)} of the plan goes here. Remy writes six and shoots them with your product.`, effect: `${Math.round(r.out[1].orders)} orders likely`, cta: "Make the ads", make: r.c.key,
-    viz: { kind: "flow", from: usd(r.spend), fromLabel: "of your budget", to: usd(r.out[1].revenue), toLabel: "likely back" } });
-  // One line per kind of work, however many batches are waiting — the list stays short.
-  const toReview = batches.filter((x) => x.review > 0), ads = toReview.reduce((n, x) => n + x.review, 0);
-  if (toReview.length === 1) a.push({ key: `review:${toReview[0].id}`, group: "Review", who: "builder", title: `Review ${ads} ad${ads === 1 ? "" : "s"}`, why: toReview[0].title, cta: "Review", href: `${base}/creative/${toReview[0].id}` });
-  else if (toReview.length > 1) a.push({ key: "review", group: "Review", who: "builder", title: `Review ${ads} ads`, why: `${toReview.length} batches are waiting — newest: ${toReview[0].title}`, cta: "Review", href: `${base}/creative?tab=ads` });
-  const toTest = batches.filter((x) => x.approved > 0 && x.review === 0 && !tested.has(x.id));
-  if (toTest.length) a.push({ key: `test:${toTest[0].id}`, group: "Test", who: "qa", title: `Test ${toTest[0].approved} approved ad${toTest[0].approved === 1 ? "" : "s"} before spending`, why: `${toTest[0].title} — look-alike shoppers pick the winner.${toTest.length > 1 ? ` ${toTest.length - 1} more after it.` : ""}`, effect: "No ad spend", cta: "Run the test", href: `${base}/audience?batch=${toTest[0].id}` });
-  const toLaunch = batches.filter((x) => x.approved > 0 && tested.has(x.id));
-  if (toLaunch.length) a.push({ key: `launch:${toLaunch[0].id}`, group: "Launch", who: "analyst", title: "Put the winner live", why: `${toLaunch[0].title} — tested, with a winner chosen.`, cta: "Set it up", href: `${base}/run` });
+  // Plans: each a reason to advertise with its own budget and steps. The card opens the plan; nothing about ads is asked for outside one.
+  const plans = await getPlans({ id: brand.id, currency: brand.currency, timezone: tz }, { byDay, stock }).catch(() => null);
+  for (const pl of plans?.list ?? []) {
+    const ad = pl.ads, m = pl.out[1], n = (k: number) => `${k} ad${k === 1 ? "" : "s"}`;
+    a.push({ key: `plan:${pl.key}`, group: "Plan", label: REASON_NAME[pl.reason], who: pl.reason === "overstock" ? "qa" : pl.stage === "review" || pl.stage === "approved" ? "builder" : "analyst", title: pl.title, why: pl.why, urgent: pl.urgent,
+      effect: pl.stage === "review" ? `${n(ad!.review)} to review` : pl.stage === "test" ? `${n(ad!.approved)} to test` : pl.stage === "ready" ? "Ready to launch" : pl.stage === "approved" ? "Approved" : pl.when ? pl.when[0].toUpperCase() + pl.when.slice(1) : undefined,
+      cta: pl.stage === "suggested" ? "Review plan" : "Open plan", href: `${base}/campaigns/${encodeURIComponent(pl.key)}`,
+      ...(ad?.thumbs.length ? { thumbs: ad.thumbs } : {}),
+      viz: { kind: "flow", from: usd(pl.budget), fromLabel: "you spend", to: usd(m.revenue), toLabel: m.profit >= 0 ? `likely back · ${usd(m.profit)} profit` : "likely back" } });
+  }
 
   // Improve: this week's proposed changes to what is running.
   // One line, however many Autopilot found — the list stays short and the detail is on Results.
@@ -142,18 +121,9 @@ export async function today(brand: { id: string; currency: string | null; timezo
   if (!d.hasResearch) a.push({ key: "research", group: "Set up", who: "analyst", title: "Find your buyer groups", why: "Iris researches who buys and what to say to them.", effect: "Unlocks audiences", cta: "Run research", href: `${base}/research` });
 
   // Urgent first; then finish what is already in hand (review, test, launch) before deciding and making more.
-  const ORDER: Action["group"][] = ["Fix", "Protect", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Store", "Set up"];
+  const ORDER: Action["group"][] = ["Fix", "Protect", "Plan", "Review", "Test", "Launch", "Decide", "Create", "Improve", "Store", "Set up"];
   const rank = (x: Action) => (x.urgent ? 0 : 100) + ORDER.indexOf(x.group);
-  const pic = (status: string, batch?: string) => [...new Set(pics.filter((x) => x.status === status && (!batch || x.batch === batch)).map((x) => x.url))].slice(0, 5);
-  for (const x of a) {
-    if (x.group === "Review") x.thumbs = pic("review", x.key.startsWith("review:") ? x.key.slice(7) : undefined);
-    if (x.group === "Test" || x.group === "Launch") x.thumbs = pic("approved", x.key.split(":")[1]);
-    // No picture to show: the count, so the card still says what is waiting.
-    if (x.group === "Review" && !x.thumbs?.length) x.viz = { kind: "counts", items: [{ label: "Ads to review", n: ads }, { label: toReview.length === 1 ? "Batch" : "Batches", n: toReview.length }] };
-    if (x.group === "Test" && !x.thumbs?.length && toTest[0]) x.viz = { kind: "counts", items: [{ label: "Approved ads", n: toTest[0].approved }, { label: "Batches to test", n: toTest.length }] };
-    if (x.group === "Launch" && !x.thumbs?.length && toLaunch[0]) x.viz = { kind: "counts", items: [{ label: "Ads ready", n: toLaunch[0].approved }, { label: "Tested batches", n: toLaunch.length }] };
-  }
-  const sorted = [...a].sort((x, y) => rank(x) - rank(y));
+  const sorted = a.map((x, i) => ({ x, i })).sort((p, q) => rank(p.x) - rank(q.x) || p.i - q.i).map((p) => p.x); // plans keep the order they were ranked in
   const now = sorted.map((x) => STEP[x.group]).find(Boolean) ?? flow.find((x) => !x.done)?.key ?? "learn";
   const sells = p.rows[0]?.c.product ?? null;
   // The board: the last 30 days against the 30 before, then campaigns, customers and stock, and the store's score.
@@ -174,10 +144,10 @@ export async function today(brand: { id: string; currency: string | null; timezo
       if (margin != null) status.push({ label: "Profit after ads", icon: "chart-bar", value: usd(rev * margin - sp), delta: rev0 * margin - sp0 > 0 ? pctDelta(rev * margin - sp, rev0 * margin - sp0) : undefined, href: `${base}/plan`, spark: cur.map((x) => x.revenue * margin - x.spend), hint: `Sales × your ${Math.round(margin * 100)}% margin − ad spend` });
     } else status.push({ label: "New customers", icon: "user", value: fresh.toLocaleString("en-US"), delta: pctDelta(fresh, fresh0), href: `${base}/shopify?tab=customers`, spark: cur.map((x) => x.fresh), chart: "bars", hint: "People whose first order was in the last 30 days" });
   }
-  const waitingAds = batches.reduce((k, x) => k + x.review, 0);
-  if (conns.meta || batches.length) status.push({ label: "Campaigns", icon: "megaphone", href: `${base}/campaigns`, hint: "Everything about your ads, in one place",
-    ...(waitingAds ? { value: String(waitingAds), unit: "to review" } : { value: String(watched.campaigns), unit: "live" }),
-    sub: [waitingAds ? `${watched.campaigns} live` : null, changes.length ? `${changes.length} to decide` : null].filter(Boolean).join(" · ") || (watched.campaigns ? `${watched.ads} ads running` : "None running yet") });
+  const waitingPlans = (plans?.list ?? []).filter((x) => x.stage !== "suggested").length, newPlans = (plans?.list ?? []).length - waitingPlans;
+  if (conns.meta || plans?.list.length) status.push({ label: "Campaigns", icon: "megaphone", href: `${base}/campaigns`, hint: "Each plan has a reason, a budget and its own steps",
+    value: String(plans?.list.length ?? 0), unit: (plans?.list.length ?? 0) === 1 ? "plan" : "plans",
+    sub: [watched.campaigns ? `${watched.campaigns} live` : null, waitingPlans ? `${waitingPlans} under way` : null, newPlans ? `${newPlans} suggested` : null, changes.length ? `${changes.length} to decide` : null].filter(Boolean).join(" · ") || "No reason to advertise today" });
   if (sum && sum.customerOrders > 0) status.push({ label: "Customers", icon: "users", value: `${Math.round((sum.returningOrders / sum.customerOrders) * 100)}%`, unit: "returning", sub: `${sum.newCustomers.toLocaleString("en-US")} new`, href: `${base}/shopify?tab=customers`, hint: "Share of orders from people who had bought before" });
   if (stock?.rows.length) { const need = stock.totals.soon + stock.totals.reorder; status.push({ label: "Inventory", icon: "box", value: String(need), unit: "to reorder", href: `${base}/inventory`, ...(stock.totals.soon ? { tone: "warn" as const } : {}),
     sub: stock.totals.soon ? `${stock.totals.soon} run${stock.totals.soon === 1 ? "s" : ""} out first` : `${stock.totals.over} overstocked`, hint: `Forecast from the last 30 days of orders, against a ${stock.leadDays}-day restock` }); }

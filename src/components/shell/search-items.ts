@@ -1,9 +1,11 @@
 import type { SearchItem } from "./search";
 
-const PAGES: [string, string][] = [["Overview", ""], ["Today", "/today"],
-  ["Campaigns", "/campaigns"], ["Campaigns · Opportunities", "/opportunities"], ["Campaigns · Spend plan", "/plan"], ["Campaigns · Creative studio", "/creative"], ["Campaigns · Audience test", "/audience"], ["Campaigns · Run ads", "/run"], ["Campaigns · Results", "/performance"], ["Campaigns · Meta Ads data", "/meta"],
-  ["Store · Health: SEO, AI search, speed", "/seo"], ["Store · Inventory", "/inventory"], ["Store · Orders & products", "/shopify"], ["Store · Brand assets", "/assets"], ["Store · Integrations", "/integrations"], ["Store · Data sync", "/sync"],
-  ["Market · Competitors", "/competitors"], ["Market · Market research", "/research"]];
+const PAGES: [string, string][] = [["Overview", ""], ["Today", "/today"], ["Campaigns", "/campaigns"],
+  ["Campaigns · Results", "/performance"], ["Campaigns · Meta Ads data", "/meta"], ["Campaigns · Audience test", "/audience"], ["Campaigns · Run ads", "/run"],
+  ["Store · Health: SEO, AI search, speed", "/seo"], ["Store · Inventory", "/inventory"], ["Store · Orders & products", "/shopify"],
+  ["Creative studio · Ads", "/creative"], ["Creative studio · Brand assets", "/assets"],
+  ["Market · Competitors", "/competitors"], ["Market · Market research", "/research"],
+  ["Settings · Integrations", "/integrations"], ["Settings · Data sync", "/sync"]];
 
 export function searchItems(brands: { slug: string; name: string; category: string | null }[], current?: { slug: string; name: string; storeBuilder?: boolean }): SearchItem[] {
   const out: SearchItem[] = [];

@@ -3,7 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { campaigns } from "../queries/growth";
 import { planData } from "./plan-data";
-import { planFor } from "./today";
+import { planFor } from "./plan-for";
 import type { LibRow, LibStatus } from "./library";
 
 /**
