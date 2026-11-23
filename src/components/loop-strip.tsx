@@ -12,7 +12,7 @@ function Strip({ base, step, p }: { base: string; step: LoopKey; p: FlowStep[] |
   const again = i === FLOW.length - 1, [, nextPath, nextLabel] = again ? FLOW[0] : FLOW[i + 1];
   const now = p?.[i];
   return (
-    <div className="row g10" style={{ height: 30, padding: "0 6px 0 10px", border: "1px solid var(--line)", borderRadius: 99, background: "var(--tray)", whiteSpace: "nowrap", flexShrink: 0, minWidth: 0 }}>
+    <div className="row g10" style={{ height: 30, padding: "0 6px 0 10px", border: "1px solid var(--line)", borderRadius: 8, background: "var(--tray)", whiteSpace: "nowrap", flexShrink: 0, minWidth: 0 }}>
       <span className="row g4" aria-label="Growth steps">
         {FLOW.map(([k, path, l], j) => {
           const on = j === i, done = p?.[j].done;
@@ -25,7 +25,7 @@ function Strip({ base, step, p }: { base: string; step: LoopKey; p: FlowStep[] |
       <span className="xs i3">Step {i + 1} of {FLOW.length}</span>
       <span className="xs w5 i1" title={what}>{label}</span>
       <span className={`xs ell ${now?.done ? "c-green" : "i3"}`} style={{ maxWidth: 200 }} title={now ? `${what} · ${now.note}` : what}>{now ? now.note : what}</span>
-      <Link href={`${base}/${nextPath}`} className="row g4" title={p ? p[again ? 0 : i + 1].note : undefined} style={{ height: 22, padding: "0 9px", borderRadius: 99, background: "#fff", border: "1px solid var(--line)", fontSize: 11.5, color: "var(--ink-2)" }}>
+      <Link href={`${base}/${nextPath}`} className="row g4" title={p ? p[again ? 0 : i + 1].note : undefined} style={{ height: 22, padding: "0 8px", borderRadius: 6, background: "#fff", border: "1px solid var(--line)", fontSize: 12, color: "var(--ink-2)" }}>
         {again ? `Back to ${nextLabel}` : `Next: ${nextLabel}`}<Icon name={again ? "repeat" : "arrow-r"} size={11} color="#55534F" />
       </Link>
     </div>

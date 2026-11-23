@@ -30,7 +30,7 @@ type Props = {
   slug: string; currency: string; plan: PlanCard; input: Omit<PlanInput, "candidates">; minBudget: number; level: 0 | 1 | 2;
   ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; unitPrice: number | null; audiences: Plans["options"]["audiences"]; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
 };
-const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
+const label = { fontSize: 12, fontWeight: 500 } as const;
 
 export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto, unitPrice, audiences }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
@@ -87,7 +87,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
   // What each step does when it is this plan's turn — the same button in the card's corner and under the step.
   const act = (k: StepKey, small = false): React.ReactNode => {
-    const cls = small ? "row g4" : "row g6", st = small ? ({ height: 26, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 500, whiteSpace: "nowrap", background: "#fff", color: "#121212" } as const) : ({ height: 40, padding: "0 18px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 14, fontWeight: 600 } as const), ic = small ? 10 : 12;
+    const cls = small ? "row g4" : "row g6", st = small ? ({ height: 26, padding: "0 10px", borderRadius: 6, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", background: "#fff", color: "#121212" } as const) : ({ height: 40, padding: "0 18px", borderRadius: 8, background: "#34C77B", color: "#0B2B1A", fontSize: 14, fontWeight: 600 } as const), ic = small ? 10 : 12;
     if (k === "budget") return <button type="button" disabled={busy} className={cls} style={st} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={ic} />}Approve plan</button>;
     if (k === "ads") return toReview.length ? <a className={cls} style={st} href="#ads">Review {toReview.length} ad{toReview.length === 1 ? "" : "s"}<Icon name="arrow-r" size={ic} style={{ transform: "rotate(90deg)" }} /></a>
       : <button type="button" disabled={busy || m.busy} className={cls} style={st} onClick={m.write}>{m.doing === "make" && <Icon name="spinner" size={13} className="spin" color="#0B2B1A" />}{m.doing === "make" ? "Remy is writing…" : "Make 3 ads"}</button>;
@@ -103,14 +103,13 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
     <div className="scroll" style={{ padding: "22px 24px 96px" }}>
       <div className="col g16">
         {/* ---- the plan in one line, and where it has got to */}
-        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
-          <div aria-hidden style={{ position: "absolute", right: -120, top: -160, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${mid.profit < 0 ? "rgba(235,122,60,.30)" : "rgba(52,199,123,.30)"}, transparent)` }} />
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 20, background: "#121212", color: "#fff", padding: "26px 28px 22px" }}>
           <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
             <div className="col g10" style={{ minWidth: 0 }}>
               <span className="row g8" style={{ flexWrap: "wrap" }}>
                 <span style={{ ...label, color: "rgba(255,255,255,.6)" }}>{REASON_NAME[p.reason]} · {STAGE_NAME[p.stage]}</span>
-                {p.when && <span style={{ height: 20, padding: "0 9px", borderRadius: 99, fontSize: 11, lineHeight: "20px", fontWeight: 600, background: p.urgent ? "rgba(255,155,115,.2)" : "rgba(255,255,255,.12)", color: p.urgent ? "#FFB49A" : "rgba(255,255,255,.8)" }}>{p.when}</span>}
-                <span style={{ height: 20, padding: "0 9px", borderRadius: 99, fontSize: 11, lineHeight: "20px", background: level === 2 ? "rgba(52,199,123,.22)" : "rgba(255,255,255,.12)", color: level === 2 ? "#8BE8B4" : "rgba(255,255,255,.75)" }}>{LEVEL[level]}</span>
+                {p.when && <span style={{ height: 20, padding: "0 8px", borderRadius: 6, fontSize: 11, lineHeight: "20px", fontWeight: 600, background: p.urgent ? "rgba(255,155,115,.2)" : "rgba(255,255,255,.12)", color: p.urgent ? "#FFB49A" : "rgba(255,255,255,.8)" }}>{p.when}</span>}
+                <span style={{ height: 20, padding: "0 8px", borderRadius: 6, fontSize: 11, lineHeight: "20px", background: level === 2 ? "rgba(52,199,123,.22)" : "rgba(255,255,255,.12)", color: level === 2 ? "#8BE8B4" : "rgba(255,255,255,.75)" }}>{LEVEL[level]}</span>
               </span>
               <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em", maxWidth: 640 }}>{p.title}</span>
               {/* the budget is the one thing the brand sets here: its amount and how long — and what that brings back, straight beside it */}
@@ -118,53 +117,52 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                 <span className="col g6">
                   <span style={{ ...label, color: "rgba(255,255,255,.5)" }}>Budget · yours to set</span>
                   <span className="row g6" style={{ alignItems: "center" }}>
-                    <button type="button" aria-label="Spend less" disabled={busy || budget - step < 50} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 17, opacity: budget - step < 50 ? 0.35 : 1 }}>−</button>
-                    <label className="row tnum" title="Click to type an amount" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "#fff", cursor: "text", padding: "0 10px", borderRadius: 12, background: "rgba(255,255,255,.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.14)" }}>
+                    <button type="button" aria-label="Spend less" disabled={busy || budget - step < 50} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 16, opacity: budget - step < 50 ? 0.35 : 1 }}>−</button>
+                    <label className="row tnum" title="Click to type an amount" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.015em", color: "#fff", cursor: "text", padding: "0 10px", borderRadius: 12, background: "rgba(255,255,255,.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.14)" }}>
                       <span aria-hidden style={{ color: "rgba(255,255,255,.55)" }}>{sign}</span>
                       <input id="budget-amount" aria-label="Budget" inputMode="numeric" value={typing ?? budget.toLocaleString("en-US")} onFocus={(e) => { setTyping(String(budget)); e.currentTarget.select(); }}
                         onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, "").slice(0, 7); setTyping(v); if (Number(v) >= 50) setBudget(Number(v)); }}
                         onBlur={() => setTyping(null)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         style={{ width: `${Math.max(2, (typing ?? budget.toLocaleString("en-US")).length) + 0.4}ch`, border: 0, outline: 0, padding: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit" }} />
                     </label>
-                    <button type="button" aria-label="Spend more" disabled={busy} onClick={() => setBudget((b) => b + step)} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 17 }}>+</button>
+                    <button type="button" aria-label="Spend more" disabled={busy} onClick={() => setBudget((b) => b + step)} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 16 }}>+</button>
                   </span>
                   <span className="row g6" style={{ fontSize: 12, color: "rgba(255,255,255,.55)", alignItems: "center" }}>over
-                    <span role="radiogroup" aria-label="How long the campaign runs" style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" role="radio" aria-checked={days === d} disabled={busy} onClick={() => setDays(d)} style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11.5, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
+                    <span role="radiogroup" aria-label="How long the campaign runs" style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 8, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" role="radio" aria-checked={days === d} disabled={busy} onClick={() => setDays(d)} style={{ height: 22, padding: "0 8px", borderRadius: 6, fontSize: 12, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
                     <span className="tnum">· {usd(daily)} a day</span></span>
                 </span>
                 <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)", paddingTop: 26 }}>→</span>
                 <span className="col g6"><span style={{ ...label, color: "rgba(255,255,255,.5)" }}>Likely comes back</span>
-                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.035em" }}>{usd(mid.revenue)}</span>
+                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.02em" }}>{usd(mid.revenue)}</span>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>{Math.round(mid.orders)} order{Math.round(mid.orders) === 1 ? "" : "s"} · {usd(p.c.price)} each</span></span>
                 <span className="col g6" title="After the cost of the goods and the ad spend, at the likely rates"><span style={{ ...label, color: "rgba(255,255,255,.5)" }}>{mid.profit >= 0 ? "Profit after costs" : "Short of break-even"}</span>
-                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.035em", color: mid.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))}</span>
+                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.02em", color: mid.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))}</span>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>{mid.profit >= 0 ? "what is left for you" : "the ads cost more than they bring"}</span></span>
               </div>
               {/* a change is not kept until the brand says so — said right where it was made */}
-              {changed && <div className="row g10" role="status" style={{ alignSelf: "flex-start", padding: "6px 6px 6px 14px", borderRadius: 99, background: "rgba(255,255,255,.1)", flexWrap: "wrap" }}>
+              {changed && <div className="row g10" role="status" style={{ alignSelf: "flex-start", padding: "6px 6px 6px 14px", borderRadius: 10, background: "rgba(255,255,255,.1)", flexWrap: "wrap" }}>
                 <span className="row g6" style={{ fontSize: 13 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "#FFB020" }} />Not saved yet · was {usd(p.budget)} over {p.days} days</span>
                 {p.stage === "suggested"
-                  ? <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 13, fontWeight: 600 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={11} />}Approve at {usd(budget)}</button>
-                  : <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 13, fontWeight: 600 }} onClick={() => (p.meta ? setConfirm("budget") : go("save", () => setPlanBudget(slug, p.key, budget, days), `Budget saved — ${usd(budget)} over ${days} days`))}>{spin("save") || <Icon name="check" size={11} />}{p.meta ? "Change it on Meta" : "Save budget"}</button>}
-                <button type="button" disabled={busy} style={{ height: 30, padding: "0 12px", borderRadius: 99, color: "rgba(255,255,255,.75)", fontSize: 13 }} onClick={() => { setBudget(p.budget); setDays(p.days); }}>Undo</button>
+                  ? <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 8, background: "#34C77B", color: "#0B2B1A", fontSize: 13, fontWeight: 600 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={11} />}Approve at {usd(budget)}</button>
+                  : <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 8, background: "#fff", color: "#121212", fontSize: 13, fontWeight: 600 }} onClick={() => (p.meta ? setConfirm("budget") : go("save", () => setPlanBudget(slug, p.key, budget, days), `Budget saved — ${usd(budget)} over ${days} days`))}>{spin("save") || <Icon name="check" size={11} />}{p.meta ? "Change it on Meta" : "Save budget"}</button>}
+                <button type="button" disabled={busy} style={{ height: 30, padding: "0 12px", borderRadius: 8, color: "rgba(255,255,255,.75)", fontSize: 13 }} onClick={() => { setBudget(p.budget); setDays(p.days); }}>Undo</button>
               </div>}
               <div className="col g4" style={{ width: 430, maxWidth: "100%" }}>
                 <div style={{ position: "relative", height: 6, borderRadius: 99, background: "rgba(255,255,255,.14)" }}>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: 99, background: "linear-gradient(90deg, rgba(255,155,115,.9), rgba(110,231,168,.95))", opacity: 0.85 }} />
                   <div style={{ position: "absolute", top: -4, left: `${Math.min(96, Math.max(4, ((mid.revenue - lo.revenue) / Math.max(1, hi.revenue - lo.revenue)) * 100))}%`, width: 14, height: 14, borderRadius: 99, background: "#fff", transform: "translateX(-7px)", boxShadow: "0 0 0 4px rgba(255,255,255,.18)" }} />
                 </div>
-                <div className="row between" style={{ fontSize: 11.5, color: "rgba(255,255,255,.55)" }}><span>If it goes badly {usd(lo.revenue)}</span><span>If it goes well {usd(hi.revenue)}</span></div>
+                <div className="row between" style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}><span>If it goes badly {usd(lo.revenue)}</span><span>If it goes well {usd(hi.revenue)}</span></div>
               </div>
             </div>
-            <div className="col g10" style={{ alignItems: "flex-end", flexShrink: 0 }}>
+            <div className="col g10" style={{ alignItems: "flex-end", flexShrink: 0, maxWidth: 300 }}>
               <span className="row g10" style={{ padding: "6px 12px 6px 6px", borderRadius: 14, background: "rgba(255,255,255,.08)" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {p.image ? <img src={p.image} alt="" width={44} height={44} style={{ borderRadius: 10, objectFit: "cover", background: "#fff" }} /> : <span style={{ width: 44, height: 44, borderRadius: 10, background: "rgba(255,255,255,.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="box" size={16} color="rgba(255,255,255,.6)" /></span>}
                 <span className="col" style={{ maxWidth: 210 }}><span style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>Selling</span><span className="ell" style={{ fontSize: 13, fontWeight: 500 }}>{p.c.product}</span></span>
               </span>
               <span className="row g8" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {!p.approvedAt && p.stage !== "suggested" && now !== "launch" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved")}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
-                {!p.meta && <button type="button" disabled={busy} className="row g8" style={{ height: 40, padding: "0 16px 0 9px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5, fontWeight: 500 }} onClick={() => setConfirm("best")}><AgentFace kind="analyst" size={22} />{mid.profit < 0 ? "Make it profitable" : "Find the best set-up"}</button>}
+                {!p.approvedAt && p.stage !== "suggested" && now !== "launch" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 8, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 14 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved")}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
+                {!p.meta && <button type="button" disabled={busy} className="row g8" style={{ height: 40, padding: "0 16px 0 8px", borderRadius: 8, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 14, fontWeight: 500 }} onClick={() => setConfirm("best")}><AgentFace kind="analyst" size={22} />{mid.profit < 0 ? "Make it profitable" : "Find the best set-up"}</button>}
                 {act(now)}
               </span>
             </div>
@@ -183,11 +181,11 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                   </span>
                   <span className="col" style={{ minWidth: 0 }}>
                     <span className="ell" style={{ fontSize: 13, fontWeight: on ? 600 : 500, color: on ? "#fff" : "rgba(255,255,255,.82)" }}>{x.label}</span>
-                    <span className="ell" style={{ fontSize: 11.5, color: on ? "#8BE8B4" : "rgba(255,255,255,.5)" }}>{on ? `You are here · ${x.note}` : x.note}</span>
+                    <span className="ell" style={{ fontSize: 12, color: on ? "#8BE8B4" : "rgba(255,255,255,.5)" }}>{on ? `You are here · ${x.note}` : x.note}</span>
                   </span>
                   {on && <span style={{ alignSelf: "flex-start" }}>{act(x.key, true)}</span>}
-                  {x.key === "budget" && !on && <button type="button" onClick={() => { const el = document.getElementById("budget-amount"); el?.scrollIntoView({ block: "center", behavior: "smooth" }); el?.focus(); }} className="row g4" style={{ alignSelf: "flex-start", height: 24, padding: "0 9px", borderRadius: 99, fontSize: 11.5, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}><Icon name="pencil" size={10} />Change</button>}
-                  {x.key === "test" && !x.done && a && p.stage === "ready" && <Link href={`${base}/audience?batch=${a.batchId}`} title="Show the ads to look-alike shoppers before any money is spent" className="row g4" style={{ alignSelf: "flex-start", height: 26, padding: "0 10px", borderRadius: 99, fontSize: 11.5, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}>Test first<Icon name="arrow-r" size={10} /></Link>}
+                  {x.key === "budget" && !on && <button type="button" onClick={() => { const el = document.getElementById("budget-amount"); el?.scrollIntoView({ block: "center", behavior: "smooth" }); el?.focus(); }} className="row g4" style={{ alignSelf: "flex-start", height: 24, padding: "0 8px", borderRadius: 6, fontSize: 12, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}><Icon name="pencil" size={10} />Change</button>}
+                  {x.key === "test" && !x.done && a && p.stage === "ready" && <Link href={`${base}/audience?batch=${a.batchId}`} title="Show the ads to look-alike shoppers before any money is spent" className="row g4" style={{ alignSelf: "flex-start", height: 26, padding: "0 10px", borderRadius: 6, fontSize: 12, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}>Test first<Icon name="arrow-r" size={10} /></Link>}
                 </div>
               );
             })}
@@ -252,9 +250,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           : null}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
             {([["Spent", results.spend, p.budget, usd(results.spend), `of ${usd(p.budget)} planned`], ["Orders", results.orders, mid.orders, String(results.orders), `${Math.round(mid.orders)} expected`], ["Sales", results.revenue, mid.revenue, usd(results.revenue), `${usd(mid.revenue)} expected`]] as const).map(([k, got, want, v, sub]) => (
-              <div key={k} className="col g4" style={{ padding: "11px 13px", borderRadius: 14, background: "var(--tray)" }}>
+              <div key={k} className="col g4" style={{ padding: "12px 12px", borderRadius: 14, background: "var(--tray)" }}>
                 <span className="xs i3">{k}</span>
-                <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{v}</span><span className="xs i3">{sub}</span></span>
+                <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em" }}>{v}</span><span className="xs i3">{sub}</span></span>
                 <span style={{ height: 5, borderRadius: 99, background: "var(--tray-2)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${want > 0 ? Math.min(100, (got / want) * 100) : 0}%`, borderRadius: 99, background: k === "Spent" ? "#55534F" : "#34C77B" }} /></span>
               </div>))}
           </div>
@@ -286,9 +284,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               blocks.push({ src: "Your ads so far · Meta", big: shop.adBack != null ? `${shop.adBack.toFixed(2)}×` : "None yet", unit: shop.adBack != null ? "back per $1" : undefined,
                 line: shop.adDays ? `${usd(shop.adSpend)} spent over ${shop.adDays} days — the forecast uses it` : "So the numbers above are a scenario, not a forecast", href: `${base}/performance` });
               return blocks.map((x) => (
-                <Link key={x.src} href={x.href} className="col g4 hv" style={{ padding: "13px 15px", borderRadius: 16, background: x.bad ? "var(--amber-bg)" : "#fff", boxShadow: x.bad ? "none" : "0 0 0 1px var(--line)", minWidth: 0 }}>
+                <Link key={x.src} href={x.href} className="col g4 hv" style={{ padding: "12px 16px", borderRadius: 16, background: x.bad ? "var(--amber-bg)" : "#fff", boxShadow: x.bad ? "none" : "0 0 0 1px var(--line)", minWidth: 0 }}>
                   <span className="row between g8"><span className="xs i3 ell">{x.src}</span><Icon name="arrow-ur" size={12} color="#B5B2AC" /></span>
-                  <span className="row g6" style={{ alignItems: "baseline", minWidth: 0 }}><span className="tnum" style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em" }}>{x.big}</span>{x.unit && <span className="xs i2 ell">{x.unit}</span>}</span>
+                  <span className="row g6" style={{ alignItems: "baseline", minWidth: 0 }}><span className="tnum" style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.015em" }}>{x.big}</span>{x.unit && <span className="xs i2 ell">{x.unit}</span>}</span>
                   <span className="xs" title={x.line} style={{ color: x.bad ? "var(--amber)" : "var(--ink-3)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{x.line}</span>
                 </Link>));
             })()}
@@ -308,9 +306,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               ["Sales", usd(mid.revenue), `${usd(p.c.price)} an order`],
               ["Profit", `${mid.profit >= 0 ? "+" : "−"}${usd(Math.abs(mid.profit))}`, `after ${usd(mid.cost)} of goods and ${usd(budget)} of ads`],
             ] as const).map(([k, v, how], i) => (
-              <div key={k} className="col g2" style={{ padding: "11px 13px", borderRadius: 14, background: i === 4 ? (mid.profit >= 0 ? "var(--green-bg)" : "var(--red-bg)") : "var(--tray)", minWidth: 0 }}>
+              <div key={k} className="col g2" style={{ padding: "12px 12px", borderRadius: 14, background: i === 4 ? (mid.profit >= 0 ? "var(--green-bg)" : "var(--red-bg)") : "var(--tray)", minWidth: 0 }}>
                 <span className="xs i3">{k}</span>
-                <span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em", color: i === 4 ? (mid.profit >= 0 ? "var(--green)" : "var(--red)") : "var(--ink)" }}>{v}</span>
+                <span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em", color: i === 4 ? (mid.profit >= 0 ? "var(--green)" : "var(--red)") : "var(--ink)" }}>{v}</span>
                 <span className="xs i3 ell" title={how}>{how}</span>
               </div>))}
           </div>
@@ -343,7 +341,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               {row("One order leaves you", usd(unit), `${usd(p.c.price)} order · ${Math.round(input.margin * 100)}% margin`)}
               {row("One click costs", new Intl.NumberFormat("en-US", { style: "currency", currency }).format(input.rates.cpm[1] / 1000 / input.rates.ctr[1]))}
               {row("Clickers who must buy", best.needCvr != null ? pc(best.needCvr) : "–", `forecast uses ${pc(best.cvr)}`)}
-              <span className="row between g12" style={{ paddingTop: 12 }}><span className="xs i3">A higher order value or margin changes this.</span><Link className="btn sm" href={`${base}/plan`}>Check your figures<Icon name="arrow-r" size={11} /></Link></span>
+              <span className="row between g12" style={{ paddingTop: 12 }}><span className="xs i3">A higher order value or margin changes this</span><Link className="btn sm" href={`${base}/plan`}>Check your figures<Icon name="arrow-r" size={11} /></Link></span>
             </div>}
           </Modal>);
       })()}
@@ -351,7 +349,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
       {confirm === "place" && (() => {
         const got = check && check !== "asking" ? check : null, r = got?.ready ?? null, asking = !got, page = r?.pages.find((x) => x.id === pick.page) ?? r?.pages[0], pixel = r?.pixels.find((x) => x.id === pick.pixel) ?? r?.pixels[0];
         const stop = asking ? null : !r ? "Meta isn’t connected — connect it in Settings › Integrations." : !r.account.ok ? r.account.note : !page ? "Kaviar can’t see a Facebook Page on this ad account. Reconnect Meta in Settings › Integrations and include your Page." : !pixel ? "This ad account has no Meta pixel, so purchases can’t be counted. Add the Facebook & Instagram app in Shopify." : !got?.link ? "Kaviar doesn’t know this product’s page on your store yet — run a sync in Settings." : r.dry && !r.dry.ok ? r.dry.note : null;
-        const row = (k: string, v: React.ReactNode) => <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)", minHeight: 40 }}><span className="i3" style={{ flexShrink: 0 }}>{k}</span><span className="w5 ell" style={{ maxWidth: 300, textAlign: "right" }}>{v}</span></span>;
+        const row = (k: string, v: React.ReactNode) => <span key={k} className="row between g12 sm" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)", minHeight: 40 }}><span className="i3" style={{ flexShrink: 0 }}>{k}</span><span className="w5 ell" style={{ maxWidth: 300, textAlign: "right" }}>{v}</span></span>;
         return (
           <Modal icon={<Icon name="facebook" size={16} />} title={p.meta ? "Add the ads on Meta" : "Put this campaign on Meta"} sub="Otto makes everything paused. Nothing is spent until you switch it on." onClose={() => setConfirm(false)} width={480}
             footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" disabled={asking || Boolean(stop)} onClick={launch}>{asking && <Icon name="spinner" size={13} className="spin" color="#fff" />}{asking ? "Asking Meta…" : "Put it on Meta, paused"}</button></>}>
@@ -375,14 +373,14 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           start(async () => { const r = await changeBudgetOnMeta(slug, p.key, budget, days); if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: `Meta now has ${usd(budget / days)} a day for this campaign` }); } setDoing(null); }); }}>Change it on Meta</button></>}>
         <div className="col">
           {([["Daily budget on Meta", `${usd(p.meta.daily)} → ${usd(budget / days)}`], ["In all", `${usd(p.budget)} over ${p.days} days → ${usd(budget)} over ${days} days`], ["Likely comes back", `${usd(p.out[1].revenue)} → ${usd(mid.revenue)}`]] as const).map(([k, v]) => (
-            <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5 tnum">{v}</span></span>))}
+            <span key={k} className="row between g12 sm" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5 tnum">{v}</span></span>))}
         </div>
       </Modal>}
       {(confirm === "on" || confirm === "off") && p.meta && <Modal icon={<Icon name={confirm === "on" ? "play" : "pause"} size={16} />} title={confirm === "on" ? "Switch this campaign on" : "Pause this campaign"} sub={confirm === "on" ? "This is the step that spends money." : "Meta stops showing its ads. You can switch it on again."} onClose={() => setConfirm(false)} width={440}
         footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" onClick={() => flip(confirm === "on")}>{confirm === "on" ? `Start spending ${usd(p.meta.daily)} a day` : "Pause it"}</button></>}>
         {confirm === "on" ? <div className="col">
           {([["Spends", `${usd(p.meta.daily)} a day`], ["For", `${p.days} days · about ${usd(p.budget)} in all`], ["Then", "Meta stops it by itself"], ["Ads", `${placedN} on Meta`], ["Autopilot", MODES[mode].name]] as const).map(([k, v]) => (
-            <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5">{v}</span></span>))}
+            <span key={k} className="row between g12 sm" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5">{v}</span></span>))}
         </div> : <span className="sm i2">{results ? `${usd(results.spend)} spent so far.` : "Nothing more is spent after this."}</span>}
       </Modal>}
       <Working work={work} onClear={clear} />

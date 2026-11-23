@@ -9,7 +9,7 @@ export function BuildPlanButton({ slug, signal, count, dark }: { slug: string; s
     <form action={action} className="col g4">
       <input type="hidden" name="count" value={count} />
       <button className={`btn sm${dark ? " dark" : ""}`} disabled={pending}>
-        {pending ? <Icon name="spinner" size={13} className="spin" color={dark ? "#fff" : undefined} /> : <Icon name="sparkle" size={13} color={dark ? "#fff" : undefined} />}
+        {pending ? <Icon name="spinner" size={13} className="spin" color={dark ? "#fff" : undefined} /> : <Icon name="pencil" size={13} color={dark ? "#fff" : undefined} />}
         {pending ? "Remy is writing…" : `Build ${count} ads`}</button>
       {state?.error && <span className="xs c-amber">{state.error}</span>}
     </form>
@@ -27,7 +27,7 @@ export function IdeaForm({ slug, placeholder }: { slug: string; placeholder: str
         <label className="chip" style={{ height: 30 }}><span className="i3">Ads</span>
           <select name="count" defaultValue="6" style={{ border: 0, outline: 0, background: "transparent", font: "inherit" }}>{[3, 6, 9].map((n) => <option key={n}>{n}</option>)}</select></label>
         <span className="fill xs i3">{pending ? "Usually 20–40 seconds." : "Remy builds the batch on the brand’s real products."}</span>
-        <button className="btn dark sm" disabled={pending}>{pending ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="sparkle" size={13} color="#fff" />}{pending ? "Building…" : "Build ads"}</button>
+        <button className="btn dark sm" disabled={pending}>{pending ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="pencil" size={13} color="#fff" />}{pending ? "Building…" : "Build ads"}</button>
       </div>
       {state?.error && <span className="xs c-amber">{state.error}</span>}
     </form>

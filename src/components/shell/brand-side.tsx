@@ -27,7 +27,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const SET = ["integrations", "sync", "store", "launch"].map((p) => `${base}/${p}`);
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string[]?][] = [
     [`${base}/today`, "Today", "lightning", [`${base}/today`]], [`${base}/campaigns`, "Campaigns", "megaphone", ADS], [`${base}/seo`, "Store", "store", STORE],
-    [`${base}/creative`, "Creative studio", "sparkle", STUDIO],
+    [`${base}/creative`, "Creative studio", "palette", STUDIO],
     ...(builder ? [[`${base}/store?step=build`, "Store builder", "layers", [`${base}/store`]], [`${base}/store?step=review`, "Store preview", "eye", [`${base}/store`]]] as typeof railItems : []),
     [`${base}/competitors`, "Market", "globe", MARKET], [`${base}/integrations`, "Settings", "settings", SET.filter((p) => !p.endsWith("/store"))], [base, "Overview", "home"],
   ];
@@ -68,7 +68,7 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
           <NavLink href={`${base}/inventory`} label="Inventory" />
           <NavLink href={`${base}/shopify`} label="Orders & products" />
         </NavGroup>
-        <NavLink href={`${base}/creative`} also={[`${base}/assets`]} icon={<Icon name="sparkle" />} label="Creative studio" />
+        <NavLink href={`${base}/creative`} also={[`${base}/assets`]} icon={<Icon name="palette" />} label="Creative studio" />
         <NavGroup href={`${base}/competitors`} match={MARKET} icon={<Icon name="globe" />} label="Market">
           <NavLink href={`${base}/competitors`} label="Competitors" />
           <NavLink href={`${base}/research`} label="Market research" />

@@ -31,7 +31,7 @@ export function RemoveBrandModal({ slug, name, onClose }: { slug: string; name: 
       <div className="col" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "6px 12px", background: "var(--tray)" }}>
         <span className="xs i3" style={{ padding: "4px 0" }}>What gets deleted from Kaviar</span>
         {!fp && !error && <span className="sm i3" style={{ padding: "6px 0" }}>Counting…</span>}
-        {fp && !any && <span className="sm i2" style={{ padding: "6px 0" }}>No synced data yet — just the brand.</span>}
+        {fp && !any && <span className="sm i2" style={{ padding: "6px 0" }}>No synced data yet — just the brand</span>}
         {fp && any && rows.filter(([, n]) => n > 0).map(([k, n]) => (
           <div key={k} className="row between" style={{ height: 26 }}><span className="sm i2">{k}</span><span className="sm w5 i1 tnum">{fmt(n)}</span></div>
         ))}

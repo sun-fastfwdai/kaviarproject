@@ -4,7 +4,7 @@ import { Icon, type IconName } from "@/components/icon";
 export type CreativeTab = "make" | "plan" | "batches" | "assets" | "editor" | "shoots" | "insights";
 // What a brand comes here for, first: make ads for a campaign, look at the ads made, and the brand's own pictures. Then the tools.
 const TABS: [CreativeTab, string, string, IconName][] = [
-  ["make", "Make ads", "/creative", "sparkle"], ["batches", "Ads", "/creative?tab=ads", "squares"], ["assets", "Brand assets", "/assets", "swatches"],
+  ["make", "Make ads", "/creative", "pencil"], ["batches", "Ads", "/creative?tab=ads", "squares"], ["assets", "Brand assets", "/assets", "swatches"],
   ["shoots", "Shoots", "/creative/shoots", "image"], ["editor", "Editor", "/creative/editor", "pen"], ["insights", "Insights", "/creative/insights", "chart-bar"],
 ];
 
@@ -15,7 +15,7 @@ export function StudioTabs({ base, on, counts = {} }: { base: string; on: Creati
       {TABS.map(([k, l, path, icon]) => (
         <Link key={k} href={`${base}${path}`} className={`tab${on === k || (k === "make" && on === "plan") ? " on" : ""}`} style={{ height: 52, whiteSpace: "nowrap" }}>
           <Icon name={icon} size={14} color={on === k ? "#121212" : "#8B8883"} />{l}
-          {counts[k] ? <span style={{ height: 18, padding: "0 6px", borderRadius: 99, fontSize: 10.5, fontWeight: 500, display: "inline-flex", alignItems: "center", ...(on === k ? { background: "var(--ink)", color: "#fff" } : { background: "var(--tray-2)", color: "var(--ink-2)" }) }}>{counts[k]}</span> : null}
+          {counts[k] ? <span style={{ height: 18, padding: "0 6px", borderRadius: 99, fontSize: 11, fontWeight: 500, display: "inline-flex", alignItems: "center", ...(on === k ? { background: "var(--ink)", color: "#fff" } : { background: "var(--tray-2)", color: "var(--ink-2)" }) }}>{counts[k]}</span> : null}
         </Link>
       ))}
     </nav>

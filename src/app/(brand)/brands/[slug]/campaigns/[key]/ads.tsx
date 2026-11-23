@@ -49,7 +49,7 @@ export function useAds({ slug, planKey, title, brief, ads, onWork, onError, onCh
 }
 export type AdsMaker = ReturnType<typeof useAds>;
 
-const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
+const label = { fontSize: 12, fontWeight: 500 } as const;
 export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, batchId, heading = "Its ads", extra, placed, plain = false }: {
   plain?: boolean; // only the ads and their yes/no — the studio's thread has its own place to say what Remy works from
   m: AdsMaker; base: string; stage: Stage; locked: boolean; ads: PlanAd[]; brief: PlanExtras["brief"]; productPhoto: string | null; batchId: string | null; heading?: string; extra?: React.ReactNode;
@@ -74,7 +74,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
           {productPhoto && <span title="The product’s own photo — the product in every picture stays exactly this" style={{ position: "relative", flexShrink: 0 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={productPhoto} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
-            <span style={{ position: "absolute", left: 3, bottom: 3, padding: "0 5px", borderRadius: 5, fontSize: 9.5, lineHeight: "14px", background: "rgba(18,18,18,.78)", color: "#fff" }}>Product</span></span>}
+            <span style={{ position: "absolute", left: 3, bottom: 3, padding: "0 4px", borderRadius: 6, fontSize: 10, lineHeight: "14px", background: "rgba(18,18,18,.78)", color: "#fff" }}>Product</span></span>}
           {brief.refs.map((r) => (
             <span key={r.id} title={r.name} style={{ position: "relative", flexShrink: 0 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -85,7 +85,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
           <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; m.addRefs(fs); }} />
         </div>
         <textarea value={m.note} onChange={(e) => m.setNote(e.target.value.slice(0, 600))} onBlur={m.keepNote} rows={2} aria-label="Your notes for this campaign" placeholder="Anything Remy should use — the offer, a line you like, what to leave out"
-          style={{ width: "100%", padding: "9px 11px", borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", font: "inherit", fontSize: 13.5, lineHeight: "19px", resize: "vertical" }} />
+          style={{ width: "100%", padding: "8px 12px", borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", font: "inherit", fontSize: 14, lineHeight: "19px", resize: "vertical" }} />
         <div className="row g10" style={{ flexWrap: "wrap" }}>
           {brief.refs.length > 0 && <div className="seg" role="radiogroup" aria-label="Where the pictures come from">
             {([[false, "Use my pictures"], [true, "Shoot new ones in their style"]] as const).map(([v, text]) => <button key={text} type="button" role="radio" aria-checked={m.shootNew === v} className={`o${m.shootNew === v ? " on" : ""}`} title={v ? "New pictures are made from your product photo, lit and composed like your references. Each one is charged by the image service." : "Your reference pictures go on the ads as they are"} onClick={() => m.setShootNew(v)}>{text}</button>)}
@@ -105,8 +105,8 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
                 <span className="xs i2" title={ad.text} style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ad.text}</span>
               </div>
               <div className="row g6" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", marginTop: "auto" }}>
-                {placed?.[ad.id] ? <span className="pill green" style={{ height: 24, fontSize: 11.5 }}><Icon name="facebook" size={11} />On Meta</span>
-                  : ad.status === "approved" ? <><span className="pill green" style={{ height: 24, fontSize: 11.5 }}><Icon name="check" size={11} />Approved</span><span className="fill" /><button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.review(ad.id, "review")}>Undo</button></>
+                {placed?.[ad.id] ? <span className="pill green" style={{ height: 24, fontSize: 12 }}><Icon name="facebook" size={11} />On Meta</span>
+                  : ad.status === "approved" ? <><span className="pill green" style={{ height: 24, fontSize: 12 }}><Icon name="check" size={11} />Approved</span><span className="fill" /><button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.review(ad.id, "review")}>Undo</button></>
                   : <><button type="button" className="btn dark sm" disabled={m.busy} onClick={() => m.review(ad.id, "approved")}>{spin(ad.id, "#fff") || <Icon name="check" size={12} color="#fff" />}Approve</button><button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.review(ad.id, "rejected")}>Reject</button><span className="fill" /><span className="xs i3 ell">{ad.cta}</span></>}
               </div>
             </div>))}

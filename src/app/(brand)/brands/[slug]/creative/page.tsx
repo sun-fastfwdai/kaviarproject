@@ -81,7 +81,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
       <StudioBar base={base} brand={brand.name} on={tab === "plan" ? "plan" : "batches"} counts={{ ...reviewCount(toReview), ...(newPlans ? { plan: `${newPlans} new` } : {}) }}><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar>
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: tab === "plan" ? 0 : "20px 24px", gap: 16 }}>
-          {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads.</span></div>}
+          {!aiReady() && tab !== "plan" && <div className="notice amber"><Icon name="warning" size={14} /><span>Remy needs the Claude API key to write ads</span></div>}
           {tab === "plan" ? (
             <PlanChat slug={slug} base={base} brand={brand.name} hasMeta={Boolean(conns.meta)} aiOk={aiReady()}
               plans={plans.map((p) => ({ key: p.key, title: p.data, why: `${p.why ?? p.value} — ${p.use.toLowerCase()}.`, evidence: p.evidence, href: `${base}/signals/${p.key}` }))}
@@ -103,12 +103,12 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
               <EmptyState eyebrow="Creative studio · Ads" title="No ads written yet"
                 body="Every batch Remy writes lands here: 3–9 ads from one idea, on the brand’s real product photos, ready for you to approve, edit, redo or reject."
                 steps={[
-                  { agent: "analyst", title: "Pick a plan Iris recommends", body: "Built from the signals that can sell most — lapsed buyers, reorder timing, best-sellers." },
-                  { agent: "builder", title: "Remy writes the batch", body: "Distinct hooks, copy and formats in about 20–40 seconds." },
-                  { agent: "qa", title: "Review with Otto’s checks", body: "Approve the good ones; rejecting asks why, and Remy learns from it." },
+                  { agent: "analyst", title: "Pick a plan Iris recommends", body: "Built from the signals that can sell most — lapsed buyers, reorder timing, best-sellers" },
+                  { agent: "builder", title: "Remy writes the batch", body: "Distinct hooks, copy and formats in about 20–40 seconds" },
+                  { agent: "qa", title: "Review with Otto’s checks", body: "Approve the good ones; rejecting asks why, and Remy learns from it" },
                 ]}
                 art={<BatchArt />}
-                actions={<><Link className="btn dark" href={`${base}/creative?tab=plan`}><Icon name="sparkle" size={14} color="#fff" />See Iris’s plans</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Browse signals</Link></>} />
+                actions={<><Link className="btn dark" href={`${base}/creative?tab=plan`}><Icon name="pencil" size={14} color="#fff" />See Iris’s plans</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Browse signals</Link></>} />
             )}
           </>)}
         </section>
@@ -127,7 +127,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
                 ))}
               </div>
             ))}
-            {batches.length === 0 && <span className="xs i3">Batches you build show up here.</span>}
+            {batches.length === 0 && <span className="xs i3">Batches you build show up here</span>}
           </div>
           <div className="col g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="sm w5">Who makes these</span>

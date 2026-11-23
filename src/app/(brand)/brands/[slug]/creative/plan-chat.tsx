@@ -74,7 +74,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
 
   return (
     <div className="col" style={{ minHeight: "100%", alignItems: "center", padding: started ? "28px 24px 40px" : "44px 24px 40px",
-      background: "radial-gradient(60% 42% at 50% 0%, rgba(106,143,214,.16), transparent 70%), radial-gradient(38% 34% at 88% 18%, rgba(26,167,200,.12), transparent 70%), radial-gradient(36% 32% at 10% 30%, rgba(235,207,159,.28), transparent 70%), var(--sheet)" }}>
+      background: "var(--sheet)" }}>
       <div className="col g16" style={{ width: "100%", maxWidth: 780 }}>
         {!started && (
           <div className="col g8" style={{ alignItems: "center", textAlign: "center" }}>
@@ -104,7 +104,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                     <div className="row g6" style={{ flexWrap: "wrap" }}>
                       {q.options.map((o, j) => (
                         <button key={o} type="button" onClick={() => pick(i, o)} className="row g6 sm hv-card"
-                          style={{ height: 34, padding: "0 14px", borderRadius: 99, background: picks[i] === o ? "var(--ink)" : "#fff", color: picks[i] === o ? "#fff" : "var(--ink)", boxShadow: picks[i] === o ? "none" : j === 0 ? "0 0 0 1.5px var(--ink)" : "0 0 0 1px var(--line-2)" }}>
+                          style={{ height: 34, padding: "0 14px", borderRadius: 8, background: picks[i] === o ? "var(--ink)" : "#fff", color: picks[i] === o ? "#fff" : "var(--ink)", boxShadow: picks[i] === o ? "none" : j === 0 ? "0 0 0 1.5px var(--ink)" : "0 0 0 1px var(--line-2)" }}>
                           {o}{j === 0 && picks[i] !== o && <span className="xs i3">· Remy’s pick</span>}
                         </button>
                       ))}
@@ -112,7 +112,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                     )}
                   </div>
                 ))}
-                <span className="xs i3">Tap an answer, or type your own below.</span>
+                <span className="xs i3">Tap an answer, or type your own below</span>
               </div>
             )}
 
@@ -128,7 +128,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                 </div>
                 <div className="col" style={{ padding: "4px 16px" }}>
                   {([["Product", brief.product || "The whole range"], ["For", brief.audience], ["Messages to test", null], ["Look", `${brief.adLook ? `${shortLook(brief.adLook)}${adLook(brief.adLook)?.person ? " · with a person" : ""} — ` : ""}${brief.look}`]] as const).map(([k, v]) => (
-                    <div key={k} className="row top g12" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+                    <div key={k} className="row top g12" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                       <span className="xs i3" style={{ width: 110, flexShrink: 0, lineHeight: "20px" }}>{k}</span>
                       {v != null ? <span className="sm i1 fill" style={{ lineHeight: "20px" }}>{v}</span>
                         : <span className="col g2 fill">{brief.angles.map((a, i) => <span key={a} className="sm i1" style={{ lineHeight: "20px" }}><span className="i3 tnum">{i + 1}</span>&ensp;{a}</span>)}</span>}
@@ -139,7 +139,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   <span className="xs w5 i2">The pipeline Remy writes in Shoots — node by node</span>
                   <div className="col" style={{ background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line)", padding: "2px 12px" }}>
                     {f.steps(brief).map(([node, what], i, all) => (
-                      <div key={node} className="row top g10" style={{ padding: "7px 0", borderBottom: i < all.length - 1 ? "1px solid var(--line)" : 0 }}>
+                      <div key={node} className="row top g10" style={{ padding: "8px 0", borderBottom: i < all.length - 1 ? "1px solid var(--line)" : 0 }}>
                         <span className="xs i3 tnum" style={{ width: 14, flexShrink: 0, lineHeight: "17px" }}>{i + 1}</span>
                         <span className="xs w5 i1" style={{ width: 92, flexShrink: 0, lineHeight: "17px" }}>{node}</span>
                         <span className="xs i2 fill" style={{ lineHeight: "17px" }}>{what}</span>
@@ -148,7 +148,7 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   </div>
                   <div className="row g8" style={{ paddingTop: 6 }}>
                     <button type="button" className="btn dark" disabled={building || !aiOk} onClick={() => build(brief)}>
-                      {building ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="sparkle" size={13} color="#fff" />}{building ? "Remy is writing the ads…" : "Set it up in Shoots"}</button>
+                      {building ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="pencil" size={13} color="#fff" />}{building ? "Remy is writing the ads…" : "Set it up in Shoots"}</button>
                     <button type="button" className="btn" disabled={building} onClick={() => area.current?.focus()}>Change something</button>
                     <span className="fill" /><span className="xs i3">{f.time}</span>
                   </div>
@@ -178,8 +178,8 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
           <div className="row g6" style={{ flexWrap: "wrap", justifyContent: "center" }}>
             {ideas.map((t) => (
               <button key={t} type="button" onClick={() => void send(t)} disabled={!aiOk} className="row g6 xs i2 hv-card"
-                style={{ height: 30, padding: "0 12px", borderRadius: 99, background: "rgba(255,255,255,.75)", boxShadow: "0 0 0 1px var(--line)", maxWidth: 360 }}>
-                <Icon name="sparkle" size={11} color="#1AA7C8" /><span className="ell">{t}</span>
+                style={{ height: 30, padding: "0 12px", borderRadius: 8, background: "rgba(255,255,255,.75)", boxShadow: "0 0 0 1px var(--line)", maxWidth: 360 }}>
+                <Icon name="pencil" size={11} color="#1AA7C8" /><span className="ell">{t}</span>
               </button>
             ))}
           </div>
@@ -196,10 +196,10 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   <span className="row between"><span className="eyebrow">Plan {i + 1}</span>{i === 0 && <span className="pill" style={{ height: 18, fontSize: 10 }}>Best bet</span>}</span>
                   <Link href={p.href} className="h3 lnk">{p.title}</Link>
                   <span className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.why}</span>
-                  <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5 }}>{k}: {v}</span>)}</span>
+                  <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 11 }}>{k}: {v}</span>)}</span>
                   <div className="fill" />
                   <button type="button" disabled={!aiOk} onClick={() => void send(`Ads for the “${p.title}” plan — ${p.why.split(/[.;]/)[0]}`)} className={`btn sm${i === 0 ? " dark" : ""}`} style={{ justifyContent: "center" }}>
-                    <Icon name="sparkle" size={12} color={i === 0 ? "#fff" : undefined} />Plan this with Remy</button>
+                    <Icon name="pencil" size={12} color={i === 0 ? "#fff" : undefined} />Plan this with Remy</button>
                 </div>
               ))}
             </div>
@@ -222,10 +222,10 @@ export function PlanChat({ slug, brand, plans, research = [], aiOk, base }: { sl
                   <span className="row between"><span className="eyebrow">Buyer {i + 1}</span>{p.why.includes("primary buyer") && <span className="pill green" style={{ height: 18, fontSize: 10 }}>Primary</span>}</span>
                   <Link href={p.href} className="h3 lnk">{p.title}</Link>
                   <span className="xs i2" style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.why}</span>
-                  <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 10.5, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{k}: {v}</span>)}</span>
+                  <span className="row g4" style={{ flexWrap: "wrap" }}>{p.evidence.slice(0, 2).map(([k, v]) => <span key={k} className="pill" style={{ height: 20, fontSize: 11, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{k}: {v}</span>)}</span>
                   <div className="fill" />
                   <button type="button" disabled={!aiOk} onClick={() => void send(`Ads for the “${p.title}” buyer group from market research`)} className="btn sm" style={{ justifyContent: "center" }}>
-                    <Icon name="sparkle" size={12} />Plan this with Remy</button>
+                    <Icon name="pencil" size={12} />Plan this with Remy</button>
                 </div>
               ))}
             </div>

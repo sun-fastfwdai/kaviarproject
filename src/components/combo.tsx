@@ -74,13 +74,13 @@ export function Combo({ items, value, onChange, label, placeholder = "Choose…"
           {search && <label className="row g8" style={{ padding: "10px 12px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
             <Icon name="search" size={13} color="#8B8883" />
             <input autoFocus value={q} onChange={(e) => { setQ(e.target.value); setAt(0); }} onKeyDown={key} placeholder={searchText} aria-label={searchText} aria-controls="combo-list"
-              style={{ flex: 1, minWidth: 0, border: 0, outline: 0, font: "inherit", fontSize: 13.5, background: "transparent" }} />
+              style={{ flex: 1, minWidth: 0, border: 0, outline: 0, font: "inherit", fontSize: 14, background: "transparent" }} />
             <span className="xs i3 tnum">{shown.length}</span>
           </label>}
           <div ref={list} id="combo-list" role="listbox" aria-label={label} className="col" style={{ padding: 4, overflowY: "auto", minHeight: 0 }}>
             {shown.map((it, i) => (
               <button key={it.value} type="button" role="option" aria-selected={it.value === value} data-i={i} onMouseEnter={() => setAt(i)} onClick={() => pick(it.value)} className="row g10"
-                style={{ padding: "7px 10px 7px 7px", borderRadius: 10, textAlign: "left", background: i === at ? "var(--tray)" : "transparent", flexShrink: 0 }}>
+                style={{ padding: "8px 10px 8px 8px", borderRadius: 10, textAlign: "left", background: i === at ? "var(--tray)" : "transparent", flexShrink: 0 }}>
                 <Thumb it={it} size={40} />
                 <span className="col fill" style={{ minWidth: 0, lineHeight: 1.3 }}><span className="ell sm w5 i1">{it.label}</span>{it.sub && <span className="ell xs i3">{it.sub}</span>}</span>
                 {it.right && <span className="xs tnum" style={{ flexShrink: 0, color: it.tone === "warn" ? "var(--amber)" : "var(--ink-3)" }}>{it.right}</span>}

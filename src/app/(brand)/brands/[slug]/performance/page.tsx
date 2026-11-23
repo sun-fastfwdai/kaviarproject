@@ -86,7 +86,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Running ads</h1><p className="sm i3">What is on Meta, what it brought back, and what Autopilot is doing about it.</p></div>
+            <div className="col g4"><h1 className="h1">Running ads</h1><p className="sm i3">What is on Meta, what it brought back, and what Autopilot is doing about it</p></div>
             <span className="row g8">{metaLinked && <Link className="btn sm" href={`/brands/${slug}/meta?days=${days}`} title="Each ad: what it said, who saw it, where it ran">Every ad<Icon name="arrow-r" size={11} /></Link>}<RangeTabs base={`/brands/${slug}/performance`} days={days} /></span>
           </div>
 
@@ -101,7 +101,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
             </div>
           ) : (
             <div className="row g12" style={{ padding: "14px 16px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-              <span className="col fill"><span className="w5 i1" style={{ fontSize: 16 }}>No ads ran in the last {days} days</span><span className="xs i3">{money(s.revenue, cur)} came in without ad spend.</span></span>
+              <span className="col fill"><span className="w5 i1" style={{ fontSize: 16 }}>No ads ran in the last {days} days</span><span className="xs i3">{money(s.revenue, cur)} came in without ad spend</span></span>
               <Link className="btn dark sm" href={`/brands/${slug}/campaigns`}>See campaigns<Icon name="arrow-r" size={12} color="#fff" /></Link>
             </div>
           )}
@@ -131,9 +131,9 @@ export default async function PerformancePage({ params, searchParams }: PageProp
           <div className="row g16" style={{ alignItems: "stretch" }}>
             <div className="card" style={{ width: 290, flexShrink: 0, padding: "16px 16px 8px" }}>
               <div className="row between" style={{ paddingBottom: 10 }}><span className="h3">Revenue by channel</span><span className="row g4 xs i3"><ShopifyLogo size={12} />UTMs</span></div>
-              {ch.length === 0 && <span className="sm i3" style={{ padding: "8px 0 12px" }}>No orders in this range.</span>}
+              {ch.length === 0 && <span className="sm i3" style={{ padding: "8px 0 12px" }}>No orders in this range</span>}
               {ch.map((c) => (
-                <div key={c.channel} className="col g6" style={{ padding: "9px 0", borderTop: "1px solid var(--line)" }}>
+                <div key={c.channel} className="col g6" style={{ padding: "8px 0", borderTop: "1px solid var(--line)" }}>
                   <div className="row between">
                     <span className="row g8 sm i1"><i style={{ width: 8, height: 8, borderRadius: 2, background: CHANNEL_COLOR[c.channel] }} />{CHANNEL_LABEL[c.channel]}</span>
                     <span className="sm i1 tnum">{money(c.revenue, cur)}<span className="xs i3"> · {num(c.orders)}</span></span>
@@ -154,7 +154,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               </div>
               {metaLinked && !hasMeta && (
                 <div className="col g6 fill" style={{ alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
-                  <MetaLogo size={20} /><span className="sm i2">Meta Ads is connected.</span><span className="xs i3">No campaign spent anything in this range.</span>
+                  <MetaLogo size={20} /><span className="sm i2">Meta Ads is connected</span><span className="xs i3">No campaign spent anything in this range</span>
                 </div>
               )}
               {!metaLinked && <div className="sm i3" style={{ padding: 16 }}>Connect Meta Ads to compare spend with real Shopify orders. <Link className="lnk w5 i1" href={`/brands/${slug}/integrations`}>Connect</Link></div>}
@@ -237,7 +237,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
               <div className="row between" style={{ paddingBottom: 4 }}><span className="sm w5">Top products</span><Link className="lnk xs i2" href={`/brands/${slug}/shopify?tab=products`}>Shopify data</Link></div>
               {top.filter((p) => p.units > 0).map((p) => (
                 <div key={p.id} className="row g10" style={{ height: 44 }}>
-                  <div className="thumb" style={{ width: 32, height: 32, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div className="thumb" style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     {p.imageUrl ? <img src={p.imageUrl} alt="" /> : <Icon name="box" size={14} color="#B5B2AC" />}
                   </div>

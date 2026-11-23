@@ -11,14 +11,14 @@ import type { AdSeg } from "@/lib/db/schema";
  */
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const ctaName = (t: string | null) => (t ? cap(t.toLowerCase().replace(/_/g, " ")) : null);
-const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
+const label = { fontSize: 12, fontWeight: 500 } as const;
 
 function Bars({ rows, usd }: { rows: AdSeg[]; usd: (v: number) => string }) {
   const all = rows.reduce((n, x) => n + x.impressions, 0) || 1;
   return (
     <div className="col g6">
       {rows.slice(0, 6).map((x) => (
-        <div key={x.key} className="col" style={{ gap: 3 }} title={`${x.impressions.toLocaleString("en-US")} views · ${usd(x.spend)} spent · ${x.clicks.toLocaleString("en-US")} clicks · ${x.purchases} purchases`}>
+        <div key={x.key} className="col" style={{ gap: 4 }} title={`${x.impressions.toLocaleString("en-US")} views · ${usd(x.spend)} spent · ${x.clicks.toLocaleString("en-US")} clicks · ${x.purchases} purchases`}>
           <span className="row between xs"><span className="i1">{cap(x.key)}</span><span className="tnum i3">{Math.round((x.impressions / all) * 100)}%{x.purchases ? ` · ${x.purchases} bought` : ""}</span></span>
           <span style={{ height: 5, borderRadius: 99, background: "var(--tray-2)" }}><span style={{ display: "block", height: "100%", width: `${Math.max(2, (x.impressions / all) * 100)}%`, borderRadius: 99, background: x.purchases ? "#34C77B" : "var(--ink)" }} /></span>
         </div>))}
@@ -35,7 +35,7 @@ export function AdCard({ a, currency, days }: { a: AdRow; currency: string; days
         <div style={{ height: 112, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--line)", position: "relative" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {pic ? <img src={pic} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="image" size={22} color="#B5B2AC" />}
-          {c && c.kind !== "image" && <span style={{ position: "absolute", left: 8, bottom: 8, height: 20, padding: "0 8px", borderRadius: 99, fontSize: 10.5, lineHeight: "20px", background: "rgba(18,18,18,.75)", color: "#fff" }}>{cap(c.kind)}</span>}
+          {c && c.kind !== "image" && <span style={{ position: "absolute", left: 8, bottom: 8, height: 20, padding: "0 8px", borderRadius: 6, fontSize: 11, lineHeight: "20px", background: "rgba(18,18,18,.75)", color: "#fff" }}>{cap(c.kind)}</span>}
         </div>
         <div className="col g2" style={{ padding: "10px 12px" }}>
           <span className="sm w5 i1 ell">{c?.title || a.name}</span>
@@ -59,19 +59,19 @@ export function AdCard({ a, currency, days }: { a: AdRow; currency: string; days
                 {ctaName(c.cta) && <span className="pill" style={{ height: 24, flexShrink: 0 }}>{ctaName(c.cta)}</span>}
               </span>
               {c.link && <a className="lnk xs i3 ell" href={c.link} target="_blank" rel="noreferrer">{c.link.replace(/^https?:\/\//, "").split("?")[0]}</a>}
-            </> : <span className="xs i3">Its words arrive with the next sync.</span>}
+            </> : <span className="xs i3">Its words arrive with the next sync</span>}
           </div>
           <div className="col g14 fill" style={{ minWidth: 300 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
               {([["Spent", usd(a.spend)], ["Views", a.impressions.toLocaleString("en-US")], ["Clicks", a.clicks.toLocaleString("en-US")], ["Orders in Shopify", String(a.verifiedOrders)],
                 ...(d ? [["People reached", d.reach.toLocaleString("en-US")], ["Times each saw it", d.frequency.toFixed(1)]] : [])] as [string, string][]).map(([k, val]) => (
-                <div key={k} className="col g2" style={{ padding: "9px 11px", borderRadius: 12, background: "var(--tray)" }}><span className="xs i3">{k}</span><span className="tnum" style={{ fontSize: 18, fontWeight: 600 }}>{val}</span></div>))}
+                <div key={k} className="col g2" style={{ padding: "8px 12px", borderRadius: 12, background: "var(--tray)" }}><span className="xs i3">{k}</span><span className="tnum" style={{ fontSize: 18, fontWeight: 600 }}>{val}</span></div>))}
             </div>
-            {!d ? <span className="sm i3">Who saw it, where it ran and how often are read from Meta once a day — nothing yet for this ad.</span> : <>
+            {!d ? <span className="sm i3">Who saw it, where it ran and how often are read from Meta once a day — nothing yet for this ad</span> : <>
               {v && <div className="col g6"><span className="i3" style={label}>Video watched</span>
                 <div className="row g6" style={{ alignItems: "flex-end", height: 64 }}>
                   {([["Started", v.plays], ["25%", v.p25], ["50%", v.p50], ["75%", v.p75], ["To the end", v.p100]] as const).map(([k, n]) => (
-                    <div key={k} className="col fill" style={{ alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }} title={`${n.toLocaleString("en-US")} people`}>
+                    <div key={k} className="col fill" style={{ alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }} title={`${n.toLocaleString("en-US")} people`}>
                       <span className="xs tnum i2">{v.plays ? Math.round((n / v.plays) * 100) : 0}%</span>
                       <span style={{ width: "100%", height: `${v.plays ? Math.max(4, (n / v.plays) * 40) : 4}px`, borderRadius: 6, background: "var(--ink)" }} />
                       <span className="xs i3">{k}</span>

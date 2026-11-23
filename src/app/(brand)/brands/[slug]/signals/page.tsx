@@ -45,7 +45,7 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
       <div className="row fill stretch" style={{ minHeight: 0 }}>
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Ad signals</h1><p className="sm i3">Every piece of Shopify data, turned into something an ad can use.</p></div>
+            <div className="col g4"><h1 className="h1">Ad signals</h1><p className="sm i3">Every piece of Shopify data, turned into something an ad can use</p></div>
             <div className="row">
               <div className="kpi"><span className="v">{rows.length}</span><span className="xs i3">signals</span></div>
               <div className="kpi"><span className="v">{count("in-use")}</span><span className="xs i3 row g4"><span className="dot green" />in use</span></div>
@@ -54,7 +54,7 @@ export default async function SignalsPage({ params }: PageProps<"/brands/[slug]/
             </div>
           </div>
           <SignalsTable slug={slug} rows={rows} />
-          <span className="xs i3">Open a signal to see the data behind it and have Remy write ads from it.</span>
+          <span className="xs i3">Open a signal to see the data behind it and have Remy write ads from it</span>
         </section>
         <SidePanel>
           <div className="col g8" style={{ padding: "14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>

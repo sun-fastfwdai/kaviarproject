@@ -61,11 +61,11 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
             <div className="tr hd dense" style={{ padding: "0 16px", borderTop: "1px solid var(--line)", gap: 10 }}>
               <div className="td fill">Campaign</div><div className="td" style={{ width: cols.status }}>Status</div>
               <div className="td num" style={{ width: cols.budget }}>Budget/day</div><div className="td num" style={{ width: cols.spend }}>Spend</div>
-              <div className="td num" style={{ width: cols.impr }}>Impr.</div>
+              <div className="td num" style={{ width: cols.impr }}>Impr</div>
               <div className="td num" style={{ width: cols.ctr }}>CTR</div><div className="td num" style={{ width: cols.purch }}>Purchases</div>
               <div className="td num" style={{ width: cols.roas }}>ROAS</div><div className="td num" style={{ width: cols.ver }}>Verified</div>
             </div>
-            {camps.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No campaigns with spend in this range.</div>}
+            {camps.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No campaigns with spend in this range</div>}
             {camps.map((c) => (
               <div key={c.id} className="tr compact" style={{ padding: "0 16px", gap: 10 }}>
                 <div className="td fill"><div className="col" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{c.name}</span><span className="xs i3 ell">{(c.objective ?? "").replace("OUTCOME_", "").toLowerCase() || "—"}</span></div></div>
@@ -94,7 +94,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
           <div className="row between"><span className="h3">Top ads</span><span className="xs i3">by spend · last {days} days</span></div>
           <div className="row g12" style={{ flexWrap: "wrap", alignItems: "stretch" }}>
             {top.map((a) => <AdCard key={a.id} a={a} currency={cur ?? "USD"} days={days} />)}
-            {top.length === 0 && <span className="sm i3">No ads with spend in this range.</span>}
+            {top.length === 0 && <span className="sm i3">No ads with spend in this range</span>}
           </div>
         </section>
         <SidePanel>

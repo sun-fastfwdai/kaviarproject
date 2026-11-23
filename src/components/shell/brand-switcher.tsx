@@ -34,14 +34,14 @@ export function BrandSwitcher({ current, brands }: { current: B; brands: B[] }) 
         <div className="menu" style={{ left: 0, right: 0, minWidth: 0 }}>
           <span className="xs i3" style={{ padding: "6px 10px 4px" }}>Brands</span>
           {brands.map((b) => (
-            <Link key={b.slug} href={`/brands/${b.slug}`} onClick={() => setOpen(false)} className="row g8 hv" style={{ height: 36, padding: "0 8px", borderRadius: 7 }}>
+            <Link key={b.slug} href={`/brands/${b.slug}`} onClick={() => setOpen(false)} className="row g8 hv" style={{ height: 36, padding: "0 8px", borderRadius: 8 }}>
               <Thumb b={b} size={20} /><span className="sm i1 fill ell">{b.name}</span>
               {b.slug === current.slug && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#121212" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
             </Link>
           ))}
           <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
-          <Link href="/brands" className="row g8 hv" style={{ height: 34, padding: "0 10px", borderRadius: 7 }} onClick={() => setOpen(false)}><span className="sm i2">All brands</span></Link>
-          <Link href="/brands/new" className="row g8 hv" style={{ height: 34, padding: "0 10px", borderRadius: 7 }} onClick={() => setOpen(false)}><span className="sm i2">+ Add brand</span></Link>
+          <Link href="/brands" className="row g8 hv" style={{ height: 34, padding: "0 10px", borderRadius: 8 }} onClick={() => setOpen(false)}><span className="sm i2">All brands</span></Link>
+          <Link href="/brands/new" className="row g8 hv" style={{ height: 34, padding: "0 10px", borderRadius: 8 }} onClick={() => setOpen(false)}><span className="sm i2">+ Add brand</span></Link>
         </div>
       )}
     </div>

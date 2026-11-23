@@ -17,7 +17,7 @@ function Line({ data, color, h = 34, fill = true }: { data: number[]; color: str
   if (data.length < 2 || span <= 0) return <div style={{ height: h }} />;
   const y = (v: number) => 4 + (1 - (v - min) / span) * (h - 8), pts = data.map((v, i) => `${((i / (data.length - 1)) * 100).toFixed(2)},${y(v).toFixed(1)}`).join(" ");
   return (
-    <div style={{ position: "relative", height: h, marginRight: 5 }} aria-hidden>
+    <div style={{ position: "relative", height: h, marginRight: 4 }} aria-hidden>
       <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
         {fill && <polygon points={`0,${h} ${pts} 100,${h}`} fill={color} opacity={0.1} />}
         <polyline points={pts} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
@@ -40,9 +40,9 @@ function Bars({ data, color, h = 34 }: { data: number[]; color: string; h?: numb
 export function StatTile({ k, tray = false, span, i = 0 }: { k: Tile; tray?: boolean; span?: number; i?: number }) {
   const c = tone(k), cls = `bt rise${k.tone ? ` ${k.tone}` : tray ? " tray" : ""}`;
   return (
-    <Link href={k.href} title={k.hint} className={cls} style={{ padding: "13px 15px 12px", gap: 2, ...(span ? { gridColumn: `span ${span}` } : {}), ["--i" as string]: i }}>
-      <span className="row between g8"><span className="ell" style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{k.label}</span>{k.icon && <Icon name={k.icon as IconName} size={15} color="#8B8883" />}</span>
-      <span className="row g6" style={{ alignItems: "baseline", minWidth: 0 }}><span className="bt-n" style={{ fontSize: 27, lineHeight: "36px" }}>{k.value}</span>{k.unit && <span className="xs i2 ell" style={{ fontWeight: 500 }}>{k.unit}</span>}</span>
+    <Link href={k.href} title={k.hint} className={cls} style={{ padding: "12px 16px 12px", gap: 2, ...(span ? { gridColumn: `span ${span}` } : {}), ["--i" as string]: i }}>
+      <span className="row between g8"><span className="ell" style={{ fontSize: 13, color: "var(--ink-2)" }}>{k.label}</span>{k.icon && <Icon name={k.icon as IconName} size={15} color="#8B8883" />}</span>
+      <span className="row g6" style={{ alignItems: "baseline", minWidth: 0 }}><span className="bt-n" style={{ fontSize: 28, lineHeight: "36px" }}>{k.value}</span>{k.unit && <span className="xs i2 ell" style={{ fontWeight: 500 }}>{k.unit}</span>}</span>
       {k.delta ? <span className="row g4 tnum" style={{ fontSize: 12 }}><span style={{ color: c, fontWeight: 600 }}>{arrow(k.delta)} {k.delta.text}</span><span className="i3">vs prior</span></span>
         : k.sub ? <span className="xs" style={{ color: k.tone === "warn" ? "var(--amber)" : "var(--ink-3)", fontWeight: k.tone === "warn" ? 500 : 400, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{k.sub}</span>
         : k.spark ? <span className="xs i3">last 30 days</span> : null}
@@ -56,12 +56,11 @@ function Hero({ k }: { k: Tile }) {
   const d = k.delta, up = d ? d.good !== false : true, line = up ? "#6EE7A8" : "#FF9B73";
   return (
     <div className="bt ink rise" style={{ padding: "18px 20px 14px", minHeight: 262 }}>
-      <div aria-hidden style={{ position: "absolute", right: -150, top: -190, width: 460, height: 460, borderRadius: 999, background: `radial-gradient(closest-side, ${up ? "rgba(52,199,123,.26)" : "rgba(235,122,60,.24)"}, transparent)` }} />
       <Link href={k.href} title={k.hint} className="col" style={{ position: "relative" }}>
-        <span className="row between g8"><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "rgba(255,255,255,.6)" }}>{k.label}</span><Icon name="arrow-ur" size={14} color="rgba(255,255,255,.5)" /></span>
-        <span className="bt-n" style={{ fontSize: 52, lineHeight: "60px", marginTop: 6 }}>{k.value}</span>
+        <span className="row between g8"><span style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.6)" }}>{k.label}</span><Icon name="arrow-ur" size={14} color="rgba(255,255,255,.5)" /></span>
+        <span className="bt-n" style={{ fontSize: 48, lineHeight: "60px", marginTop: 6 }}>{k.value}</span>
         {d && <span className="row g6" style={{ marginTop: 2 }}>
-          <span className="tnum" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, lineHeight: "22px", background: up ? "rgba(110,231,168,.16)" : "rgba(255,155,115,.16)", color: up ? "#8BE8B4" : "#FFB49A" }}>{arrow(d)} {d.text}</span>
+          <span className="tnum" style={{ height: 22, padding: "0 8px", borderRadius: 6, fontSize: 12, fontWeight: 600, lineHeight: "22px", background: up ? "rgba(110,231,168,.16)" : "rgba(255,155,115,.16)", color: up ? "#8BE8B4" : "#FFB49A" }}>{arrow(d)} {d.text}</span>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>vs the 30 days before</span></span>}
       </Link>
       <div style={{ position: "relative", marginTop: "auto", paddingTop: 34 }}>
@@ -81,8 +80,8 @@ function Score({ k }: { k: Tile }) {
   const TAG = { good: ["var(--green-bg)", "var(--green)"], bad: ["var(--red-bg)", "var(--red)"], flat: ["var(--tray-2)", "var(--ink-2)"] } as const;
   const MARK = { ahead: "#34C77B", level: "#55534F", behind: "#FF8A5C" } as const, measured = (k.parts ?? []).some((p) => p.avg != null);
   return (
-    <Link href={k.href} title={k.hint} className="bt rise" style={{ padding: "13px 15px 12px", gap: 12, ["--i" as string]: 9 }}>
-      <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{k.label}</span><Icon name="store" size={15} color="#8B8883" /></span>
+    <Link href={k.href} title={k.hint} className="bt rise" style={{ padding: "12px 16px 12px", gap: 12, ["--i" as string]: 9 }}>
+      <span className="row between g8"><span style={{ fontSize: 13, color: "var(--ink-2)" }}>{k.label}</span><Icon name="store" size={15} color="#8B8883" /></span>
       <div className="row g12">
         <span style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
           <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }} aria-hidden>
@@ -92,18 +91,18 @@ function Score({ k }: { k: Tile }) {
           <span className="bt-n" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{k.value}</span>
         </span>
         <span className="col g4" style={{ minWidth: 0 }}>
-          {k.tag && <span style={{ alignSelf: "flex-start", height: 22, padding: "0 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, lineHeight: "22px", whiteSpace: "nowrap", background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>}
+          {k.tag && <span style={{ alignSelf: "flex-start", height: 22, padding: "0 10px", borderRadius: 6, fontSize: 12, fontWeight: 600, lineHeight: "22px", whiteSpace: "nowrap", background: TAG[k.tag.tone][0], color: TAG[k.tag.tone][1] }}>{k.tag.text}</span>}
           <span className="xs i3">{measured ? `against ${k.rivals} competitor${k.rivals === 1 ? "" : "s"}` : "out of 100"}</span>
         </span>
       </div>
-      {k.parts && <div className="col" style={{ marginTop: "auto", gap: 11 }}>
+      {k.parts && <div className="col" style={{ marginTop: "auto", gap: 12 }}>
         {k.parts.map((p) => {
           const lo = p.them?.length ? Math.min(...p.them) : null, hi = p.them?.length ? Math.max(...p.them) : null, at = (x: number) => `${Math.min(100, Math.max(0, x))}%`;
           return (
-            <span key={p.label} className="col" style={{ gap: 5 }} title={p.avg != null ? `You ${p.value} · competitors average ${p.avg}${lo != null && hi != null && lo !== hi ? ` (from ${lo} to ${hi})` : ""}` : undefined}>
+            <span key={p.label} className="col" style={{ gap: 4 }} title={p.avg != null ? `You ${p.value} · competitors average ${p.avg}${lo != null && hi != null && lo !== hi ? ` (from ${lo} to ${hi})` : ""}` : undefined}>
               <span className="row between" style={{ alignItems: "baseline" }}>
                 <span className="xs i2">{p.label}</span>
-                <span className="row g6" style={{ alignItems: "baseline" }}>{p.avg != null && <span className="tnum i3" style={{ fontSize: 11 }}>avg {p.avg}</span>}<span className="tnum w5" style={{ fontSize: 13.5 }}>{p.value}</span></span>
+                <span className="row g6" style={{ alignItems: "baseline" }}>{p.avg != null && <span className="tnum i3" style={{ fontSize: 11 }}>avg {p.avg}</span>}<span className="tnum w5" style={{ fontSize: 14 }}>{p.value}</span></span>
               </span>
               <span aria-hidden style={{ position: "relative", height: 8, borderRadius: 99, background: "var(--tray-2)" }}>
                 {lo != null && hi != null && <span style={{ position: "absolute", top: 0, bottom: 0, left: at(lo), width: `max(8px, ${hi - lo}%)`, borderRadius: 99, background: "rgba(18,18,18,.16)" }} />}
@@ -112,7 +111,7 @@ function Score({ k }: { k: Tile }) {
               </span>
             </span>);
         })}
-        {measured && <span className="row g10" style={{ fontSize: 10.5, color: "var(--ink-3)", paddingTop: 1 }}>
+        {measured && <span className="row g10" style={{ fontSize: 11, color: "var(--ink-3)", paddingTop: 1 }}>
           <span className="row g4"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B" }} />You</span>
           <span className="row g4"><span style={{ width: 12, height: 6, borderRadius: 99, background: "rgba(18,18,18,.16)" }} />Competitors</span>
           <span className="row g4"><span style={{ width: 2, height: 10, borderRadius: 2, background: "#55534F" }} />Their average</span>

@@ -56,7 +56,7 @@ export function Restock({ slug, brand, r, leadDays, canAdd, allow, admin, onClos
             <span className="xs i3">{tab === "order" ? "Order" : "Arrived"}</span>
             <span className="row g8" style={{ alignItems: "baseline" }}>
               <input value={qty} onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))} inputMode="numeric" aria-label="How many units" autoFocus
-                style={{ width: 96, height: 40, borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", padding: "0 10px", font: "inherit", fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em" }} />
+                style={{ width: 96, height: 40, borderRadius: 10, border: "1px solid var(--line-2)", background: "#fff", padding: "0 10px", font: "inherit", fontSize: 24, fontWeight: 600, letterSpacing: "-0.015em" }} />
               <span className="sm i2">units</span>
             </span>
           </div>
@@ -75,7 +75,7 @@ export function Restock({ slug, brand, r, leadDays, canAdd, allow, admin, onClos
           <div className="col g8">
             <span className="sm w5">{draft.subject}</span>
             <textarea value={body} onChange={(e) => setNote(e.target.value)} rows={8} aria-label="Message to your supplier"
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line-2)", font: "inherit", fontSize: 13.5, lineHeight: "20px", resize: "vertical" }} />
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line-2)", font: "inherit", fontSize: 14, lineHeight: "20px", resize: "vertical" }} />
             <div className="row g8">
               <button type="button" className="btn sm" onClick={copy}><Icon name={copied ? "check" : "copy"} size={12} />{copied ? "Copied" : "Copy"}</button>
               <a className="btn sm" href={`mailto:?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}>Open in email<Icon name="arrow-ur" size={12} /></a>
@@ -83,7 +83,7 @@ export function Restock({ slug, brand, r, leadDays, canAdd, allow, admin, onClos
             </div>
           </div>
         ) : !canAdd ? (
-          <span className="sm i2">Kaviar can read this store’s stock, not change it.</span>
+          <span className="sm i2">Kaviar can read this store’s stock, not change it</span>
         ) : where == null ? (
           <span className="row g8 sm i3"><Icon name="spinner" size={13} className="spin" />Reading the count in Shopify…</span>
         ) : target?.ok ? (
@@ -93,7 +93,7 @@ export function Restock({ slug, brand, r, leadDays, canAdd, allow, admin, onClos
             <div className="col g2" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--green-bg)" }}><span className="xs i3">After</span><span className="tnum" style={{ fontSize: 22, fontWeight: 600, color: "var(--green)" }}>{(target.available + n).toLocaleString("en-US")}</span></div>
           </div>
         ) : (
-          <span className="sm i2">{target && !target.ok ? target.why : "Shopify didn’t answer"} — set this one in Shopify.</span>
+          <span className="sm i2">{target && !target.ok ? target.why : "Shopify didn’t answer"} — set this one in Shopify</span>
         )}
         {msg && <span className="row g6 sm" style={{ color: msg.bad ? "#B4532A" : "#1F7A52" }}><Icon name={msg.bad ? "warning-circle" : "check-circle"} size={14} weight="fill" />{msg.text}</span>}
       </div>

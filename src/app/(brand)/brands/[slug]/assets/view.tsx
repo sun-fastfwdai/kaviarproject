@@ -13,7 +13,7 @@ type Cat = "all" | "shopify" | "photos" | "cards" | "video" | "people" | "logos"
 const CATS: [Cat, string, IconName, (a: AssetRow) => boolean][] = [
   ["all", "All assets", "squares", () => true],
   ["shopify", "Shopify", "bag", (a) => a.kind === "shopify"],
-  ["photos", "AI photos", "sparkle", (a) => a.kind === "imagery" && a.ai && a.edit !== "card"],
+  ["photos", "AI photos", "image", (a) => a.kind === "imagery" && a.ai && a.edit !== "card"],
   ["cards", "Ad cards", "layers", (a) => a.kind === "imagery" && a.edit === "card"],
   ["video", "Videos", "video", (a) => a.kind === "video"],
   ["people", "Characters", "user", (a) => a.kind === "character"],
@@ -53,7 +53,7 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
       <aside className="col" style={{ width: 210, flexShrink: 0, borderRight: "1px solid var(--line)", padding: "18px 10px", gap: 2, overflowY: "auto" }}>
         <span className="xs w5 i3" style={{ padding: "0 8px 6px" }}>Categories</span>
         {CATS.filter(([k]) => k === "all" || counts[k] > 0).map(([k, label, icon]) => (
-          <button key={k} type="button" onClick={() => setCat(k)} className="row g8 ni" style={{ height: 32, padding: "0 8px", borderRadius: 7, textAlign: "left", background: cat === k ? "#fff" : undefined, boxShadow: cat === k ? "0 0 0 1px var(--line)" : undefined, color: cat === k ? "var(--ink)" : undefined }}>
+          <button key={k} type="button" onClick={() => setCat(k)} className="row g8 ni" style={{ height: 32, padding: "0 8px", borderRadius: 8, textAlign: "left", background: cat === k ? "#fff" : undefined, boxShadow: cat === k ? "0 0 0 1px var(--line)" : undefined, color: cat === k ? "var(--ink)" : undefined }}>
             <Icon name={icon} size={14} /><span className="sm fill">{label}</span><span className="xs i3 tnum">{counts[k]}</span>
           </button>
         ))}
@@ -62,7 +62,7 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
       <section className="scroll col" style={{ padding: "20px 24px", gap: 14 }}>
         <div className="col g4">
           <h1 className="h1">Brand assets</h1>
-          <p className="sm i3">{assets.length} files for {brand} — your Shopify product pictures, uploads, photos and clips from Shoots, and ad cards.</p>
+          <p className="sm i3">{assets.length} files for {brand} — your Shopify product pictures, uploads, photos and clips from Shoots, and ad cards</p>
         </div>
         <div className="row g8">
           <div className="input" style={{ width: 280, height: 32 }}><Icon name="search" size={13} color="#8B8883" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search assets" aria-label="Search assets" style={{ border: 0, outline: 0, background: "transparent", flex: 1, font: "inherit", fontSize: 13 }} /></div>
@@ -76,8 +76,8 @@ export function AssetsView({ brand, assets, initial, moving = 0 }: { brand: stri
               <button key={x.id} type="button" onClick={() => setSel(x.id)} className="col g6" style={{ textAlign: "left", padding: 0, minWidth: 0 }}>
                 <span style={{ position: "relative", display: "block", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden", background: "var(--tray-2)", boxShadow: a?.id === x.id ? "0 0 0 2px var(--ink)" : "0 0 0 1px var(--line)" }}>
                   <Thumb a={x} />
-                  {(x.ai || x.url) && <span className="pill" style={{ position: "absolute", left: 6, bottom: 6, height: 18, fontSize: 9.5, padding: "0 6px" }}>{x.url ? "Shopify" : x.edit === "card" ? "Ad card" : "AI"}</span>}
-                  {x.seconds ? <span className="xs" style={{ position: "absolute", right: 6, bottom: 6, padding: "1px 6px", borderRadius: 99, background: "rgba(0,0,0,.55)", color: "#fff" }}>{x.seconds}s</span> : null}
+                  {(x.ai || x.url) && <span className="pill" style={{ position: "absolute", left: 6, bottom: 6, height: 18, fontSize: 10, padding: "0 6px" }}>{x.url ? "Shopify" : x.edit === "card" ? "Ad card" : "AI"}</span>}
+                  {x.seconds ? <span className="xs" style={{ position: "absolute", right: 6, bottom: 6, padding: "1px 6px", borderRadius: 6, background: "rgba(0,0,0,.55)", color: "#fff" }}>{x.seconds}s</span> : null}
                 </span>
                 <span className="col" style={{ minWidth: 0 }}>
                   <span className="xs w5 i1 ell" title={x.name}>{x.name}</span>

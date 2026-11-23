@@ -32,7 +32,7 @@ function Segment({ s, all, st, onSet, size }: { s: MarketReport["segments"][numb
   const reach = [s.reach.gender === "All" ? "All genders" : s.reach.gender, s.reach.ages].filter(Boolean).join(" ");
   return (
     <div className="col" style={{ borderBottom: "1px solid var(--line)", opacity: st === "rejected" ? 0.45 : 1 }}>
-      <div className="row top g16" style={{ padding: "11px 0" }}>
+      <div className="row top g16" style={{ padding: "12px 0" }}>
         <button type="button" className="col" onClick={() => setOpen(!open)} aria-expanded={open} style={{ width: 200, flexShrink: 0, textAlign: "left" }}>
           <span className="row top g6"><Icon name={open ? "chev-d" : "chev-r"} size={12} style={{ marginTop: 4 }} /><span className="sm w5 i1" style={{ lineHeight: "20px" }}>{s.name}</span></span>
           <span className={`xs ${PRIORITY[s.priority] ?? "i3"}`} style={{ paddingLeft: 18 }}>{s.priority}{reach ? <span className="i3"> · {reach}</span> : null}</span>
@@ -74,7 +74,7 @@ function EvidenceList({ slug, id, evidence, running }: { slug: string; id: strin
     </>}>
       {!evidence.length && <Line>Real numbers behind the findings — the store’s own results, how many people Meta can reach in each buyer group, and competitors’ ads counted. Press Measure now.</Line>}
       {shown.map((e) => (
-        <div key={e.id} className="row top g16" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+        <div key={e.id} className="row top g16" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
           <span className="xs i3 tnum" style={{ width: 26, flexShrink: 0, lineHeight: "20px" }}>{e.id}</span>
           <span className="col g2 fill" style={{ minWidth: 0 }}>
             <span className="sm i1" style={{ lineHeight: "20px" }}><b className="w6 tnum">{evidenceValue(e)}</b>{e.change && <span className={e.change.pct >= 0 ? "c-green" : "c-amber"}> {e.change.pct >= 0 ? "+" : ""}{e.change.pct}% {e.change.over}</span>} <span className="i2">· {e.metric}</span></span>
@@ -120,7 +120,7 @@ export function MarketTab({ slug, id, report, currency, onAds, onPlan, evidence,
           <span style={{ width: 170, flexShrink: 0 }}>Brand</span><span style={{ width: 80, flexShrink: 0 }}>Price</span><span className="fill">How they sell</span><span className="fill">Strong at</span><span className="fill">Weak at</span>
         </div>
         {report.competitors.map((c) => (
-          <div key={c.name} className="row top g16" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
+          <div key={c.name} className="row top g16" style={{ padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
             <span className="col g2" style={{ width: 170, flexShrink: 0, minWidth: 0 }}>
               <span className="sm w5 i1">{c.name}</span><span className="xs i3" style={{ lineHeight: "16px" }}>{c.product}</span>
               <span style={{ paddingTop: 4 }}><Found ids={c.sources} all={S} /></span>
@@ -143,7 +143,7 @@ export function MarketTab({ slug, id, report, currency, onAds, onPlan, evidence,
           return <Line key={o.id} dim={st === "rejected"} sub={o.why} from={<Found ids={o.sources} all={S} />} end={<Decide status={st} onSet={(v) => d.set("opportunity", o.id, v)} />}><span className="w5">{o.text}</span></Line>;
         })}
       </Section>
-      {report.price.note && <span className="xs i3">Prices are in {currency} where Iris found them.</span>}
+      {report.price.note && <span className="xs i3">Prices are in {currency} where Iris found them</span>}
     </div>
   );
 }
@@ -190,7 +190,7 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
                     <span className={x.stance === "for" ? "c-green" : "c-amber"} style={{ width: 44, flexShrink: 0 }}>{x.stance === "for" ? "For" : "Against"}</span>
                     <span className="i2 fill"><b className="w6 i1 tnum">{evidenceValue(e)}</b> {x.reads} <span className="i3">· {x.id} · {e.source}, {QUALITY_NAME[e.quality].toLowerCase()}</span></span>
                   </span>); })}
-                {!h.evidence.length && <span className="xs i3">Nothing measured supports this yet — the test is the evidence.</span>}
+                {!h.evidence.length && <span className="xs i3">Nothing measured supports this yet — the test is the evidence</span>}
                 <span className="xs i2" style={{ lineHeight: "17px" }}><span className="i3">Confirmed if </span>{h.confirmIf}</span>
                 <span className="xs i2" style={{ lineHeight: "17px" }}><span className="i3">Refuted if </span>{h.refuteIf}</span>
               </span>
@@ -204,8 +204,8 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
           <span style={{ width: 16, flexShrink: 0 }} /><span style={{ width: 190, flexShrink: 0 }}>Buyer × message</span><span className="fill">Hypothesis</span><span className="fill">Ad idea</span><span style={{ width: 170, flexShrink: 0 }}>It works if</span>
         </div>
         {plan.cells.map((c) => (
-          <label key={c.id} className="row top g16" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)", cursor: "pointer", opacity: on(c) ? 1 : 0.45 }}>
-            <span style={{ width: 16, flexShrink: 0, paddingTop: 3 }}><input type="checkbox" checked={on(c)} onChange={() => { setOff((x) => ({ ...x, [c.id]: on(c) })); void toggleCell(slug, id, c.id).then(() => router.refresh()); }} style={{ accentColor: "#121212", margin: 0 }} /></span>
+          <label key={c.id} className="row top g16" style={{ padding: "12px 0", borderBottom: "1px solid var(--line)", cursor: "pointer", opacity: on(c) ? 1 : 0.45 }}>
+            <span style={{ width: 16, flexShrink: 0, paddingTop: 4 }}><input type="checkbox" checked={on(c)} onChange={() => { setOff((x) => ({ ...x, [c.id]: on(c) })); void toggleCell(slug, id, c.id).then(() => router.refresh()); }} style={{ accentColor: "#121212", margin: 0 }} /></span>
             <span className="col g2" style={{ width: 190, flexShrink: 0, minWidth: 0 }}><span className="sm w5 i1" style={{ lineHeight: "20px" }}>{c.segment}{c.hypothesisId && plan.hypotheses ? <span className="xs w4 i3"> · tests H{plan.hypotheses.findIndex((h) => h.id === c.hypothesisId) + 1}</span> : null}</span><span className="xs i2" style={{ lineHeight: "17px" }}>{c.angle}</span><span className="xs i3" style={{ lineHeight: "16px", paddingTop: 2 }}>{c.audience}</span></span>
             <span className="xs i2 fill" style={{ lineHeight: "17px" }}>{c.hypothesis}</span>
             <span className="col g2 fill" style={{ minWidth: 0 }}><span className="xs w5 i1" style={{ lineHeight: "17px" }}>“{c.hook}”</span><span className="xs i3" style={{ lineHeight: "16px" }}>{c.visual}</span></span>
@@ -215,12 +215,12 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
       </Section>
       <div className="row g8" style={{ flexWrap: "wrap" }}>
         <button type="button" className="btn dark" disabled={busy != null || building || running || !chosen.length} onClick={build}>
-          {building ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="sparkle" size={13} color="#fff" />}{building ? "Remy is writing the ads…" : `Build ${chosen.length} static ad${chosen.length === 1 ? "" : "s"}`}</button>
+          {building ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="pencil" size={13} color="#fff" />}{building ? "Remy is writing the ads…" : `Build ${chosen.length} static ad${chosen.length === 1 ? "" : "s"}`}</button>
         <button type="button" className="btn" disabled={busy != null || building || running} onClick={replan}>{busy === "plan" || running ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}Plan again</button>
         <button type="button" className="btn quiet" onClick={onMarket}>Change the buyers</button>
         {err && <span className="xs c-amber">{err}</span>}
         <span className="fill" />
-        <span className="xs i3">Remy writes one ad per cell into a new batch in Creative studio.</span>
+        <span className="xs i3">Remy writes one ad per cell into a new batch in Creative studio</span>
       </div>
     </div>
   );
@@ -257,7 +257,7 @@ function PriceMap({ report, own, money }: { report: MarketReport; own: { label: 
         {band && <span className="row g4"><span style={{ width: 12, height: 6, borderRadius: 3, background: "#D3EBDD" }} />Iris’s range</span>}
       </div>
       <div className="col" style={{ borderTop: "1px solid var(--line)" }}>
-        {pts.map((p) => <span key={p.name} className="row top g10 xs" style={{ padding: "5px 0", borderBottom: "1px solid var(--line)" }}><span className="i2" style={{ flex: "0 0 40%", minWidth: 0 }}>{p.name}</span><span className="i1 fill" style={{ textAlign: "right", lineHeight: "16px" }}>{p.price}</span></span>)}
+        {pts.map((p) => <span key={p.name} className="row top g10 xs" style={{ padding: "4px 0", borderBottom: "1px solid var(--line)" }}><span className="i2" style={{ flex: "0 0 40%", minWidth: 0 }}>{p.name}</span><span className="i1 fill" style={{ textAlign: "right", lineHeight: "16px" }}>{p.price}</span></span>)}
       </div>
     </div>
   );
@@ -298,7 +298,7 @@ export function Rail({ tab, row, currency, own }: { tab: "market" | "ads" | "pla
           {head("Sources", `${r!.sources.length} pages · ${byHost.length} sites`)}
           <div className="col" style={{ borderTop: "1px solid var(--line)" }}>
             {byHost.slice(0, 12).map(([h, xs]) => (
-              <a key={h} href={xs[0].url} target="_blank" rel="noreferrer" title={xs.map((s) => s.title).join("\n")} className="row g8" style={{ padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
+              <a key={h} href={xs[0].url} target="_blank" rel="noreferrer" title={xs.map((s) => s.title).join("\n")} className="row g8" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                 <Icon name="globe" size={13} color="#8B8883" />
                 <span className="col fill" style={{ minWidth: 0 }}><span className="xs i1 ell">{h}</span><span className="xs i3 ell">{xs[0].title}</span></span>
                 {xs.length > 1 && <span className="xs i3 tnum">{xs.length}</span>}

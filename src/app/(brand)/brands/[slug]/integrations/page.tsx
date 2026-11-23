@@ -49,7 +49,7 @@ function Summary({ provider, conn, lastSync, action }: { provider: "shopify" | "
       </div>
       <div className="col g4 fill" style={{ minWidth: 200 }}>
         <span className="xs i3">Access granted</span>
-        <div className="row g4" style={{ flexWrap: "wrap" }}>{conn.scopes.map((s) => <span key={s} className="pill" style={{ height: 22, fontSize: 11.5 }}>{nice(s)}</span>)}</div>
+        <div className="row g4" style={{ flexWrap: "wrap" }}>{conn.scopes.map((s) => <span key={s} className="pill" style={{ height: 22, fontSize: 12 }}>{nice(s)}</span>)}</div>
       </div>
       {action}
     </div>

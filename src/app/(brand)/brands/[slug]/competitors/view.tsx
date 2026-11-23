@@ -36,10 +36,10 @@ function Pair({ label, pill, you, they, theyName, max, hint }: { label: string; 
   const t = pill ? TONE[pill] : null, w = (v: number | null) => `${v == null ? 0 : Math.max(3, Math.min(100, v))}%`;
   return (
     <div className="col g10" title={hint} style={{ padding: "14px 16px", borderRadius: 16, background: "rgba(255,255,255,.06)", minWidth: 0 }}>
-      <span className="row between g8"><span style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</span>{pill && <span style={{ height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "20px", background: t!.bg, color: t!.fg }}>{VERDICT_NAME[pill]}</span>}</span>
+      <span className="row between g8"><span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>{pill && <span style={{ height: 20, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "20px", background: t!.bg, color: t!.fg }}>{VERDICT_NAME[pill]}</span>}</span>
       {([["You", you, max[0], t?.bar ?? "#fff"], [theyName, they, max[1], "rgba(255,255,255,.45)"]] as const).map(([k, v, n, c]) => (
         <div key={k} className="col g4">
-          <span className="row between g8"><span className="ell" style={{ fontSize: 11.5, color: DIM }}>{k}</span><span className="tnum" style={{ fontSize: k === "You" ? 22 : 15, lineHeight: "24px", fontWeight: 600, color: k === "You" ? "#fff" : "rgba(255,255,255,.8)" }}>{v}</span></span>
+          <span className="row between g8"><span className="ell" style={{ fontSize: 12, color: DIM }}>{k}</span><span className="tnum" style={{ fontSize: k === "You" ? 22 : 15, lineHeight: "24px", fontWeight: 600, color: k === "You" ? "#fff" : "rgba(255,255,255,.8)" }}>{v}</span></span>
           <span style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.12)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: w(n), borderRadius: 99, background: c }} /></span>
         </div>))}
     </div>
@@ -66,8 +66,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
   const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]);
   const theyName = one >= 0 ? sites[one].name : "Their average";
   const line = !checked ? `See where ${brand} stands` : !readN ? "No competitor could be read" : names("behind").length ? `Behind on ${list(names("behind"))}` : names("ahead").length ? `Ahead on ${list(names("ahead"))}` : one >= 0 ? `Level with ${sites[one].name}` : "Level with your competitors";
-  const glow = names("behind").length ? "rgba(255,138,92,.30)" : checked && readN ? "rgba(52,199,123,.30)" : "rgba(91,111,214,.34)";
-  const pill = (dark: boolean) => ({ height: 38, padding: "0 16px", borderRadius: 99, fontSize: 13.5, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
+  const pill = (dark: boolean) => ({ height: 38, padding: "0 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
   const all: (Site & { me?: boolean })[] = checked ? [...(you ? [{ ...you, me: true }] : []), ...sites] : rivals.map((r) => ({ name: r.name, url: r.url, read: false, note: "Not read yet" }));
   const cols = `minmax(170px, 1.6fr) repeat(${TABLE.length}, minmax(70px, 1fr)) 30px`;
   // Ads on Meta: the brand's own account beside what the Ad Library shows for each competitor.
@@ -77,20 +76,19 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
-        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 22px" }}>
-          <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${glow}, transparent)` }} />
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 20, background: "#121212", color: "#fff", padding: "24px 26px 22px" }}>
           <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
             <div className="row top g14" style={{ minWidth: 0 }}>
               <AgentFace kind="analyst" size={40} mood={names("behind").length ? "up" : "happy"} />
               <div className="col g4">
-                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>{checked ? `You against ${one >= 0 ? sites[one].name : `${readN} competitor${readN === 1 ? "" : "s"}`}` : "Competitors"}</span>
-                <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.02em" }}>{line}</span>
-                <span style={{ fontSize: 12.5, color: DIM }}>{checked ? `Measured by Kaviar on each site · ${checked}` : own ? "Kaviar opens each site the way Google does. About two minutes." : "This brand has no website Kaviar can open yet."}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: DIM }}>{checked ? `You against ${one >= 0 ? sites[one].name : `${readN} competitor${readN === 1 ? "" : "s"}`}` : "Competitors"}</span>
+                <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.015em" }}>{line}</span>
+                <span style={{ fontSize: 13, color: DIM }}>{checked ? `Measured by Kaviar on each site · ${checked}` : own ? "Kaviar opens each site the way Google does. About two minutes." : "This brand has no website Kaviar can open yet."}</span>
               </div>
             </div>
             <div className="row g8" style={{ flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {checked && sites.length > 1 && <label className="row g6" style={{ ...pill(false), paddingRight: 10 }}>
-                <span style={{ color: DIM, fontSize: 12.5 }}>Compare with</span>
+                <span style={{ color: DIM, fontSize: 13 }}>Compare with</span>
                 <select value={one} onChange={(e) => setVs(Number(e.target.value))} aria-label="Compare with" style={{ background: "transparent", color: "#fff", border: 0, font: "inherit", fontWeight: 500, outline: "none", maxWidth: 170 }}>
                   <option value={-1} style={{ color: "#121212" }}>All competitors</option>
                   {sites.map((s, i) => <option key={s.url} value={i} disabled={!s.read} style={{ color: "#121212" }}>{s.name}</option>)}
@@ -113,7 +111,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
             <span className="h3 row g6" title={basis ?? undefined}>Site by site{basis && <Icon name="info" size={13} color="#8B8883" />}</span>
             <button type="button" className="btn sm" onClick={() => { setMsg(null); setAdding(true); }}><Icon name="plus" size={12} />Add competitor</button>
           </div>
-          {!all.length ? <span className="sm i3" style={{ padding: "12px 12px 8px" }}>Add a competitor’s website, or press “Read my competitors” to start from the ones Iris found.</span>
+          {!all.length ? <span className="sm i3" style={{ padding: "12px 12px 8px" }}>Add a competitor’s website, or press “Read my competitors” to start from the ones Iris found</span>
             : <div style={{ overflowX: "auto", marginTop: 8 }}>
               <div style={{ minWidth: 860 }}>
                 <div style={{ display: "grid", gridTemplateColumns: cols, gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--line)" }}>
@@ -123,7 +121,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                 {all.map((s, i) => {
                   const ri = s.me ? -1 : sites.findIndex((x) => x.url === s.url);
                   return (
-                    <div key={s.url + i} style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "11px 12px", borderBottom: s.me ? 0 : "1px solid var(--line)", background: s.me ? "var(--tray)" : ri === one && one >= 0 ? "var(--blue-bg)" : undefined, borderRadius: s.me ? 12 : 0, marginTop: s.me ? 6 : 0 }}>
+                    <div key={s.url + i} style={{ display: "grid", gridTemplateColumns: cols, gap: 8, alignItems: "center", padding: "12px 12px", borderBottom: s.me ? 0 : "1px solid var(--line)", background: s.me ? "var(--tray)" : ri === one && one >= 0 ? "var(--blue-bg)" : undefined, borderRadius: s.me ? 12 : 0, marginTop: s.me ? 6 : 0 }}>
                       <span className="col" style={{ minWidth: 0 }}>
                         <span className="sm w5 ell">{s.me ? `You · ${brand}` : s.name}</span>
                         {s.me && !s.read ? <Link className="xs lnk" style={{ color: "#B4532A" }} href={storeHref}>{s.note} →</Link>
@@ -145,7 +143,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
           {checked && readN > 0 && <div className="row g6" style={{ flexWrap: "wrap", padding: "10px 12px 0", marginTop: 6, borderTop: "1px solid var(--line)" }}>
             {!behind.length ? <span className="row g6 xs i2"><Icon name="check-circle" size={14} weight="fill" color="#1F8A5B" />Level or ahead on all {rows.filter((r) => st(r).verdict).length} measures</span>
               : <><span className="xs i3" style={{ alignSelf: "center" }}>Behind on</span>{behind.map(({ r, s }) => (
-                <Link key={r.key} href={`/brands/${slug}/seo#${SPEED.includes(r.key) ? "speed" : "fixes"}`} title={`${r.hint} — fixed in Store`} className="row g6 xs" style={{ height: 26, padding: "0 10px", borderRadius: 99, background: "#FBEDE6", color: "#B4532A" }}>
+                <Link key={r.key} href={`/brands/${slug}/seo#${SPEED.includes(r.key) ? "speed" : "fixes"}`} title={`${r.hint} — fixed in Store`} className="row g6 xs" style={{ height: 26, padding: "0 10px", borderRadius: 6, background: "#FBEDE6", color: "#B4532A" }}>
                   <b className="w5">{r.name}</b><span className="tnum">{r.unit === "yes" ? `${Math.round((s.avg ?? 0) * s.n)} of ${s.n} have it` : `${show(r, r.you)} · they ${show(r, s.avg)}`}</span><Icon name="arrow-r" size={10} color="#B4532A" />
                 </Link>))}</>}
           </div>}
@@ -162,7 +160,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
               <span className="xs i3">Brand</span>{([["Running"], ["New · 30 days"], ["Longest run"], ["Video"], ["Stopped in a week", "Of the ads they started 6 weeks to 4 months ago, the share they stopped within 7 days"], ["Typical run", "How long one of those ads ran — the middle one"]] as [string, string?][]).map(([h, t]) => <span key={h} className="xs i3" title={t} style={{ textAlign: "right" }}>{h}</span>)}<span />
             </div>
             {[{ name: `You · ${brand}`, ads: ownAds.ads, new30: ownAds.new30, longest: null as number | null, video: null as number | null, past: null as RivalAdLine["past"], library: null as string | null, me: true }, ...ads.map((a) => ({ ...a, me: false }))].map((a) => (
-              <div key={a.name} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(6, minmax(80px, 1fr)) 30px", gap: 8, alignItems: "center", padding: "9px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: a.me ? "var(--tray)" : undefined, borderRadius: a.me ? 10 : 0 }}>
+              <div key={a.name} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(6, minmax(80px, 1fr)) 30px", gap: 8, alignItems: "center", padding: "8px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: a.me ? "var(--tray)" : undefined, borderRadius: a.me ? 10 : 0 }}>
                 <span className="sm w5 ell">{a.name}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{a.ads}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{a.new30}</span>
@@ -185,7 +183,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
           </div>}
         </div>
       </div>
-      {adding && <Modal icon={<Icon name="globe" size={16} />} title="Add a competitor" sub="Kaviar opens their site and reads it by the same rules as your store." onClose={() => setAdding(false)} width={460}
+      {adding && <Modal icon={<Icon name="globe" size={16} />} title="Add a competitor" sub="Kaviar opens their site and reads it by the same rules as your store" onClose={() => setAdding(false)} width={460}
         footer={<><button type="button" className="btn quiet" onClick={() => setAdding(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !form.url.trim()} onClick={submit}>{doing === "add" ? <><Icon name="spinner" size={13} className="spin" color="#fff" />Reading their site…</> : "Add and read"}</button></>}>
         <div className="col g12">
           <label className="col g4"><span className="xs i2 w5">Website</span><input className="input" placeholder="theirstore.com" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} autoFocus /></label>

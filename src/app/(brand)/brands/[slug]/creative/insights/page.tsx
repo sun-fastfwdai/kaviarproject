@@ -29,7 +29,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
   if (!conns.meta) return (<><StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar><div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Insights" title="Connect Meta Ads to see which ads really sell"
       body="Insights puts every live ad next to the Shopify orders it brought in, flags creatives that are getting tired, and turns the pattern into rules Remy follows in the next batch."
-      steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad." }, { agent: "catalog", title: "Cleo pulls up to 3 years of results", body: "Spend, clicks and daily results per ad." }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand." }]}
+      steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad" }, { agent: "catalog", title: "Cleo pulls up to 3 years of results", body: "Spend, clicks and daily results per ad" }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand" }]}
       art={<InsightsArt />} actions={<Link className="btn dark" href={`${base}/integrations`}><Icon name="plug" size={14} color="#fff" />Connect Meta Ads</Link>} />
   </div></>);
 
@@ -92,14 +92,14 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
               return (
                 <div key={a.id} className="tr compact" style={{ padding: "0 16px" }}>
                   <div className="td fill">
-                    <div className="thumb" style={{ width: 34, height: 34, borderRadius: 7, overflow: "hidden" }}>{a.thumb ? <img src={a.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="image" size={14} color="#B5B2AC" />}</div>
+                    <div className="thumb" style={{ width: 34, height: 34, borderRadius: 8, overflow: "hidden" }}>{a.thumb ? <img src={a.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="image" size={14} color="#B5B2AC" />}</div>
                     <div className="col" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{a.name}</span><span className="xs i3 ell">{a.campaign ?? "—"} · {a.orders} orders</span></div>
                   </div>
                   <div className="td num" style={{ width: 80 }}>{money(a.spend, brand.currency)}</div>
                   <div className={`td num w5 ${v >= TARGET.roas ? "c-green" : v < 1 ? "c-amber" : "i1"}`} style={{ width: 90 }}>{v.toFixed(2)}×</div>
                   <div className={`td num ${ctr >= TARGET.ctr ? "i1" : "c-amber"}`} style={{ width: 70 }}>{pct(ctr, 2)}</div>
                   <div className="td" style={{ width: 80 }}>{spark(a.w)}</div>
-                  <div className="td" style={{ width: 90 }}><span className={`pill ${tone}`} style={{ height: 20, fontSize: 10.5 }}>{h}</span></div>
+                  <div className="td" style={{ width: 90 }}><span className={`pill ${tone}`} style={{ height: 20, fontSize: 11 }}>{h}</span></div>
                   <div className="td" style={{ width: 120, justifyContent: "flex-end" }}>{act && <InsightActions slug={slug} action={act} ad={{ name: a.name, campaign: a.campaign, roas: v, ctr }} />}</div>
                 </div>
               );
@@ -117,19 +117,19 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
             {lessons.map((l) => (
               <div key={l.dimension} className="card" style={{ padding: 14, gap: 6 }}>
-                <span className="row between"><span className="xs i3">{l.dimension}</span><span className={`pill ${l.strength === "Strong" ? "green" : l.strength === "Early" ? "blue" : ""}`} style={{ height: 20, fontSize: 10.5 }}>{l.strength}</span></span>
+                <span className="row between"><span className="xs i3">{l.dimension}</span><span className={`pill ${l.strength === "Strong" ? "green" : l.strength === "Early" ? "blue" : ""}`} style={{ height: 20, fontSize: 11 }}>{l.strength}</span></span>
                 <span className="sm w5 i1">{l.lesson}</span>
                 <span className="xs i3">{l.evidence}</span>
               </div>
             ))}
-            {lessons.length === 0 && <span className="xs i3">Iris is reading the ads — lessons appear here within a minute of the first visit, and refresh after every sync.</span>}
+            {lessons.length === 0 && <span className="xs i3">Iris is reading the ads — lessons appear here within a minute of the first visit, and refresh after every sync</span>}
           </div>
         </section>
         <SidePanel>
           <div className="col g8" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="row g8"><AgentFace kind="analyst" size={18} /><span className="sm w5">Next batch · planned by Iris</span></span>
-            <span className="xs i2" style={{ lineHeight: "17px" }}>Winning ads get variations, tiring ones a new hook, and losers are held — using the rules on the left.</span>
-            <Link className="btn dark sm" href={`${base}/creative`}><Icon name="sparkle" size={13} color="#fff" />Plan next batch</Link>
+            <span className="xs i2" style={{ lineHeight: "17px" }}>Winning ads get variations, tiring ones a new hook, and losers are held — using the rules on the left</span>
+            <Link className="btn dark sm" href={`${base}/creative`}><Icon name="pencil" size={13} color="#fff" />Plan next batch</Link>
           </div>
           <div className="col g6" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="row g8"><AgentFace kind="qa" size={18} /><span className="sm w5">Otto watches every morning</span></span>

@@ -20,13 +20,13 @@ export default async function LeadsPage() {
         <div className="col g20" style={{ padding: "28px 32px" }}>
           <div className="col g4">
             <h1 className="h1">Leads</h1>
-            <p className="lead">Brands that asked for a call from the website.</p>
+            <p className="lead">Brands that asked for a call from the website</p>
           </div>
           {leads.length === 0 ? (
             <div className="card col g8" style={{ padding: 36, alignItems: "center", textAlign: "center" }}>
               <Icon name="receipt" size={26} color="#8B8883" />
               <span className="h3">No enquiries yet</span>
-              <p className="sm i3">When a brand fills in “Book a call” on the website, it shows up here.</p>
+              <p className="sm i3">When a brand fills in “Book a call” on the website, it shows up here</p>
             </div>
           ) : (
             <div className="card">

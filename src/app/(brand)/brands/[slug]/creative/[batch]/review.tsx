@@ -22,7 +22,7 @@ function Editor({ slug, ad, onDone }: { slug: string; ad: AdView; onDone: () => 
     <label className="col g4">
       <span className="row between xs"><span className="w5 i2">{label}</span>{max && <span className={f[k].length > max ? "c-amber" : "i4"}>{f[k].length}/{max}</span>}</span>
       <div className="input" style={{ height: "auto", padding: 6 }}>
-        <textarea rows={rows} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 12.5 }} />
+        <textarea rows={rows} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 13 }} />
       </div>
     </label>
   );
@@ -66,7 +66,7 @@ export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string
   const undesigned = statics.filter((a) => !isCard(a) && !a.design?.pending);
   const run = (fn: () => Promise<unknown>, done?: string) => start(async () => { setMsg(null); const r = (await fn()) as { error?: string } | undefined; if (r?.error) setMsg(r.error); else if (done) setMsg(done); router.refresh(); });
 
-  if (!ad) return <div className="sm i3" style={{ padding: 24 }}>No ads in this batch yet.</div>;
+  if (!ad) return <div className="sm i3" style={{ padding: 24 }}>No ads in this batch yet</div>;
   const idx = ads.indexOf(ad) + 1;
 
   return (
@@ -91,14 +91,14 @@ export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string
               <button type="button" onClick={() => { setSel(a.id); setEditing(false); setRejecting(false); }}
                 style={{ position: "relative", borderRadius: 10, overflow: "hidden", padding: 0, border: 0, cursor: "pointer", boxShadow: a.id === ad.id ? "0 0 0 2px var(--ink)" : "0 0 0 1px var(--line)", opacity: a.status === "rejected" ? 0.55 : 1 }}>
                 <AdArt ad={a} brand={brand} />
-                {a.status !== "review" && <span className={`pill ${a.status === "approved" ? "green" : "red"}`} style={{ position: "absolute", top: 8, left: 8, height: 20, fontSize: 10.5 }}>{a.status === "approved" ? "✓ Approved" : "Rejected"}</span>}
+                {a.status !== "review" && <span className={`pill ${a.status === "approved" ? "green" : "red"}`} style={{ position: "absolute", top: 8, left: 8, height: 20, fontSize: 11 }}>{a.status === "approved" ? "✓ Approved" : "Rejected"}</span>}
               </button>
               <FormatLabel ad={a} />
               {a.status === "rejected" && a.note && <span className="xs c-amber ell">“{a.note}”</span>}
             </div>
           ))}
         </div>
-        {shown.length === 0 && <span className="sm i3">Nothing here.</span>}
+        {shown.length === 0 && <span className="sm i3">Nothing here</span>}
       </section>
 
       <aside className="col" style={{ width: 360, flexShrink: 0, borderLeft: "1px solid var(--line)", background: "var(--tray)", overflowY: "auto" }}>
@@ -134,7 +134,7 @@ export function BatchReview({ slug, brand, ads, codes, batchId }: { slug: string
           {rejecting && (
             <div className="col g6">
               <span className="xs w5 i2">Why reject it? Remy learns from every answer.</span>
-              <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Number feels pushy" style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 12.5 }} autoFocus /></div>
+              <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Number feels pushy" style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 13 }} autoFocus /></div>
               <div className="row g6" style={{ justifyContent: "flex-end" }}>
                 <button type="button" className="btn quiet sm" onClick={() => setRejecting(false)}>Cancel</button>
                 <button type="button" className="btn sm" disabled={busy} onClick={() => { run(() => setAdStatus(slug, ad.id, "rejected", note)); setRejecting(false); setNote(""); }}>Reject</button>

@@ -58,7 +58,7 @@ export function BuildView({ slug, step, brand, currency, tasks, content, product
         </div>
         <div className="fill" style={{ overflow: "auto", padding: 24, display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
           {content ? <StorePreview brand={brand} c={content} products={products} look={look} hero={hero} width={device} currency={currency} />
-            : <div className="col g10" style={{ width: Math.min(device, 900) }}>{[60, 340, 80, 260].map((h, i) => <div key={i} className="skel" style={{ height: h, borderRadius: 10 }} />)}<span className="xs i3" style={{ textAlign: "center" }}>Remy is writing the store — the preview appears as soon as the copy is ready.</span></div>}
+            : <div className="col g10" style={{ width: Math.min(device, 900) }}>{[60, 340, 80, 260].map((h, i) => <div key={i} className="skel" style={{ height: h, borderRadius: 10 }} />)}<span className="xs i3" style={{ textAlign: "center" }}>Remy is writing the store — the preview appears as soon as the copy is ready</span></div>}
         </div>
       </div>
       <aside className="col g10" style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: 16, overflowY: "auto" }}>
@@ -75,9 +75,9 @@ export function BuildView({ slug, step, brand, currency, tasks, content, product
           )}
           <div className="col g6" style={{ padding: 12, border: "1px solid var(--line)", borderRadius: 12 }}>
             <span className="row g8"><AgentFace kind="builder" size={16} /><span className="sm w5">Ask Remy to change something</span></span>
-            <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={3} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="e.g. Make the story warmer and mention it’s made in Korea" style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 12.5 }} /></div>
+            <div className="input" style={{ height: "auto", padding: 6 }}><textarea rows={3} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="e.g. Make the story warmer and mention it’s made in Korea" style={{ border: 0, outline: 0, resize: "none", width: "100%", font: "inherit", fontSize: 13 }} /></div>
             <button type="button" className="btn sm" disabled={busy || ask.trim().length < 6 || !content} onClick={() => start(async () => { const r = await reviseStore(slug, ask); setMsg(r.error ?? "Done — preview updated."); if (!r.error) setAsk(""); router.refresh(); })}>
-              {busy ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="sparkle" size={12} />}{busy ? "Remy is editing…" : "Apply"}</button>
+              {busy ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="pencil" size={12} />}{busy ? "Remy is editing…" : "Apply"}</button>
             {msg && <span className="xs i2">{msg}</span>}
           </div>
           <button type="button" className="btn dark" disabled={!content || running} onClick={() => router.push(`/brands/${slug}/store?step=review`)}>Review the store<Icon name="arrow-r" size={13} color="#fff" /></button>
@@ -87,7 +87,7 @@ export function BuildView({ slug, step, brand, currency, tasks, content, product
             {qa.map((q) => (
               <div key={q.label} className="col" style={{ paddingTop: 6, borderTop: "1px solid var(--line)" }}>
                 <span className={`row g6 xs ${q.ok ? "i1" : "c-amber"}`}><Icon name={q.ok ? "check-circle" : "warning-circle"} size={13} weight={q.ok ? "fill" : "regular"} color={q.ok ? "#1F8A5B" : "#B7791F"} />{q.label}</span>
-                <span className="xs i3" style={{ paddingLeft: 19 }}>{q.detail}{!q.ok && q.fix ? ` · ${q.fix}` : ""}</span>
+                <span className="xs i3" style={{ paddingLeft: 20 }}>{q.detail}{!q.ok && q.fix ? ` · ${q.fix}` : ""}</span>
               </div>
             ))}
           </div>

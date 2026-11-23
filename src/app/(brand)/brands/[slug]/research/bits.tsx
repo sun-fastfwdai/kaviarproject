@@ -21,7 +21,7 @@ export function Line({ label, children, from, end, dim, sub, labelW = 132 }: {
   label?: React.ReactNode; children: React.ReactNode; from?: React.ReactNode; end?: React.ReactNode; dim?: boolean; sub?: React.ReactNode; labelW?: number;
 }) {
   return (
-    <div className="row top g16" style={{ padding: "11px 0", borderBottom: "1px solid var(--line)", opacity: dim ? 0.45 : 1 }}>
+    <div className="row top g16" style={{ padding: "12px 0", borderBottom: "1px solid var(--line)", opacity: dim ? 0.45 : 1 }}>
       {label !== undefined && <span className="sm i3" style={{ width: labelW, flexShrink: 0, lineHeight: "20px" }}>{label}</span>}
       <span className="col g2 fill" style={{ minWidth: 0 }}>
         <span className="sm i1" style={{ lineHeight: "20px" }}>{children}</span>

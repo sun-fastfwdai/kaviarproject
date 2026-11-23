@@ -32,8 +32,8 @@ function Meter({ k, p }: { k: string; p: Part }) {
   const pct = p.total ? Math.round((p.ok / p.total) * 100) : 0, good = p.total > 0 && p.ok === p.total;
   return (
     <div className="col g4 fill" style={{ minWidth: 130 }}>
-      <span style={{ fontSize: 11.5, color: DIM }}>{k}</span>
-      <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 18, lineHeight: "22px", fontWeight: 600, color: good ? "#6EE7A8" : "#fff" }}>{p.ok}</span><span className="tnum" style={{ fontSize: 12.5, color: DIM }}>of {p.total} fine</span></span>
+      <span style={{ fontSize: 12, color: DIM }}>{k}</span>
+      <span className="row g6" style={{ alignItems: "baseline" }}><span className="tnum" style={{ fontSize: 18, lineHeight: "22px", fontWeight: 600, color: good ? "#6EE7A8" : "#fff" }}>{p.ok}</span><span className="tnum" style={{ fontSize: 13, color: DIM }}>of {p.total} fine</span></span>
       <span style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.14)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${pct}%`, borderRadius: 99, background: good ? "#34C77B" : pct >= 60 ? "#E9B949" : "#FF9B73" }} /></span>
     </div>
   );
@@ -51,10 +51,10 @@ function Dial({ v, text, label, sub, hint, size = 54, dark = true, stand, share 
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={dark ? "rgba(255,255,255,.14)" : "var(--line)"} strokeWidth={big ? 7 : 5} />
           {v != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone} strokeWidth={big ? 7 : 5} strokeLinecap="round" strokeDasharray={`${(Math.max(2, v) / 100) * c} ${c}`} />}
         </svg>
-        <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: text ? 13 : big ? 28 : 18, fontWeight: 600, letterSpacing: "-0.02em", color: dark ? "#fff" : "var(--ink)" }}>{text ?? v ?? "–"}</span>
+        <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: text ? 13 : big ? 28 : 18, fontWeight: 600, color: dark ? "#fff" : "var(--ink)" }}>{text ?? v ?? "–"}</span>
       </span>
       <span className="col" style={{ minWidth: 0, gap: 1 }}><span className="row g6"><span style={{ fontSize: big ? 15 : 13.5, fontWeight: 600, color: dark ? "#fff" : "var(--ink)", whiteSpace: "nowrap" }}>{label}</span>
-        {stand && <span style={{ height: 18, padding: "0 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, lineHeight: "18px", background: STAND[stand.verdict][0], color: STAND[stand.verdict][1] }}>{VERDICT_NAME[stand.verdict]}</span>}</span>{sub && <span className="ell" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>{sub}</span>}
+        {stand && <span style={{ height: 18, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "18px", background: STAND[stand.verdict][0], color: STAND[stand.verdict][1] }}>{VERDICT_NAME[stand.verdict]}</span>}</span>{sub && <span className="ell" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>{sub}</span>}
         {stand && <span className="ell tnum" style={{ fontSize: 12, color: dark ? DIM : "var(--ink-3)" }}>Competitors average {Math.round(stand.avg)}{share ? "%" : ""}</span>}</span>
     </div>
   );
@@ -89,9 +89,9 @@ function SpeedCard({ p, admin }: { p: SpeedPage; admin: string | null }) {
       </div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
         {p.checks.map((c) => (
-          <div key={c.key} className="col g2" title={c.detail} style={{ padding: "9px 11px", borderRadius: 12, background: c.ok ? "var(--tray)" : "#FBEDE6" }}>
+          <div key={c.key} className="col g2" title={c.detail} style={{ padding: "8px 12px", borderRadius: 12, background: c.ok ? "var(--tray)" : "#FBEDE6" }}>
             <span className="row g4"><Icon name={c.ok ? "check-circle" : "warning-circle"} size={12} weight="fill" color={c.ok ? "#1F8A5B" : "#B4532A"} /><span className="xs i3 ell">{TILE[c.key] ?? c.name}</span></span>
-            <span className="tnum w5" style={{ fontSize: 17, lineHeight: "22px", color: c.ok ? "var(--ink)" : "#B4532A" }}>{c.n ?? c.value}</span>
+            <span className="tnum w5" style={{ fontSize: 16, lineHeight: "22px", color: c.ok ? "var(--ink)" : "#B4532A" }}>{c.n ?? c.value}</span>
           </div>))}
       </div>
       {bad.map((c) => (
@@ -135,7 +135,7 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
   const check = () => go("check", async () => { const r = await checkStore(slug); if (r.error) setMsg({ text: r.error, bad: true }); });
   const copy = (id: string, text: string) => { void navigator.clipboard?.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 1400); };
   const pick = (v: boolean) => { setAuto(v); go("mode", () => setStoreAuto(slug, v)); };
-  const pill = (dark: boolean) => ({ height: 34, padding: "0 14px", borderRadius: 99, fontSize: 13, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
+  const pill = (dark: boolean) => ({ height: 34, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
 
   const Row = (f: Fix, i: number) => {
     const on = editing?.id === f.id;
@@ -146,13 +146,13 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
           ? <img src={`${f.image}${f.image.includes("?") ? "&" : "?"}width=120`} alt="" loading="lazy" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "var(--tray-2)", boxShadow: "0 0 0 1px var(--line)" }} />
           : <span style={{ width: 44, height: 44, borderRadius: 8, background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={f.kind === "search_title" ? "search" : f.kind === "thin" ? "file" : "rows"} size={16} color="#8B8883" /></span>}
         <div className="col g4 fill" style={{ minWidth: 0 }}>
-          <span className="row g8"><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "#5B6FD6", flexShrink: 0 }}>{KIND[f.kind].name}</span><span className="xs i3 ell" title={KIND[f.kind].where}>{f.problem}</span></span>
+          <span className="row g8"><span style={{ fontSize: 12, fontWeight: 500, color: "#5B6FD6", flexShrink: 0 }}>{KIND[f.kind].name}</span><span className="xs i3 ell" title={KIND[f.kind].where}>{f.problem}</span></span>
           {f.kind === "thin" ? <span className="sm i2">Add in Shopify: who it is for, what is in it, how to use it, and the size. Kaviar won’t invent those.</span> : <>
             {f.before && <span className="xs i3" style={{ textDecoration: "line-through" }}>{f.before}</span>}
             {on ? <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ id: f.id, text: e.target.value })} rows={f.kind === "search_description" ? 3 : 2}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--ink)", font: "inherit", fontSize: 13.5, lineHeight: "20px", resize: "vertical" }} />
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--ink)", font: "inherit", fontSize: 14, lineHeight: "20px", resize: "vertical" }} />
               : f.after ? <span className="sm i1" style={{ lineHeight: "20px" }}>{f.after} <span className="xs i3 tnum">· {f.after.length} letters</span></span>
-              : <span className="sm i3">Cleo hasn’t written this one yet — press “Check again”.</span>}
+              : <span className="sm i3">Cleo hasn’t written this one yet — press “Check again”</span>}
           </>}
           {f.error && f.status === "proposed" && <span className="xs" style={{ color: "#B4532A" }}>Not saved: {f.error}</span>}
         </div>
@@ -188,26 +188,25 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
         {/* ---- the store's last 30 days; each number opens the orders behind it */}
         {kpis.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>{kpis.map((k, i) => <StatTile key={k.label} k={k} tray={i % 2 === 1} />)}</div>}
         {/* ---- the state of the store, and the two buttons that matter */}
-        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "16px 20px 16px" }}>
-          <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${open.length ? "rgba(91,111,214,.34)" : "rgba(52,199,123,.30)"}, transparent)` }} />
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 20, background: "#121212", color: "#fff", padding: "16px 20px 16px" }}>
           <div className="row between g16" style={{ position: "relative", flexWrap: "wrap" }}>
             <div className="row g12" style={{ minWidth: 0 }}>
               <AgentFace kind="catalog" size={34} mood={open.length ? "up" : "happy"} />
               <div className="col">
-                                {!audit ? <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em" }}>Let Cleo read {brand}’s store</span>
+                                {!audit ? <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.015em" }}>Let Cleo read {brand}’s store</span>
                   : <span className="row g8" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
-                    <span className="tnum" style={{ fontSize: 30, lineHeight: "34px", fontWeight: 600, letterSpacing: "-0.03em" }}>{open.length}</span>
-                    <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>{open.length === 1 ? "thing to fix" : "things to fix"}</span>
+                    <span className="tnum" style={{ fontSize: 30, lineHeight: "34px", fontWeight: 600, letterSpacing: "-0.015em" }}>{open.length}</span>
+                    <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>{open.length === 1 ? "thing to fix" : "things to fix"}</span>
 
                   </span>}
-                <span style={{ fontSize: 12.5, color: DIM }}>{audit ? `${audit.products} products · ${audit.pictures} pictures · checked ${checked}` : "About a minute. Nothing changes on the store until you say so."}</span>
+                <span style={{ fontSize: 13, color: DIM }}>{audit ? `${audit.products} products · ${audit.pictures} pictures · checked ${checked}` : "About a minute. Nothing changes on the store until you say so."}</span>
               </div>
             </div>
             <div className="row g8" style={{ flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              {audit && <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone"
+              {audit && <div style={{ display: "inline-flex", padding: 4, gap: 2, borderRadius: 8, background: "rgba(255,255,255,.1)" }} role="radiogroup" aria-label="How much Kaviar may fix alone"
                 title={!canFix ? "Kaviar can read this store, not change it" : auto ? "Fills empty fields every morning. Never replaces your words." : "Nothing is saved until you press Fix"}>
                 {([[false, "Ask me first"], [true, "Fix automatically"]] as const).map(([v, label]) => (
-                  <button key={label} type="button" role="radio" aria-checked={auto === v} disabled={busy} onClick={() => pick(v)} style={{ height: 28, padding: "0 12px", borderRadius: 99, fontSize: 12.5, fontWeight: 500, background: auto === v ? "#fff" : "transparent", color: auto === v ? "#121212" : "rgba(255,255,255,.75)" }}>{label}</button>))}
+                  <button key={label} type="button" role="radio" aria-checked={auto === v} disabled={busy} onClick={() => pick(v)} style={{ height: 28, padding: "0 12px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: auto === v ? "#fff" : "transparent", color: auto === v ? "#121212" : "rgba(255,255,255,.75)" }}>{label}</button>))}
               </div>}
               {audit && !canFix && !ready.length && <a href={allow} className="row g6" style={pill(false)}>Allow in Shopify<Icon name="arrow-r" size={11} /></a>}
               <button type="button" disabled={busy} onClick={check} className="row g6" style={pill(!audit)}>{doing === "check" ? <Icon name="spinner" size={13} className="spin" /> : <Icon name="refresh" size={13} />}{doing === "check" ? "Reading the store…" : audit ? "Check again" : "Read my store"}</button>
@@ -249,13 +248,13 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
           {!base ? <span className="xs i3 fill">Not compared yet</span>
             : !base.gaps.length ? <span className="row g6 xs i2 fill"><Icon name="check-circle" size={14} weight="fill" color="#1F8A5B" />Level or ahead of {base.sites} competitor{base.sites === 1 ? "" : "s"}</span>
             : <span className="row g6 fill" style={{ flexWrap: "wrap" }}><span className="xs i3">Behind on</span>{base.gaps.slice(0, 5).map((g) => (
-              <a key={g.key} href={["speed", "answer", "code", "apps"].includes(g.key) ? "#speed" : "#fixes"} title={g.hint} className="row g6 xs" style={{ height: 24, padding: "0 10px", borderRadius: 99, background: "#FBEDE6", color: "#B4532A" }}><b className="w5">{g.name}</b><span className="tnum">{g.you} · {g.they}</span></a>))}</span>}
+              <a key={g.key} href={["speed", "answer", "code", "apps"].includes(g.key) ? "#speed" : "#fixes"} title={g.hint} className="row g6 xs" style={{ height: 24, padding: "0 10px", borderRadius: 6, background: "#FBEDE6", color: "#B4532A" }}><b className="w5">{g.name}</b><span className="tnum">{g.you} · {g.they}</span></a>))}</span>}
           <Link href={`/brands/${slug}/competitors`} className={`btn sm${base ? " quiet" : " dark"}`} style={{ flexShrink: 0 }}>{base ? "See the comparison" : "Compare"}<Icon name="arrow-r" size={11} color={base ? undefined : "#fff"} /></Link>
         </div>}
 
         {/* ---- speed on a phone */}
         {audit?.speed && audit.speed.pages.length > 0 && <div className="col g8" id="speed">
-          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Speed on a phone</span>
+          <span className="xs i3" style={{ fontWeight: 500 }}>Speed on a phone</span>
           <div className="row g10 stretch" style={{ flexWrap: "wrap" }}>{audit.speed.pages.map((p) => <SpeedCard key={p.key} p={p} admin={admin} />)}</div>
         </div>}
 
@@ -291,10 +290,10 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
 
         {/* ---- what Kaviar did, and when */}
         {runs.length > 0 && <div className="col g6">
-          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Checks</span>
+          <span className="xs i3" style={{ fontWeight: 500 }}>Checks</span>
           <div className="card" style={{ padding: "2px 16px" }}>
             {runs.map((r, i) => (
-              <div key={i} className="row g12 xs" style={{ padding: "9px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+              <div key={i} className="row g12 xs" style={{ padding: "8px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
                 <span className="i3 tnum" style={{ width: 84, flexShrink: 0 }}>{r.when}</span><span className="i2 fill ell" title={r.line}>{r.line}</span><span className="i3">{r.auto ? "morning check" : "by the team"}</span>
               </div>))}
           </div>

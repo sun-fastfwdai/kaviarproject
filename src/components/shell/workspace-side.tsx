@@ -14,7 +14,7 @@ export async function WorkspaceSide() {
     <aside className="side">
       <Wordmark />
       <div className="switcher boxed">
-        <div className="av l" style={{ borderRadius: 7, background: "var(--ink)" }}>K</div>
+        <div className="av l" style={{ borderRadius: 8, background: "var(--ink)" }}>K</div>
         <div className="col fill">
           <span className="nm">Operations</span>
           <span className="sb">{brands.length} brand{brands.length === 1 ? "" : "s"}</span>

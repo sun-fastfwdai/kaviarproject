@@ -21,7 +21,7 @@ export function WriteAdsForm({ slug, signal, disabled }: { slug: string; signal:
           </select>
         </label>
         <button className="btn dark" disabled={pending || disabled} style={{ height: 34 }}>
-          {pending ? <Icon name="spinner" size={14} className="spin" color="#fff" /> : <Icon name="sparkle" size={14} color="#fff" />}
+          {pending ? <Icon name="spinner" size={14} className="spin" color="#fff" /> : <Icon name="pencil" size={14} color="#fff" />}
           {pending ? "Remy is writing the ads…" : "Write the ads"}
         </button>
       </div>

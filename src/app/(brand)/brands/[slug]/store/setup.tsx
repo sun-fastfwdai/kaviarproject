@@ -38,7 +38,7 @@ export function StoreSetup({ slug, initial, products, profile, hasBuild, themes 
           <span className="row between"><span className="h3">Pages</span><span className="xs i3">{pages.length} selected</span></span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
             {PAGES.map(([k, l, opt]) => (
-              <label key={k} className="row g8 sm" style={{ padding: "9px 12px", border: "1px solid var(--line)", borderRadius: 10, cursor: "pointer", background: pages.includes(k) ? "#fff" : "var(--tray)" }}>
+              <label key={k} className="row g8 sm" style={{ padding: "8px 12px", border: "1px solid var(--line)", borderRadius: 10, cursor: "pointer", background: pages.includes(k) ? "#fff" : "var(--tray)" }}>
                 <input type="checkbox" checked={pages.includes(k)} onChange={() => setPages(pages.includes(k) ? pages.filter((x) => x !== k) : [...pages, k])} style={{ accentColor: "#121212" }} />{l}{opt && <span className="xs i3">Optional</span>}
               </label>
             ))}
@@ -74,7 +74,7 @@ export function StoreSetup({ slug, initial, products, profile, hasBuild, themes 
         {!profile && <span className="xs i3" style={{ lineHeight: "16px" }}>No brand profile yet — Remy writes from the store’s products only. Brands added through New brand onboarding get much better copy.</span>}
         <div className="fill" />
         {err && <span className="xs c-amber">{err}</span>}
-        <button type="button" className="btn dark" disabled={busy || pages.length === 0} onClick={go}>{busy ? <Icon name="spinner" size={14} className="spin" color="#fff" /> : <Icon name="sparkle" size={14} color="#fff" />}{hasBuild ? "Rebuild store" : "Start build"}</button>
+        <button type="button" className="btn dark" disabled={busy || pages.length === 0} onClick={go}>{busy ? <Icon name="spinner" size={14} className="spin" color="#fff" /> : <Icon name="pencil" size={14} color="#fff" />}{hasBuild ? "Rebuild store" : "Start build"}</button>
       </aside>
     </div>
   );

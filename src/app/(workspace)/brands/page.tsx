@@ -72,7 +72,7 @@ export default async function BrandsPage() {
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4">
               <h1 className="h1">Brands</h1>
-              <p className="lead">Every brand’s Shopify and Meta data, synced into Kaviar.</p>
+              <p className="lead">Every brand’s Shopify and Meta data, synced into Kaviar</p>
             </div>
             <div className="row">
               <div className="kpi"><span className="v">{brands.length}</span><span className="xs i3">Brands</span></div>
@@ -90,13 +90,13 @@ export default async function BrandsPage() {
               </div>
               <div className="col g6" style={{ alignItems: "center" }}>
                 <span className="h2">No brands yet</span>
-                <p className="t i3" style={{ maxWidth: 380 }}>Add a brand by connecting its Shopify store, or set it up now and connect the store later.</p>
+                <p className="t i3" style={{ maxWidth: 380 }}>Add a brand by connecting its Shopify store, or set it up now and connect the store later</p>
               </div>
               <div className="row g8">
                 <Link href="/brands/new" className="btn dark"><Icon name="plus" size={14} color="#fff" />Add brand</Link>
                 <Link href="/brands/new" className="btn"><ShopifyLogo size={14} />Connect Shopify store</Link>
               </div>
-              <span className="xs i3">Remy, Cleo, Otto and Iris are ready when you are.</span>
+              <span className="xs i3">Remy, Cleo, Otto and Iris are ready when you are</span>
             </div>
           ) : (
             <>

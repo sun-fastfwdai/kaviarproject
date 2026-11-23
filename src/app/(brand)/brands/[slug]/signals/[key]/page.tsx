@@ -50,7 +50,7 @@ export default async function SignalPage({ params }: PageProps<"/brands/[slug]/s
             <div className="col g6" style={{ maxWidth: 640 }}>
               <span className="row g6 xs i3"><Icon name={s.icon} size={13} />{s.group}</span>
               <h1 className="h1">{s.data}</h1>
-              <p className="lead">{s.use}.</p>
+              <p className="lead">{s.use}</p>
             </div>
             <StatusPill s={s.status} />
           </div>
@@ -73,8 +73,8 @@ export default async function SignalPage({ params }: PageProps<"/brands/[slug]/s
 
           <div className="card" style={{ padding: "16px 18px", gap: 12 }}>
             <div className="row g10"><AgentFace kind="builder" size={26} mood={usable ? "happy" : "focus"} /><div className="col"><span className="h3">Turn this signal into ads</span><span className="xs i3">Remy writes a batch — hooks, copy and formats — on the brand’s real products. You review them in Creative studio.</span></div></div>
-            {usable ? <WriteAdsForm slug={slug} signal={key} disabled={!aiReady()} /> : <span className="sm i3">This signal needs data before Remy can use it.</span>}
-            {!aiReady() && <span className="xs c-amber">The agents need the Claude API key to write ads.</span>}
+            {usable ? <WriteAdsForm slug={slug} signal={key} disabled={!aiReady()} /> : <span className="sm i3">This signal needs data before Remy can use it</span>}
+            {!aiReady() && <span className="xs c-amber">The agents need the Claude API key to write ads</span>}
           </div>
 
           {batches.length > 0 && (
@@ -82,7 +82,7 @@ export default async function SignalPage({ params }: PageProps<"/brands/[slug]/s
               <div className="row between" style={{ padding: "12px 16px" }}><span className="sm w5">Ads already made from this signal</span><span className="xs i3">{batches.length}</span></div>
               {batches.map((b) => (
                 <Link key={b.id} href={`${base}/creative/${b.id}`} className="tr compact" style={{ padding: "0 16px" }}>
-                  <div className="td fill"><Icon name="sparkle" size={14} color="#8B8883" /><span className="sm w5 i1 ell">{b.title}</span></div>
+                  <div className="td fill"><Icon name="megaphone" size={14} color="#8B8883" /><span className="sm w5 i1 ell">{b.title}</span></div>
                   <div className="td sm" style={{ width: 160 }}>{b.approved} of {b.n} approved</div>
                   <div className="td xs i3" style={{ width: 90 }}>{ago(b.createdAt)}</div>
                   <div className="td" style={{ width: 24 }}><Icon name="chev-r" size={13} color="#B5B2AC" /></div>

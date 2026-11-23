@@ -66,7 +66,7 @@ export function TestView({ slug, brand, t, now }: { slug: string; brand: string;
         <>
           <div className="col g8" style={{ padding: "14px 16px", borderRadius: 14, background: "#fff", border: "1px solid var(--line)", boxShadow: "0 4px 14px rgba(18,18,18,.04)" }}>
             <span className="row g8"><AgentFace kind="analyst" size={20} /><span className="xs w5 i3 fill">WHAT THE PANEL SAYS</span></span>
-            <span style={{ fontSize: 17, lineHeight: "25px", letterSpacing: "-0.01em" }} className="i1">{t.result.read?.headline ?? "The panel has answered."}</span>
+            <span style={{ fontSize: 16, lineHeight: "25px", letterSpacing: "-0.01em" }} className="i1">{t.result.read?.headline ?? "The panel has answered."}</span>
             {t.result.read?.summary && <span className="sm i2" style={{ lineHeight: "20px" }}>{t.result.read.summary}</span>}
             <span className="row g6" style={{ flexWrap: "wrap" }}>
               {t.result.stability != null && <span className={`pill ${t.result.stability >= 0.75 ? "green" : "amber"}`} style={{ height: 22, fontSize: 11 }} title="Each person looked twice, in opposite orders">Same answer on a second look · {pct(t.result.stability)}</span>}
@@ -86,7 +86,7 @@ export function TestView({ slug, brand, t, now }: { slug: string; brand: string;
             <div className="row top g12" style={{ flexWrap: "wrap" }}>
               {t.result.read.groups.length > 0 && <div className="col g6 fill" style={{ minWidth: 280, padding: "12px 14px", borderRadius: 12, background: "var(--tray)" }}>
                 <span className="row g6 sm w5"><Icon name="users-three" size={14} />By group</span>
-                {t.result.read.groups.map((g) => <span key={g.group} className="row top g6 xs i2" style={{ lineHeight: "17px" }}><span className="dot" style={{ width: 7, height: 7, marginTop: 5, flexShrink: 0, background: groupTone(groups, g.group)[0] }} /><span><b className="w5 i1">{g.group}:</b> {g.insight}</span></span>)}
+                {t.result.read.groups.map((g) => <span key={g.group} className="row top g6 xs i2" style={{ lineHeight: "17px" }}><span className="dot" style={{ width: 7, height: 7, marginTop: 4, flexShrink: 0, background: groupTone(groups, g.group)[0] }} /><span><b className="w5 i1">{g.group}:</b> {g.insight}</span></span>)}
               </div>}
               {t.result.read.next.length > 0 && <div className="col g6 fill" style={{ minWidth: 280, padding: "12px 14px", borderRadius: 12, background: "var(--tray)" }}>
                 <span className="row g6 sm w5"><Icon name="lightning" size={14} color="#2563EB" />Next</span>
@@ -140,9 +140,9 @@ function ItemRow({ rank, s, it, read, rs, brand, people, groups, open, onOpen, w
         <span className="col g4 fill" style={{ minWidth: 0 }}>
           <span className="row g6" style={{ minWidth: 0 }}>
             <span className="sm w5 i1 ell">{it.label}</span>
-            {winner && <span className="pill green" style={{ height: 20, fontSize: 10.5 }}><Icon name="star" size={10} color="#1F8A5B" />Panel pick</span>}
-            {read && <span className={`pill ${VERDICT[read.verdict]}`} style={{ height: 20, fontSize: 10.5 }}>{read.verdict}</span>}
-            {it.bench && <span className="pill" style={{ height: 20, fontSize: 10.5 }}>Live · the bar to beat</span>}
+            {winner && <span className="pill green" style={{ height: 20, fontSize: 11 }}><Icon name="star" size={10} color="#1F8A5B" />Panel pick</span>}
+            {read && <span className={`pill ${VERDICT[read.verdict]}`} style={{ height: 20, fontSize: 11 }}>{read.verdict}</span>}
+            {it.bench && <span className="pill" style={{ height: 20, fontSize: 11 }}>Live · the bar to beat</span>}
           </span>
           <span className="xs i3 ell">{read?.why ?? `${pct(s.clear)} understood it · ${pct(s.trust)} believed it`}</span>
         </span>
@@ -192,7 +192,7 @@ function Heatmap({ t, order, groups }: { t: TestRow; order: string[]; groups: st
               <tr key={p.id}>
                 <td style={{ paddingRight: 8, whiteSpace: "nowrap" }}><span className="row g6"><Face p={p} groups={groups} size={18} /><span className="xs i1">{p.name}, {p.age}</span><span className="xs i3">{p.weight}%</span></span></td>
                 {order.map((k) => { const [bg, c, l] = CELL(cellOf(p.id, k)); return (
-                  <td key={k} onMouseEnter={() => setHover(`${p.id}|${k}`)} onMouseLeave={() => setHover(null)} style={{ width: 52, height: 24, borderRadius: 5, background: bg, color: c, textAlign: "center", border: bg === "#fff" ? "1px solid var(--line)" : undefined, cursor: "default", fontWeight: 500 }}>{l}</td>
+                  <td key={k} onMouseEnter={() => setHover(`${p.id}|${k}`)} onMouseLeave={() => setHover(null)} style={{ width: 52, height: 24, borderRadius: 6, background: bg, color: c, textAlign: "center", border: bg === "#fff" ? "1px solid var(--line)" : undefined, cursor: "default", fontWeight: 500 }}>{l}</td>
                 ); })}
               </tr>
             ))}

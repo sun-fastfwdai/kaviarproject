@@ -166,7 +166,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
                 ].map(([logo, k, v, n]) => (
                   <div key={k as string} className="col g2">
                     <span className="row g6 xs i3">{logo}{k}</span>
-                    <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 500, letterSpacing: "-0.025em" }} className="tnum">{v}</span>
+                    <span style={{ fontSize: 24, lineHeight: "30px", fontWeight: 500, letterSpacing: "-0.015em" }} className="tnum">{v}</span>
                     <span className="xs i3">{n}</span>
                   </div>
                 ))}
@@ -204,7 +204,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               const last = history.find((r) => r.provider === p && r.status === "success")?.finishedAt;
               const tone = !c ? "" : c.status === "connected" || c.status === "sample" ? "green" : c.status === "needs_reauth" || c.status === "choose_account" ? "amber" : "";
               return (
-                <Link key={p} href={`${base}/integrations`} className="row g10 hv" style={{ padding: "9px 6px", margin: "0 -6px", borderRadius: 8, borderTop: i ? "1px solid var(--line)" : 0 }}>
+                <Link key={p} href={`${base}/integrations`} className="row g10 hv" style={{ padding: "8px 6px", margin: "0 -6px", borderRadius: 8, borderTop: i ? "1px solid var(--line)" : 0 }}>
                   <span style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--line)", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><SourceLogo provider={p} size={15} /></span>
                   <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1">{p === "shopify" ? "Shopify" : "Meta Ads"}</span><span className="xs i3 ell">{c?.externalId ?? "not connected"}</span></div>
                   <span className="row g6 xs i2"><span className={`dot ${tone}`} />{!c ? "connect" : c.status === "needs_reauth" ? "reconnect" : c.status === "choose_account" ? "choose account" : last ? `synced ${ago(last)}` : "waiting"}</span>

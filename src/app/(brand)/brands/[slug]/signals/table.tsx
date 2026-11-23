@@ -11,7 +11,7 @@ const STATUS: Record<Status, [string, string]> = {
 
 export function StatusPill({ s }: { s: Status }) {
   const [t, tone] = STATUS[s];
-  return <span className={`pill ${tone}`} style={{ height: 22, fontSize: 11.5 }}>{tone && <span className={`dot ${tone}`} />}{t}</span>;
+  return <span className={`pill ${tone}`} style={{ height: 22, fontSize: 12 }}>{tone && <span className={`dot ${tone}`} />}{t}</span>;
 }
 
 /** Every row opens that signal's page; the "Where in Kaviar" chip jumps straight to the related screen. */

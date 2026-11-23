@@ -61,7 +61,7 @@ export function TestSetup(p: Props) {
     URL.revokeObjectURL(url);
   };
   const num = (v: number, set: (n: number) => void, step = 1, min = 1) => (
-    <input type="number" value={v} min={min} step={step} onChange={(e) => set(Math.max(min, Number(e.target.value) || min))} style={{ width: 70, border: "1px solid var(--line-2)", borderRadius: 6, padding: "3px 6px", font: "inherit", fontSize: 12.5 }} />
+    <input type="number" value={v} min={min} step={step} onChange={(e) => set(Math.max(min, Number(e.target.value) || min))} style={{ width: 70, border: "1px solid var(--line-2)", borderRadius: 6, padding: "4px 6px", font: "inherit", fontSize: 13 }} />
   );
 
   return (
@@ -76,14 +76,14 @@ export function TestSetup(p: Props) {
           <div className="col g12 fill" style={{ minWidth: 0 }}>
             <div className="card" style={{ padding: "4px 16px 4px" }}>
               <span className="row g8 sm w5" style={{ height: 40 }}><span className="xs i4">01</span><Icon name="megaphone" size={14} />Campaign</span>
-              <Row k="Name"><input value={name} onChange={(e) => setName(e.target.value)} style={{ border: "1px solid var(--line-2)", borderRadius: 6, padding: "3px 6px", font: "inherit", fontSize: 12.5, width: 220 }} /></Row>
+              <Row k="Name"><input value={name} onChange={(e) => setName(e.target.value)} style={{ border: "1px solid var(--line-2)", borderRadius: 6, padding: "4px 6px", font: "inherit", fontSize: 13, width: 220 }} /></Row>
               <Row k="Objective">Sales · purchases</Row>
               <Row k="Budget"><span className="sm i2">{sym}</span>{num(daily, setDaily, 5, 5)}<span className="xs i3">/ day ·</span>{num(days, setDays, 1, 3)}<span className="xs i3">days</span></Row>
               <Row k="Max spend"><b className="w5">{money(daily * days, p.currency)}</b></Row>
             </div>
             <div className="card" style={{ padding: "4px 16px 4px" }}>
               <span className="row g8 sm w5" style={{ height: 40 }}><span className="xs i4">02</span><Icon name="users" size={14} />Who sees it</span>
-              <Row k="Audience"><span className="ell" style={{ maxWidth: 300 }}>{p.audience}</span>{p.audienceSize != null && <span className="pill green" style={{ height: 20, fontSize: 10.5 }}>{p.audienceSize.toLocaleString("en-US")} Shopify customers</span>}</Row>
+              <Row k="Audience"><span className="ell" style={{ maxWidth: 300 }}>{p.audience}</span>{p.audienceSize != null && <span className="pill green" style={{ height: 20, fontSize: 11 }}>{p.audienceSize.toLocaleString("en-US")} Shopify customers</span>}</Row>
               {p.exclude && <Row k="Exclude">{p.exclude}</Row>}
               <Row k="Placements">Reels · Feed · Stories</Row>
             </div>
@@ -91,16 +91,16 @@ export function TestSetup(p: Props) {
               <span className="row g8 sm w5" style={{ height: 40 }}><span className="xs i4">03</span><Icon name="target" size={14} />When to call it</span>
               <Row k="Idea wins">≥ {num(scale, setScale, 0.1, 1)}× real return at day {days} → scale</Row>
               <Row k="Stop early">&lt; {num(stop, setStop, 0.1, 0.1)}× by day {Math.ceil(days / 2)} → pause</Row>
-              <Row k="Measured by"><span className="pill" style={{ height: 20, fontSize: 10.5 }}>Shopify orders</span></Row>
+              <Row k="Measured by"><span className="pill" style={{ height: 20, fontSize: 11 }}>Shopify orders</span></Row>
             </div>
           </div>
           <div className="card col" style={{ width: 340, flexShrink: 0, overflow: "hidden" }}>
             <span className="row between sm w5" style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}><span className="row g8"><Icon name="image" size={14} />Ads · {p.ads.length} approved</span></span>
             {p.ads.map((a, i) => (
               <button key={a.id} type="button" onClick={() => setSel(a.id)} className="row g10" style={{ padding: "10px 14px", borderTop: i ? "1px solid var(--line)" : 0, textAlign: "left", background: a.id === ad?.id ? "var(--tray)" : "#fff", cursor: "pointer" }}>
-                <span style={{ width: 44, flexShrink: 0, borderRadius: 7, overflow: "hidden" }}><AdArt ad={a} brand="" ratio="1 / 1" bare /></span>
+                <span style={{ width: 44, flexShrink: 0, borderRadius: 8, overflow: "hidden" }}><AdArt ad={a} brand="" ratio="1 / 1" bare /></span>
                 <span className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{a.hook}</span><span className="xs i3 ell">{a.primaryText}</span></span>
-                <span className={`pill ${adChecks[i] ? "green" : "amber"}`} style={{ height: 20, fontSize: 10.5 }}>{adChecks[i] ? "Ready" : "Check"}</span>
+                <span className={`pill ${adChecks[i] ? "green" : "amber"}`} style={{ height: 20, fontSize: 11 }}>{adChecks[i] ? "Ready" : "Check"}</span>
               </button>
             ))}
             <div className="col g6" style={{ padding: "12px 14px", borderTop: "1px solid var(--line)", background: "var(--tray)" }}>

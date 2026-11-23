@@ -55,7 +55,7 @@ function SourceCard({ slug, provider, conn, lastSync, extra }: { slug: string; p
             <Check ok={null} label="Read-only access granted" value="on connect" />
             {extra}
             <Check ok={null} label="Last sync" value="never" />
-            <span className="xs i3" style={{ paddingTop: 8 }}>Connect {name} and Cleo runs the first backfill.</span>
+            <span className="xs i3" style={{ paddingTop: 8 }}>Connect {name} and Cleo runs the first backfill</span>
           </>
         )}
       </div>
@@ -114,7 +114,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
         <div className="col g16" style={{ padding: "22px 24px" }}>
           <Leftovers slug={slug} count={left.paths.length} size={left.bytes >= 1e6 ? `${(left.bytes / 1e6).toFixed(1)} MB` : `${Math.round(left.bytes / 1000)} KB`} />
           <div className="row between" style={{ alignItems: "flex-end" }}>
-            <div className="col g4"><h1 className="h1">Data sync</h1><p className="sm i3">Shopify and Meta Ads data, kept in Kaviar’s database and ready for the agents.</p></div>
+            <div className="col g4"><h1 className="h1">Data sync</h1><p className="sm i3">Shopify and Meta Ads data, kept in Kaviar’s database and ready for the agents</p></div>
             <div className="row">
               <div className="kpi"><span className="v">{[conns.shopify, conns.meta].filter(Boolean).length}</span><span className="xs i3">Sources</span></div>
               <div className="kpi"><span className="v">{tables.length}</span><span className="xs i3">Tables</span></div>
@@ -178,7 +178,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
                   const what = r.provider === "shopify" ? `${num(d.orders ?? 0)} orders · ${num(d.products ?? 0)} products` : `${num(d.insights ?? 0)} insight rows · ${num(d.ads ?? 0)} ads${d.history ? ` · ${num(d.history)} older rows` : ""}`;
                   return (
                     <div key={r.id} className="row top g10" style={{ padding: "8px 0" }}>
-                      <span style={{ width: 9, height: 9, borderRadius: 99, marginTop: 5, flexShrink: 0, background: tone }} />
+                      <span style={{ width: 9, height: 9, borderRadius: 99, marginTop: 4, flexShrink: 0, background: tone }} />
                       <div className="col fill" style={{ minWidth: 0 }}>
                         <span className="row g6 sm w5 i1"><SourceLogo provider={r.provider} size={12} />{TRIGGER[r.trigger] ?? r.trigger}{r.mode === "backfill" && r.trigger !== "connect" ? " · backfill" : ""}</span>
                         <span className={`xs ${r.status === "error" ? "c-amber" : "i3"} ell`} title={r.error ?? undefined}>{r.status === "error" ? r.error : r.status === "running" ? "in progress…" : what}</span>

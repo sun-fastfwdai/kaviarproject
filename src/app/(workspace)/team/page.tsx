@@ -14,10 +14,10 @@ const COLORS = ["k", "j", "u", "d"];
 const initials = (n: string) => n.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
 const AGENTS: { kind: "builder" | "catalog" | "qa" | "analyst"; name: string; role: string; does: string; rules: [IconName, string, string][] }[] = [
-  { kind: "builder", name: "Remy", role: "Builds pages", does: "Builds store pages and drafts ad creatives.", rules: [["eye", "Reads", "Store & brand files"], ["sparkle", "Drafts", "Theme, creatives"], ["check-circle", "Asks first", "Headlines, creatives"], ["lock", "Never", "Publish, launch ads"]] },
-  { kind: "catalog", name: "Cleo", role: "Manages catalog", does: "Syncs Shopify and Meta data, keeps the catalog clean.", rules: [["eye", "Reads", "Store & ads data"], ["sparkle", "Drafts", "Catalog updates"], ["check-circle", "Asks first", "Price changes"], ["lock", "Never", "Delete products"]] },
-  { kind: "qa", name: "Otto", role: "Checks quality", does: "Checks quality, brand voice and ad policy.", rules: [["eye", "Reads", "Everything"], ["sparkle", "Drafts", "Fix suggestions"], ["check-circle", "Asks first", "Alt text, fixes"], ["lock", "Never", "Publish"]] },
-  { kind: "analyst", name: "Iris", role: "Studies the brand", does: "Studies each brand and explains the numbers.", rules: [["eye", "Reads", "Data & brand docs"], ["sparkle", "Drafts", "Insights, segments"], ["check-circle", "Asks first", "Budget proposals"], ["lock", "Never", "Spend"]] },
+  { kind: "builder", name: "Remy", role: "Builds pages", does: "Builds store pages and drafts ad creatives.", rules: [["eye", "Reads", "Store & brand files"], ["pencil", "Drafts", "Theme, creatives"], ["check-circle", "Asks first", "Headlines, creatives"], ["lock", "Never", "Publish, launch ads"]] },
+  { kind: "catalog", name: "Cleo", role: "Manages catalog", does: "Syncs Shopify and Meta data, keeps the catalog clean.", rules: [["eye", "Reads", "Store & ads data"], ["pencil", "Drafts", "Catalog updates"], ["check-circle", "Asks first", "Price changes"], ["lock", "Never", "Delete products"]] },
+  { kind: "qa", name: "Otto", role: "Checks quality", does: "Checks quality, brand voice and ad policy.", rules: [["eye", "Reads", "Everything"], ["pencil", "Drafts", "Fix suggestions"], ["check-circle", "Asks first", "Alt text, fixes"], ["lock", "Never", "Publish"]] },
+  { kind: "analyst", name: "Iris", role: "Studies the brand", does: "Studies each brand and explains the numbers.", rules: [["eye", "Reads", "Data & brand docs"], ["pencil", "Drafts", "Insights, segments"], ["check-circle", "Asks first", "Budget proposals"], ["lock", "Never", "Spend"]] },
 ];
 
 export default async function TeamPage() {
@@ -47,9 +47,9 @@ export default async function TeamPage() {
           <div className="row between top" style={{ gap: 16, flexWrap: "wrap" }}>
             <div className="col g4">
               <h1 className="h1">Team</h1>
-              <p className="lead">The people and agents who run every brand.</p>
+              <p className="lead">The people and agents who run every brand</p>
             </div>
-            <div className="notice" style={{ alignItems: "center" }}><Icon name="info" size={14} />A brand login sees one brand only — not the others, and not the team.</div>
+            <div className="notice" style={{ alignItems: "center" }}><Icon name="info" size={14} />A brand login sees one brand only — not the others, and not the team</div>
           </div>
 
           <div className="col g10">
@@ -91,7 +91,7 @@ export default async function TeamPage() {
                 {links.map((l, i) => (
                   <div key={l.id} className="row g12" style={{ padding: "10px 16px", borderTop: i ? "1px solid var(--line)" : 0 }}>
                     <span className="mono i1">…{l.hint}</span>
-                    <span className="pill" style={{ height: 22, fontSize: 11.5 }}>{l.brand ? `Brand login · ${l.brand}` : l.role === "owner" ? "Owner" : "Operator"}</span>
+                    <span className="pill" style={{ height: 22, fontSize: 12 }}>{l.brand ? `Brand login · ${l.brand}` : l.role === "owner" ? "Owner" : "Operator"}</span>
                     <span className="sm i2 fill">{l.uses} of {l.maxUses} used · expires in {Math.max(0, daysUntil(l.expiresAt))} days{l.by ? ` · by ${l.by}` : ""}</span>
                     <RevokeInvite id={l.id} />
                   </div>

@@ -59,7 +59,7 @@ export function AudienceView({ slug, brand, kind, own, hasMeta, panels, tests, t
         <div className="row between top g16">
           <div className="col g4" style={{ minWidth: 0 }}>
             <h1 className="h1">Audience test</h1>
-            <p className="sm i3" style={{ maxWidth: 680 }}>{PANEL_SIZE} look-alike shoppers of {kind === "yours" ? brand : "this kind of product"} pick the winner before you spend.</p>
+            <p className="sm i3" style={{ maxWidth: 680 }}>{PANEL_SIZE} look-alike shoppers of {kind === "yours" ? brand : "this kind of product"} pick the winner before you spend</p>
           </div>
           {panel?.panel && !building && <span className="chip" style={{ flexShrink: 0 }} suppressHydrationWarning><AgentFace kind="analyst" size={16} />Panel built by Iris · {panel.finishedAt ? day(panel.finishedAt) : day(panel.panel.at)}</span>}
         </div>
@@ -96,8 +96,8 @@ export function AudienceView({ slug, brand, kind, own, hasMeta, panels, tests, t
               : `No store or ad data needed: Iris builds ${PANEL_SIZE} people who typically see and buy this kind of product on Instagram and Facebook, from what’s known about the category and your market research. Good for a brand new to the market.`}
             steps={[
               { agent: "analyst", title: "The panel", body: kind === "yours" ? "People weighted like the audience your ads reach — including the skeptics and the price-sensitive." : "Typical shoppers for the category, fans and skeptics in their real share." },
-              { icon: "eye", title: "The test", body: "Each person looks at the ads twice, in opposite orders, and says if they’d stop, tap or buy — and why." },
-              { icon: "target", title: "The read", body: "Iris ranks the ads, quotes what people said, and Remy writes fixed versions of the ones that almost work." },
+              { icon: "eye", title: "The test", body: "Each person looks at the ads twice, in opposite orders, and says if they’d stop, tap or buy — and why" },
+              { icon: "target", title: "The read", body: "Iris ranks the ads, quotes what people said, and Remy writes fixed versions of the ones that almost work" },
             ]}
             art={<PanelArt />}
             actions={<button type="button" className="btn dark" disabled={busy || (kind === "yours" && !hasOwn)} onClick={build}>{busy ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <AgentFace kind="analyst" size={14} />}Build the panel · about 1–2 min</button>}
@@ -175,7 +175,7 @@ function NewTest({ slug, kind, batches, videos, preselect, hasBench, onStarted }
       {what === "ads" ? (
         batches.length ? <Combo label="Batch" prefix="Batch" value={batchId} onChange={setBatchId} menuWidth={420} searchable
           options={batches.map((b) => ({ value: b.id, label: b.title, sub: `${b.ads} ad${b.ads === 1 ? "" : "s"} · ${day(b.createdAt)}` }))} />
-          : <span className="xs i3">No batches yet — <Link className="lnk" href={`/brands/${slug}/creative`}>write ads in Creative studio</Link> first.</span>
+          : <span className="xs i3">No batches yet — <Link className="lnk" href={`/brands/${slug}/creative`}>write ads in Creative studio</Link> first</span>
       ) : null}
       {what === "ads" && chosen?.audience && (
         <div className="row top g10" style={{ flexWrap: "wrap" }}>
@@ -206,7 +206,7 @@ function NewTest({ slug, kind, batches, videos, preselect, hasBench, onStarted }
             ); })}
           </div>
         </div>
-      ) : <span className="xs i3">No videos yet — <Link className="lnk" href={`/brands/${slug}/creative/shoots`}>make one in Shoots</Link> first.</span>}
+      ) : <span className="xs i3">No videos yet — <Link className="lnk" href={`/brands/${slug}/creative/shoots`}>make one in Shoots</Link> first</span>}
       <div className="row g10" style={{ flexWrap: "wrap" }}>
         {hasBench && !focused && <label className="row g6 xs i2" style={{ cursor: "pointer" }}><input type="checkbox" checked={bench} onChange={(e) => setBench(e.target.checked)} />Add your best live Meta ad as the bar to beat</label>}
         <span className="fill" />

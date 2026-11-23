@@ -94,9 +94,9 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
           <EmptyState eyebrow="Before the first ad" title="Research the market before spending on ads"
             body={`New to ${marketName(market)}? Iris searches the web for demand, buyers and competitors for one product, reads competitors’ live Meta ads, and plans a cheap test of static ads — so the first budget tests messages instead of guesses. Takes about 3–5 minutes.`}
             steps={[
-              { agent: "analyst", title: "Market", body: "Demand, buyer groups, competitors, trends and gaps — each with its sources." },
-              { icon: "megaphone", title: "Competitor ads", body: "Their live ads from the Meta Ad Library, plus screenshots you add, and what they all say." },
-              { icon: "target", title: "Message test", body: "Static ads for each buyer × message, written by Remy into Creative studio." },
+              { agent: "analyst", title: "Market", body: "Demand, buyer groups, competitors, trends and gaps — each with its sources" },
+              { icon: "megaphone", title: "Competitor ads", body: "Their live ads from the Meta Ad Library, plus screenshots you add, and what they all say" },
+              { icon: "target", title: "Message test", body: "Static ads for each buyer × message, written by Remy into Creative studio" },
             ]}
             art={<ResearchArt />}
             actions={<button type="button" className="btn dark" disabled={starting} onClick={start}>{starting ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="search" size={13} color="#fff" />}Research {subject ? "this product" : "the brand"} in {marketName(market)}</button>} />
@@ -111,7 +111,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
             </div>
             {tab === "summary" && <Summary slug={slug} row={row} onOpen={(k) => go({ tab: k })} />}
             {tab === "position" && <PositionTab key={row.positioning?.at ?? "none"} slug={slug} id={row.id} pos={row.positioning} running={running} />}
-            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} onPlan={() => go({ tab: "plan" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
+            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} onPlan={() => go({ tab: "plan" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up</span>)}
             {tab === "ads" && <AdsTab slug={slug} id={row.id} row={row} market={market} hasMeta={hasMeta} running={running} />}
             {tab === "plan" && <PlanTab slug={slug} id={row.id} row={row} running={running} onMarket={() => go({ tab: "market" })} />}
           </>
@@ -178,12 +178,12 @@ function Summary({ slug, row, onOpen }: { slug: string; row: ResearchRow; onOpen
     <div className="col g14" style={{ maxWidth: 900 }}>
       {row.positioning?.statement && <div className="card col g10" style={{ padding: 18 }}>
         {head("Your position", "position")}
-        <span style={{ fontSize: 19, lineHeight: "28px", fontWeight: 500, letterSpacing: "-0.01em" }}>{row.positioning.statement}</span>
+        <span style={{ fontSize: 20, lineHeight: "28px", fontWeight: 500, letterSpacing: "-0.01em" }}>{row.positioning.statement}</span>
       </div>}
       {segs.length > 0 && <div className="card col g4" style={{ padding: "16px 18px" }}>
         {head("Who to sell to", "market")}
         {segs.map((x) => (
-          <div key={x.id} className="row g12" style={{ padding: "11px 0", borderTop: "1px solid var(--line)" }}>
+          <div key={x.id} className="row g12" style={{ padding: "12px 0", borderTop: "1px solid var(--line)" }}>
             <span className="col g2 fill" style={{ minWidth: 0 }}>
               <span className="row g8"><span className="sm w5 i1">{x.name}</span>{(row.positioning?.primary === x.name || x.priority === "Primary") && <span className="pill green" style={{ height: 18, fontSize: 10 }}>Primary</span>}</span>
               <span className="xs i2 ell" title={x.angle}>Say: {x.angle}</span>
@@ -194,9 +194,9 @@ function Summary({ slug, row, onOpen }: { slug: string; row: ResearchRow; onOpen
       {hyps.length > 0 && <div className="card col g4" style={{ padding: "16px 18px" }}>
         {head("What to test first", "plan", "The test plan")}
         {hyps.map((h) => (
-          <div key={h.id} className="row top g12" style={{ padding: "11px 0", borderTop: "1px solid var(--line)" }}>
+          <div key={h.id} className="row top g12" style={{ padding: "12px 0", borderTop: "1px solid var(--line)" }}>
             <span className="sm i1 fill" style={{ lineHeight: "20px" }}>{h.claim}</span>
-            <span className={`pill${h.strength === "measured" ? " green" : ""}`} style={{ height: 20, fontSize: 10.5, flexShrink: 0 }}>{STRENGTH_NAME[h.strength]}</span>
+            <span className={`pill${h.strength === "measured" ? " green" : ""}`} style={{ height: 20, fontSize: 11, flexShrink: 0 }}>{STRENGTH_NAME[h.strength]}</span>
           </div>))}
       </div>}
       <div className="row g10" style={{ padding: 14, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>

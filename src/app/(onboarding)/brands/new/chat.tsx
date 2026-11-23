@@ -55,7 +55,7 @@ function BookModal({ id, brand, slot, onClose }: { id: string; brand: string; sl
           <input type="hidden" name="slot" value={slot} />
           <div className="row between sm" style={{ padding: "8px 10px", background: "var(--tray)", borderRadius: 8 }}><span className="i3">Time</span><span className="w5">{slot}</span></div>
           <label className="col g6"><span className="label">Brand contact’s email</span><div className="input"><input name="email" type="email" required placeholder="founder@brand.com" autoFocus /></div></label>
-          <label className="col g6"><span className="label">Note for Jina <span className="i3" style={{ fontWeight: 400 }}>· optional</span></span><div className="input" style={{ height: "auto", padding: 8 }}><textarea name="note" rows={3} style={{ border: 0, outline: 0, width: "100%", resize: "none", font: "inherit" }} placeholder="They mostly want subscriptions first." /></div></label>
+          <label className="col g6"><span className="label">Note for Jina <span className="i3" style={{ fontWeight: 400 }}>· optional</span></span><div className="input" style={{ height: "auto", padding: 8 }}><textarea name="note" rows={3} style={{ border: 0, outline: 0, width: "100%", resize: "none", font: "inherit" }} placeholder="They mostly want subscriptions first" /></div></label>
           {state?.error && <div className="notice red">{state.error}</div>}
         </form>
       )}
@@ -136,7 +136,7 @@ export function ChatStep({ id, name, reached, ob, slots, aiReady }: { id: string
               )}
               {turns.map((t, i) => t.who === "kris" ? (
                 <div key={i} className="col g4" style={{ alignItems: "flex-end" }}>
-                  <span style={{ maxWidth: "70%", padding: "9px 12px", borderRadius: 10, background: "var(--ink)", color: "#fff", fontSize: 13, lineHeight: "19px" }}>{t.text}</span>
+                  <span style={{ maxWidth: "70%", padding: "8px 12px", borderRadius: 10, background: "var(--ink)", color: "#fff", fontSize: 13, lineHeight: "19px" }}>{t.text}</span>
                   <span className="xs i4">You · {time(t.at)}</span>
                 </div>
               ) : (
@@ -159,17 +159,17 @@ export function ChatStep({ id, name, reached, ob, slots, aiReady }: { id: string
                         })}
                       </div>
                     )}
-                    {i === 0 && !ob.scan && <span className="xs i3">Or paste the store link below and Iris will read it.</span>}
+                    {i === 0 && !ob.scan && <span className="xs i3">Or paste the store link below and Iris will read it</span>}
                   </div>
                 </div>
               ))}
               {pendingTurn && !turns.some((t) => t.chosen === pendingTurn) && (
-                <div className="col g4" style={{ alignItems: "flex-end" }}><span style={{ maxWidth: "70%", padding: "9px 12px", borderRadius: 10, background: "var(--ink)", color: "#fff", fontSize: 13 }}>{pendingTurn}</span></div>
+                <div className="col g4" style={{ alignItems: "flex-end" }}><span style={{ maxWidth: "70%", padding: "8px 12px", borderRadius: 10, background: "var(--ink)", color: "#fff", fontSize: 13 }}>{pendingTurn}</span></div>
               )}
               {busy && <div className="row g10"><KaviarOrb size={24} /><span className="sm i3 row g6"><Icon name="spinner" size={14} className="spin" />{/\./.test(pendingTurn ?? "") ? "Iris is reading the site…" : "Thinking…"}</span></div>}
               {!ob.scan && turns.length > 0 && (
                 <div className="row g10" style={{ padding: "10px 12px", border: "1px dashed var(--line-2)", borderRadius: 10 }}>
-                  <AgentFace kind="analyst" size={20} /><span className="sm i2"><b className="w5 i1">Iris</b> is ready to read the site and brand deck as soon as you share them.</span>
+                  <AgentFace kind="analyst" size={20} /><span className="sm i2"><b className="w5 i1">Iris</b> is ready to read the site and brand deck as soon as you share them</span>
                 </div>
               )}
             </div>
@@ -211,7 +211,7 @@ export function ChatStep({ id, name, reached, ob, slots, aiReady }: { id: string
             <div className="col g10" style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 12, padding: 12 }}>
               <div className="row top g10">
                 <span style={{ width: 30, height: 30, borderRadius: 99, background: "#9A6B4F", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>JN</span>
-                <div className="col"><span className="sm w5">{name} still unsure?</span><span className="xs i3">Book a call between {name} and Jina, brand specialist.</span></div>
+                <div className="col"><span className="sm w5">{name} still unsure?</span><span className="xs i3">Book a call between {name} and Jina, brand specialist</span></div>
               </div>
               <div className="row g6">{slots.map((s) => <button key={s} type="button" className={`btn sm fill${slot === s ? " dark" : ""}`} onClick={() => setSlot(s)} style={{ padding: 0 }}>{s}</button>)}</div>
               <button type="button" className="btn sm" onClick={() => setBook(true)}><Icon name="calendar" size={13} />Book a 15-min call with {name}</button>

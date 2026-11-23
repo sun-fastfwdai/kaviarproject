@@ -39,7 +39,7 @@ function Head({ t, n, children }: { t: string; n: number; children?: React.React
 }
 function Fact({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: string }) {
   return (
-    <div className="col g2 fill" style={{ minWidth: 120 }}><span style={{ fontSize: 11.5, color: DIM }}>{k}</span><span className="tnum" style={{ fontSize: 22, lineHeight: "26px", fontWeight: 600, color: tone ?? "#fff" }}>{v}</span>{sub && <span className="ell" style={{ fontSize: 11.5, color: DIM }}>{sub}</span>}</div>
+    <div className="col g2 fill" style={{ minWidth: 120 }}><span style={{ fontSize: 12, color: DIM }}>{k}</span><span className="tnum" style={{ fontSize: 22, lineHeight: "26px", fontWeight: 600, color: tone ?? "#fff" }}>{v}</span>{sub && <span className="ell" style={{ fontSize: 12, color: DIM }}>{sub}</span>}</div>
   );
 }
 
@@ -69,7 +69,7 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
       <div key={c.id} className="row g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0, opacity: c.status === "skipped" ? 0.55 : 1 }}>
         <span style={{ width: 32, height: 32, borderRadius: 10, background: `${tone}14`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={icon} size={15} color={tone} /></span>
         <div className="col g2 fill" style={{ minWidth: 0 }}>
-          <span className="row g8"><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: tone, flexShrink: 0 }}>{label}</span><span className="sm w5 i1 ell">{c.title}</span></span>
+          <span className="row g8"><span style={{ fontSize: 12, fontWeight: 500, color: tone, flexShrink: 0 }}>{label}</span><span className="sm w5 i1 ell">{c.title}</span></span>
           <span className="xs ell" title={c.why}><span className="i3" style={{ textDecoration: "line-through" }}>{c.before}</span> <span className="c-green w5">→ {c.after}</span><span className="i3"> · {c.onMeta ? `${c.onMeta} by Kaviar · ` : ""}{c.why}</span></span>
         </div>
         <div className="row g6" style={{ minWidth: 232, justifyContent: "flex-end", flexShrink: 0 }}>
@@ -99,17 +99,16 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
     <div id="autopilot" style={{ borderRadius: 20, overflow: "hidden", boxShadow: "0 0 0 1px var(--line), 0 12px 32px rgba(18,18,18,.06)", background: "#fff", scrollMarginTop: 16 }}>
       {/* ---- running, and how much it may decide alone */}
       <div style={{ position: "relative", overflow: "clip", background: "#121212", color: "#fff", padding: "20px 22px 18px" }}>
-        <div aria-hidden style={{ position: "absolute", right: -140, top: -180, width: 480, height: 480, borderRadius: 999, background: "radial-gradient(closest-side, rgba(52,199,123,.26), transparent)" }} />
         <div className="row top between g16" style={{ position: "relative", flexWrap: "wrap" }}>
           <div className="row top g12" style={{ minWidth: 0 }}>
             <AgentFace kind="analyst" size={38} mood="happy" />
             <div className="col g2">
-              <span className="row g8"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.25)", animation: "pulse 2.2s ease-in-out infinite" }} /><span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: "#8BE8B4" }}>Autopilot · on</span></span>
-              <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{watched.campaigns ? "Kaviar checks your ads every morning" : "Kaviar checks your store every morning"}</span>
-              <span style={{ fontSize: 12.5, color: DIM }}>{last ? `Last check ${last}` : "First check runs within the hour"} · {watched.campaigns ? "reads spend, real orders and stock, then works out what to change" : "reads orders and stock now, and your ads from the day one goes live"}</span>
+              <span className="row g8"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#34C77B", boxShadow: "0 0 0 4px rgba(52,199,123,.25)", animation: "pulse 2.2s ease-in-out infinite" }} /><span style={{ fontSize: 12, fontWeight: 500, color: "#8BE8B4" }}>Autopilot · on</span></span>
+              <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em" }}>{watched.campaigns ? "Kaviar checks your ads every morning" : "Kaviar checks your store every morning"}</span>
+              <span style={{ fontSize: 13, color: DIM }}>{last ? `Last check ${last}` : "First check runs within the hour"} · {watched.campaigns ? "reads spend, real orders and stock, then works out what to change" : "reads orders and stock now, and your ads from the day one goes live"}</span>
             </div>
           </div>
-          <button type="button" disabled={busy} onClick={() => go("check", () => checkNow(slug))} className="row g6" style={{ height: 34, padding: "0 14px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 12.5, flexShrink: 0 }}>
+          <button type="button" disabled={busy} onClick={() => go("check", () => checkNow(slug))} className="row g6" style={{ height: 34, padding: "0 14px", borderRadius: 8, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13, flexShrink: 0 }}>
             <Icon name={doing === "check" ? "spinner" : "refresh"} size={12} color="#fff" className={doing === "check" ? "spin" : undefined} />{doing === "check" ? "Checking…" : "Check now"}
           </button>
         </div>
@@ -123,24 +122,24 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
 
         <div className="col g8" style={{ position: "relative", marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.12)" }}>
           <div className="row between g12" style={{ flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, color: DIM }}>How much may Kaviar decide on its own?</span>
-            <div className="row" role="radiogroup" aria-label="Autopilot mode" style={{ padding: 3, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>
+            <span style={{ fontSize: 13, color: DIM }}>How much may Kaviar decide on its own?</span>
+            <div className="row" role="radiogroup" aria-label="Autopilot mode" style={{ padding: 4, borderRadius: 8, background: "rgba(255,255,255,.1)" }}>
               {(Object.keys(MODES) as Mode[]).map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} onClick={() => pick(m)}
-                  style={{ height: 30, padding: "0 14px", borderRadius: 99, fontSize: 12.5, fontWeight: mode === m ? 600 : 400, background: mode === m ? "#fff" : "transparent", color: mode === m ? "#121212" : "rgba(255,255,255,.75)", transition: "background .2s" }}>{MODES[m].name}</button>))}
+                  style={{ height: 30, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: mode === m ? 600 : 400, background: mode === m ? "#fff" : "transparent", color: mode === m ? "#121212" : "rgba(255,255,255,.75)", transition: "background .2s" }}>{MODES[m].name}</button>))}
             </div>
           </div>
           <span style={{ fontSize: 13, color: "rgba(255,255,255,.85)" }}>{MODES[mode].line}</span>
-          {canAct ? <span className="row g6" style={{ fontSize: 11.5, color: DIM }}><Icon name="plug" size={11} color="rgba(255,255,255,.55)" />{mode === "ask" ? "When you approve a change, Kaviar makes it on Meta for you — no Ads Manager needed." : "Kaviar makes these changes on Meta itself."} Each one is listed under “What Kaviar has been doing”, with an Undo.</span>
+          {canAct ? <span className="row g6" style={{ fontSize: 12, color: DIM }}><Icon name="plug" size={11} color="rgba(255,255,255,.55)" />{mode === "ask" ? "When you approve a change, Kaviar makes it on Meta for you — no Ads Manager needed." : "Kaviar makes these changes on Meta itself."} Each one is listed under “What Kaviar has been doing”, with an Undo</span>
             : !access.connected ? null
-            : !access.granted ? <span className="row g8" style={{ fontSize: 11.5, color: DIM, flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Kaviar can read your Meta ads but not change them, so each decided change is switched by you in Ads Manager.
+            : !access.granted ? <span className="row g8" style={{ fontSize: 12, color: DIM, flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Kaviar can read your Meta ads but not change them, so each decided change is switched by you in Ads Manager.
                 <a href={`/api/meta/connect?brand=${slug}`} style={{ color: "#fff", textDecoration: "underline" }}>Let Kaviar change ads</a></span>
-            : <span className="col g6" style={{ fontSize: 11.5, color: DIM }}>
+            : <span className="col g6" style={{ fontSize: 12, color: DIM }}>
                 <span className="row g8" style={{ flexWrap: "wrap" }}><Icon name="lock" size={11} color="rgba(255,255,255,.55)" />Permission is granted. One check is left: Kaviar makes a paused, empty test campaign, changes it and deletes it. Nothing is spent.
-                  {owner && <button type="button" disabled={busy} onClick={() => go("test", () => accessTest(slug))} style={{ height: 26, padding: "0 12px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 12, fontWeight: 500 }}>{doing === "test" ? "Testing…" : access.test ? "Run the test again" : "Run the access test"}</button>}</span>
+                  {owner && <button type="button" disabled={busy} onClick={() => go("test", () => accessTest(slug))} style={{ height: 26, padding: "0 12px", borderRadius: 6, background: "#fff", color: "#121212", fontSize: 12, fontWeight: 500 }}>{doing === "test" ? "Testing…" : access.test ? "Run the test again" : "Run the access test"}</button>}</span>
                 {access.test && !access.test.ok && access.test.steps.map((x) => <span key={x.name} className="row g6" style={{ color: x.ok ? DIM : "#FFB59B" }}><Icon name={x.ok ? "check" : "warning"} size={10} color={x.ok ? "rgba(255,255,255,.55)" : "#FFB59B"} />{x.name}{x.note ? ` — ${x.note}` : ""}</span>)}
               </span>}
-          {err && <span style={{ fontSize: 11.5, color: "#FFB59B" }}>{err}</span>}
+          {err && <span style={{ fontSize: 12, color: "#FFB59B" }}>{err}</span>}
         </div>
       </div>
 
@@ -166,11 +165,11 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
 
         {/* ---- what it has been doing */}
         <div className="col" style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-          <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, paddingBottom: 6 }}>What Kaviar has been doing</span>
+          <span className="xs i3" style={{ fontWeight: 500, paddingBottom: 6 }}>What Kaviar has been doing</span>
           {runs.length === 0 && <span className="xs i3">No checks yet. The first one runs on its own within the hour — or press Check now.</span>}
           {runs.map((r, i) => (
-            <div key={i} className="row top g10" style={{ padding: "5px 0" }}>
-              <span style={{ width: 8, height: 8, borderRadius: 99, marginTop: 5, flexShrink: 0, background: r.good ? "#34C77B" : "var(--line-2)" }} />
+            <div key={i} className="row top g10" style={{ padding: "4px 0" }}>
+              <span style={{ width: 8, height: 8, borderRadius: 99, marginTop: 4, flexShrink: 0, background: r.good ? "#34C77B" : "var(--line-2)" }} />
               <span className="xs i3 tnum" style={{ width: 96, flexShrink: 0 }}>{r.when}</span>
               <span className="xs i2 fill" style={{ lineHeight: "17px" }}>{r.line}</span>
             </div>))}

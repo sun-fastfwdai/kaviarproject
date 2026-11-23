@@ -20,7 +20,7 @@ const TONE: Record<Reason, [string, string]> = { holiday: ["#121212", "#fff"], o
 const DAYS = [7, 14, 28];
 export type Figures = { margin: number; marginFrom: "costs" | "saved" | "none"; withCost: number; variants: number; discount: number; goal: "profit" | "revenue" | "customers"; order: number | null; avg: number | null; adDays: number };
 type Props = { slug: string; currency: string; plans: PlanCard[]; input: Omit<PlanInput, "candidates">; level: 0 | 1 | 2; minBudget: number; figures: Figures };
-const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
+const label = { fontSize: 12, fontWeight: 500 } as const;
 
 export function Budget({ slug, currency, plans, input, level, minBudget, figures: f }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
@@ -47,21 +47,21 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
   const Row = (p: PlanCard) => {
     const v = at(p), [, mid] = out(p), locked = Boolean(p.meta), share = a.spend > 0 && p.stage !== "suggested" ? v.budget / a.spend : 0;
     return (
-      <div key={p.key} className="row g14" style={{ padding: "13px 0", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
+      <div key={p.key} className="row g14" style={{ padding: "12px 0", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
         <Link href={`${base}/campaigns/${encodeURIComponent(p.key)}`} className="row g12 fill" style={{ minWidth: 280 }}>
           {p.image
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={p.image} alt="" width={48} height={48} loading="lazy" style={{ borderRadius: 11, objectFit: "cover", flexShrink: 0, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
-            : <span style={{ width: 48, height: 48, borderRadius: 11, background: "var(--tray-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="box" size={18} color="#8B8883" /></span>}
+            ? <img src={p.image} alt="" width={48} height={48} loading="lazy" style={{ borderRadius: 12, objectFit: "cover", flexShrink: 0, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }} />
+            : <span style={{ width: 48, height: 48, borderRadius: 12, background: "var(--tray-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="box" size={18} color="#8B8883" /></span>}
           <span className="col" style={{ minWidth: 0, gap: 2 }}>
             <span className="row g8"><span className="sm w5 i1 ell">{p.title}</span>
-              <span style={{ height: 18, padding: "0 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, lineHeight: "18px", whiteSpace: "nowrap", background: TONE[p.reason][0], color: TONE[p.reason][1] }}>{REASON_NAME[p.reason]}</span></span>
+              <span style={{ height: 18, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "18px", whiteSpace: "nowrap", background: TONE[p.reason][0], color: TONE[p.reason][1] }}>{REASON_NAME[p.reason]}</span></span>
             <span className="xs i3 ell">{p.c.product} · {p.c.audience ? `${p.c.audience.toLocaleString("en-US")} people` : p.c.kind === "warm" ? "your buyers" : p.c.kind === "lookalike" ? "people like your buyers" : "new people"} · {STAGE_NAME[p.stage]}</span>
           </span>
         </Link>
         <span className="row g8" style={{ flexShrink: 0 }} title={locked ? "This campaign is on Meta — open it to change its budget there" : undefined}>
           <button type="button" aria-label={`Spend less on ${p.title}`} disabled={locked || v.budget - step < 50} onClick={() => change(p, { budget: Math.max(50, v.budget - step) })} className="btn sm ic" style={{ borderRadius: 99 }}>−</button>
-          <span className="col" style={{ width: 92, alignItems: "center", lineHeight: 1.25 }}><span className="tnum w5" style={{ fontSize: 17 }}>{usd(v.budget)}</span><span className="xs i3 tnum">{usd(v.budget / v.days)} a day</span></span>
+          <span className="col" style={{ width: 92, alignItems: "center", lineHeight: 1.25 }}><span className="tnum w5" style={{ fontSize: 16 }}>{usd(v.budget)}</span><span className="xs i3 tnum">{usd(v.budget / v.days)} a day</span></span>
           <button type="button" aria-label={`Spend more on ${p.title}`} disabled={locked} onClick={() => change(p, { budget: v.budget + step })} className="btn sm ic" style={{ borderRadius: 99 }}>+</button>
           <div className="seg" role="radiogroup" aria-label={`How long ${p.title} runs`}>{DAYS.map((d) => <button key={d} type="button" role="radio" aria-checked={v.days === d} disabled={locked} className={`o${v.days === d ? " on" : ""}`} onClick={() => change(p, { days: d })}>{d}d</button>)}</div>
         </span>
@@ -96,24 +96,24 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
         {/* ---- the money in all */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <div className="col g4" style={{ padding: "16px 18px", borderRadius: 18, background: "#121212", color: "#fff" }}>
-            <span style={{ fontSize: 12.5, color: "rgba(255,255,255,.65)" }}>Approved to spend</span>
-            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em" }}>{usd(a.spend)}</span>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,.65)" }}>Approved to spend</span>
+            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.015em" }}>{usd(a.spend)}</span>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>{yes.length} campaign{yes.length === 1 ? "" : "s"}{a.day > 0 ? ` · ${usd(a.day)} a day` : ""}{live.length ? ` · ${live.length} on Meta` : " · none on Meta yet"}</span>
           </div>
           <div className="col g4" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-            <span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Likely comes back</span>
-            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em" }}>{usd(a.back)}</span>
+            <span style={{ fontSize: 13, color: "var(--ink-2)" }}>Likely comes back</span>
+            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.015em" }}>{usd(a.back)}</span>
             <span className="xs i3 tnum">{yes.length ? `${usd(a.lo)} if it goes badly · ${usd(a.hi)} if it goes well` : "Approve a campaign to see it"}</span>
           </div>
           <div className="col g4" style={{ padding: "16px 18px", borderRadius: 18, background: !yes.length ? "var(--tray)" : a.profit >= 0 ? "var(--green-bg)" : "var(--red-bg)" }}>
-            <span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Profit after costs</span>
-            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em", color: !yes.length ? "var(--ink-3)" : a.profit >= 0 ? "var(--green)" : "var(--red)" }}>{yes.length ? signed(a.profit) : "–"}</span>
+            <span style={{ fontSize: 13, color: "var(--ink-2)" }}>Profit after costs</span>
+            <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.015em", color: !yes.length ? "var(--ink-3)" : a.profit >= 0 ? "var(--green)" : "var(--red)" }}>{yes.length ? signed(a.profit) : "–"}</span>
             <span className="xs i3">after the goods and the ads · {Math.round(input.margin * 100)}% margin</span>
           </div>
           <div className="col g4" style={{ padding: "16px 18px", borderRadius: 18, background: "var(--tray)" }}>
-            <span className="row g6" style={{ fontSize: 12.5, color: "var(--ink-2)" }}><AgentFace kind="analyst" size={16} />Suggested by Iris, not approved</span>
+            <span className="row g6" style={{ fontSize: 13, color: "var(--ink-2)" }}><AgentFace kind="analyst" size={16} />Suggested by Iris, not approved</span>
             <span className="row between g10" style={{ flexWrap: "wrap" }}>
-              <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.03em", color: maybe.length ? "var(--ink)" : "var(--ink-3)" }}>{maybe.length ? usd(s.spend) : "–"}</span>
+              <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.015em", color: maybe.length ? "var(--ink)" : "var(--ink-3)" }}>{maybe.length ? usd(s.spend) : "–"}</span>
               {maybe.length > 0 && <button type="button" className="btn dark" disabled={busy} onClick={approveAll} title="Says yes to each suggested campaign at the budget shown below. Nothing is spent until a campaign is switched on.">{doing === "all" ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : <Icon name="check" size={13} color="#fff" />}Approve {maybe.length === 1 ? "it" : `all ${maybe.length}`}</button>}
             </span>
             <span className="xs i3 tnum">{maybe.length ? `${maybe.length} campaign${maybe.length === 1 ? "" : "s"} · would add ${signed(s.profit)}` : "Nothing waiting for a yes"}</span>
@@ -140,7 +140,7 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
             {([["Margin", `${Math.round(f.margin * 100)}%${f.marginFrom === "costs" ? " · from Shopify costs" : f.marginFrom === "none" ? " · assumed" : ""}`], ["Offer", f.discount ? `${Math.round(f.discount * 100)}% off` : "Full price"], ["One order is worth", f.order ? usd(f.order) : f.avg ? `${usd(f.avg)} · your average` : "Each product’s price"],
               ["Goal", f.goal === "profit" ? "Profit" : f.goal === "revenue" ? "Revenue" : "New customers"],
               ["Rates", `${usd(input.rates.cpm[1])} per 1,000 views · ${(input.rates.ctr[1] * 100).toFixed(1)}% click · ${(input.rates.cvr.cold[1] * 100).toFixed(1)}% buy`]] as const).map(([k, v]) => (
-              <button key={k} type="button" onClick={() => setOpen(true)} disabled={k === "Rates"} title={k === "Rates" ? (level === 0 ? "Typical starting rates — replaced by your own results as ads run" : `From ${f.adDays} days of your Meta results`) : undefined} className="col hv" style={{ padding: "9px 13px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)", textAlign: "left", minWidth: 0 }}>
+              <button key={k} type="button" onClick={() => setOpen(true)} disabled={k === "Rates"} title={k === "Rates" ? (level === 0 ? "Typical starting rates — replaced by your own results as ads run" : `From ${f.adDays} days of your Meta results`) : undefined} className="col hv" style={{ padding: "8px 12px", borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)", textAlign: "left", minWidth: 0 }}>
                 <span className="xs i3">{k}</span><span className="sm w5 ell" style={{ maxWidth: 360 }}>{v}</span>
               </button>))}
             <button type="button" className="btn quiet" style={{ alignSelf: "center" }} onClick={() => setOpen(true)}><Icon name="pencil" size={12} />Change</button>
@@ -150,15 +150,15 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
 
       {/* ---- changes are kept only when the brand says so */}
       {changed.length > 0 && <div style={{ position: "sticky", bottom: 16, marginTop: 18, zIndex: 5 }}>
-        <div className="row g12" style={{ padding: "10px 12px 10px 18px", borderRadius: 99, background: "#121212", color: "#fff", boxShadow: "0 14px 34px rgba(18,18,18,.22)", flexWrap: "wrap" }}>
+        <div className="row g12" style={{ padding: "10px 12px 10px 18px", borderRadius: 10, background: "#121212", color: "#fff", boxShadow: "0 14px 34px rgba(18,18,18,.22)", flexWrap: "wrap" }}>
           <span className="col fill" style={{ minWidth: 200, lineHeight: 1.3 }}><span className="sm w5 tnum">{changed.length} budget{changed.length === 1 ? "" : "s"} changed · {usd(a.spend)} approved in all</span>
-            <span style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>Saving spends nothing — each campaign is switched on by you</span></span>
-          <button type="button" disabled={busy} onClick={() => setSet({})} className="row g6" style={{ height: 38, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }}>Undo</button>
-          <button type="button" disabled={busy} onClick={save} className="row g6" style={{ height: 38, padding: "0 18px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 13.5, fontWeight: 600 }}>{doing === "save" ? <Icon name="spinner" size={13} className="spin" color="#0B2B1A" /> : <Icon name="check" size={13} color="#0B2B1A" />}Save budgets</button>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>Saving spends nothing — each campaign is switched on by you</span></span>
+          <button type="button" disabled={busy} onClick={() => setSet({})} className="row g6" style={{ height: 38, padding: "0 16px", borderRadius: 8, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 14 }}>Undo</button>
+          <button type="button" disabled={busy} onClick={save} className="row g6" style={{ height: 38, padding: "0 18px", borderRadius: 8, background: "#34C77B", color: "#0B2B1A", fontSize: 14, fontWeight: 600 }}>{doing === "save" ? <Icon name="spinner" size={13} className="spin" color="#0B2B1A" /> : <Icon name="check" size={13} color="#0B2B1A" />}Save budgets</button>
         </div>
       </div>}
 
-      {open && <Modal icon={<Icon name="pencil" size={16} />} title="Figures every campaign uses" sub="Each campaign’s likely sales and profit are worked out from these." onClose={() => setOpen(false)} width={480}
+      {open && <Modal icon={<Icon name="pencil" size={16} />} title="Figures every campaign uses" sub="Each campaign’s likely sales and profit are worked out from these" onClose={() => setOpen(false)} width={480}
         footer={<><button type="button" className="btn quiet" onClick={() => setOpen(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy} onClick={saveFig}>{doing === "fig" && <Icon name="spinner" size={13} className="spin" color="#fff" />}Save</button></>}>
         <div className="col g14">
           <div className="row g12" style={{ flexWrap: "wrap" }}>

@@ -113,7 +113,7 @@ export function BrandsTable({ brands, canRemove = false, canSet = false }: { bra
             <div className="td" style={{ width: 110, justifyContent: "flex-end", gap: 4 }}><span className="btn sm">Open →</span>{!b.isSample || canRemove ? <RowMenu slug={b.slug} name={b.name} canRemove={canRemove} canSet={canSet} features={b.features} /> : null}</div>
           </Link>
         ))}
-        {list.length === 0 && <div className="sm i3" style={{ padding: 18 }}>No brands match.</div>}
+        {list.length === 0 && <div className="sm i3" style={{ padding: 18 }}>No brands match</div>}
       </div>
       <div className="row between xs i3" style={{ padding: "0 4px" }}><span>{list.length} {list.length === 1 ? "brand" : "brands"} · sorted by last activity</span><span>Press ⌘K to jump to any brand</span></div>
     </div>

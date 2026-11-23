@@ -45,11 +45,11 @@ function Choice({ on, onClick, icon, title, body, foot }: { on: boolean; onClick
     </button>
   );
 }
-const tag = (t: string) => <span key={t} className="pill" style={{ height: 22, fontSize: 11.5 }}>{t}</span>;
+const tag = (t: string) => <span key={t} className="pill" style={{ height: 22, fontSize: 12 }}>{t}</span>;
 
 function NeverModal({ onClose }: { onClose: () => void }) {
   return (
-    <Modal icon={<Icon name="shield" size={18} />} title="What Kaviar never does" sub="The store owner stays in control." onClose={onClose}
+    <Modal icon={<Icon name="shield" size={18} />} title="What Kaviar never does" sub="The store owner stays in control" onClose={onClose}
       footer={<button className="btn dark" type="button" onClick={onClose}>Got it</button>}>
       <div className="col g10">
         {["Edit, cancel or refund orders", "Change products, prices or stock", "Read customer names, emails or addresses", "Change the live theme or checkout without a person publishing", "Keep access after the owner removes the app"].map((t) => (
@@ -127,7 +127,7 @@ export function SourceStep({ draft, scopes, shopifyReady, connected, error, init
                 {done ? <>
                   <div className="col g4" style={{ padding: "12px 14px", borderRadius: 10, background: "var(--green-bg)", border: "1px solid #D3EBDD" }}>
                     <span className="row between"><span className="row g8 sm w5 c-green"><Icon name="check-circle" size={15} weight="fill" color="#1F8A5B" />Connected to {connected.name} on Shopify</span>{connected.at && <span className="xs c-green">Verified {connected.at}</span>}</span>
-                    <span className="xs i2" style={{ paddingLeft: 23 }}>Kaviar app installed by the store owner — they can revoke access anytime in Shopify admin.</span>
+                    <span className="xs i2" style={{ paddingLeft: 24 }}>Kaviar app installed by the store owner — they can revoke access anytime in Shopify admin</span>
                   </div>
                   <div className="col">
                     {[["Store", connected.name], ["Domain", connected.host ?? connected.shop], ["Products", connected.products ? `${connected.products} synced so far` : "Syncing now"], ["Currency", connected.currency ?? "—"]].map(([k, v]) => (
@@ -161,7 +161,7 @@ export function SourceStep({ draft, scopes, shopifyReady, connected, error, init
             <div className="col g8" style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: 18, background: "var(--tray)" }}>
               {source === "shopify" ? <>
                 <span className="row between"><span className="sm w5">Permissions requested</span><Icon name="shield" size={15} color="#8B8883" /></span>
-                <span className="xs i3">Plain-language reasons the merchant sees on approval.</span>
+                <span className="xs i3">Plain-language reasons the merchant sees on approval</span>
                 {scopes.filter((s) => SCOPE_TEXT[s]).map((s) => (
                   <div key={s} className="row top g8" style={{ paddingTop: 8, borderTop: "1px solid var(--line)" }}>
                     <Icon name="check" size={14} color="#1F8A5B" weight="bold" style={{ marginTop: 2 }} />

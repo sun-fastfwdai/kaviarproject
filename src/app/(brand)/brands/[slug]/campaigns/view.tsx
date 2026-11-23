@@ -42,7 +42,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
   const Card = (p: PlanCard, i: number, first: boolean) => { const m = p.out[1]; return (
     <Link key={p.key} href={`${base}/campaigns/${encodeURIComponent(p.key)}`} className="col hv rise" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: first ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0, ["--i" as string]: i }}>
       <div className="row between g8">
-        <span style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[p.reason][0], color: TONE[p.reason][1] }}>{REASON_NAME[p.reason]}{p.when ? ` · ${p.when}` : ""}</span>
+        <span style={{ height: 22, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[p.reason][0], color: TONE[p.reason][1] }}>{REASON_NAME[p.reason]}{p.when ? ` · ${p.when}` : ""}</span>
         <span className="xs" style={{ color: p.stage === "suggested" ? "var(--ink-3)" : "var(--green)", fontWeight: p.stage === "suggested" ? 400 : 600 }}>{STAGE_NAME[p.stage]}</span>
       </div>
       <div className="col g2"><span style={{ fontSize: 18, lineHeight: "24px", fontWeight: 600, letterSpacing: "-0.015em" }}>{p.title}</span><span className="xs i3 ell" title={p.why}>{p.why}</span></div>
@@ -55,7 +55,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
         <span className="row g10" style={{ alignItems: "baseline", minWidth: 0 }}>
           <span className="col"><span className="tnum" style={{ fontSize: 20, lineHeight: "26px", fontWeight: 600, color: "var(--ink-2)" }}>{usd(p.budget)}</span><span className="xs i3">you spend</span></span>
           <span aria-hidden style={{ fontSize: 18, color: "#B5B2AC" }}>→</span>
-          <span className="col"><span className="tnum" style={{ fontSize: 26, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.03em" }}>{usd(m.revenue)}</span><span className="xs i3">likely back · {p.days} days</span></span>
+          <span className="col"><span className="tnum" style={{ fontSize: 28, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.015em" }}>{usd(m.revenue)}</span><span className="xs i3">likely back · {p.days} days</span></span>
         </span>
       </div>
       <div className="row between g12" style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--line)" }}>
@@ -69,7 +69,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
       <div className="col g16">
         {/* ---- what runs by itself, and the two things a brand comes here to do: see results, start a campaign */}
         <div className="row g10" style={{ flexWrap: "wrap" }}>
-          <div className="row g10" style={{ padding: "6px 8px 6px 8px", borderRadius: 99, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }} title={`Otto watches every ad on Meta, every day. ${MODES[mode].line}`}>
+          <div className="row g10" style={{ padding: "6px 8px 6px 8px", borderRadius: 10, background: "#fff", boxShadow: "0 0 0 1px var(--line)", flexWrap: "wrap" }} title={`Otto watches every ad on Meta, every day. ${MODES[mode].line}`}>
             <span className="row g8 sm w5"><AgentFace kind="qa" size={24} mood="happy" />Autopilot</span>
             <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
               {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} title={MODES[m].line} onClick={() => { setM(m); start(async () => { await setMode(slug, m); router.refresh(); }); }}>{MODES[m].name}</button>)}
@@ -83,9 +83,9 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
           {/* the bar the plans answer to: sales against the target the brand sets */}
-          <button type="button" onClick={() => setEditing(true)} className="bt rise" title="Falling short of your target is a reason to advertise" style={{ padding: "13px 15px 12px", gap: 2, textAlign: "left" }}>
-            <span className="row between g8"><span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>Sales · 30 days</span><Icon name="pencil" size={13} color="#8B8883" /></span>
-            <span className="row g6" style={{ alignItems: "baseline" }}><span className="bt-n" style={{ fontSize: 27, lineHeight: "36px" }}>{sales.value}</span>{sales.delta && <span className="xs tnum w5" style={{ color: sales.delta.good ? "var(--green)" : sales.delta.good === false ? "var(--red)" : "var(--ink-3)" }}>{sales.delta.dir === "up" ? "↗" : sales.delta.dir === "down" ? "↘" : "→"} {sales.delta.text}</span>}</span>
+          <button type="button" onClick={() => setEditing(true)} className="bt rise" title="Falling short of your target is a reason to advertise" style={{ padding: "12px 16px 12px", gap: 2, textAlign: "left" }}>
+            <span className="row between g8"><span style={{ fontSize: 13, color: "var(--ink-2)" }}>Sales · 30 days</span><Icon name="pencil" size={13} color="#8B8883" /></span>
+            <span className="row g6" style={{ alignItems: "baseline" }}><span className="bt-n" style={{ fontSize: 28, lineHeight: "36px" }}>{sales.value}</span>{sales.delta && <span className="xs tnum w5" style={{ color: sales.delta.good ? "var(--green)" : sales.delta.good === false ? "var(--red)" : "var(--ink-3)" }}>{sales.delta.dir === "up" ? "↗" : sales.delta.dir === "down" ? "↘" : "→"} {sales.delta.text}</span>}</span>
             {sales.target ? <><span className="xs i3 tnum">{sales.share}% of your {usd(sales.target)} target</span><span style={{ height: 6, borderRadius: 99, background: "var(--tray-2)", overflow: "hidden", marginTop: 8 }}><span style={{ display: "block", height: "100%", width: `${Math.max(2, Math.min(100, sales.share ?? 0))}%`, borderRadius: 99, background: (sales.share ?? 0) >= 100 ? "#34C77B" : "#E9B949" }} /></span></>
               : <span className="xs" style={{ color: "var(--blue)" }}>Set a monthly target</span>}
           </button>
@@ -94,31 +94,31 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
 
         {plans.length === 0 ? (
           <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 18, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="analyst" size={36} mood="happy" />
-            <span className="col fill"><span style={{ fontSize: 20, fontWeight: 600 }}>No reason to advertise today</span><span className="sm i3">No holiday in the next five weeks, stock is moving, buyers are coming back and sales are holding.</span></span>
+            <span className="col fill"><span style={{ fontSize: 20, fontWeight: 600 }}>No reason to advertise today</span><span className="sm i3">No holiday in the next five weeks, stock is moving, buyers are coming back and sales are holding</span></span>
             <button type="button" className="btn" onClick={() => setCreating(true)}>Start one anyway</button></div>
         ) : <>
           {live.length > 0 && <div className="col g10">
-            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>On Meta · {live.length}</span>
+            <span className="xs i3" style={{ fontWeight: 500 }}>On Meta · {live.length}</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 380px), 1fr))", gap: 12 }}>{live.map((p, i) => Card(p, i, false))}</div>
           </div>}
           {under.length > 0 && <div className="col g10">
-            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Under way · {under.length}</span>
+            <span className="xs i3" style={{ fontWeight: 500 }}>Under way · {under.length}</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 380px), 1fr))", gap: 12 }}>{under.map((p, i) => Card(p, i, i === 0))}</div>
           </div>}
           {fresh.length > 0 && <div className="col g10">
-            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Suggested · {fresh.length}</span>
+            <span className="xs i3" style={{ fontWeight: 500 }}>Suggested · {fresh.length}</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 380px), 1fr))", gap: 12 }}>{fresh.map((p, i) => Card(p, i + under.length, !under.length && i === 0))}</div>
           </div>}
         </>}
 
         {(meta.length > 0 || hasMeta) && <div className="card" style={{ padding: "14px 16px 6px" }}>
           <div className="row between g12" style={{ paddingBottom: 8 }}><span className="h3">On Meta</span><Link className="btn sm quiet" href={`${base}/performance`}>Running ads<Icon name="arrow-r" size={11} /></Link></div>
-          {meta.length === 0 ? <span className="sm i3" style={{ padding: "6px 0 14px" }}>Nothing is running.</span> : <div style={{ overflowX: "auto" }}><div style={{ minWidth: 780 }}>
+          {meta.length === 0 ? <span className="sm i3" style={{ padding: "6px 0 14px" }}>Nothing is running</span> : <div style={{ overflowX: "auto" }}><div style={{ minWidth: 780 }}>
             <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
               <span className="xs i3">Campaign</span><span className="xs i3">Status</span><span className="xs i3" style={{ textAlign: "right" }}>Budget</span><span className="xs i3" style={{ textAlign: "right" }}>Spent · 30 days</span><span className="xs i3" style={{ textAlign: "right" }} title="Shopify sales from this campaign ÷ what it spent">Back per $1</span><span />
             </div>
             {meta.map((r) => (
-              <div key={r.key} style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+              <div key={r.key} style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                 <span className="col" style={{ minWidth: 0 }}><span className="sm w5 ell" title={r.name}>{r.name}</span><span className="xs i3 ell">{r.sub}</span></span>
                 <span><span className={`pill ${r.status === "live" ? "green" : ""}`} style={{ height: 22, fontSize: 11 }}>{LIB_STATUS[r.status]}</span></span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{r.perDay ? `${usd(r.perDay)}/day` : "–"}</span>
@@ -153,11 +153,11 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
           {err && <span className="xs" style={{ color: "#B4532A" }}>{err}</span>}
         </div>
       </Modal>}
-      {editing && <Modal icon={<Icon name="target" size={16} />} title="Monthly sales target" sub="Falling short of it is a reason for Kaviar to suggest a campaign." onClose={() => setEditing(false)} width={420}
+      {editing && <Modal icon={<Icon name="target" size={16} />} title="Monthly sales target" sub="Falling short of it is a reason for Kaviar to suggest a campaign" onClose={() => setEditing(false)} width={420}
         footer={<>{sales.target != null && <button type="button" className="btn quiet" style={{ marginRight: "auto" }} disabled={busy} onClick={() => save(null)}>Remove target</button>}<button type="button" className="btn quiet" onClick={() => setEditing(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy || !(Number(target) > 0)} onClick={() => save(Number(target))}>{busy ? <Icon name="spinner" size={13} className="spin" color="#fff" /> : null}Save</button></>}>
         <label className="col g4"><span className="xs i2 w5">Sales you want in 30 days</span>
           <input className="input" inputMode="numeric" placeholder="5000" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^0-9]/g, "").slice(0, 9))} onKeyDown={(e) => { if (e.key === "Enter" && Number(target) > 0) save(Number(target)); }} autoFocus style={{ fontSize: 18, height: 42 }} />
-          <span className="xs i3">The last 30 days brought {sales.value}.</span></label>
+          <span className="xs i3">The last 30 days brought {sales.value}</span></label>
       </Modal>}
     </div>
   );

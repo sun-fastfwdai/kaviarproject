@@ -32,7 +32,7 @@ export function SignupForm({ code, invite }: { code: string; invite: { role: str
       {invite ? (
         <>
           <input type="hidden" name="code" value={code} />
-          <div className="notice green auth-in" style={{ ["--i" as string]: 1 }}><span>Invite link verified.</span></div>
+          <div className="notice green auth-in" style={{ ["--i" as string]: 1 }}><span>Invite link verified</span></div>
         </>
       ) : (
         <label className="field auth-in" style={{ ["--i" as string]: 1 }}>

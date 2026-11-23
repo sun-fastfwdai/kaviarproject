@@ -15,7 +15,7 @@ function RequestModal({ app, brand, slug, onClose }: { app: StoreApp; brand: str
   const [busy, start] = useTransition();
   const text = `Hi ${brand} team — to finish the new Shopify store, could you please ${app.request}?\n\nApp: ${app.name} — ${app.listing}\n\nThanks!\nKaviar`;
   return (
-    <Modal icon={<Icon name="megaphone" size={18} />} title={`Ask ${brand} for ${app.name}`} sub="Paid apps and payments are always the merchant’s decision — Kaviar never installs them." onClose={onClose} width={560}
+    <Modal icon={<Icon name="megaphone" size={18} />} title={`Ask ${brand} for ${app.name}`} sub="Paid apps and payments are always the merchant’s decision — Kaviar never installs them" onClose={onClose} width={560}
       footer={<><CopyButton text={text} label="Copy message" /><button type="button" className="btn dark" disabled={busy} onClick={() => start(async () => { await setAppStatus(slug, app.key, "requested"); router.refresh(); onClose(); })}>Mark as requested</button></>}>
       <pre className="sm i1" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0, padding: 12, background: "var(--tray)", borderRadius: 8 }}>{text}</pre>
     </Modal>

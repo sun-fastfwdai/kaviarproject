@@ -22,7 +22,7 @@ export function OnboardingShell({ id, step, reached, name, thumb, subs, children
         <nav className="crumb">
           <Link className="lnk" href="/brands">Brands</Link><span className="i4">›</span><span>New brand</span>
           {name && <><span className="i4">›</span>
-            <span className="row g6">{thumb ? <img src={thumb} alt="" width={18} height={18} style={{ borderRadius: 5, objectFit: "cover" }} /> : <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--tray-2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>{name.charAt(0)}</span>}<b>{name}</b></span></>}
+            <span className="row g6">{thumb ? <img src={thumb} alt="" width={18} height={18} style={{ borderRadius: 6, objectFit: "cover" }} /> : <span style={{ width: 18, height: 18, borderRadius: 6, background: "var(--tray-2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>{name.charAt(0)}</span>}<b>{name}</b></span></>}
         </nav>
         <div className="fill" />
         {id && <span className="row g6 xs i3"><Icon name="check-circle" size={14} color="#1F8A5B" />Draft saved · you can leave and come back</span>}
@@ -43,7 +43,7 @@ export function OnboardingShell({ id, step, reached, name, thumb, subs, children
               const sub = state === "done" ? subs?.[i] ?? hint : hint;
               const body = (
                 <div className="row top g12">
-                  <div className="col" style={{ alignItems: "center", paddingTop: 11, alignSelf: "stretch" }}>
+                  <div className="col" style={{ alignItems: "center", paddingTop: 12, alignSelf: "stretch" }}>
                     <span style={{ width: 16, height: 16, borderRadius: 99, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
                       background: state === "done" ? "var(--green)" : "#fff", border: state === "done" ? 0 : `1.5px solid ${state === "now" ? "var(--ink)" : "var(--line-2)"}` }}>
                       {state === "done" ? <Check /> : state === "now" ? <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ink)" }} /> : null}
@@ -84,7 +84,7 @@ export function FromTag({ from }: { from: string }) {
     website: ["From website", "blue"], deck: ["From brand deck", "amber"], shopify: ["From Shopify", "green"], suggested: ["Suggested", ""], entered: ["Entered", ""],
   };
   const [t, tone] = map[from] ?? [from, ""];
-  return <span className={`pill ${tone}`} style={{ height: 20, fontSize: 11, padding: "0 7px" }}>{t}</span>;
+  return <span className={`pill ${tone}`} style={{ height: 20, fontSize: 11, padding: "0 8px" }}>{t}</span>;
 }
 
 /** Iris's line in the footer. */

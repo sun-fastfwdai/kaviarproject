@@ -51,29 +51,28 @@ export function InventoryView({ slug, brand, currency, stock, planKeys, admin, c
   return (
     <div className="scroll" style={{ padding: "22px 24px 48px" }}>
       <div className="col g16">
-        <div style={{ position: "relative", overflow: "clip", borderRadius: 22, background: "#121212", color: "#fff", padding: "24px 26px 22px" }}>
-          <div aria-hidden style={{ position: "absolute", right: -130, top: -170, width: 520, height: 520, borderRadius: 999, background: `radial-gradient(closest-side, ${t.soon ? "rgba(255,138,92,.30)" : t.reorder ? "rgba(233,185,73,.28)" : "rgba(52,199,123,.30)"}, transparent)` }} />
+        <div style={{ position: "relative", overflow: "clip", borderRadius: 20, background: "#121212", color: "#fff", padding: "24px 26px 22px" }}>
           <div className="row top between g20" style={{ position: "relative", flexWrap: "wrap" }}>
             <div className="row top g14" style={{ minWidth: 0 }}>
               <AgentFace kind="qa" size={40} mood={t.soon ? "worried" : "happy"} />
               <div className="col g4">
-                <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, color: DIM }}>Inventory forecast</span>
-                <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.02em" }}>{line}</span>
-                <span style={{ fontSize: 12.5, color: DIM }}>{stock.rows.length} products · pace from the last {STOCK.windowDays} days of orders{stock.untracked ? ` · ${stock.untracked} not counted in Shopify` : ""}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: DIM }}>Inventory forecast</span>
+                <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.015em" }}>{line}</span>
+                <span style={{ fontSize: 13, color: DIM }}>{stock.rows.length} products · pace from the last {STOCK.windowDays} days of orders{stock.untracked ? ` · ${stock.untracked} not counted in Shopify` : ""}</span>
               </div>
             </div>
-            <label className="row g8" title="Every “reorder by” date is worked out from this" style={{ height: 38, padding: "0 6px 0 14px", borderRadius: 99, background: "rgba(255,255,255,.12)", fontSize: 13, flexShrink: 0 }}>
+            <label className="row g8" title="Every “reorder by” date is worked out from this" style={{ height: 38, padding: "0 6px 0 14px", borderRadius: 8, background: "rgba(255,255,255,.12)", fontSize: 13, flexShrink: 0 }}>
               <span style={{ color: DIM }}>A restock takes</span>
               <input value={lead} onChange={(e) => setL(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} onBlur={save} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} inputMode="numeric" aria-label="Days a restock takes" disabled={busy}
-                style={{ width: 44, height: 28, borderRadius: 99, border: 0, background: "#fff", color: "#121212", textAlign: "center", font: "inherit", fontWeight: 600 }} />
+                style={{ width: 44, height: 28, borderRadius: 8, border: 0, background: "#fff", color: "#121212", textAlign: "center", font: "inherit", fontWeight: 600 }} />
               <span style={{ paddingRight: 8 }}>days{stock.leadSet ? "" : " · assumed"}</span>
             </label>
           </div>
           <div style={{ position: "relative", marginTop: 22, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
             {tiles.map(([k, v, hint, hot]) => (
               <div key={k} className="col g4" title={hint} style={{ padding: "14px 16px", borderRadius: 16, background: "rgba(255,255,255,.06)" }}>
-                <span style={{ fontSize: 11.5, color: DIM }}>{k}</span>
-                <span className="tnum" style={{ fontSize: 26, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em", color: hot ? "#FF9B73" : "#fff" }}>{v}</span>
+                <span style={{ fontSize: 12, color: DIM }}>{k}</span>
+                <span className="tnum" style={{ fontSize: 28, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.015em", color: hot ? "#FF9B73" : "#fff" }}>{v}</span>
               </div>))}
           </div>
         </div>
@@ -83,7 +82,7 @@ export function InventoryView({ slug, brand, currency, stock, planKeys, admin, c
           {top.map((r) => { const cover = r.runway ?? 0, max = Math.max(cover, stock.leadDays, 1); return (
             <div key={r.id} className="col g12" style={{ flex: "1 1 420px", minWidth: 0, padding: 16, borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
               <div className="row g10"><Thumb r={r} /><span className="col fill" style={{ minWidth: 0 }}><span className="sm w5 ell">{r.title}</span><span className="xs i3 tnum">{r.inventory} left · sells {paceText(r.pace)} a day</span></span>
-                <span style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", flexShrink: 0, background: TONE[r.state][0], color: TONE[r.state][1] }}>{r.state === "out" ? "Sold out" : `Out ${date(r.outOn)}`}</span></div>
+                <span style={{ height: 22, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "22px", flexShrink: 0, background: TONE[r.state][0], color: TONE[r.state][1] }}>{r.state === "out" ? "Sold out" : `Out ${date(r.outOn)}`}</span></div>
               {([["Stock lasts", cover, r.state === "low" ? "#E9B949" : "#E08A5C"], ["A restock takes", stock.leadDays, "#9DB8A6"]] as const).map(([k, v, c]) => (
                 <div key={k} className="col g4"><span className="row between xs"><span className="i3">{k}</span><span className="tnum w5">{days(v)}</span></span>
                   <span style={{ height: 8, borderRadius: 99, background: "var(--tray-2)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(v > 0 ? 3 : 0, (v / max) * 100)}%`, borderRadius: 99, background: c }} /></span></div>))}
@@ -103,16 +102,16 @@ export function InventoryView({ slug, brand, currency, stock, planKeys, admin, c
             <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2.2fr) repeat(4, minmax(84px, 1fr)) 124px 112px", gap: 8, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
               <span className="xs i3">Product</span>{["Available", "Sells a day", "Lasts", "Runs out"].map((h) => <span key={h} className="xs i3" style={{ textAlign: "right" }}>{h}</span>)}<span className="xs i3" style={{ paddingLeft: 12 }}>Status</span><span />
             </div>
-            {rows.length === 0 ? <span className="sm i3" style={{ display: "block", padding: "14px 0" }}>Nothing here.</span> : rows.map((r) => (
-              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2.2fr) repeat(4, minmax(84px, 1fr)) 124px 112px", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+            {rows.length === 0 ? <span className="sm i3" style={{ display: "block", padding: "14px 0" }}>Nothing here</span> : rows.map((r) => (
+              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2.2fr) repeat(4, minmax(84px, 1fr)) 124px 112px", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                 <span className="row g10" style={{ minWidth: 0 }}><Thumb r={r} size={32} /><span className="sm w5 ell" title={r.title}>{r.title}</span></span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{r.inventory.toLocaleString("en-US")}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={`${r.units30} sold in the last ${STOCK.windowDays} days`}>{paceText(r.pace)}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{r.state === "out" || r.state === "none" ? "–" : days(r.runway)}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={r.reorderBy ? `Order by ${date(r.reorderBy)} for a ${stock.leadDays}-day restock` : undefined}>{r.runway != null && r.runway < 365 ? date(r.outOn) : "–"}</span>
                 <span style={{ paddingLeft: 12 }}>{r.ordered && ["out", "risk", "low"].includes(r.state)
-                  ? <span title={`${r.ordered.qty.toLocaleString("en-US")} ordered`} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: "var(--green-bg)", color: "var(--green)" }}>Ordered · due {date(r.ordered.eta)}</span>
-                  : <span title={r.tied && r.tiedAt === "cost" ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span>}</span>
+                  ? <span title={`${r.ordered.qty.toLocaleString("en-US")} ordered`} style={{ display: "inline-block", height: 22, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: "var(--green-bg)", color: "var(--green)" }}>Ordered · due {date(r.ordered.eta)}</span>
+                  : <span title={r.tied && r.tiedAt === "cost" ? `${usd(r.tied)} sitting beyond ${STOCK.keepDays} days of sales` : undefined} style={{ display: "inline-block", height: 22, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "22px", background: TONE[r.state][0], color: TONE[r.state][1] }}>{STATE_NAME[r.state]}</span>}</span>
                 <span style={{ display: "flex", justifyContent: "flex-end" }}>{Act(r)}</span>
               </div>))}
           </div></div>

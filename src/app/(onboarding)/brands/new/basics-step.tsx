@@ -17,7 +17,7 @@ const money = (v: number | null, c: string | null) => (v == null ? "" : new Intl
 function AddMarket({ have, onAdd, onClose }: { have: string[]; onAdd: (m: string) => void; onClose: () => void }) {
   const [v, setV] = useState(MARKETS.find((m) => !have.includes(m)) ?? "");
   return (
-    <Modal icon={<Icon name="globe" size={18} />} title="Add a market" sub="Shopify Markets sets prices, currency and language per country." onClose={onClose}
+    <Modal icon={<Icon name="globe" size={18} />} title="Add a market" sub="Shopify Markets sets prices, currency and language per country" onClose={onClose}
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="button" className="btn dark" disabled={!v} onClick={() => { onAdd(v); onClose(); }}>Add market</button></>}>
       <label className="col g6"><span className="label">Country</span>
         <div className="input"><select value={v} onChange={(e) => setV(e.target.value)} style={{ border: 0, outline: 0, flex: 1, background: "transparent", font: "inherit" }}>{MARKETS.filter((m) => !have.includes(m)).map((m) => <option key={m}>{m}</option>)}</select></div></label>
@@ -149,7 +149,7 @@ export function BasicsStep({ id, reached, ob, brand, subs, shopConnected }: {
             ) : scan?.ok ? <>
               {scan.image && <div style={{ position: "relative", margin: "0 14px", borderRadius: 10, overflow: "hidden", height: 170, background: "var(--tray)" }}>
                 <img src={scan.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <span className="row g4 xs" style={{ position: "absolute", left: 8, bottom: 8, background: "rgba(255,255,255,.92)", padding: "3px 7px", borderRadius: 6 }}><Icon name="globe" size={11} />{scan.host} · home hero</span>
+                <span className="row g4 xs" style={{ position: "absolute", left: 8, bottom: 8, background: "rgba(255,255,255,.92)", padding: "4px 8px", borderRadius: 6 }}><Icon name="globe" size={11} />{scan.host} · home hero</span>
               </div>}
               <div className="col" style={{ padding: "10px 14px 14px" }}>
                 {scan.tagline && <div className="col g2" style={{ paddingBottom: 8 }}><span className="xs i3">Tagline</span><span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 16, lineHeight: "22px" }}>“{scan.tagline}”</span></div>}

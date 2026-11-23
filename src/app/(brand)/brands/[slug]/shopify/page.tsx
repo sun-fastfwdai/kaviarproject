@@ -98,7 +98,7 @@ export default async function ShopifyPage({ params, searchParams }: PageProps<"/
           )}
         </section>
         <aside className="col g12" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--line)", padding: "18px 16px", overflowY: "auto" }}>
-          <div className="row between"><span className="h3">Available fields</span><span className="pill" style={{ height: 22, fontSize: 11.5 }}>{{ orders: "Orders", products: "Products", variants: "Variants", customers: "Customers", lines: "Order lines" }[tab]}</span></div>
+          <div className="row between"><span className="h3">Available fields</span><span className="pill" style={{ height: 22, fontSize: 12 }}>{{ orders: "Orders", products: "Products", variants: "Variants", customers: "Customers", lines: "Order lines" }[tab]}</span></div>
           <span className="xs i3">What Kaviar syncs for each order</span>
           {FIELDS.map(([g, fs]) => (
             <div key={g} className="col" style={{ borderTop: "1px solid var(--line)", paddingTop: 6 }}>
@@ -192,7 +192,7 @@ async function OrdersTab({ brandId, cur, tz, base, page, ch, s, chs, chTotal, me
               <div className={`td num ${d.refunded ? "c-amber" : ""}`} style={{ width: 90 }}>{d.refunded ? money(d.refunded, cur) : "—"}</div>
             </div>
           ))}
-          {byDay.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No orders match these filters.</div>}
+          {byDay.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No orders match these filters</div>}
         </div>
       ) : (
       <div className="card" style={{ overflow: "hidden" }}>
@@ -238,7 +238,7 @@ async function ProductsTab({ brandId, cur, tz }: { brandId: string; cur: string;
   const list = await products(brandId, tz, 30);
   return (
     <>
-      <div className="col g4"><h1 className="h1">Products</h1><p className="sm i3">What sells, what’s left, and how long the stock lasts at the current pace.</p></div>
+      <div className="col g4"><h1 className="h1">Products</h1><p className="sm i3">What sells, what’s left, and how long the stock lasts at the current pace</p></div>
       <div className="card" style={{ overflow: "hidden" }}>
         <div className="tr hd dense" style={{ padding: "0 14px" }}>
           <div className="td fill">Product</div><div className="td num" style={{ width: 70 }}>Price</div><div className="td num" style={{ width: 80 }}>In stock</div>
@@ -262,7 +262,7 @@ async function ProductsTab({ brandId, cur, tz }: { brandId: string; cur: string;
             <div className="td num" style={{ width: 70 }}>{p.margin != null ? pct(p.margin) : "—"}</div>
           </div>
         ))}
-        {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No products synced yet.</div>}
+        {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No products synced yet</div>}
       </div>
     </>
   );
@@ -310,7 +310,7 @@ async function ListTab({ kind, brandId, cur, tz, base, page, total }: { kind: "v
               <div className="td num" style={{ width: 90 }}>{num(v.units)}</div>
             </div>
           ))}
-          {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No variants synced yet.</div>}
+          {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No variants synced yet</div>}
           <Pager base={base} tab={kind} page={page} pages={pages} />
         </div>
       </>
@@ -336,7 +336,7 @@ async function ListTab({ kind, brandId, cur, tz, base, page, total }: { kind: "v
               <div className="td" style={{ width: 100 }}>{c.consent ? <span className="st sm"><span className="dot green" />Subscribed</span> : <span className="st sm i3"><span className="dot" />No</span>}</div>
             </div>
           ))}
-          {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No customers synced yet.</div>}
+          {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No customers synced yet</div>}
           <Pager base={base} tab={kind} page={page} pages={pages} />
         </div>
       </>
@@ -362,7 +362,7 @@ async function ListTab({ kind, brandId, cur, tz, base, page, total }: { kind: "v
             <div className="td" style={{ width: 120 }}><SourceCell c={l.channel} campaign={null} /></div>
           </div>
         ))}
-        {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No order lines synced yet.</div>}
+        {list.length === 0 && <div className="sm i3" style={{ padding: 16 }}>No order lines synced yet</div>}
         <Pager base={base} tab={kind} page={page} pages={pages} />
       </div>
     </>

@@ -81,7 +81,7 @@ function ShopifyModal({ slug, shop, reconnect, scopes, ready, onClose }: { slug:
 
 function MetaModal({ slug, ready, onClose }: { slug: string; ready: boolean; onClose: () => void }) {
   return (
-    <Modal icon={<MetaLogo size={18} />} title="Connect Meta Ads" sub="Log in with Facebook as someone who can see the brand’s ad account." onClose={onClose}
+    <Modal icon={<MetaLogo size={18} />} title="Connect Meta Ads" sub="Log in with Facebook as someone who can see the brand’s ad account" onClose={onClose}
       footer={<><span className="xs i3 fill">Reads your ads · changes only what you approve</span><button type="button" className="btn" onClick={onClose}>Cancel</button>
         {ready ? <a className="btn dark" href={`/api/meta/connect?brand=${slug}`}>Continue with Facebook →</a> : <button className="btn dark" disabled>Continue with Facebook →</button>}</>}>
       <div className="col g8">
@@ -117,7 +117,7 @@ function ChooseModal({ slug, accounts, onClose }: { slug: string; accounts: Acco
 function DisconnectModal({ slug, provider, onClose }: { slug: string; provider: "shopify" | "meta"; onClose: () => void }) {
   const name = provider === "shopify" ? "Shopify" : "Meta Ads";
   return (
-    <Modal icon={provider === "shopify" ? <ShopifyLogo size={18} /> : <MetaLogo size={18} />} title={`Disconnect ${name}?`} sub="Syncing stops and Kaviar forgets the access token." onClose={onClose}
+    <Modal icon={provider === "shopify" ? <ShopifyLogo size={18} /> : <MetaLogo size={18} />} title={`Disconnect ${name}?`} sub="Syncing stops and Kaviar forgets the access token" onClose={onClose}
       footer={<><span className="fill" /><button type="button" className="btn" onClick={onClose}>Cancel</button>
         <button form="disc" className="btn" style={{ color: "var(--red)", borderColor: "#F3D3CF" }}>Disconnect</button></>}>
       <form id="disc" action={disconnect.bind(null, slug, provider)}>

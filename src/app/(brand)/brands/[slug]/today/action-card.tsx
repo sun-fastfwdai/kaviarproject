@@ -24,22 +24,22 @@ export function VizView({ v }: { v: Viz }) {
     </div>); }
   if (v.kind === "flow") return (
     <div className="row g14" style={{ alignItems: "center", width: "100%" }}>
-      <span className="col" style={{ minWidth: 0 }}><span className="tnum ell" style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.02em", color: "var(--ink-2)" }}>{v.from}</span><span className="xs i3">{v.fromLabel}</span></span>
+      <span className="col" style={{ minWidth: 0 }}><span className="tnum ell" style={{ fontSize: 24, lineHeight: "30px", fontWeight: 600, letterSpacing: "-0.015em", color: "var(--ink-2)" }}>{v.from}</span><span className="xs i3">{v.fromLabel}</span></span>
       <span aria-hidden style={{ fontSize: 22, color: "#B5B2AC" }}>→</span>
-      <span className="col" style={{ minWidth: 0 }}><span className="tnum ell" style={{ fontSize: 30, lineHeight: "34px", fontWeight: 700, letterSpacing: "-0.03em" }}>{v.to}</span><span className="xs i3">{v.toLabel}</span></span>
+      <span className="col" style={{ minWidth: 0 }}><span className="tnum ell" style={{ fontSize: 30, lineHeight: "34px", fontWeight: 600, letterSpacing: "-0.015em" }}>{v.to}</span><span className="xs i3">{v.toLabel}</span></span>
     </div>);
   if (v.kind === "pair") return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%" }}>
       {[v.a, v.b].map((x, i) => (
         <div key={x.label} className="col g2" style={{ padding: "10px 12px", borderRadius: 12, background: i ? "var(--tray)" : "#FBEDE6", minWidth: 0 }}>
-          <span className="xs i3 ell">{x.label}</span><span className="tnum ell" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em", color: i ? "var(--ink)" : "#B4532A" }}>{x.value}</span>
+          <span className="xs i3 ell">{x.label}</span><span className="tnum ell" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em", color: i ? "var(--ink)" : "#B4532A" }}>{x.value}</span>
         </div>))}
     </div>);
   return (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, v.items.length)}, 1fr)`, gap: 8, width: "100%" }}>
       {v.items.map((x) => (
         <div key={x.label} className="col g2" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--tray)", minWidth: 0 }}>
-          <span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.02em" }}>{x.n}</span><span className="xs i3 ell">{x.label}</span>
+          <span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em" }}>{x.n}</span><span className="xs i3 ell">{x.label}</span>
         </div>))}
     </div>);
 }
@@ -58,10 +58,10 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
   return (
     <div className="col fill" style={{ padding: "16px 18px 14px", gap: 10, borderRadius: 18, background: "#fff", boxShadow: primary ? "0 0 0 1.5px var(--ink), 0 12px 32px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", minWidth: 0 }}>
       <div className="row between g10">
-        <span className="row g8" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}><span className="tnum i3">{String(n).padStart(2, "0")}</span><span style={{ color: GROUP_TONE[a.group] }}>{a.label ?? a.group}</span></span>
-        {(a.effect || a.urgent) && <span className="ell" style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "22px", maxWidth: "60%", background: a.urgent ? "#FBEDE6" : "#E4F4EB", color: a.urgent ? "#B4532A" : "#1F7A52" }}>{a.effect ?? "Urgent"}</span>}
+        <span className="row g8" style={{ fontSize: 12, fontWeight: 500 }}><span className="tnum i3">{String(n).padStart(2, "0")}</span><span style={{ color: GROUP_TONE[a.group] }}>{a.label ?? a.group}</span></span>
+        {(a.effect || a.urgent) && <span className="ell" style={{ height: 22, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "22px", maxWidth: "60%", background: a.urgent ? "#FBEDE6" : "#E4F4EB", color: a.urgent ? "#B4532A" : "#1F7A52" }}>{a.effect ?? "Urgent"}</span>}
       </div>
-      <div className="col g2"><span style={{ fontSize: 19, lineHeight: "25px", fontWeight: 600, letterSpacing: "-0.015em" }}>{a.title}</span><span className="xs i3" title={a.why} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.why}</span></div>
+      <div className="col g2"><span style={{ fontSize: 20, lineHeight: "25px", fontWeight: 600, letterSpacing: "-0.015em" }}>{a.title}</span><span className="xs i3" title={a.why} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.why}</span></div>
       {a.thumbs && a.thumbs.length > 0 ? <div className="row g8" style={{ overflow: "hidden" }}>
         {a.thumbs.slice(0, 5).map((u) => (
           // eslint-disable-next-line @next/next/no-img-element

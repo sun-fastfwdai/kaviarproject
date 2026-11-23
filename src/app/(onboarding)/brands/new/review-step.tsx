@@ -35,7 +35,7 @@ function Row({ id, k, label, f, palette, onSaved }: { id: string; k: string; lab
     );
   }
   return (
-    <div className="row top g12 rv-row" style={{ padding: "11px 14px", borderTop: "1px solid var(--line)", cursor: "text" }} onClick={() => setEditing(true)} title={f?.note ?? undefined}>
+    <div className="row top g12 rv-row" style={{ padding: "12px 14px", borderTop: "1px solid var(--line)", cursor: "text" }} onClick={() => setEditing(true)} title={f?.note ?? undefined}>
       <span className="sm i3" style={{ width: 120, flexShrink: 0 }}>{label}</span>
       <span className={`sm fill ${f?.value ? "i1" : "i4"}`} style={{ lineHeight: "19px" }}>
         {palette?.length ? <span className="row g4" style={{ display: "inline-flex", marginRight: 8, verticalAlign: "middle" }}>{palette.map((h) => <i key={h} style={{ width: 14, height: 14, borderRadius: 4, background: h, border: "1px solid rgba(0,0,0,.08)" }} />)}</span> : null}
@@ -115,7 +115,7 @@ export function ReviewStep({ id, reached, name, thumb, subs, profile, analysis }
           <div className="card fill" style={{ minWidth: 0, overflow: "hidden" }}>
             {PROFILE_GROUPS.map((g, gi) => (
               <div key={g.title} className="col">
-                <div className="row between xs" style={{ padding: "9px 14px", background: "var(--tray)", borderTop: gi ? "1px solid var(--line)" : 0 }}><span className="w5 i2">{g.title}</span><span className="i3">{g.keys.length} fields</span></div>
+                <div className="row between xs" style={{ padding: "8px 14px", background: "var(--tray)", borderTop: gi ? "1px solid var(--line)" : 0 }}><span className="w5 i2">{g.title}</span><span className="i3">{g.keys.length} fields</span></div>
                 {g.keys.map(([k, label]) => <Row key={k} id={id} k={k} label={label} f={profile[k]} palette={k === "palette" ? palette : undefined} onSaved={refresh} />)}
               </div>
             ))}

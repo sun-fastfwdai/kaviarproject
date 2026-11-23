@@ -98,7 +98,7 @@ export function ThemePicker({ theme, setTheme, t }: { theme: string; setTheme: (
         )}
       </div>
       <div className="row g10" style={{ padding: "10px 12px", background: "var(--tray)", border: "1px solid var(--line)", borderRadius: 12, flexWrap: "wrap" }}>
-        <Icon name={selected ? "store" : "sparkle"} size={15} />
+        <Icon name={selected ? "store" : "palette"} size={15} />
         <span className="sm i1 fill">{selected ? <><b className="w5">{selected.name}</b> — {selected.role === "MAIN" ? "the store’s live theme. Remy writes into a copy, never the live one." : "already in the store. Remy writes the homepage into it."}</> : <><b className="w5">Kaviar Starter</b> — Kaviar’s own theme. It’s installed as a draft and Remy edits every section.</>}</span>
         {selected && preview(selected.id) && <a className="btn sm" href={preview(selected.id)!} target="_blank" rel="noreferrer"><Icon name="eye" size={12} />Preview in store</a>}
         {selected?.fromThemeStore && <a className="btn sm" href={`https://themes.shopify.com/themes/${selected.name.toLowerCase().replace(/^copy of\s+/, "").replace(/[^a-z0-9]+/g, "-")}`} target="_blank" rel="noreferrer"><Icon name="external" size={12} />Theme Store page</a>}

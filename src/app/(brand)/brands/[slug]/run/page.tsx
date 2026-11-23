@@ -27,19 +27,19 @@ export default async function RunPage({ params }: PageProps<"/brands/[slug]/run"
     <>
       <Bar crumbs={[{ label: brand.name, href: base }, { label: "Campaigns" }, { label: "Run ads" }]}><LoopStrip base={base} brandId={brand.id} step="run" /></Bar>
       <div className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
-        <div className="col g4"><h1 className="h1">Run ads</h1><p className="sm i3">Approved ads, ready to go live as a small, paused test.</p></div>
+        <div className="col g4"><h1 className="h1">Run ads</h1><p className="sm i3">Approved ads, ready to go live as a small, paused test</p></div>
         {ready.length === 0 ? (
           <EmptyState eyebrow="Step 3 of 5 · Run ads" title="Nothing approved to test yet"
-            body="Approve at least two ads and they appear here, ready to go live as a small test."
+            body="Approve at least two ads and they appear here, ready to go live as a small test"
             steps={[
               { agent: "builder", title: "Remy writes ads from a signal", body: "In Creative studio — e.g. a win-back batch for lapsed buyers." },
-              { icon: "check-circle", title: "You approve the ones you like", body: "Approve at least two so Meta can compare them." },
-              { agent: "qa", title: "Set up the test here", body: "Budget, days and stop rules; Otto checks it; export the launch sheet for Ads Manager." },
+              { icon: "check-circle", title: "You approve the ones you like", body: "Approve at least two so Meta can compare them" },
+              { agent: "qa", title: "Set up the test here", body: "Budget, days and stop rules; Otto checks it; export the launch sheet for Ads Manager" },
             ]}
             art={<RunTestArt />}
             actions={toReview[0]
               ? <><Link className="btn dark" href={`${base}/creative/${toReview[0].id}`} title={toReview[0].title}><Icon name="check" size={14} color="#fff" />Review {toReview[0].n} ads</Link><Link className="btn" href={`${base}/creative`}>Creative studio</Link></>
-              : <><Link className="btn dark" href={`${base}/creative`}><Icon name="sparkle" size={14} color="#fff" />Plan a batch with Remy</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Pick a signal</Link></>}
+              : <><Link className="btn dark" href={`${base}/creative`}><Icon name="pencil" size={14} color="#fff" />Plan a batch with Remy</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Pick a signal</Link></>}
             note={toReview[0] ? <>Waiting for review: <b className="w5 i2">{toReview[0].title}</b>. Kaviar only reads the ad account today, so tests go out as a launch sheet you set up in Ads Manager — paused until you switch them on.</> : "Kaviar only reads the ad account today, so tests go out as a launch sheet you set up in Ads Manager — paused until you switch them on."} />
         ) : (
         <div className="card" style={{ overflow: "hidden" }}>
@@ -51,7 +51,7 @@ export default async function RunPage({ params }: PageProps<"/brands/[slug]/run"
               <div className="td sm ell" style={{ width: 260 }}>{b.audience}</div>
               <div className="td sm" style={{ width: 110 }}>{b.approved} ads</div>
               <div className="td row g8" style={{ width: 250, justifyContent: "flex-end" }}>
-                {tested.has(b.id) ? <span className="pill green" style={{ height: 20, fontSize: 10.5 }}>Tested · winner picked</span> : <Link className="btn sm" href={`${base}/audience?batch=${b.id}`}>Test first</Link>}
+                {tested.has(b.id) ? <span className="pill green" style={{ height: 20, fontSize: 11 }}>Tested · winner picked</span> : <Link className="btn sm" href={`${base}/audience?batch=${b.id}`}>Test first</Link>}
                 <Link className={`btn sm${tested.has(b.id) ? " dark" : ""}`} href={`${base}/run/${b.id}`}><Icon name="target" size={13} color={tested.has(b.id) ? "#fff" : undefined} />Set up</Link></div>
             </div>
           ))}

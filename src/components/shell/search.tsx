@@ -52,7 +52,7 @@ function Palette({ items, onClose }: { items: SearchItem[]; onClose: () => void 
           <span className="key">esc</span>
         </div>
         <div className="col" style={{ maxHeight: 380, overflowY: "auto", padding: 6 }}>
-          {list.length === 0 && <span className="sm i3" style={{ padding: 14 }}>Nothing matches “{q}”.</span>}
+          {list.length === 0 && <span className="sm i3" style={{ padding: 14 }}>Nothing matches “{q}”</span>}
           {list.map((it, n) => {
             const head = n === 0 || list[n - 1].group !== it.group ? it.group : null;
             return (

@@ -60,7 +60,7 @@ export function CharacterPicker({ slug, characters, value, onChange, price, sign
       </div>
 
       <div className="row g6">
-        <button type="button" className={`btn sm${mode === "make" ? " dark" : ""}`} onClick={() => setMode(mode === "make" ? "none" : "make")}><Icon name="sparkle" size={12} color={mode === "make" ? "#fff" : undefined} />New person</button>
+        <button type="button" className={`btn sm${mode === "make" ? " dark" : ""}`} onClick={() => setMode(mode === "make" ? "none" : "make")}><Icon name="pencil" size={12} color={mode === "make" ? "#fff" : undefined} />New person</button>
         <button type="button" className={`btn sm${mode === "upload" ? " dark" : ""}`} onClick={() => setMode(mode === "upload" ? "none" : "upload")}><Icon name="upload" size={12} color={mode === "upload" ? "#fff" : undefined} />Real creator</button>
       </div>
 
@@ -71,7 +71,7 @@ export function CharacterPicker({ slug, characters, value, onChange, price, sign
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} maxLength={600} placeholder="e.g. Woman in her early 30s, warm smile, natural makeup, shoulder-length dark hair, linen shirt, relaxed Seoul-apartment vibe"
             style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
           <button type="button" className="btn quiet sm" style={{ alignSelf: "flex-start" }} disabled={busy != null} onClick={suggest}>{busy === "suggest" ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}Suggest from the audience</button>
-          <button type="button" className="btn dark sm" style={{ justifyContent: "center" }} disabled={busy != null || desc.trim().length < 12} onClick={make}>{busy === "make" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="sparkle" size={12} color="#fff" />}Make character sheet · ${price.toFixed(2)}</button>
+          <button type="button" className="btn dark sm" style={{ justifyContent: "center" }} disabled={busy != null || desc.trim().length < 12} onClick={make}>{busy === "make" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="pencil" size={12} color="#fff" />}Make character sheet · ${price.toFixed(2)}</button>
           {busy === "make" && <span className="xs i3">Usually under a minute.</span>}
         </div>
       )}

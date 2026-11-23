@@ -56,12 +56,12 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
               <h1 className="h1">{list.length} {list.length === 1 ? "audience" : "audiences"} worth advertising to</h1>
               <p className="sm i3">Ranked by what each should bring back. Pick one and Remy writes the ads.</p>
             </div>
-            {facts.length > 0 && <div className="row g6" style={{ flexWrap: "wrap" }}><AgentFace kind="analyst" size={18} /><span className="xs i3">Iris read</span>{facts.map(([n, l, k]) => <Link key={l} href={`${base}/opportunities/read?show=${k}`} className="chip hv-card" style={{ height: 24, fontSize: 11.5 }} title={`See the ${l}`}><b className="tnum w5 i1">{n.toLocaleString("en-US")}</b>&nbsp;{l}</Link>)}</div>}
+            {facts.length > 0 && <div className="row g6" style={{ flexWrap: "wrap" }}><AgentFace kind="analyst" size={18} /><span className="xs i3">Iris read</span>{facts.map(([n, l, k]) => <Link key={l} href={`${base}/opportunities/read?show=${k}`} className="chip hv-card" style={{ height: 24, fontSize: 12 }} title={`See the ${l}`}><b className="tnum w5 i1">{n.toLocaleString("en-US")}</b>&nbsp;{l}</Link>)}</div>}
           </div>
 
           {research?.positioning?.statement && <div className="row top g12" style={{ padding: "14px 16px", borderRadius: 14, background: "var(--blue-bg)" }}>
             <Icon name="target" size={16} color="#3F63C8" />
-            <span className="col g2 fill"><span className="xs w5" style={{ color: "#3F63C8", letterSpacing: "0.06em", textTransform: "uppercase" }}>Your position</span><span className="sm i1" style={{ lineHeight: "21px" }}>{research.positioning.statement}</span></span>
+            <span className="col g2 fill"><span className="xs w5" style={{ color: "#3F63C8" }}>Your position</span><span className="sm i1" style={{ lineHeight: "21px" }}>{research.positioning.statement}</span></span>
           </div>}
 
           <div className="col g10">
@@ -76,18 +76,18 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
                     : <span style={{ width: 64, height: 64, borderRadius: 12, background: "var(--tray-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="bag" size={20} color="#8B8883" /></span>}
                   <div className="col g4 fill" style={{ minWidth: 0 }}>
                     <span className="row g8" style={{ flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: c.kind === "cold" ? "#5B6FD6" : "#1F7A52" }}>{c.kind === "cold" ? "From market research" : "From your store"}</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: c.kind === "cold" ? "#5B6FD6" : "#1F7A52" }}>{c.kind === "cold" ? "From market research" : "From your store"}</span>
                       <span className="pill" style={{ height: 18, fontSize: 10 }}>{KIND[c.kind]}</span>
                       {c.audience ? <span className="xs i3">{people(c.audience)} people{c.kind === "cold" ? " on Meta" : ""}</span> : null}
                     </span>
-                    <span className="w5 i1 ell" style={{ fontSize: 17 }}>{c.name}</span>
+                    <span className="w5 i1 ell" style={{ fontSize: 16 }}>{c.name}</span>
                     <span className="sm i2 ell" title={c.why}><span className="i3">{c.kind === "cold" ? "Say: " : "Why: "}</span>{c.why}</span>
                     <span className="xs i3 ell">Sells {c.product}</span>
                   </div>
                   <div className="col" style={{ alignItems: "flex-end", flexShrink: 0, minWidth: 150 }}>
                     {o ? <>
                       {campaign ? <Link className="lnk xs i3 row g4" href={campaign}>In your plan<Icon name="arrow-r" size={11} /></Link> : <span className="xs i3">In your plan</span>}
-                      <span className="row g6 tnum" style={{ fontSize: 17, fontWeight: 600 }}><span className="i3" style={{ fontWeight: 500 }}>{usd(row!.spend)}</span><span className="i3">→</span>{usd(o.revenue)}</span>
+                      <span className="row g6 tnum" style={{ fontSize: 16, fontWeight: 600 }}><span className="i3" style={{ fontWeight: 500 }}>{usd(row!.spend)}</span><span className="i3">→</span>{usd(o.revenue)}</span>
                       <span className="xs w5 tnum" style={{ color: o.profit >= 0 ? GOOD : BAD }}>{o.profit >= 0 ? "+" : "−"}{usd(Math.abs(o.profit))} profit · {Math.round(o.orders)} orders</span>
                     </> : <>
                       <span className="xs i3">Not in the plan yet</span>
@@ -100,7 +100,7 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
               );
             })}
             {!d.hasResearch && <div className="row g12" style={{ padding: 16, borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-              <AgentFace kind="analyst" size={28} /><span className="col fill"><span className="sm w5 i1">Find more audiences</span><span className="xs i3">Iris researches the market, your competitors and their ads, and adds buyer groups here.</span></span>
+              <AgentFace kind="analyst" size={28} /><span className="col fill"><span className="sm w5 i1">Find more audiences</span><span className="xs i3">Iris researches the market, your competitors and their ads, and adds buyer groups here</span></span>
               <Link className="btn" href={`${base}/research`}>Run research</Link>
             </div>}
           </div>
@@ -122,7 +122,7 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
               <Icon name="globe" size={16} /><span className="col fill"><span className="sm w5 i1">The research behind this</span><span className="xs i3">Market, buyer groups, competitors and their ads</span></span><Icon name="arrow-r" size={12} color="#8B8883" />
             </Link>
             <Link href={`${base}/plan`} className="row g10 fill" style={{ padding: 14, borderRadius: 14, background: "var(--ink)", color: "#fff", minWidth: 260 }}>
-              <span style={{ width: 22, height: 22, borderRadius: 99, background: "rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 600 }}>2</span>
+              <span style={{ width: 22, height: 22, borderRadius: 99, background: "rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600 }}>2</span>
               <span className="col fill"><span className="sm w5">Next: put a budget on these</span><span className="xs" style={{ color: "rgba(255,255,255,.6)" }}>See what each campaign should bring back</span></span><Icon name="arrow-r" size={12} color="#fff" />
             </Link>
           </div>

@@ -116,7 +116,7 @@ export function MakeAds({ slug, brand, products, campaigns, initial, aiOk }: { s
       setThread(t.key); setTarget(null);
       const now = await reload(t.key);
       say({ who: "remy", text: `${now?.ads.length ?? 3} ads for ${t.product}${t.started ? ". I started a campaign for it — its budget waits for your yes" : ` — filed under “${t.title}”`}.${made?.note ? ` ${made.note}.` : ""} Say yes or no to each, or tell me what to change.` });
-    } catch { say({ who: "remy", text: "That didn’t go through — try again.", bad: true }); }
+    } catch { say({ who: "remy", text: "That didn’t go through — try again", bad: true }); }
     finally { setWorking(null); }
   };
 
@@ -149,13 +149,13 @@ export function MakeAds({ slug, brand, products, campaigns, initial, aiOk }: { s
   const lastAsk = turns.length - 1;
 
   return (
-    <div className="scroll col" style={{ alignItems: "center", padding: started ? "26px 24px 40px" : "52px 24px 40px",
-      background: "radial-gradient(60% 42% at 50% 0%, rgba(106,143,214,.14), transparent 70%), radial-gradient(38% 34% at 88% 18%, rgba(26,167,200,.10), transparent 70%), radial-gradient(36% 32% at 10% 30%, rgba(235,207,159,.24), transparent 70%), var(--sheet)" }}>
+    <div className="scroll col" style={{ alignItems: "center", padding: started ? "24px 24px 40px" : "48px 24px 40px",
+      background: "var(--sheet)" }}>
       <div className="col g16" style={{ width: "100%", maxWidth: 860 }}>
         {!started && <div className="col g8" style={{ alignItems: "center", textAlign: "center" }}>
           <AgentFace kind="builder" size={38} mood="happy" />
           <h1 className="h1">What should we make for {brand}?</h1>
-          <p className="sm i3">Say it in your own words. Type <b className="i1 w5">@</b> to pick a product, add your own pictures, and Remy writes the ads here.</p>
+          <p className="sm i3">Say it in your own words. Type <b className="i1 w5">@</b> to pick a product, add your own pictures, and Remy writes the ads here</p>
         </div>}
 
         {started && <div className="col g12">
@@ -235,12 +235,12 @@ export function MakeAds({ slug, brand, products, campaigns, initial, aiOk }: { s
         {!started && <>
           {ideas.length > 0 && <div className="row g8" style={{ flexWrap: "wrap", justifyContent: "center" }}>
             {ideas.map((x) => (
-              <button key={x.text} type="button" disabled={!aiOk} onClick={() => send(x.text, x.to)} className="row g8 sm hv-card" style={{ height: 40, padding: "0 14px 0 5px", borderRadius: 99, background: "rgba(255,255,255,.85)", boxShadow: "0 0 0 1px var(--line)", maxWidth: 380 }}>
+              <button key={x.text} type="button" disabled={!aiOk} onClick={() => send(x.text, x.to)} className="row g8 sm hv-card" style={{ height: 40, padding: "0 14px 0 4px", borderRadius: 8, background: "rgba(255,255,255,.85)", boxShadow: "0 0 0 1px var(--line)", maxWidth: 380 }}>
                 <Pic src={x.image} size={30} radius={99} /><span className="ell">{x.text}</span>
               </button>))}
           </div>}
           {waiting.length > 0 && <div className="col g8" style={{ paddingTop: 14 }}>
-            <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Waiting for your yes</span>
+            <span className="xs i3" style={{ fontWeight: 500 }}>Waiting for your yes</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
               {waiting.map((c) => (
                 <Link key={c.key} href={`${base}/creative?for=${encodeURIComponent(c.key)}`} className="row g10 hv-card" style={{ padding: 10, borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>

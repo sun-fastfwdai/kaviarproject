@@ -15,14 +15,14 @@ const ROWS: { kind: AssetKind; title: string; need: "Required" | "Recommended" |
   { kind: "logo", title: "Logos", need: "Required", body: "SVG preferred. Light and dark versions.", icon: "pencil", accept: "image/svg+xml,image/png,image/webp" },
   { kind: "imagery", title: "Product imagery", need: "Recommended", body: "High-res photos, at least 1600 px. Cleo matches them to products.", icon: "image", accept: "image/*" },
   { kind: "video", title: "Videos", need: "Optional", body: "Hero loops or product demos. MP4 or MOV, up to 4 MB here.", icon: "video", accept: "video/mp4,video/quicktime,video/webm" },
-  { kind: "guidelines", title: "Brand guidelines", need: "Optional", body: "Colors, type, photography and do-nots.", icon: "file", accept: "application/pdf" },
+  { kind: "guidelines", title: "Brand guidelines", need: "Optional", body: "Colors, type, photography and do-nots", icon: "file", accept: "application/pdf" },
 ];
 
 function Tile({ a, onRemove }: { a: AssetView; onRemove: () => void }) {
   const img = a.mime.startsWith("image/");
   const meta = a.mime === "application/pdf" ? `${a.meta.pages ? `${a.meta.pages} pages · ` : ""}${mb(a.size)} · read by Iris` : a.meta.width ? `${a.meta.width} × ${a.meta.height} · ${a.mime.split("/")[1].toUpperCase().replace("SVG+XML", "SVG")}` : `${mb(a.size)} · ${a.mime.split("/")[1].toUpperCase().replace("SVG+XML", "SVG")}`;
   return (
-    <div className="row g10 asset-tile" style={{ padding: "7px 10px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--tray)", minWidth: 0, flex: "1 1 220px" }}>
+    <div className="row g10 asset-tile" style={{ padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 8, background: "var(--tray)", minWidth: 0, flex: "1 1 220px" }}>
       <span style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid var(--line)", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
         {img ? <img src={`/api/assets/${a.id}`} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <Icon name={a.mime === "application/pdf" ? "pdf" : "video"} size={15} color="#C8423B" />}
       </span>
@@ -97,7 +97,7 @@ export function AssetsStep({ id, reached, name, thumb, subs, assets, pulled, ins
               return (
                 <div key={r.kind} className="col g10" style={{ padding: 16, borderTop: i ? "1px solid var(--line)" : 0 }}>
                   <div className="row top g12">
-                    <span style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={r.icon} size={16} color="#55534F" /></span>
+                    <span style={{ width: 34, height: 34, borderRadius: 8, border: "1px solid var(--line)", background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={r.icon} size={16} color="#55534F" /></span>
                     <div className="col fill" style={{ minWidth: 0 }}>
                       <span className="row g8"><span className="sm w5">{r.title}</span><span className={`pill ${r.need === "Required" ? (list.length ? "green" : "amber") : ""}`} style={{ height: 20, fontSize: 11 }}>{r.need}</span></span>
                       <span className="xs i3">{r.body}</span>
@@ -134,7 +134,7 @@ export function AssetsStep({ id, reached, name, thumb, subs, assets, pulled, ins
               <div className="col g10" style={{ padding: 12, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}>
                 <div className="row g8"><AgentFace kind="catalog" size={20} /><div className="col"><span className="sm w5">Cleo pulled {pulled.length} images</span><span className="xs i3">From the website’s product pages</span></div></div>
                 <div className="row g4">
-                  {pulled.slice(0, 5).map((p) => <img key={p.url} src={p.url} alt="" width={40} height={40} style={{ borderRadius: 7, objectFit: "cover", border: "1px solid var(--line)" }} />)}
+                  {pulled.slice(0, 5).map((p) => <img key={p.url} src={p.url} alt="" width={40} height={40} style={{ borderRadius: 8, objectFit: "cover", border: "1px solid var(--line)" }} />)}
                   {pulled.length > 5 && <span className="xs i3" style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>+{pulled.length - 5}</span>}
                 </div>
                 {small > 0 && <span className="xs i3">{small} are below 1600 px. Otto will flag them in review.</span>}
@@ -144,7 +144,7 @@ export function AssetsStep({ id, reached, name, thumb, subs, assets, pulled, ins
             <div className="col g8">
               <span className="row between"><span className="sm w5">Inspiration URLs</span><span className="pill" style={{ height: 20, fontSize: 11 }}>Optional</span></span>
               <form className="input" onSubmit={(e) => { e.preventDefault(); if (url.trim()) saveInspo([...inspiration, url.trim()]); }}>
-                <Icon name="link" size={13} color="#8B8883" /><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste a store you like" style={{ border: 0, outline: 0, flex: 1, fontSize: 12.5 }} />
+                <Icon name="link" size={13} color="#8B8883" /><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste a store you like" style={{ border: 0, outline: 0, flex: 1, fontSize: 13 }} />
                 <button className="btn quiet sm ic" disabled={!url.trim() || busy} aria-label="Add" style={{ width: 22, height: 22 }}><Icon name="enter" size={12} /></button>
               </form>
               <div className="row g6" style={{ flexWrap: "wrap" }}>

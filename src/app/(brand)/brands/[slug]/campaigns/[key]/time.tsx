@@ -10,7 +10,7 @@ import { timeline } from "@/lib/growth/timeline";
  * testing goes at that pace. A filled dot marks a number read from the brand's own data; a ring marks one that rests on an assumption.
  */
 const NAME: Record<number, string> = { 30: "1 month", 90: "3 months", 180: "6 months" };
-const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
+const label = { fontSize: 12, fontWeight: 500 } as const;
 const LIFTS: [number, string][] = [[1, "10% more"], [2, "20% more"], [3, "30% more"]];
 
 export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, level, usd, unitPrice }: {
@@ -41,12 +41,12 @@ export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, 
           return (
             <div key={r.days} className="col" style={{ padding: "14px 16px 8px", borderRadius: 16, background: on ? "#121212" : "var(--tray)", color: on ? "#fff" : "var(--ink)" }}>
               <span className="row between g8"><span style={{ fontSize: 15, fontWeight: 600 }}>{NAME[r.days] ?? `${r.days} days`}</span>
-                {on ? <span style={{ height: 20, padding: "0 9px", borderRadius: 99, fontSize: 11, fontWeight: 600, lineHeight: "20px", background: "rgba(110,231,168,.2)", color: "#8BE8B4" }}>Earns the most</span> : <span className="tnum" style={{ fontSize: 12, color: dim }}>{usd(r.daily)} a day</span>}</span>
+                {on ? <span style={{ height: 20, padding: "0 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, lineHeight: "20px", background: "rgba(110,231,168,.2)", color: "#8BE8B4" }}>Earns the most</span> : <span className="tnum" style={{ fontSize: 12, color: dim }}>{usd(r.daily)} a day</span>}</span>
               <span className="row g6" style={{ alignItems: "baseline", padding: "6px 0 10px" }}>
-                <span className="tnum" style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.03em", color: r.profit >= 0 ? (on ? "#6EE7A8" : "var(--green)") : (on ? "#FF9B73" : "var(--red)") }}>{r.profit >= 0 ? "+" : "−"}{usd(Math.abs(r.profit))}</span>
+                <span className="tnum" style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.015em", color: r.profit >= 0 ? (on ? "#6EE7A8" : "var(--green)") : (on ? "#FF9B73" : "var(--red)") }}>{r.profit >= 0 ? "+" : "−"}{usd(Math.abs(r.profit))}</span>
                 <span style={{ fontSize: 12, color: dim }}>profit · store and ads</span></span>
               {rows.map(([k, v, real, hint]) => (
-                <span key={k} className="row between g10" title={hint} style={{ padding: "7px 0", borderTop: `1px solid ${line}`, fontSize: 12.5 }}>
+                <span key={k} className="row between g10" title={hint} style={{ padding: "8px 0", borderTop: `1px solid ${line}`, fontSize: 13 }}>
                   <span className="row g6" style={{ color: dim }}><Dot real={real} />{k}</span><span className="tnum w5" style={{ textAlign: "right" }}>{v}</span></span>))}
             </div>);
         })}
@@ -55,7 +55,7 @@ export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, 
         <span className="row g6"><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ink-3)" }} />From your data</span>
         <span className="row g6"><span style={{ width: 7, height: 7, borderRadius: 99, boxShadow: "inset 0 0 0 1.5px var(--ink-3)" }} />Assumed</span>
         <span className="row g6" title="Kaviar has no measure yet of how your buyers answer a discount, so this is yours to set">Every 10% off sells
-          <span className="seg" role="radiogroup" aria-label="How much more a discount sells">{LIFTS.map(([v, name]) => <button key={v} type="button" role="radio" aria-checked={lift === v} className={`o${lift === v ? " on" : ""}`} style={{ height: 22, fontSize: 11.5 }} onClick={() => setLift(v)}>{name}</button>)}</span></span>
+          <span className="seg" role="radiogroup" aria-label="How much more a discount sells">{LIFTS.map(([v, name]) => <button key={v} type="button" role="radio" aria-checked={lift === v} className={`o${lift === v ? " on" : ""}`} style={{ height: 22, fontSize: 12 }} onClick={() => setLift(v)}>{name}</button>)}</span></span>
         <span className="fill" />
         <span title={cycle ? "The median number of days your competitors’ live ads have been running, from Meta’s Ad Library" : "Meta’s own learning period for a new ad"}>A round of testing: {cycle ?? 7} days · {cycle ? "from competitors’ ads" : "Meta’s learning period"}</span>
         <span>Unsold stock isn’t counted as profit</span>

@@ -55,7 +55,7 @@ function InviteModal({ me, brands, onClose }: { me: { initials: string; role: st
   const [brand, setBrand] = useState(brands[0]?.id ?? "");
   if (state?.created) {
     return (
-      <Modal icon={<UserPlus />} title="Teammate added" sub="Send them the password below." onClose={onClose}
+      <Modal icon={<UserPlus />} title="Teammate added" sub="Send them the password below" onClose={onClose}
         footer={<><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></>}>
         <OneTime c={state.created} />
       </Modal>
@@ -83,7 +83,7 @@ function InviteModal({ me, brands, onClose }: { me: { initials: string; role: st
         </Field>
         {role === "brand" && (brands.length ? <label className="col g4"><span className="label">Which brand</span>
           <select value={brand} onChange={(e) => setBrand(e.target.value)} className="input" style={{ font: "inherit", fontSize: 13 }} aria-label="Brand">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-          : <span className="xs i3">Add a brand first.</span>)}
+          : <span className="xs i3">Add a brand first</span>)}
         {state?.error && <div key={state.at} className="notice red" role="alert">{state.error}</div>}
       </form>
     </Modal>
@@ -133,7 +133,7 @@ function ResetModal({ id, name, email, me, onClose }: { id: string; name: string
     <Modal icon={<Key />} title={`Reset ${name.split(" ")[0]}’s password`} sub={res?.created ? "Send them the new password." : `${email} will be signed out everywhere and get a new one-time password.`} onClose={onClose}
       footer={res?.created ? <><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></> :
         <><As me={me} /><button className="btn" onClick={onClose}>Cancel</button><button className="btn dark" disabled={pending} onClick={() => start(async () => setRes(await resetPassword(id)))}>{pending ? "Resetting…" : "Reset password"}</button></>}>
-      {res?.created ? <OneTime c={res.created} /> : <span className="sm i2">Their current password stops working right away.</span>}
+      {res?.created ? <OneTime c={res.created} /> : <span className="sm i2">Their current password stops working right away</span>}
       {res?.error && <div className="notice red">{res.error}</div>}
     </Modal>
   );
@@ -142,7 +142,7 @@ function ResetModal({ id, name, email, me, onClose }: { id: string; name: string
 function RemoveModal({ id, name, me, onClose }: { id: string; name: string; me: { initials: string; role: string }; onClose: () => void }) {
   const [pending, start] = useTransition();
   return (
-    <Modal icon={<Trash />} title={`Remove ${name} from the team?`} sub="They lose access to every brand immediately." onClose={onClose}
+    <Modal icon={<Trash />} title={`Remove ${name} from the team?`} sub="They lose access to every brand immediately" onClose={onClose}
       footer={<><As me={me} /><button className="btn" onClick={onClose}>Cancel</button><button className="btn" style={{ color: "var(--red)", borderColor: "#F3D3CF" }} disabled={pending} onClick={() => start(async () => { await removeMember(id); onClose(); })}>{pending ? "Removing…" : "Remove"}</button></>}>
       <span className="sm i2">Brands, data and connections stay as they are. You can invite them again later.</span>
     </Modal>
@@ -152,14 +152,14 @@ function RemoveModal({ id, name, me, onClose }: { id: string; name: string; me: 
 function PasswordModal({ me, onClose }: { me: { initials: string; role: string }; onClose: () => void }) {
   const [state, action, pending] = useActionState<TeamState, FormData>(changePassword, undefined);
   return (
-    <Modal icon={<Key />} title="Change your password" sub="Other devices are signed out after the change." onClose={onClose}
+    <Modal icon={<Key />} title="Change your password" sub="Other devices are signed out after the change" onClose={onClose}
       footer={state?.ok ? <><As me={me} /><button className="btn dark" onClick={onClose}>Done</button></> :
         <><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="pw" className="btn dark" disabled={pending}>{pending ? "Saving…" : "Save password"}</button></>}>
       {state?.ok ? <div className="notice green">{state.ok}</div> : (
         <form id="pw" action={action} className="col g14">
           <Field label="Current password"><div className="input"><input name="current" type="password" autoComplete="current-password" required autoFocus /></div></Field>
           <Field label="New password"><div className="input"><input name="next" type="password" autoComplete="new-password" minLength={10} required /></div></Field>
-          <span className="xs i3">At least 10 characters.</span>
+          <span className="xs i3">At least 10 characters</span>
           {state?.error && <div key={state.at} className="notice red" role="alert">{state.error}</div>}
         </form>
       )}
@@ -194,7 +194,7 @@ function InviteLinkModal({ me, brands, onClose }: { me: { initials: string; role
     );
   }
   return (
-    <Modal icon={<LinkIcon />} title="Create an invite link" sub="People who open it create their own account — on the team, or for one brand only." onClose={onClose}
+    <Modal icon={<LinkIcon />} title="Create an invite link" sub="People who open it create their own account — on the team, or for one brand only" onClose={onClose}
       footer={<><As me={me} /><button type="button" className="btn" onClick={onClose}>Cancel</button><button form="invite-link" className="btn dark" disabled={pending}>{pending ? "Creating…" : "Create link"}</button></>}>
       <form id="invite-link" action={action} className="col g8">
         <input type="hidden" name="role" value={role} />
@@ -208,8 +208,8 @@ function InviteLinkModal({ me, brands, onClose }: { me: { initials: string; role
         ))}
         {role === "brand" && (brands.length ? <label className="col g4"><span className="label">Which brand</span>
           <select value={brand} onChange={(e) => setBrand(e.target.value)} className="input" style={{ font: "inherit", fontSize: 13 }} aria-label="Brand">{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-          : <span className="xs i3">Add a brand first.</span>)}
-        <span className="xs i3">The link lasts 7 days and allows up to 10 sign-ups.</span>
+          : <span className="xs i3">Add a brand first</span>)}
+        <span className="xs i3">The link lasts 7 days and allows up to 10 sign-ups</span>
         {state?.error && <div className="notice red">{state.error}</div>}
       </form>
     </Modal>

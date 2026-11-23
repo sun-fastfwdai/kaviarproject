@@ -27,7 +27,7 @@ function JobRow({ j, first }: { j: Job; first: boolean }) {
     : j.status === "skipped" ? <Icon name="circle" size={16} color="#D9D6D1" /> : <Icon name="circle" size={16} color="#D9D6D1" />;
   const pctDone = j.total ? Math.min(100, Math.round(((j.done ?? 0) / j.total) * 100)) : null;
   return (
-    <div className="col g6" style={{ padding: "11px 14px", borderTop: first ? 0 : "1px solid var(--line)" }}>
+    <div className="col g6" style={{ padding: "12px 14px", borderTop: first ? 0 : "1px solid var(--line)" }}>
       <div className="row top g10">
         <span style={{ marginTop: 1 }}>{icon}</span>
         <div className="col fill" style={{ minWidth: 0 }}>
@@ -80,7 +80,7 @@ export function AnalysisStep({ id, reached, name, thumb, subs, analysis, hasProf
           <div className="col g8">
             <span className="eyebrow">Step 4 · Analysis</span>
             <h1 className="h1">Iris is studying {name}</h1>
-            <p className="lead">Every finding links to where it came from.</p>
+            <p className="lead">Every finding links to where it came from</p>
           </div>
           <div className="row g10" style={{ padding: "8px 12px", border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}>
             <AgentFace kind="analyst" size={26} mood={running ? "focus" : "happy"} />

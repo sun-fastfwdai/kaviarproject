@@ -29,7 +29,7 @@ export default async function EditorPage({ params, searchParams }: PageProps<"/b
         { icon: "download", title: "Download PNGs", body: "9:16, 4:5 and 1:1 at 1080 px — ready to upload in Ads Manager." },
       ]}
       art={<EditorArt />}
-      actions={<Link className="btn dark" href={`${base}/creative`}><Icon name="sparkle" size={14} color="#fff" />Plan a batch</Link>} />
+      actions={<Link className="btn dark" href={`${base}/creative`}><Icon name="pencil" size={14} color="#fff" />Plan a batch</Link>} />
   </div></>);
 
   const [siblings, products, assets] = await Promise.all([
