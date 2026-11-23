@@ -4,16 +4,17 @@ import { excludedSet } from "../db/upsert";
 import { decrypt } from "../crypto";
 import { env } from "../env";
 import { metaGetAll } from "./client";
-import { budget, dateWindows, mapInsight, type InsightRow } from "./map";
+import { and, eq } from "drizzle-orm";
+import { budget, dateWindows, mapCreative, mapDetail, mapInsight, type InsightRow, type RawCreative, type SliceRow, type TotalRow } from "./map";
 
 type Conn = typeof schema.connections.$inferSelect;
 const T = schema;
 const campaignSet = excludedSet(T.metaCampaigns, ["brandId", "id"]);
-const adSet = excludedSet(T.metaAds, ["brandId", "id"]);
+const adSet = excludedSet(T.metaAds, ["brandId", "id", "detail"]); // `detail` is written by its own daily read, never wiped by the hourly one
 const insightSet = excludedSet(T.metaInsightsDaily, ["brandId", "adId", "date"]);
 
 type Campaign = { id: string; name: string; objective?: string; status?: string; effective_status?: string; daily_budget?: string; lifetime_budget?: string; created_time?: string; updated_time?: string };
-type Ad = { id: string; name: string; status?: string; effective_status?: string; campaign_id?: string; adset_id?: string; created_time?: string; updated_time?: string; creative?: { thumbnail_url?: string } };
+type Ad = { id: string; name: string; status?: string; effective_status?: string; campaign_id?: string; adset_id?: string; created_time?: string; updated_time?: string; creative?: RawCreative };
 
 const day = (d: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 
@@ -45,13 +46,14 @@ export async function syncMeta(conn: Conn, cursor: string | null): Promise<Recor
   );
 
   const ads = await metaGetAll<Ad>(`${act}/ads`, {
-    fields: "id,name,status,effective_status,campaign_id,adset_id,created_time,updated_time,creative{thumbnail_url}",
-    limit: "200",
+    // The ad as it ran: its words, picture or video and link come with it, so what was said can be set beside what it brought.
+    fields: "id,name,status,effective_status,campaign_id,adset_id,created_time,updated_time,creative{title,body,image_url,thumbnail_url,video_id,object_type,call_to_action_type,object_story_spec,asset_feed_spec}",
+    limit: "100",
   }, token);
   await chunks(ads, 200, (b) =>
     db.insert(T.metaAds).values(b.map((a) => ({
       brandId, id: a.id, name: a.name, campaignId: a.campaign_id ?? null, adsetId: a.adset_id ?? null, status: a.status ?? null,
-      effectiveStatus: a.effective_status ?? null, thumbnailUrl: a.creative?.thumbnail_url ?? null,
+      effectiveStatus: a.effective_status ?? null, thumbnailUrl: a.creative?.thumbnail_url ?? null, creative: mapCreative(a.creative),
       createdTime: a.created_time ? new Date(a.created_time) : null, updatedTime: a.updated_time ? new Date(a.updated_time) : null,
     }))).onConflictDoUpdate({ target: [T.metaAds.brandId, T.metaAds.id], set: adSet }),
   );
@@ -76,7 +78,28 @@ export async function syncMeta(conn: Conn, cursor: string | null): Promise<Recor
     );
     insightRows += rows.length;
   }
-  return { campaigns: campaigns.length, ads: ads.length, insights: insightRows };
+  // Once a day: what the daily rows cannot hold. It never fails the sync — the numbers above are already saved.
+  let detailed = 0;
+  if (ads.length && cursor !== until) detailed = await syncDetail(brandId, act, token, tz).catch((e) => { console.error("meta ad detail", (e as Error).message.slice(0, 200)); return 0; });
+  return { campaigns: campaigns.length, ads: ads.length, insights: insightRows, ...(detailed ? { detailed } : {}) };
+}
+
+/**
+ * For each ad over the last 30 days: how many different people saw it and how often, how much of its video was watched, and its
+ * results split by age and gender and by placement. Three reads for the whole account, not three per ad.
+ */
+async function syncDetail(brandId: string, act: string, token: string, tz: string): Promise<number> {
+  const w = { since: day(new Date(Date.now() - 29 * 864e5), tz), until: day(new Date(), tz) };
+  const ask = <R>(fields: string, breakdowns?: string) => metaGetAll<R>(`${act}/insights`, { level: "ad", time_range: JSON.stringify(w), fields, limit: "500", ...(breakdowns ? { breakdowns } : {}) }, token);
+  const VIDEO = "video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_thruplay_watched_actions,video_avg_time_watched_actions";
+  // If Meta refuses a video field on this version, the reach and frequency are still read.
+  const totals = await ask<TotalRow>(`ad_id,impressions,reach,frequency,${VIDEO}`).catch(() => ask<TotalRow>("ad_id,impressions,reach,frequency"));
+  if (!totals.length) return 0;
+  const SLICE = "ad_id,spend,impressions,inline_link_clicks,actions,action_values";
+  const [ages, places] = await Promise.all([ask<SliceRow>(SLICE, "age,gender").catch(() => [] as SliceRow[]), ask<SliceRow>(SLICE, "publisher_platform,platform_position").catch(() => [] as SliceRow[])]);
+  const details = mapDetail(totals, ages, places, w, new Date().toISOString());
+  for (const [id, d] of Object.entries(details)) await db.update(T.metaAds).set({ detail: d }).where(and(eq(T.metaAds.brandId, brandId), eq(T.metaAds.id, id)));
+  return Object.keys(details).length;
 }
 
 export const metaCursorFor = (conn: Conn) => day(new Date(), String(conn.details?.timezone ?? "UTC"));

@@ -108,28 +108,41 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                 <span style={{ height: 20, padding: "0 9px", borderRadius: 99, fontSize: 11, lineHeight: "20px", background: level === 2 ? "rgba(52,199,123,.22)" : "rgba(255,255,255,.12)", color: level === 2 ? "#8BE8B4" : "rgba(255,255,255,.75)" }}>{LEVEL[level]}</span>
               </span>
               <span style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, letterSpacing: "-0.015em", maxWidth: 640 }}>{p.title}</span>
-              <div className="row g14" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
-                <span className="col">
+              {/* the budget is the one thing the brand sets here: its amount and how long — and what that brings back, straight beside it */}
+              <div className="row g20" style={{ alignItems: "flex-start", flexWrap: "wrap", rowGap: 14 }}>
+                <span className="col g6">
+                  <span style={{ ...label, color: "rgba(255,255,255,.5)" }}>Budget · yours to set</span>
                   <span className="row g6" style={{ alignItems: "center" }}>
-                    <button type="button" aria-label="Spend less" disabled={busy || budget - step < 50} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16, opacity: budget - step < 50 ? 0.35 : 1 }}>−</button>
-                    <label className="row tnum" title="Type an amount" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)", cursor: "text", borderBottom: "1px dashed rgba(255,255,255,.28)" }}>
-                      <span aria-hidden>{sign}</span>
-                      <input aria-label="Budget" inputMode="numeric" value={typing ?? budget.toLocaleString("en-US")} onFocus={(e) => { setTyping(String(budget)); e.currentTarget.select(); }}
+                    <button type="button" aria-label="Spend less" disabled={busy || budget - step < 50} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 17, opacity: budget - step < 50 ? 0.35 : 1 }}>−</button>
+                    <label className="row tnum" title="Click to type an amount" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "#fff", cursor: "text", padding: "0 10px", borderRadius: 12, background: "rgba(255,255,255,.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.14)" }}>
+                      <span aria-hidden style={{ color: "rgba(255,255,255,.55)" }}>{sign}</span>
+                      <input id="budget-amount" aria-label="Budget" inputMode="numeric" value={typing ?? budget.toLocaleString("en-US")} onFocus={(e) => { setTyping(String(budget)); e.currentTarget.select(); }}
                         onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, "").slice(0, 7); setTyping(v); if (Number(v) >= 50) setBudget(Number(v)); }}
                         onBlur={() => setTyping(null)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         style={{ width: `${Math.max(2, (typing ?? budget.toLocaleString("en-US")).length) + 0.4}ch`, border: 0, outline: 0, padding: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit" }} />
                     </label>
-                    <button type="button" aria-label="Spend more" disabled={busy} onClick={() => setBudget((b) => b + step)} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16 }}>+</button>
+                    <button type="button" aria-label="Spend more" disabled={busy} onClick={() => setBudget((b) => b + step)} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 17 }}>+</button>
                   </span>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>you spend · {usd(daily)} a day</span>
+                  <span className="row g6" style={{ fontSize: 12, color: "rgba(255,255,255,.55)", alignItems: "center" }}>over
+                    <span role="radiogroup" aria-label="How long the campaign runs" style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" role="radio" aria-checked={days === d} disabled={busy} onClick={() => setDays(d)} style={{ height: 22, padding: "0 9px", borderRadius: 99, fontSize: 11.5, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
+                    <span className="tnum">· {usd(daily)} a day</span></span>
                 </span>
-                <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)" }}>→</span>
-                <span className="col"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em" }}>{usd(mid.revenue)}</span>
-                  <span className="row g6" style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in
-                    <span style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" disabled={busy} onClick={() => setDays(d)} style={{ height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
-                  </span></span>
-                <span className="col" style={{ paddingLeft: 6 }} title={`${Math.round(mid.orders)} orders at the likely rates, after the cost of the goods and the ad spend`}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, color: mid.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>{mid.profit >= 0 ? "profit after costs" : "short of break-even"} · {Math.round(mid.orders)} orders</span></span>
+                <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)", paddingTop: 26 }}>→</span>
+                <span className="col g6"><span style={{ ...label, color: "rgba(255,255,255,.5)" }}>Likely comes back</span>
+                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.035em" }}>{usd(mid.revenue)}</span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>{Math.round(mid.orders)} order{Math.round(mid.orders) === 1 ? "" : "s"} · {usd(p.c.price)} each</span></span>
+                <span className="col g6" title="After the cost of the goods and the ad spend, at the likely rates"><span style={{ ...label, color: "rgba(255,255,255,.5)" }}>{mid.profit >= 0 ? "Profit after costs" : "Short of break-even"}</span>
+                  <span className="tnum" style={{ fontSize: 48, lineHeight: "44px", fontWeight: 600, letterSpacing: "-0.035em", color: mid.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))}</span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>{mid.profit >= 0 ? "what is left for you" : "the ads cost more than they bring"}</span></span>
               </div>
+              {/* a change is not kept until the brand says so — said right where it was made */}
+              {changed && <div className="row g10" role="status" style={{ alignSelf: "flex-start", padding: "6px 6px 6px 14px", borderRadius: 99, background: "rgba(255,255,255,.1)", flexWrap: "wrap" }}>
+                <span className="row g6" style={{ fontSize: 13 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "#FFB020" }} />Not saved yet · was {usd(p.budget)} over {p.days} days</span>
+                {p.stage === "suggested"
+                  ? <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 99, background: "#34C77B", color: "#0B2B1A", fontSize: 13, fontWeight: 600 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={11} />}Approve at {usd(budget)}</button>
+                  : <button type="button" disabled={busy} className="row g6" style={{ height: 30, padding: "0 14px", borderRadius: 99, background: "#fff", color: "#121212", fontSize: 13, fontWeight: 600 }} onClick={() => (p.meta ? setConfirm("budget") : go("save", () => setPlanBudget(slug, p.key, budget, days), `Budget saved — ${usd(budget)} over ${days} days`))}>{spin("save") || <Icon name="check" size={11} />}{p.meta ? "Change it on Meta" : "Save budget"}</button>}
+                <button type="button" disabled={busy} style={{ height: 30, padding: "0 12px", borderRadius: 99, color: "rgba(255,255,255,.75)", fontSize: 13 }} onClick={() => { setBudget(p.budget); setDays(p.days); }}>Undo</button>
+              </div>}
               <div className="col g4" style={{ width: 430, maxWidth: "100%" }}>
                 <div style={{ position: "relative", height: 6, borderRadius: 99, background: "rgba(255,255,255,.14)" }}>
                   <div style={{ position: "absolute", inset: 0, borderRadius: 99, background: "linear-gradient(90deg, rgba(255,155,115,.9), rgba(110,231,168,.95))", opacity: 0.85 }} />
@@ -146,8 +159,6 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               </span>
               <span className="row g8" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {!p.approvedAt && p.stage !== "suggested" && now !== "launch" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved")}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
-                {changed && p.stage !== "suggested" && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => (p.meta ? setConfirm("budget") : go("save", () => setPlanBudget(slug, p.key, budget, days), "Budget saved"))}>{spin("save")}{p.meta ? "Change it on Meta" : "Save the change"}</button>}
-                {changed && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 12px", borderRadius: 99, color: "rgba(255,255,255,.7)", fontSize: 13.5 }} onClick={() => { setBudget(p.budget); setDays(p.days); }}>Undo</button>}
                 {act(now)}
               </span>
             </div>
@@ -169,6 +180,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                     <span className="ell" style={{ fontSize: 11.5, color: on ? "#8BE8B4" : "rgba(255,255,255,.5)" }}>{on ? `You are here · ${x.note}` : x.note}</span>
                   </span>
                   {on && <span style={{ alignSelf: "flex-start" }}>{act(x.key, true)}</span>}
+                  {x.key === "budget" && !on && <button type="button" onClick={() => { const el = document.getElementById("budget-amount"); el?.scrollIntoView({ block: "center", behavior: "smooth" }); el?.focus(); }} className="row g4" style={{ alignSelf: "flex-start", height: 24, padding: "0 9px", borderRadius: 99, fontSize: 11.5, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}><Icon name="pencil" size={10} />Change</button>}
                   {x.key === "test" && !x.done && a && p.stage === "ready" && <Link href={`${base}/audience?batch=${a.batchId}`} title="Show the ads to look-alike shoppers before any money is spent" className="row g4" style={{ alignSelf: "flex-start", height: 26, padding: "0 10px", borderRadius: 99, fontSize: 11.5, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)" }}>Test first<Icon name="arrow-r" size={10} /></Link>}
                 </div>
               );

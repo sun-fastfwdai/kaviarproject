@@ -267,6 +267,19 @@ export const metaCampaigns = pgTable(
   (t) => [primaryKey({ columns: [t.brandId, t.id] })],
 );
 
+/** An ad as it ran on Meta: its words, its picture or video, and where it sends people. Read with the ad on every sync. */
+export type AdCreative = { kind: "image" | "video" | "carousel" | "other"; body: string; title: string; description: string; cta: string | null; image: string | null; videoId: string | null; link: string | null; cards?: number };
+/** One slice of an ad's results: an age and gender, or a placement. */
+export type AdSeg = { key: string; impressions: number; spend: number; clicks: number; purchases: number; value: number };
+/**
+ * What the daily rows cannot hold, for the last 30 days, read once a day: how many different people saw the ad and how often
+ * (reach cannot be added up across days), how much of a video was watched, and the results split by who saw it and where it ran.
+ */
+export type AdDetail = {
+  at: string; since: string; until: string; reach: number; frequency: number;
+  video: { plays: number; p25: number; p50: number; p75: number; p100: number; thruplays: number; avgSeconds: number } | null;
+  ages: AdSeg[]; places: AdSeg[];
+};
 export const metaAds = pgTable(
   "meta_ads",
   {
@@ -280,6 +293,8 @@ export const metaAds = pgTable(
     thumbnailUrl: text("thumbnail_url"),
     createdTime: tz("created_time"),
     updatedTime: tz("updated_time"),
+    creative: jsonb("creative").$type<AdCreative>(),
+    detail: jsonb("detail").$type<AdDetail>(),
   },
   (t) => [primaryKey({ columns: [t.brandId, t.id] })],
 );
