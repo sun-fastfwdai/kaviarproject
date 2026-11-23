@@ -78,7 +78,7 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
             <button type="button" className="btn quiet sm" style={{ borderRadius: 99 }} disabled={busy} onClick={() => start(async () => { await checkNow(slug); router.refresh(); })}><Icon name="refresh" size={12} />Check now</button>
           </div>
           <span className="fill" />
-          <Link className="btn" href={`${base}/performance`}><Icon name="trend-up" size={14} />Results</Link>
+          <Link className="btn" href={`${base}/performance`}><Icon name="trend-up" size={14} />Running ads</Link>
           <button type="button" className="btn dark" onClick={() => { setErr(null); setCreating(true); }}><Icon name="plus" size={13} color="#fff" />New campaign</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>

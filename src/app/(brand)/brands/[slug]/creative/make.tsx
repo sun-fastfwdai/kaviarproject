@@ -185,7 +185,7 @@ export function MakeAds({ slug, brand, products, campaigns, initial, aiOk }: { s
           {shown && shown.ads.length > 0 && !working && <div style={{ paddingLeft: 34 }}>
             <AdsBlock plain m={m} base={base} stage="review" locked={shown.plan.onMeta} ads={shown.ads} brief={shown.brief} productPhoto={shown.plan.image} batchId={shown.batchId} placed={shown.placed} heading={shown.plan.title}
               extra={approved > 0 && !shown.plan.onMeta ? <Link className="btn dark sm" href={`${base}/campaigns/${encodeURIComponent(shown.plan.key)}`}>Run {approved === 1 ? "it" : `these ${approved}`} on Meta<Icon name="arrow-r" size={11} color="#fff" /></Link>
-                : shown.plan.onMeta ? <Link className="btn sm" href={`${base}/campaigns/${encodeURIComponent(shown.plan.key)}`}>Open campaign<Icon name="arrow-r" size={11} /></Link> : null} />
+                : <Link className="btn sm" href={`${base}/campaigns/${encodeURIComponent(shown.plan.key)}`}>Open campaign<Icon name="arrow-r" size={11} /></Link>} />
           </div>}
           <div ref={end} />
         </div>}

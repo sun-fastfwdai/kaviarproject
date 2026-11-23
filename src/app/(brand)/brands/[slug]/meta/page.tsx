@@ -107,7 +107,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
             </div>
           </div>
           <IrisHeader>· compares Meta with Shopify</IrisHeader>
-          <Note icon="info" tone="#4C7BD9" title="Two numbers for the same sales" href={`/brands/${slug}/performance?days=${days}`} link="Compare in Performance">
+          <Note icon="info" tone="#4C7BD9" title="Two numbers for the same sales" href={`/brands/${slug}/performance?days=${days}`} link="Running ads">
             Meta reports {num(s.metaPurchases)} purchases ({money(s.metaValue, cur)}). Shopify shows {num(s.metaOrders)} orders ({money(s.metaRevenue, cur)}) tagged with Meta UTMs. Meta also counts views within a day and sales that came through other channels.
           </Note>
           <div className="col g6" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>

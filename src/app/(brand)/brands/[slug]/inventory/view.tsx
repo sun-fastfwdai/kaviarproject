@@ -25,7 +25,7 @@ function Thumb({ r, size = 36 }: { r: StockRow; size?: number }) {
     : <span style={{ width: size, height: size, borderRadius: 8, background: "var(--tray)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="box" size={15} color="#8B8883" /></span>;
 }
 
-export function InventoryView({ slug, brand, currency, stock, admin, canAdd, allow, open }: { slug: string; brand: string; currency: string; stock: Stock; admin: string | null; canAdd: boolean; allow: string | null; open: string | null }) {
+export function InventoryView({ slug, brand, currency, stock, planKeys, admin, canAdd, allow, open }: { slug: string; brand: string; currency: string; stock: Stock; planKeys: string[]; admin: string | null; canAdd: boolean; allow: string | null; open: string | null }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [lead, setL] = useState(String(stock.leadDays));
@@ -39,7 +39,7 @@ export function InventoryView({ slug, brand, currency, stock, admin, canAdd, all
   const line = !stock.rows.length ? "No stock to forecast yet" : !t.soon && !t.reorder && t.ordered ? `${t.ordered} restock${t.ordered === 1 ? "" : "s"} on the way` : t.soon ? `${t.soon} product${t.soon === 1 ? " runs" : "s run"} out before a restock arrives` : t.reorder ? `Reorder ${t.reorder} product${t.reorder === 1 ? "" : "s"} now` : "Stock is healthy";
   const Act = (r: StockRow, dark = false) => ["out", "risk", "low"].includes(r.state)
     ? <button type="button" className={`btn sm${dark && !r.ordered ? " dark" : ""}`} onClick={() => setRestock(r.id)}>{r.ordered ? "It arrived" : "Restock"}</button>
-    : r.state === "over" || r.state === "idle" ? <Link className="btn sm" href={`/brands/${slug}/plan`} title="Put ad budget behind it in the Spend plan">Advertise it<Icon name="arrow-r" size={11} /></Link> : null;
+    : r.state === "over" || r.state === "idle" ? <Link className="btn sm" href={planKeys.includes(`stock:${r.id}`) ? `/brands/${slug}/campaigns/${encodeURIComponent(`stock:${r.id}`)}` : `/brands/${slug}/campaigns`} title={planKeys.includes(`stock:${r.id}`) ? "Open its campaign" : "Start a campaign for it in Campaigns"}>Advertise it<Icon name="arrow-r" size={11} /></Link> : null;
   const tiles: [string, string, string, boolean][] = [
     ["Run out first", String(t.soon), `Sold out, or gone before a ${stock.leadDays}-day restock lands`, t.soon > 0],
     ["Reorder now", String(t.reorder), `Fewer than ${STOCK.soonDays} days of slack before the last day to order`, t.reorder > 0],

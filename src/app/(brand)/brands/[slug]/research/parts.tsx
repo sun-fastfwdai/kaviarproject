@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buildTestAds, decide, rerun, toggleCell } from "./actions";
 import type { ResearchRow } from "./view";
@@ -91,7 +92,7 @@ function EvidenceList({ slug, id, evidence, running }: { slug: string; id: strin
   );
 }
 
-export function MarketTab({ slug, id, report, currency, onAds, evidence, running }: { slug: string; id: string; report: MarketReport; currency: string; onAds: () => void; evidence: Evidence[]; running: boolean }) {
+export function MarketTab({ slug, id, report, currency, onAds, onPlan, evidence, running }: { slug: string; id: string; report: MarketReport; currency: string; onAds: () => void; onPlan: () => void; evidence: Evidence[]; running: boolean }) {
   const d = useDecisions(slug, id);
   const S = report.sources;
   const TREND: Record<string, [string, "green" | "ink" | "amber"]> = { rising: ["Rising", "green"], steady: ["Steady", "ink"], fading: ["Fading", "amber"] };
@@ -110,7 +111,7 @@ export function MarketTab({ slug, id, report, currency, onAds, evidence, running
 
       <EvidenceList slug={slug} id={id} evidence={evidence} running={running} />
 
-      <Section title="Who buys it" right={`${report.segments.length} groups${accepted ? ` · ${accepted} accepted` : ""} · the test plan uses the ones you don’t reject`}>
+      <Section title="Who buys it" right={<>{report.segments.length} groups{accepted ? ` · ${accepted} accepted` : ""} · the <button type="button" className="lnk i2" onClick={onPlan}>Test plan</button> uses the ones you don’t reject</>}>
         {report.segments.map((s) => <Segment key={s.id} s={s} all={S} st={d.of(s.id, s.status)} onSet={(v) => d.set("segment", s.id, v)} size={evidence.find((e) => e.kind === "audience_size" && e.subject === s.name)} />)}
       </Section>
 
@@ -136,7 +137,7 @@ export function MarketTab({ slug, id, report, currency, onAds, evidence, running
         {report.trends.map((t, i) => <Line key={i} label={<Tone c={TREND[t.direction]?.[1] ?? "ink"}>{TREND[t.direction]?.[0] ?? t.direction}</Tone>} labelW={84} from={<Found ids={t.sources} all={S} />}><Figures text={t.text} /></Line>)}
       </Section>
 
-      <Section title="Opportunities" right="accept the ones worth testing">
+      <Section title="Opportunities" right="reject the ones not worth testing">
         {report.opportunities.map((o) => {
           const st = d.of(o.id, o.status);
           return <Line key={o.id} dim={st === "rejected"} sub={o.why} from={<Found ids={o.sources} all={S} />} end={<Decide status={st} onSet={(v) => d.set("opportunity", o.id, v)} />}><span className="w5">{o.text}</span></Line>;
@@ -174,7 +175,7 @@ export function PlanTab({ slug, id, row, running, onMarket }: { slug: string; id
         <AgentFace kind="analyst" size={18} />
         <span className="col g4" style={{ maxWidth: 860 }}>
           <p className="i1" style={{ margin: 0, fontSize: 16, lineHeight: "25px", letterSpacing: "-0.01em" }}><Figures text={plan.summary} /></p>
-          <span className="xs i3">Static product ads first: cheap to make, so the budget tests the message. When one wins, make UGC clips for it in Shoots.</span>
+          <span className="xs i3">Static product ads first: cheap to make, so the budget tests the message. When one wins, make UGC clips for it in <Link className="lnk i2" href={`/brands/${slug}/creative/shoots`}>Shoots</Link>.</span>
         </span>
       </div>
       {plan.hypotheses && plan.hypotheses.length > 0 && (

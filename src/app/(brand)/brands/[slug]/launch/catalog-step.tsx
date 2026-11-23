@@ -25,7 +25,7 @@ export function CatalogStep({ slug, catalog, currency }: { slug: string; catalog
       {busy && <span className="xs i3">Usually under a minute — longer for sites that aren’t on Shopify.</span>}
       {list.length > 0 && (
         <div className="col" style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden" }}>
-          <div className="row between xs i3" style={{ padding: "7px 12px", background: "var(--tray)" }}><span>From {catalog?.source}</span><span>Imported as drafts — publish in Shopify when ready</span></div>
+          <div className="row between xs i3" style={{ padding: "7px 12px", background: "var(--tray)" }}><span>From {catalog?.source}</span><span>Not in Shopify yet — the CSV adds them as drafts</span></div>
           {list.slice(0, 6).map((p) => (
             <div key={p.handle} className="row g10 sm" style={{ padding: "7px 12px", borderTop: "1px solid var(--line)" }}>
               {p.images[0] ? <img src={p.images[0]} alt="" width={30} height={30} style={{ borderRadius: 6, objectFit: "cover" }} /> : <span style={{ width: 30, height: 30, borderRadius: 6, background: "var(--tray-2)" }} />}

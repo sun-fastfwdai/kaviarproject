@@ -111,7 +111,7 @@ export function ResearchView({ slug, brand, currency, products, researched, subj
             </div>
             {tab === "summary" && <Summary slug={slug} row={row} onOpen={(k) => go({ tab: k })} />}
             {tab === "position" && <PositionTab key={row.positioning?.at ?? "none"} slug={slug} id={row.id} pos={row.positioning} running={running} />}
-            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
+            {tab === "market" && (report ? <MarketTab slug={slug} id={row.id} report={report} evidence={row.evidence} running={running} currency={currency} onAds={() => go({ tab: "ads" })} onPlan={() => go({ tab: "plan" })} /> : <span className="sm i3">The market findings appear here as soon as Iris finishes writing them up.</span>)}
             {tab === "ads" && <AdsTab slug={slug} id={row.id} row={row} market={market} hasMeta={hasMeta} running={running} />}
             {tab === "plan" && <PlanTab slug={slug} id={row.id} row={row} running={running} onMarket={() => go({ tab: "market" })} />}
           </>
@@ -200,7 +200,7 @@ function Summary({ slug, row, onOpen }: { slug: string; row: ResearchRow; onOpen
           </div>))}
       </div>}
       <div className="row g10" style={{ padding: 14, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
-        <span className="col fill"><span className="sm w5 i1">Turn this into a plan</span><span className="xs i3">{segs.length} buyer group{segs.length === 1 ? "" : "s"}{ads ? ` · ${ads} competitor ads read` : ""} · these audiences are already in your Spend plan</span></span>
+        <span className="col fill"><span className="sm w5 i1">Turn this into a plan</span><span className="xs i3">{segs.length} buyer group{segs.length === 1 ? "" : "s"}{ads ? ` · ${ads} competitor ads read` : ""} · buyer groups can be a campaign’s audience · <Link className="lnk i2" href={`${base}/campaigns`}>Open Campaigns</Link></span></span>
         {ads > 0 && <button type="button" className="btn" onClick={() => onOpen("ads")}>Competitor ads</button>}
         <Link className="btn dark" href={`${base}/plan`}>Open Budget<Icon name="arrow-r" size={12} color="#fff" /></Link>
       </div>

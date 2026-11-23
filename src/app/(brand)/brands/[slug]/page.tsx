@@ -115,7 +115,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
               <span className="sm i3 ell">{sub || "Brand"}</span>
             </div>
             <SyncButton slug={slug} running={history.some((r) => r.status === "running")} disabled={![conns.shopify, conns.meta].some((c) => c?.status === "connected")} />
-            <Link href={`${base}/performance`} className="btn dark sm">Open performance <span>→</span></Link>
+            <Link href={`${base}/performance`} className="btn dark sm">Running ads <span>→</span></Link>
           </div>
 
           {pos?.positioning ? (
@@ -177,7 +177,7 @@ export default async function OverviewPage({ params }: PageProps<"/brands/[slug]
                 <div className="row g8" style={{ padding: "10px 0 6px", borderTop: "1px solid var(--line)" }}>
                   <AgentFace kind="analyst" size={18} mood="up" />
                   <span className="xs i2 fill">Iris: {notes.overview?.line ?? `${best[0].name} returns the most (${roas(best[0].v)} verified)${best.some((c) => c.v < 1 && c.spend >= 100) ? "; one campaign is below break-even" : ""}.`}</span>
-                  <Link className="lnk xs i2 row g4" href={`${base}/performance`}>Performance<Icon name="arrow-r" size={12} /></Link>
+                  <Link className="lnk xs i2 row g4" href={`${base}/performance`}>Running ads<Icon name="arrow-r" size={12} /></Link>
                 </div>
               )}
             </div>

@@ -70,7 +70,7 @@ export function PositionTab({ slug, id, pos, running }: { slug: string; id: stri
         <div className="row g8">
           <AgentFace kind="analyst" size={18} />
           <span className="xs i3 fill">{pos.edited ? "Edited by the team" : `Written by Iris from ${fromText}`}</span>
-          {accepted ? <Tone c="green">In use</Tone> : <span className="xs i3">Not in use yet</span>}
+          {accepted ? <Tone c="green">Approved</Tone> : <span className="xs i3">Draft</span>}
           {!edit && <button type="button" className="btn quiet sm" onClick={() => { setStatement(pos.statement); setPillars(pos.pillars); setEdit(true); }}><Icon name="pencil" size={12} />Edit</button>}
         </div>
         {edit
@@ -83,8 +83,8 @@ export function PositionTab({ slug, id, pos, running }: { slug: string; id: stri
               <button type="button" className="btn sm" onClick={() => setEdit(false)}>Cancel</button>
             </>
           ) : accepted
-            ? <button type="button" className="btn sm" disabled={busy} onClick={() => save({ status: null })}>Stop using it</button>
-            : <button type="button" className="btn sm dark" disabled={busy} title="Remy then writes every ad, photo prompt, storyboard and casting from it" onClick={() => save({ status: "accepted" })}><Icon name="check" size={12} color="#fff" />Use this positioning</button>}
+            ? <button type="button" className="btn sm" disabled={busy} onClick={() => save({ status: null })}>Back to draft</button>
+            : <button type="button" className="btn sm dark" disabled={busy} title="Marks it as agreed by the team — Remy writes from it either way" onClick={() => save({ status: "accepted" })}><Icon name="check" size={12} color="#fff" />Approve this positioning</button>}
           {!edit && <button type="button" className="btn sm quiet" disabled={busy || running} onClick={again}>{running ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Write it again</button>}
           {err && <span className="xs c-amber">{err}</span>}
         </div>

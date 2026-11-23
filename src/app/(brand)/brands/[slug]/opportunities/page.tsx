@@ -7,6 +7,7 @@ import { getNotes } from "@/lib/ai/notes";
 import { buildSignals } from "@/lib/signals/build";
 import { planData } from "@/lib/growth/plan-data";
 import { planFor } from "@/lib/growth/today";
+import { getPlans } from "@/lib/growth/plans";
 import { Bar } from "@/components/shell/parts";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -31,10 +32,12 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
   const conns = await getConnections(brand.id);
   const R = schema.marketResearch;
-  const [d, research, signals] = await Promise.all([
+  const [d, research, signals, campaigns] = await Promise.all([
     planData(brand.id, cur),
     db.select({ report: R.report, positioning: R.positioning, rivals: R.rivals, manual: R.manual, evidence: R.evidence }).from(R).where(and(eq(R.brandId, brand.id), eq(R.market, "US"))).orderBy(desc(R.updatedAt)).limit(1).then((r) => r[0] ?? null).catch(() => null),
     conns.shopify ? Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]).then(([s, n]) => buildSignals(base, brand, s, n)).catch(() => []) : Promise.resolve([]),
+    // The campaigns that exist today: an audience here is reachable only through one of them.
+    getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }).then((x) => new Set(x.list.map((q) => q.key))).catch(() => new Set<string>()),
   ]);
   const { p, budget } = planFor(d);
   const img = (title: string) => d.products.find((x) => x.title === title)?.image ?? null;
@@ -63,7 +66,7 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
 
           <div className="col g10">
             {list.map(({ c, row }, i) => {
-              const o = row?.out[1], pic = img(c.product);
+              const o = row?.out[1], pic = img(c.product), campaign = campaigns.has(c.key) ? `${base}/campaigns/${encodeURIComponent(c.key)}` : null;
               return (
                 <div key={c.key} className="row g16 hv-card" style={{ padding: 16, background: "#fff", borderRadius: 16, boxShadow: i === 0 ? "0 0 0 1.5px var(--ink), 0 10px 28px rgba(18,18,18,.07)" : "0 0 0 1px var(--line)", alignItems: "center" }}>
                   <span className="tnum" style={{ width: 26, height: 26, borderRadius: 99, background: i === 0 ? "var(--ink)" : "var(--tray-2)", color: i === 0 ? "#fff" : "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{i + 1}</span>
@@ -83,7 +86,7 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
                   </div>
                   <div className="col" style={{ alignItems: "flex-end", flexShrink: 0, minWidth: 150 }}>
                     {o ? <>
-                      <span className="xs i3">In your plan</span>
+                      {campaign ? <Link className="lnk xs i3 row g4" href={campaign}>In your plan<Icon name="arrow-r" size={11} /></Link> : <span className="xs i3">In your plan</span>}
                       <span className="row g6 tnum" style={{ fontSize: 17, fontWeight: 600 }}><span className="i3" style={{ fontWeight: 500 }}>{usd(row!.spend)}</span><span className="i3">→</span>{usd(o.revenue)}</span>
                       <span className="xs w5 tnum" style={{ color: o.profit >= 0 ? GOOD : BAD }}>{o.profit >= 0 ? "+" : "−"}{usd(Math.abs(o.profit))} profit · {Math.round(o.orders)} orders</span>
                     </> : <>
@@ -91,7 +94,8 @@ export default async function OpportunitiesPage({ params }: PageProps<"/brands/[
                       <span className="xs i2" style={{ textAlign: "right", maxWidth: 170 }}>A bigger budget than {usd(budget)} brings it in</span>
                     </>}
                   </div>
-                  <MakeAds slug={slug} k={c.key} primary={i === 0} />
+                  {campaign ? <MakeAds slug={slug} k={c.key} primary={i === 0} />
+                    : <Link className={`btn${i === 0 ? " dark" : ""}`} style={{ flexShrink: 0 }} href={`${base}/campaigns`}>Start a campaign<Icon name="arrow-r" size={12} color={i === 0 ? "#fff" : undefined} /></Link>}
                 </div>
               );
             })}

@@ -96,7 +96,7 @@ function Access({ slug, kind, message, onRetry, busy }: { slug: string; kind: Li
     <div className="card" style={{ border: "1px solid #F1E1C4" }}>
       <div className="card-h"><Icon name="id" size={18} color="#B7791F" /><span className="sm w5 fill">One step on Meta’s side before Kaviar can pull competitors’ ads</span></div>
       <div className="card-b" style={{ gap: 10 }}>
-        <span className="xs i2" style={{ lineHeight: "18px" }}>Meta opens its Ad Library API only to a Facebook login that has confirmed its identity with Meta. Kaviar reads the Library with the Meta login connected on Integrations, so that person does this once:</span>
+        <span className="xs i2" style={{ lineHeight: "18px" }}>Meta opens its Ad Library API only to a Facebook login that has confirmed its identity with Meta. Kaviar reads the Library with the Meta login connected on <Link className="lnk" href={`/brands/${slug}/integrations`}>Integrations</Link>, so that person does this once:</span>
         <ol className="col g6 xs i1" style={{ margin: 0, paddingLeft: 18, lineHeight: "18px" }}>
           <li>Open <a className="lnk" href="https://www.facebook.com/ID" target="_blank" rel="noreferrer">facebook.com/ID</a> and confirm their identity (a photo ID and their country). Meta reviews it.</li>
           <li>Once confirmed, open <a className="lnk" href="https://www.facebook.com/ads/library/api" target="_blank" rel="noreferrer">the Ad Library API page</a> and accept the terms if Meta asks.</li>
@@ -337,7 +337,7 @@ export function AdsTab({ slug, id, row, market, hasMeta, running }: { slug: stri
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a competitor’s Facebook Page" aria-label="Competitor name" className="input sm" style={{ width: 250, height: 32 }} />
           <button type="submit" className="btn sm" disabled={busy != null || !name.trim()}>{busy === "add" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="plus" size={12} />}Add</button>
         </form>
-        {!hasMeta && <span className="pill amber" style={{ height: 26 }}>Connect Meta Ads to pull ads</span>}
+        {!hasMeta && <Link className="pill amber" style={{ height: 26 }} href={`/brands/${slug}/integrations`}>Connect Meta Ads to pull ads<Icon name="arrow-r" size={11} /></Link>}
         <span className="fill" />
         {err && <span className="xs c-amber" style={{ maxWidth: 420 }}>{err}</span>}
         <a className="btn sm quiet" href={adLibraryUrl({ q: names[0] ?? "", country: market })} target="_blank" rel="noreferrer" title={`Meta shares a brand’s ads through its API when they also reached the EU or UK. Ads shown only in ${marketName(market)} are on the Ad Library website — screenshot them below and Kaviar copies each ad off the screenshot.`}>Ad Library<Icon name="external" size={11} /></a>

@@ -16,6 +16,7 @@ export type PilotChange = {
   id: string; kind: string; title: string; why: string; before: string; after: string; status: string; byKaviar: boolean;
   signal: string | null; verdict: "worked" | "didnt" | "too-early" | null; detail: string | null;
   onMeta: string | null; failed: string | null; // what Kaviar changed on Meta itself, or why its try failed
+  manager: string | null; planKey: string | null; // its campaign in Ads Manager; the Kaviar campaign new ads belong to
 };
 export type PilotAccess = { connected: boolean; granted: boolean; canAct: boolean; test: { ok: boolean; steps: { name: string; ok: boolean; note?: string }[] } | null };
 export type PilotRun = { when: string; line: string; good: boolean };
@@ -71,16 +72,17 @@ export function AutopilotPanel({ slug, mode: saved, access, owner, last, week, w
           <span className="row g8"><span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: tone, flexShrink: 0 }}>{label}</span><span className="sm w5 i1 ell">{c.title}</span></span>
           <span className="xs ell" title={c.why}><span className="i3" style={{ textDecoration: "line-through" }}>{c.before}</span> <span className="c-green w5">→ {c.after}</span><span className="i3"> · {c.onMeta ? `${c.onMeta} by Kaviar · ` : ""}{c.why}</span></span>
         </div>
-        <div className="row g6" style={{ width: 232, justifyContent: "flex-end", flexShrink: 0 }}>
+        <div className="row g6" style={{ minWidth: 232, justifyContent: "flex-end", flexShrink: 0 }}>
           {c.status === "proposed" && <>
             {c.kind === "add" && c.signal ? <Link className="btn dark sm" href={`${base}/signals/${c.signal}`}>Make the ads</Link>
-              : c.kind === "refresh" ? <Link className="btn dark sm" href={`${base}/creative`}>Make new ads</Link>
+              : c.kind === "refresh" ? <Link className="btn dark sm" href={c.planKey ? `${base}/creative?for=${encodeURIComponent(c.planKey)}` : `${base}/creative`}>Make new ads</Link>
               : <button type="button" className="btn dark sm" disabled={busy} onClick={() => act([c.id], "approved")}>{doing === c.id ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="check" size={12} color="#fff" />}Approve</button>}
             <button type="button" className="btn quiet sm" disabled={busy} onClick={() => act([c.id], "skipped")}>Skip</button>
           </>}
           {c.status === "approved" && <>
             {c.failed ? <span className="xs ell" style={{ maxWidth: 120, color: "#B4532A" }} title={c.failed}>Meta refused</span>
               : <span className="pill" style={{ height: 22, fontSize: 11, ...(c.byKaviar ? { background: "#121212", color: "#fff" } : {}) }}>{c.byKaviar ? "Kaviar decided" : "You approved"}</span>}
+            {c.manager && <a className="btn quiet sm" href={c.manager} target="_blank" rel="noreferrer">Open in Ads Manager<Icon name="external" size={11} /></a>}
             <button type="button" className="btn sm" disabled={busy} onClick={() => act([c.id], "applied")}>Done in Meta</button>
           </>}
           {c.status === "applied" && <>

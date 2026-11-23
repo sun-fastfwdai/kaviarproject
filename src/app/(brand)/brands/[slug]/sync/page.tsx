@@ -108,7 +108,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
       <Bar crumbs={[{ label: brand.name, href: `/brands/${slug}` }, { label: "Store" }, { label: "Data sync" }]}>
         <span className="row g6 xs i3"><AgentFace kind="catalog" size={16} />Cleo keeps both sources in sync, hourly</span>
         <SyncButton slug={slug} running={running} disabled={!canSync} />
-        <Link className="btn dark sm" href={`/brands/${slug}/performance`}><Icon name="chart-bar" size={14} color="#fff" />View performance</Link>
+        <Link className="btn dark sm" href={`/brands/${slug}/performance`}><Icon name="chart-bar" size={14} color="#fff" />Running ads</Link>
       </Bar>
       <div className="scroll">
         <div className="col g16" style={{ padding: "22px 24px" }}>

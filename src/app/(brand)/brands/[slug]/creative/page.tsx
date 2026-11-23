@@ -108,7 +108,7 @@ export default async function CreativePage({ params, searchParams }: PageProps<"
                   { agent: "qa", title: "Review with Otto’s checks", body: "Approve the good ones; rejecting asks why, and Remy learns from it." },
                 ]}
                 art={<BatchArt />}
-                actions={<><Link className="btn dark" href={`${base}/creative`}><Icon name="sparkle" size={14} color="#fff" />See Iris’s plans</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Browse signals</Link></>} />
+                actions={<><Link className="btn dark" href={`${base}/creative?tab=plan`}><Icon name="sparkle" size={14} color="#fff" />See Iris’s plans</Link><Link className="btn" href={`${base}/signals`}><Icon name="lightning" size={14} />Browse signals</Link></>} />
             )}
           </>)}
         </section>

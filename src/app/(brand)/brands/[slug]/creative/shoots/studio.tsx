@@ -115,6 +115,7 @@ function Studio(props: Props) {
   const [tool, setTool] = useState<"select" | "hand">("select");
   const [status, setStatus] = useState<Record<string, RunState>>({});
   const [msg, setMsg] = useState<string | null>(props.planned ? PLANNED[props.planned] : null);
+  const [kept, setKept] = useState<number | null>(null); // files just kept in brand assets — shown with the way there
   const [saved, setSaved] = useState<{ at: string | null; by: string | null; saving: boolean }>({ at: props.savedAt, by: props.savedBy, saving: false });
   const [query, setQuery] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
@@ -616,12 +617,14 @@ function Studio(props: Props) {
     const n = find(flowRef.current, sid);
     if (!n) return;
     const c = cfgOf(n), picked = flaggedToo ? allPhotos(sid) : pickedFor(sid), target = batches.find((b) => b.id === c.send);
+    setKept(null);
     if (c.send) setMsg("Sending to the Editor — Remy is laying out each ad…");
     // The look the photos were shot in (the Prompt node's scene) tells Remy which layout they were composed for.
     const look = flowRef.current.nodes.filter((x) => x.type === "prompt").map((x) => cfgOf(x).scene).find((x) => x.startsWith("Ad look")) ?? null;
     const r = await sendShots(slug, picked, c.send, sendItems(sid).clips, look);
     if (c.send && r.done) setSent((s) => ({ ...s, [sid]: { batch: c.send!, ad: r.firstAd ?? null } }));
-    setMsg(r.error ?? (c.send ? `${r.done} ad${r.done === 1 ? "" : "s"} in “${target?.title}” ${r.done === 1 ? "has its" : "have their"} visuals${r.cards ? ` — ${r.cards} laid out as cards` : ""}. Opening the Editor…` : `${r.done} file${r.done === 1 ? "" : "s"} kept in brand assets — they’re in the Editor’s Media panel.`));
+    setMsg(r.error ?? (c.send ? `${r.done} ad${r.done === 1 ? "" : "s"} in “${target?.title}” ${r.done === 1 ? "has its" : "have their"} visuals${r.cards ? ` — ${r.cards} laid out as cards` : ""}. Opening the Editor…` : null));
+    if (!r.error && !c.send) setKept(r.done ?? 0);
     // The pipeline's output goes to the Editor: refine each ad there, then review in Ads.
     if (c.send && r.done && r.firstAd) { router.push(`${base}/creative/editor?ad=${r.firstAd}`); return; }
     router.refresh();
@@ -864,6 +867,7 @@ function Studio(props: Props) {
           {saved.saving ? <><Icon name="spinner" size={12} className="spin" />Saving…</> : <><Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" />Saved · {flow.last ? `ran ${agoFrom(flow.last.at, now)}` : "not run yet"}</>}
         </span>
         <div className="fill" />
+        {kept != null && <Link className="lnk xs i2 row g4" style={{ whiteSpace: "nowrap" }} href={`${base}/assets`}><Icon name="check-circle" size={12} weight="fill" color="#1F8A5B" />{kept} file{kept === 1 ? "" : "s"} kept in Brand assets<Icon name="arrow-r" size={11} color="#55534F" /></Link>}
         {msg && <button type="button" className="xs c-amber ell" style={{ maxWidth: 300, minWidth: 0, textAlign: "right" }} title={`${msg} — click to dismiss`} onClick={() => setMsg(null)}>{msg}</button>}
         <span className="row g6 xs i2">{([["in", "Inputs"], ["make", "Make"], ["fin", "Finish"]] as const).map(([c, t]) => <span key={c} className="row g4"><span className="dot" style={{ width: 6, height: 6, background: CAT[c] }} />{t}</span>)}</span>
         <span className="row g6 xs i3 tnum">

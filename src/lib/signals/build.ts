@@ -16,7 +16,7 @@ export type SignalRow = {
 export function buildSignals(base: string, brand: { currency: string; onboarding: { profile?: Profile } | null }, d: Awaited<ReturnType<typeof signalData>>, notes: Notes): SignalRow[] {
   const c = d.customers;
   const W = {
-    products: ["Products", `${base}/shopify?tab=products`, "box"], shop: ["Shopify data", `${base}/shopify`, "bag"], perf: ["Performance", `${base}/performance`, "chart-bar"],
+    products: ["Products", `${base}/shopify?tab=products`, "box"], shop: ["Shopify data", `${base}/shopify`, "bag"], perf: ["Running ads", `${base}/performance`, "chart-bar"],
     meta: ["Meta Ads", `${base}/meta`, "megaphone"], sync: ["Data sync", `${base}/sync`, "database"], signals: ["Integrations", `${base}/integrations`, "plug"],
   } satisfies Record<string, [string, string, IconName]>;
   const stockText = (x: { title: string; inventory: number; daysOfStock: number }) => x.inventory <= 0 ? `${x.title}: out of stock` : `${x.title}: ${num(x.inventory)} left (~${Math.round(x.daysOfStock)} days)`;

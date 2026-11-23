@@ -49,8 +49,8 @@ export function ActionCard({ slug, a, n, primary = false }: { slug: string; a: A
   const [busy, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const make = () => { setMsg(null); start(async () => { const r = await makeAds(slug, a.make!); if (r?.error) setMsg({ text: r.error, bad: true }); }); };
-  // Done here, without leaving the page: save every written fix to the store.
-  const fixStore = () => { setMsg(null); start(async () => { const r = await fix(slug, "all"); setMsg(r.fields && !r.failed ? { text: `Saved ${r.fields} fix${r.fields === 1 ? "" : "es"} to your store` } : { text: r.error ?? (r.failed ? `${r.failed} didn’t save` : "Nothing was saved"), bad: true }); router.refresh(); }); };
+  // Save every written fix to the store, then show them where they are listed: Store · Fixed. (This card is gone once they are saved.)
+  const fixStore = () => { setMsg(null); start(async () => { const r = await fix(slug, "all"); if (r.fields && !r.failed) { router.push(`/brands/${slug}/seo#fixed`); return; } setMsg({ text: r.error ?? (r.failed ? `${r.failed} didn’t save` : "Nothing was saved"), bad: true }); router.refresh(); }); };
   const cls = `btn${primary ? " dark" : ""}`, ink = primary ? "#fff" : undefined;
   const button = a.run === "store-fix" ? <button type="button" className={cls} disabled={busy} onClick={fixStore}>{busy ? <><Icon name="spinner" size={13} className="spin" color={ink} />Saving…</> : <><Icon name="check" size={12} color={ink} />{a.cta}</>}</button>
     : a.make ? <button type="button" className={cls} disabled={busy} onClick={make}>{busy ? <><Icon name="spinner" size={13} className="spin" color={ink} />Remy is writing…</> : a.cta}</button>

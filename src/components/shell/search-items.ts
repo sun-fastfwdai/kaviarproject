@@ -1,9 +1,9 @@
 import type { SearchItem } from "./search";
 
 const PAGES: [string, string][] = [["Overview", ""], ["Today", "/today"], ["Campaigns", "/campaigns"],
-  ["Campaigns · Results", "/performance"], ["Campaigns · Meta Ads data", "/meta"], ["Campaigns · Audience test", "/audience"], ["Campaigns · Run ads", "/run"],
+  ["Campaigns · Running ads", "/performance"], ["Campaigns · Meta Ads data", "/meta"], ["Campaigns · Audience test", "/audience"], ["Campaigns · Run ads", "/run"],
   ["Store · Health: SEO, AI search, speed", "/seo"], ["Store · Inventory", "/inventory"], ["Store · Orders & products", "/shopify"],
-  ["Creative studio · Ads", "/creative"], ["Creative studio · Brand assets", "/assets"],
+  ["Creative studio · Ads", "/creative?tab=ads"], ["Creative studio · Brand assets", "/assets"],
   ["Market · Competitors", "/competitors"], ["Market · Market research", "/research"],
   ["Settings · Integrations", "/integrations"], ["Settings · Data sync", "/sync"]];
 
@@ -11,7 +11,7 @@ export function searchItems(brands: { slug: string; name: string; category: stri
   const out: SearchItem[] = [];
   if (current) for (const [label, path] of [...PAGES, ...(current.storeBuilder ? [["Store builder", "/store"] as [string, string]] : [])]) out.push({ group: current.name, label, href: `/brands/${current.slug}${path}` });
   for (const b of brands) out.push({ group: "Brands", label: b.name, sub: b.category ?? undefined, href: `/brands/${b.slug}` });
-  // Every brand's pages too, so “perf” finds “Jmella · Performance” from anywhere.
+  // Every brand's pages too, so “running” finds “Jmella · Campaigns · Running ads” from anywhere.
   for (const b of brands) if (b.slug !== current?.slug) for (const [label, path] of PAGES.slice(1)) out.push({ group: "Pages", label: `${b.name} · ${label}`, href: `/brands/${b.slug}${path}` });
   out.push({ group: "Workspace", label: "All brands", href: "/brands" }, { group: "Workspace", label: "Add a brand", href: "/brands/new" }, { group: "Workspace", label: "Leads", href: "/leads" }, { group: "Workspace", label: "Team", href: "/team" });
   return out;

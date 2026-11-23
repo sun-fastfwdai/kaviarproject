@@ -56,7 +56,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/bra
             {tab === "sources" && (sources.length ? sources.map((s, i) => (
               <a key={i} href={s.url} target="_blank" rel="noreferrer" className="row g12 sm hv" style={{ ...line, borderTop: i ? line.borderTop : 0 }}>
                 <span className="tnum i3" style={{ width: 22 }}>{i + 1}</span><span className="i1 fill ell">{s.title || host(s.url)}</span><span className="xs i3">{host(s.url)}</span><Icon name="external" size={11} color="#8B8883" />
-              </a>)) : none("No research yet — run it from Opportunities."))}
+              </a>)) : <span className="row g10" style={{ padding: "14px 0" }}><span className="sm i3">No research yet.</span><Link className="btn sm" href={`${base}/research`}>Open Market research<Icon name="arrow-r" size={11} /></Link></span>)}
 
             {tab === "competitors" && (rivals.length ? rivals.map((c, i) => (
               <div key={c.name} className="row top g12" style={{ ...line, borderTop: i ? line.borderTop : 0 }}>

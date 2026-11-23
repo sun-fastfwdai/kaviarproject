@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBrand } from "@/lib/queries/brands";
 import { batchWithAds, brandCodes } from "@/lib/creative/remy";
+import { getPlans } from "@/lib/growth/plans";
+import { signalData } from "@/lib/queries/signals";
+import { getNotes } from "@/lib/ai/notes";
+import { buildSignals } from "@/lib/signals/build";
 import { ago } from "@/lib/format";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -21,7 +25,12 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
   const { batch, ads } = data;
   const base = `/brands/${slug}`;
   const approved = ads.filter((a) => a.status === "approved").length;
-  const codes = await brandCodes(brand.id);
+  const [codes, plans] = await Promise.all([brandCodes(brand.id), batch.signal ? getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone }).catch(() => null) : null]);
+  // A campaign's ads are filed under the campaign's own key; only a batch written from an ad signal has a signal page to go back to.
+  const plan = batch.signal ? plans?.list.find((p) => p.key === batch.signal || p.c.signal === batch.signal) : undefined;
+  const campaign = plan ? `${base}/campaigns/${encodeURIComponent(plan.key)}` : null;
+  const signal = batch.signal && !plan && !batch.signal.includes(":")
+    && await Promise.all([signalData(brand.id, brand.timezone), getNotes(brand.id)]).then(([d, notes]) => buildSignals(base, brand, d, notes).some((r) => r.key === batch.signal)).catch(() => false);
 
   return (
     <>
@@ -32,14 +41,16 @@ export default async function BatchPage({ params }: PageProps<"/brands/[slug]/cr
       <div className="col g10" style={{ padding: "16px 24px 0" }}>
         <div className="row between" style={{ alignItems: "flex-end" }}>
           <div className="col g4">
-            <span className="xs i3"><Link className="lnk" href={`${base}/creative`}>All batches</Link>{batch.signal && (batch.signal.startsWith("seg:") ? <> · for a buyer group from <Link className="lnk" href={`${base}/research?tab=market`}>market research</Link></> : <> · from the <Link className="lnk" href={`${base}/signals/${batch.signal}`}>{batch.signal.replace(/-/g, " ")}</Link> signal</>)}</span>
+            <span className="xs i3"><Link className="lnk" href={`${base}/creative?tab=ads`}>All batches</Link>{campaign ? <> · <Link className="lnk" href={campaign}>Open campaign</Link></>
+              : batch.signal?.startsWith("seg:") ? <> · for a buyer group from <Link className="lnk" href={`${base}/research?tab=market`}>market research</Link></>
+              : signal ? <> · from the <Link className="lnk" href={`${base}/signals/${batch.signal}`}>{batch.signal!.replace(/-/g, " ")}</Link> signal</> : null}</span>
             <h1 className="h1">{batch.title}</h1>
             <span className="xs i3">{ads.length} ads · written by Remy {ago(batch.createdAt)}</span>
           </div>
           <div className="row g8">
             {ads.some((a) => a.format === "video" || a.format === "ugc") && <Link className="btn" href={`${base}/creative/shoots?batch=${batch.id}`}><Icon name="video" size={14} />Make the {ads.filter((a) => a.format === "video" || a.format === "ugc").length} videos in Shoots</Link>}
             <Link className="btn" href={`${base}/audience?batch=${batch.id}`}><Icon name="users-three" size={14} />Test on audience</Link>
-            <Link className={`btn dark${approved ? "" : " off"}`} aria-disabled={!approved} href={`${base}/run/${batch.id}`}><Icon name="target" size={14} color="#fff" />Set up a test · {approved} approved</Link>
+            <Link className={`btn dark${approved ? "" : " off"}`} aria-disabled={!approved} href={campaign ?? `${base}/run/${batch.id}`}><Icon name="target" size={14} color="#fff" />Set up a test · {approved} approved</Link>
           </div>
         </div>
         <div className="row top g10" style={{ padding: "12px 14px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 }}>

@@ -48,7 +48,7 @@ function RowMenu({ slug, name, canRemove, canSet, features }: { slug: string; na
       <button type="button" className="btn quiet sm ic" aria-label="More" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>⋯</button>
       {open && (
         <div className="menu" role="menu">
-          {[["Overview", ""], ["Integrations", "/integrations"], ["Performance", "/performance"], ["Data sync", "/sync"]].map(([l, p]) => (
+          {[["Overview", ""], ["Integrations", "/integrations"], ["Running ads", "/performance"], ["Data sync", "/sync"]].map(([l, p]) => (
             <button key={l} role="menuitem" onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/brands/${slug}${p}`); }}>{l}</button>
           ))}
           {canSet && (

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
@@ -23,6 +23,7 @@ type Props = {
   stands: Partial<Record<"seo" | "ai" | "speed", { verdict: Verdict; avg: number }>>; base: { sites: number; gaps: { key: string; name: string; hint: string; you: string; they: string }[] } | null;
 };
 type Tab = "open" | "you" | "done" | "skipped";
+const onHash = (f: () => void) => { window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); };
 const DIM = "rgba(255,255,255,.55)";
 const ORDER: Fix["kind"][] = ["search_title", "search_description", "alt", "thin"];
 const num = (gid: string) => gid.slice(gid.lastIndexOf("/") + 1);
@@ -109,7 +110,11 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
-  const [tab, setTab] = useState<Tab>("open");
+  // Today's "Fix all" lands on #fixed: the Fixed tab, where what it just saved is listed.
+  const hash = useSyncExternalStore(onHash, () => window.location.hash, () => "");
+  const [picked, setTab] = useState<Tab | null>(null);
+  const tab: Tab = picked ?? (hash === "#fixed" ? "done" : "open");
+  useEffect(() => { if (window.location.hash === "#fixed") document.getElementById("fixed")?.scrollIntoView({ block: "start" }); }, []);
   const [openAt, setOpenAt] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [auto, setAuto] = useState(saved);
@@ -257,7 +262,7 @@ export function StoreView({ slug, brand, audit, scores: sco, checked, auto: save
         {/* ---- every fix, by product */}
         {audit && <div className="col g10" id="fixes">
           <div className="row between" style={{ borderBottom: "1px solid var(--line)" }}>
-            <div className="tabs" style={{ borderBottom: 0 }} role="tablist">
+            <div className="tabs" id="fixed" style={{ borderBottom: 0, scrollMarginTop: 16 }} role="tablist">
               {([["open", "To fix", open.length], ["you", "Needs your words", you.length], ["done", "Fixed", done.length], ["skipped", "Skipped", skipped.length]] as const).map(([k, label, n]) => (
                 <button key={k} role="tab" aria-selected={tab === k} className={`tab${tab === k ? " on" : ""}`} onClick={() => { setTab(k); setOpenAt(null); }}>{label}<span className="n">{n}</span></button>))}
             </div>
