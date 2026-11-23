@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
@@ -13,7 +13,8 @@ import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey
 import { AdsBlock, useAds } from "./ads";
 import { TimeCard } from "./time";
 import { decide, setMode } from "../../optimize/actions";
-import { approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
+import { applySetup, approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
+import { strategy } from "@/lib/growth/strategy";
 import { Combo } from "@/components/combo";
 import { COUNTRIES } from "@/lib/meta/place-rules";
 import type { Ready } from "@/lib/meta/place";
@@ -27,17 +28,17 @@ const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your result
 const DAYS = [7, 14, 28];
 type Props = {
   slug: string; currency: string; plan: PlanCard; input: Omit<PlanInput, "candidates">; minBudget: number; level: 0 | 1 | 2;
-  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; unitPrice: number | null; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
+  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; unitPrice: number | null; audiences: Plans["options"]["audiences"]; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
 };
 const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
 
-export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto, unitPrice }: Props) {
+export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto, unitPrice, audiences }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [work, setWork] = useState<Work | null>(null);
-  const [confirm, setConfirm] = useState<false | "place" | "on" | "off" | "budget">(false);
+  const [confirm, setConfirm] = useState<false | "place" | "on" | "off" | "budget" | "best">(false);
   // What Meta says it needs, asked when the brand opens "Put it on Meta" — and what the brand picks there.
   const [check, setCheck] = useState<{ ready: Ready | null; link: string | null } | "asking" | null>(null);
   const [pick, setPick] = useState<{ page?: string; pixel?: string; country: string }>({ country: p.meta?.country ?? "US" });
@@ -49,6 +50,10 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const [lo, mid, hi] = forecast(p.c, budget, days, input), changed = budget !== p.budget || days !== p.days;
   const sign = usd(0).replace(/[\d.,\s]/g, "");
+  // Iris's set-up: the audience, budget and length that leave the most, from the same sums as the card. Who sees it can only change on
+  // a campaign of the brand's own that has no ads yet — the ads are written for their audience.
+  const canAud = p.reason === "own" && !p.ads && !p.meta, nowAud = audiences.find((x) => x.label.split(" · ")[0] === p.c.why)?.key ?? null;
+  const best = useMemo(() => strategy({ c: p.c, audiences: canAud ? audiences : [], current: nowAud, input, test: minBudget, level }), [p.c, canAud, audiences, nowAud, input, minBudget, level]);
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
   const { steps, now } = stepsOf(p), nowAt = steps.findIndex((s) => s.key === now), a = p.ads, step = Math.max(50, Math.round(minBudget / 4 / 50) * 50);
   const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, onWork: setWork, onError: setErr });
@@ -159,6 +164,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               </span>
               <span className="row g8" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {!p.approvedAt && p.stage !== "suggested" && now !== "launch" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved")}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
+                {!p.meta && <button type="button" disabled={busy} className="row g8" style={{ height: 40, padding: "0 16px 0 9px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5, fontWeight: 500 }} onClick={() => setConfirm("best")}><AgentFace kind="analyst" size={22} />{mid.profit < 0 ? "Make it profitable" : "Find the best set-up"}</button>}
                 {act(now)}
               </span>
             </div>
@@ -317,6 +323,30 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
         </div>
 
       </div>
+
+      {confirm === "best" && (() => {
+        const b = best.best, o = b.out[1], who = b.audience?.label.split(" · ")[0] ?? null, same = b.budget === p.budget && b.days === p.days && (!b.audience || b.audience.key === nowAud);
+        const unit = p.c.price * (1 - input.discount) - p.c.price * (1 - input.margin), pc = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, "")}%`;
+        const row = (k: string, v: React.ReactNode, sub?: React.ReactNode) => <span key={k} className="row between g12 sm" style={{ padding: "10px 0", borderBottom: "1px solid var(--line)", minHeight: 42 }}><span className="i3" style={{ flexShrink: 0 }}>{k}</span><span className="col" style={{ alignItems: "flex-end", minWidth: 0 }}><span className="w5 tnum ell" style={{ maxWidth: 300 }}>{v}</span>{sub && <span className="xs i3 tnum">{sub}</span>}</span></span>;
+        const use = () => { setConfirm(false); setBudget(b.budget); setDays(b.days); go("best", () => applySetup(slug, p.key, { budget: b.budget, days: b.days, audience: canAud ? b.audience?.key : undefined }), "Set-up saved — approve it when you’re ready"); };
+        return (
+          <Modal icon={<AgentFace kind="analyst" size={18} />} title={best.pays ? "Iris’s set-up for this campaign" : "No set-up pays for itself yet"} sub={level === 0 ? "At starting rates, until your own ads have run" : "From your own ad results"} onClose={() => setConfirm(false)} width={460}
+            footer={best.pays && !same ? <><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" disabled={busy} onClick={use}>Use this set-up</button></>
+              : <button type="button" className="btn dark" onClick={() => setConfirm(false)}>{best.pays ? "Already set this way" : "Close"}</button>}>
+            {best.pays ? <div className="col">
+              {canAud && who && row("Show it to", who, b.audience?.key !== nowAud ? `now ${p.c.why}` : undefined)}
+              {row("Budget", `${usd(b.budget)} over ${b.days} days`, b.budget !== p.budget || b.days !== p.days ? `now ${usd(p.budget)} over ${p.days} days` : `${usd(b.budget / b.days)} a day`)}
+              {row("Likely comes back", usd(o.revenue), `${Math.round(o.orders)} order${Math.round(o.orders) === 1 ? "" : "s"} · ${usd(p.c.price)} each`)}
+              {row("Profit after costs", <span className="c-green">+{usd(o.profit)}</span>, `${b.out[0].profit < 0 ? "−" : "+"}${usd(Math.abs(b.out[0].profit))} if it goes badly · +${usd(b.out[2].profit)} if it goes well`)}
+              {best.held && <span className="xs i3" style={{ paddingTop: 10 }}>One readable test. Spend more once its results are in.</span>}
+            </div> : <div className="col">
+              {row("One order leaves you", usd(unit), `${usd(p.c.price)} order · ${Math.round(input.margin * 100)}% margin`)}
+              {row("One click costs", new Intl.NumberFormat("en-US", { style: "currency", currency }).format(input.rates.cpm[1] / 1000 / input.rates.ctr[1]))}
+              {row("Clickers who must buy", best.needCvr != null ? pc(best.needCvr) : "–", `forecast uses ${pc(best.cvr)}`)}
+              <span className="row between g12" style={{ paddingTop: 12 }}><span className="xs i3">A higher order value or margin changes this.</span><Link className="btn sm" href={`${base}/plan`}>Check your figures<Icon name="arrow-r" size={11} /></Link></span>
+            </div>}
+          </Modal>);
+      })()}
 
       {confirm === "place" && (() => {
         const got = check && check !== "asking" ? check : null, r = got?.ready ?? null, asking = !got, page = r?.pages.find((x) => x.id === pick.page) ?? r?.pages[0], pixel = r?.pixels.find((x) => x.id === pick.pixel) ?? r?.pixels[0];

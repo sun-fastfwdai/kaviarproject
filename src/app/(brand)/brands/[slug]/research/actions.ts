@@ -71,7 +71,7 @@ export async function testGap(slug: string, id: string, gapId: string, productTi
   const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
   const product = plans.options.products.find((x) => x.title === productTitle);
   if (!product) return { error: "Pick a product." };
-  const key = await addOwnPlan(brand.id, { name: gap.text.slice(0, 80), product: product.title, who: "New people", kind: "cold", audience: null, by: me.name }, plans.minBudget, 14, false);
+  const key = await addOwnPlan(brand.id, { name: gap.text.length > 80 ? `${gap.text.slice(0, 78).replace(/[\s,:;–-]+\S*$/, "")}…` : gap.text, product: product.title, who: "New people", kind: "cold", audience: null, by: me.name }, plans.minBudget, 14, false);
   await savePlanChoice(brand.id, key, { brief: { refs: [], note: `Message to test: ${gap.text}. ${gap.why}`.slice(0, 600), shoot: false } });
   const [now] = await db.select({ adsRead: R.adsRead }).from(R).where(eq(R.id, id));
   if (now?.adsRead) await db.update(R).set({ adsRead: { ...now.adsRead, gaps: now.adsRead.gaps.map((g) => (g.id === gapId ? { ...g, status: "accepted" as const, plan: key } : g)) } }).where(eq(R.id, id));

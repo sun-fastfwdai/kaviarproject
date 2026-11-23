@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { schema } from "@/lib/db";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
-import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
+import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget, setOwnAudience } from "@/lib/growth/plans";
 import { makeAd, makeAdSet, metaReady, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
 import { COUNTRIES, countryFor } from "@/lib/meta/place-rules";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
@@ -31,6 +31,25 @@ export async function setPlanBudget(slug: string, key: string, budget: number, d
   fresh(slug);
 }
 /** The brand's monthly sales target: falling short of it is a reason to advertise. */
+/**
+ * Take the set-up Iris worked out: the budget and length, and — for a campaign of the brand's own with no ads yet — who sees it. It is
+ * saved, not approved: saying yes to the spend stays the brand's own press.
+ */
+export async function applySetup(slug: string, key: string, v: { budget: number; days: number; audience?: string }): Promise<{ error?: string }> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const p = plans.list.find((x) => x.key === key);
+  if (!p) return { error: "That campaign is no longer listed." };
+  if (p.meta) return { error: "This campaign is on Meta. Change its budget there with “Change it on Meta”." };
+  if (v.audience && p.reason === "own" && !p.ads) {
+    const a = plans.options.audiences.find((x) => x.key === v.audience);
+    if (a) await setOwnAudience(brand.id, key, { who: a.label.split(" · ")[0], kind: a.kind, audience: a.size });
+  }
+  await savePlanChoice(brand.id, key, { budget: v.budget, days: v.days });
+  fresh(slug);
+  return {};
+}
 export async function setSalesTarget(slug: string, target: number | null): Promise<void> {
   await requireMember();
   await saveTarget((await getBrand(slug)).id, target);

@@ -66,6 +66,8 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
     const ads = adsFor(c.signal), stage = stageOf(Boolean(s.approvedAt), ads, Boolean(s.meta));
     return { key: c.key, reason, title, why, when: o.when, c, image: pic(c.product), budget, days, out: forecast(c, budget, days, rest), stage, ads, urgent: Boolean(o.urgent) && stage !== "ready" && stage !== "live", approvedAt: s.approvedAt ?? null, approvedBy: s.by ?? null, meta: s.meta ?? null };
   };
+  // What one order brings: the brand's own setting, else its measured average once there are enough orders (the rule in planFor).
+  const worth = d.saved?.order && d.saved.order > 0 ? d.saved.order : d.orders.count >= 10 && d.orders.aov ? Math.round(d.orders.aov) : null;
   const list: PlanCard[] = [], hero = d.hero, top = candidates[0] ?? null, n = (v: number) => v.toLocaleString("en-US");
 
   // A holiday coming: the best seller, to the people who already know the brand.
@@ -99,7 +101,8 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
   for (const o of saved?.own ?? []) {
     const pr = d.products.find((x) => x.title === o.product) ?? d.products[0];
     if (!pr) continue;
-    list.push(make({ key: o.key, name: o.name, why: o.who, kind: o.kind, audience: o.audience, product: pr.title, price: pr.price, stock: pr.stock, signal: o.key, rank: 0 }, "own", o.name, `${pr.title} · ${o.who}`));
+    // An order is worth what the brand's orders are worth — the figure every other campaign uses — never less than the product itself.
+    list.push(make({ key: o.key, name: o.name, why: o.who, kind: o.kind, audience: o.audience, product: pr.title, price: Math.max(pr.price, worth ?? 0), stock: pr.stock, signal: o.key, rank: 0 }, "own", o.name, `${pr.title} · ${o.who}`));
   }
   // A plan that is under way keeps its page even after its reason has passed (the holiday came, sales recovered).
   const listed = new Set(list.map((x) => x.key));
@@ -116,9 +119,9 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
     { key: "new", label: "New people", kind: "cold" as const, size: null },
   ] };
   // Kaviar doesn't suggest spending money to lose it: a new plan must at least pay for itself at the likely rates. One already under way stays.
-  const worth = list.filter((x) => x.stage !== "suggested" || x.reason === "own" || x.out[1].profit >= 0);
+  const pays = list.filter((x) => x.stage !== "suggested" || x.reason === "own" || x.out[1].profit >= 0);
   const h = d.history, shop = { buyers: d.orders.buyers, repeaters: d.orders.repeaters, lapsed: d.orders.lapsed, adDays: h?.days ?? 0, adSpend: h?.spend ?? 0, adBack: h && h.spend > 0 ? h.value / h.spend : null };
-  return { list: rankPlans(worth), options, shop, input: rest, minBudget: round(p.minToLearn), currency, level: levelOf(d.history), sales: { ...sales, on: sr.on, why: sr.why }, target, loose };
+  return { list: rankPlans(pays), options, shop, input: rest, minBudget: round(p.minToLearn), currency, level: levelOf(d.history), sales: { ...sales, on: sr.on, why: sr.why }, target, loose };
 }
 
 export async function planBrief(brandId: string, key: string): Promise<Brief> {
@@ -148,6 +151,11 @@ export async function addOwnPlan(brandId: string, o: Omit<OwnPlan, "key" | "at">
   await write(brandId, KEY, { ...cur, own: [...(cur.own ?? []), { ...o, key, at }].slice(-30),
     plans: { ...(cur.plans ?? {}), [key]: { budget: Math.max(50, Math.round(budget)), days: Math.min(90, Math.max(3, Math.round(days))), ...(approved ? { approvedAt: at, by: o.by } : {}) } } });
   return key;
+}
+/** Who one of the brand's own campaigns is shown to. */
+export async function setOwnAudience(brandId: string, key: string, who: { who: string; kind: OwnPlan["kind"]; audience: number | null }): Promise<void> {
+  const cur = (await read<SavedPlans>(brandId, KEY)) ?? {};
+  await write(brandId, KEY, { ...cur, own: (cur.own ?? []).map((x) => (x.key === key ? { ...x, ...who } : x)) });
 }
 export async function removeOwnPlan(brandId: string, key: string): Promise<void> {
   const cur = (await read<SavedPlans>(brandId, KEY)) ?? {}, plans = { ...(cur.plans ?? {}) };
