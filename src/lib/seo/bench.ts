@@ -165,7 +165,7 @@ export async function refreshBench(brand: { id: string; name: string }, olderTha
 }
 
 /** How each competitor advertises on Meta, from the Ad Library read Iris already made. */
-export type RivalAdLine = { name: string; ads: number; new30: number; longest: number; video: number | null; at: string };
+export type RivalAdLine = { name: string; ads: number; new30: number; longest: number; median: number; video: number | null; at: string }; // median: days their live ads have been running
 export async function rivalAds(brandId: string): Promise<{ rows: RivalAdLine[]; subject: string | null; market: string | null }> {
   const R = schema.marketResearch;
   const rows = await db.select({ subject: R.subject, market: R.market, rivals: R.rivals }).from(R).where(and(eq(R.brandId, brandId), sql`jsonb_array_length(${R.rivals}) > 0`)).orderBy(desc(R.updatedAt)).limit(4);
@@ -173,7 +173,7 @@ export async function rivalAds(brandId: string): Promise<{ rows: RivalAdLine[]; 
   for (const r of rows) for (const a of (r.rivals as RivalAds[]) ?? []) {
     if (seen.has(a.name) || !a.stats || !a.stats.ads) continue;
     const f = a.stats.formats ?? {}, all = Object.values(f).reduce((n, x) => n + x, 0);
-    seen.set(a.name, { name: a.name, ads: a.stats.ads, new30: a.stats.new30, longest: a.stats.longest, video: all ? Math.round(((f.video ?? 0) / all) * 100) : null, at: a.at });
+    seen.set(a.name, { name: a.name, ads: a.stats.ads, new30: a.stats.new30, longest: a.stats.longest, median: a.stats.median ?? 0, video: all ? Math.round(((f.video ?? 0) / all) * 100) : null, at: a.at });
   }
   return { rows: [...seen.values()].sort((a, b) => b.ads - a.ads), subject: rows[0]?.subject ?? null, market: rows[0]?.market ?? null };
 }

@@ -161,7 +161,7 @@ export type PlanAd = { id: string; status: "review" | "approved" | "rejected"; h
 export type PlanFacts = {
   store: { units30: number; inventory: number; runway: number | null } | null; // Shopify: how the product sells and how long its stock lasts
   lastYear: { revenue: number; orders: number } | null; // the same stretch of days a year ago
-  rivals: { ads: number; brands: number; new30: number; angle: { name: string; share: number } | null; gap: string | null } | null; // Meta's Ad Library
+  rivals: { ads: number; brands: number; new30: number; angle: { name: string; share: number } | null; gap: string | null; cycle: number | null } | null; // Meta's Ad Library. cycle: how many days competitors' live ads have been running, at the median
   page: { open: number; stars: boolean | null } | null; // the product page the ads send people to
 };
 export type PlanExtras = {
@@ -213,7 +213,8 @@ export async function planExtras(brand: { id: string; timezone: string }, p: Pla
   const facts: PlanFacts = {
     store: stock ? { units30: stock.units30, inventory: stock.inventory, runway: stock.runway } : null,
     lastYear: lastYear && lastYear.orders > 0 ? lastYear : null,
-    rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), brands: rivals.rows.length, new30: rivals.rows.reduce((k, x) => k + x.new30, 0), angle: top ? { name: top.name, share: Math.round(top.share) } : null, gap: gap?.text ?? null } : null,
+    rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), brands: rivals.rows.length, new30: rivals.rows.reduce((k, x) => k + x.new30, 0), angle: top ? { name: top.name, share: Math.round(top.share) } : null, gap: gap?.text ?? null,
+      cycle: (() => { const m = rivals.rows.map((x) => x.median).filter((x) => x > 0).sort((a, b) => a - b); return m.length ? m[Math.floor(m.length / 2)] : null; })() } : null,
     page: audit?.at && fixes != null ? { open: fixes, stars: audit.site?.find((x) => x.key === "reviews")?.ok ?? null } : null,
   };
   const brief = await briefView(brand.id, p.key);

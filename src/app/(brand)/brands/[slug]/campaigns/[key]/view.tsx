@@ -11,6 +11,7 @@ import type { PlanAd, PlanExtras, PlanFacts, Plans } from "@/lib/growth/plans";
 import { MODES, type Mode } from "@/lib/growth/pilot";
 import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey } from "@/lib/growth/plans-rules";
 import { AdsBlock, useAds } from "./ads";
+import { TimeCard } from "./time";
 import { decide, setMode } from "../../optimize/actions";
 import { approvePlanFor, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
 import { Combo } from "@/components/combo";
@@ -291,6 +292,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           </div>
         </div>
 
+        <TimeCard c={p.c} budget={budget} input={input} minToLearn={minBudget} stock={facts.store?.inventory ?? p.c.stock ?? null} units30={facts.store?.units30 ?? null} cycle={facts.rivals?.cycle ?? null} level={level} usd={usd} />
       </div>
 
       {confirm === "place" && (() => {
