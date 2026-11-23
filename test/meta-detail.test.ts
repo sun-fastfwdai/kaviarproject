@@ -38,7 +38,7 @@ describe("an ad's results in slices", () => {
   it("splits by who saw it and where, biggest first, and drops slices of ads it does not know", () => {
     expect(d["1"].ages.map((x) => x.key)).toEqual(["female 25-34", "male 35-44"]);
     expect(d["1"].ages[0]).toMatchObject({ impressions: 2000, spend: 40, clicks: 30, purchases: 3, value: 150 });
-    expect(d["1"].places.map((x) => x.key)).toEqual(["instagram · instagram reels", "facebook · feed"]);
+    expect(d["1"].places.map((x) => x.key)).toEqual(["instagram · reels", "facebook · feed"]);
     expect(d["9"]).toBeUndefined();
   });
 });

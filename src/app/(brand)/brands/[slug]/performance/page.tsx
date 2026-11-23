@@ -79,7 +79,7 @@ export default async function PerformancePage({ params, searchParams }: PageProp
         <section className="scroll col" style={{ padding: "22px 24px", gap: 16 }}>
           <div className="row between" style={{ alignItems: "flex-end" }}>
             <div className="col g4"><h1 className="h1">Running ads</h1><p className="sm i3">What is on Meta, what it brought back, and what Autopilot is doing about it.</p></div>
-            <RangeTabs base={`/brands/${slug}/performance`} days={days} />
+            <span className="row g8">{metaLinked && <Link className="btn sm" href={`/brands/${slug}/meta?days=${days}`} title="Each ad: what it said, who saw it, where it ran">Every ad<Icon name="arrow-r" size={11} /></Link>}<RangeTabs base={`/brands/${slug}/performance`} days={days} /></span>
           </div>
 
           {hasMeta ? (

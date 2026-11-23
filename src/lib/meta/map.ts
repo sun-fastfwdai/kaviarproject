@@ -103,7 +103,8 @@ export function mapDetail(totals: TotalRow[], ages: SliceRow[], places: SliceRow
       ages: [], places: [] };
   }
   for (const r of ages) out[r.ad_id]?.ages.push(seg(`${words(r.gender)} ${r.age ?? "unknown"}`, r));
-  for (const r of places) out[r.ad_id]?.places.push(seg(`${words(r.publisher_platform)} · ${words(r.platform_position)}`, r));
+  // Meta repeats the platform in some placement names ("instagram_reels"); once is enough.
+  for (const r of places) { const where = words(r.publisher_platform), spot = words(r.platform_position); out[r.ad_id]?.places.push(seg(`${where} · ${spot.startsWith(`${where} `) ? spot.slice(where.length + 1) : spot}`, r)); }
   for (const d of Object.values(out)) { d.ages.sort((a, b) => b.impressions - a.impressions); d.places.sort((a, b) => b.impressions - a.impressions); d.ages = d.ages.slice(0, 14); d.places = d.places.slice(0, 12); }
   return out;
 }

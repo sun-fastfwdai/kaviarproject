@@ -1,4 +1,5 @@
 import "server-only";
+import type { AdCreative, AdDetail } from "../db/schema";
 import { sql } from "drizzle-orm";
 import { one, rows, SALE, since, sinceDate } from "./common";
 import type { Channel } from "../db/schema";
@@ -89,6 +90,7 @@ export function campaigns(brandId: string, tz: string, days: number) {
 export type AdRow = {
   id: string; name: string; campaign: string | null; status: string | null; thumbnailUrl: string | null; spend: number;
   impressions: number; clicks: number; purchases: number; value: number; verifiedOrders: number; verifiedRevenue: number;
+  creative: AdCreative | null; detail: AdDetail | null; // the ad as it ran, and its last 30 days in slices
 };
 export function ads(brandId: string, tz: string, days: number, limit = 8) {
   return rows<AdRow>(sql`
@@ -100,7 +102,7 @@ export function ads(brandId: string, tz: string, days: number, limit = 8) {
       select o.meta_ad_id as id, count(*) as orders, sum(o.total - o.refunded) as revenue from shop_orders o
       where o.brand_id = ${brandId} and ${SALE} and o.created_at >= ${since(tz, days)} and o.meta_ad_id is not null group by 1
     )
-    select a.id, a.name, c.name as "campaign", a.effective_status as "status", a.thumbnail_url as "thumbnailUrl",
+    select a.id, a.name, c.name as "campaign", a.effective_status as "status", a.thumbnail_url as "thumbnailUrl", a.creative, a.detail,
       ins.spend::float8 as "spend", ins.impr::float8 as "impressions", ins.clicks::float8 as "clicks",
       ins.purch::float8 as "purchases", ins.val::float8 as "value",
       coalesce(v.orders, 0)::int as "verifiedOrders", coalesce(v.revenue, 0)::float8 as "verifiedRevenue"

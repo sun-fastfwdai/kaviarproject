@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdCard } from "./ad-card";
 import { getBrand, getConnections } from "@/lib/queries/brands";
 import { ads, campaigns, summary } from "@/lib/queries/growth";
 import { parseRange } from "@/lib/queries/common";
@@ -92,25 +93,7 @@ export default async function MetaPage({ params, searchParams }: PageProps<"/bra
 
           <div className="row between"><span className="h3">Top ads</span><span className="xs i3">by spend · last {days} days</span></div>
           <div className="row g12" style={{ flexWrap: "wrap", alignItems: "stretch" }}>
-            {top.map((a) => (
-              <div key={a.id} className="card" style={{ width: "calc((100% - 36px) / 4)", overflow: "hidden" }}>
-                <div style={{ height: 112, background: "var(--tray-2)", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--line)" }}>
-                  {a.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.thumbnailUrl} alt="" style={{ width: "100%", height: "100%" }} />
-                  ) : <Icon name="image" size={22} color="#B5B2AC" />}
-                </div>
-                <div className="col g2" style={{ padding: "10px 12px" }}>
-                  <span className="sm w5 i1 ell">{a.name}</span>
-                  <span className="xs i3 ell">{a.campaign ?? "—"}</span>
-                  <div className="row between" style={{ paddingTop: 8 }}>
-                    <div className="col"><span className="xs i3">Spend</span><span className="sm i1 tnum">{money(a.spend, cur)}</span></div>
-                    <div className="col" style={{ alignItems: "center" }}><span className="xs i3">ROAS</span><span className="sm tnum">{roas(a.spend ? a.value / a.spend : null)}</span></div>
-                    <div className="col" style={{ alignItems: "flex-end" }}><span className="xs i3">Verified</span><span className={`sm tnum w5 ${roasTone(a.spend ? a.verifiedRevenue / a.spend : null)}`}>{roas(a.spend ? a.verifiedRevenue / a.spend : null)}</span></div>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {top.map((a) => <AdCard key={a.id} a={a} currency={cur ?? "USD"} days={days} />)}
             {top.length === 0 && <span className="sm i3">No ads with spend in this range.</span>}
           </div>
         </section>
