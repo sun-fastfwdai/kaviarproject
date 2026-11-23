@@ -55,14 +55,16 @@ export type LibAd = {
 export type RivalStats = {
   ads: number; creatives: number; new30: number; longest: number; median: number; proven: number;
   reach: number | null; formats: Record<string, number>; platforms: Record<string, number>; countries: { code: string; reach: number }[]; women: number | null;
-  /** Ads they have stopped, counted from the Ad Library. */
+  /** What became of the ads they started a while ago, counted from the Ad Library. */
   past?: PastStats;
 };
 /**
- * A competitor's stopped ads: how many, how long one typically ran before they stopped it (median days), how many they stopped within
- * a week and how many they kept 30+ days, and the earliest start among them. `more` = Meta had more than Kaviar read.
+ * What became of a competitor's older ads. Only ads that started between `since` and `until` are counted — `until` is 45 days ago, so
+ * every one has had time to show how long it ran. `ads` = how many, `stopped` = how many are no longer running, `quick` = stopped
+ * within a week, `long` = ran 30+ days (still running or not), `median` = the middle run in days (`medianOpen`: that ad is still
+ * running, so the true figure is at least this). `more` = Meta had more ads in the window than Kaviar read.
  */
-export type PastStats = { ads: number; median: number; quick: number; long: number; since: string | null; more: boolean; at: string };
+export type PastStats = { ads: number; stopped: number; median: number; medianOpen: boolean; quick: number; long: number; since: string | null; until: string | null; more: boolean; at: string };
 /** Why the Ad Library refused: the login must confirm identity, the login expired, or the hourly limit was hit. */
 export type LibBlock = "identity" | "auth" | "limit";
 export type RivalAds = { name: string; ads: LibAd[]; at: string; error?: string; blocked?: LibBlock; added?: boolean; pages?: { id: string; name: string }[]; stats?: RivalStats };

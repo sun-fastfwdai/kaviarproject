@@ -92,14 +92,19 @@ async function pageAds(ids: string[], token: string): Promise<Raw[]> {
   return out;
 }
 
-// ---------------------------------------------------------------- the ads they stopped
-const PAST_PAGES = 3;
-/** The Pages' stopped ads, newest first as Meta lists them (up to 300): only when each started and stopped. */
-async function pastAds(ids: string[], token: string): Promise<{ raw: Raw[]; more: boolean }> {
+// ---------------------------------------------------------------- what became of their older ads
+const PAST_PAGES = 3, WATCHED = 45, BACK = 120;
+const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+/**
+ * The Pages' ads that were being shown between 120 and 45 days ago, running or stopped (up to 300, as Meta lists them). Asking for the
+ * newest stopped ads instead would only ever return ads that died young: a brand that stops hundreds a month fills the list in days.
+ */
+async function pastAds(ids: string[], token: string, now = Date.now()): Promise<{ raw: Raw[]; more: boolean }> {
   const raw: Raw[] = [];
   let after: string | undefined;
   for (let i = 0; i < PAST_PAGES; i++) {
-    const r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "INACTIVE", limit: "100", fields: "id,ad_delivery_start_time,ad_delivery_stop_time", ...(after ? { after } : {}) }, token);
+    const r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "ALL", ad_delivery_date_min: dayOf(now - BACK * 86_400_000), ad_delivery_date_max: dayOf(now - WATCHED * 86_400_000),
+      limit: "100", fields: "id,ad_delivery_start_time,ad_delivery_stop_time", ...(after ? { after } : {}) }, token);
     raw.push(...(r.data ?? []));
     after = r.paging?.next ? r.paging.cursors?.after : undefined;
     if (!after) break;
@@ -107,20 +112,32 @@ async function pastAds(ids: string[], token: string): Promise<{ raw: Raw[]; more
   return { raw, more: Boolean(after) };
 }
 
-/** How long their stopped ads ran, counted from each ad's own start and stop day — nothing estimated. */
+/**
+ * How long their older ads ran, counted from each ad's own start and stop day — nothing estimated. Only ads that started inside the
+ * window count, so each has been watched for at least 45 days; one still running has run at least as long as it has been live.
+ */
 export function pastStats(raw: Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time">[], more = false, now = Date.now()): PastStats {
-  const runs: number[] = [];
-  let since: string | null = null;
+  const from = now - BACK * 86_400_000, to = now - WATCHED * 86_400_000;
+  const runs: { days: number; open: boolean }[] = [];
+  let since: string | null = null, until: string | null = null;
   for (const a of raw) {
     const s = Date.parse(a.ad_delivery_start_time ?? ""), e = Date.parse(a.ad_delivery_stop_time ?? "");
-    if (Number.isNaN(s) || Number.isNaN(e) || e < s || e > now) continue;
-    runs.push(Math.round((e - s) / 86_400_000) + 1); // an ad started and stopped on one day ran for one day
-    const day = new Date(s).toISOString().slice(0, 10);
+    if (Number.isNaN(s) || s < from || s > to) continue;
+    const open = Number.isNaN(e) || e > now; // no stop day, or one still ahead: it is running
+    if (!open && e < s) continue;
+    runs.push({ days: Math.round(((open ? now : e) - s) / 86_400_000) + 1, open }); // started and stopped on one day = one day
+    const day = dayOf(s);
     if (!since || day < since) since = day;
+    if (!until || day > until) until = day;
   }
-  runs.sort((a, b) => a - b);
-  return { ads: runs.length, median: runs.length ? runs[Math.floor(runs.length / 2)] : 0, quick: runs.filter((d) => d <= 7).length, long: runs.filter((d) => d >= 30).length, since, more, at: new Date(now).toISOString() };
+  runs.sort((a, b) => a.days - b.days);
+  const mid = runs[Math.floor(runs.length / 2)];
+  return { ads: runs.length, stopped: runs.filter((r) => !r.open).length, median: mid?.days ?? 0, medianOpen: mid?.open ?? false, quick: runs.filter((r) => !r.open && r.days <= 7).length,
+    long: runs.filter((r) => r.days >= 30).length, since, until, more, at: new Date(now).toISOString() };
 }
+
+/** An earlier version counted only the newest stopped ads; those figures have no `stopped` and are read again. */
+export const hasPast = (s: RivalStats) => typeof s.past?.stopped === "number";
 
 /**
  * Fills in the stopped-ads count for competitors read before Kaviar kept it. It only adds that one figure: the ads already read and
@@ -129,7 +146,7 @@ export function pastStats(raw: Pick<Raw, "ad_delivery_start_time" | "ad_delivery
 export async function fillPast(brandId: string): Promise<number> {
   const R = schema.marketResearch;
   const rows = await db.select({ id: R.id, rivals: R.rivals }).from(R).where(and(eq(R.brandId, brandId), sql`jsonb_array_length(${R.rivals}) > 0`)).orderBy(desc(R.updatedAt)).limit(4);
-  const todo = rows.filter((r) => r.rivals.some((x) => x.pages?.length && x.stats && !x.stats.past));
+  const todo = rows.filter((r) => r.rivals.some((x) => x.pages?.length && x.stats && !hasPast(x.stats)));
   if (!todo.length) return 0;
   const token = await adLibraryToken(brandId);
   if (!token) return 0;
@@ -137,7 +154,7 @@ export async function fillPast(brandId: string): Promise<number> {
   for (const row of todo) {
     const found = new Map<string, PastStats>();
     for (const x of row.rivals) {
-      if (!x.pages?.length || !x.stats || x.stats.past) continue;
+      if (!x.pages?.length || !x.stats || hasPast(x.stats)) continue;
       try { const p = await pastAds(x.pages.map((pg) => pg.id), token); found.set(x.name, pastStats(p.raw, p.more)); }
       catch { break; }
     }
@@ -145,7 +162,7 @@ export async function fillPast(brandId: string): Promise<number> {
     // Written onto the latest copy of the row, so a pull that finished meanwhile is not undone.
     const [now] = await db.select({ rivals: R.rivals }).from(R).where(eq(R.id, row.id));
     if (!now) continue;
-    await db.update(R).set({ rivals: now.rivals.map((x) => (x.stats && !x.stats.past && found.has(x.name) ? { ...x, stats: { ...x.stats, past: found.get(x.name)! } } : x)) }).where(eq(R.id, row.id));
+    await db.update(R).set({ rivals: now.rivals.map((x) => (x.stats && !hasPast(x.stats) && found.has(x.name) ? { ...x, stats: { ...x.stats, past: found.get(x.name)! } } : x)) }).where(eq(R.id, row.id));
     done += found.size;
   }
   return done;

@@ -96,19 +96,20 @@ describe("evidence", () => {
 });
 
 describe("pastStats", () => {
-  it("counts how long stopped ads ran, from their own start and stop days", async () => {
+  it("counts how long older ads ran, only for ads watched 45 days or more", async () => {
     const { pastStats } = await import("../src/lib/research/adlib");
     const now = Date.parse("2026-11-24T00:00:00Z");
     const ad = (start: string, stop?: string) => ({ ad_delivery_start_time: start, ad_delivery_stop_time: stop });
     const s = pastStats([
-      ad("2026-10-01", "2026-10-01"), // 1 day
+      ad("2026-09-10", "2026-09-10"), // 1 day
       ad("2026-09-01", "2026-09-05"), // 5 days
       ad("2026-08-01", "2026-08-12"), // 12 days
-      ad("2026-03-01", "2026-04-14"), // 45 days
-      ad("2026-11-01"),               // no stop day: not counted
-      ad("2026-11-20", "2026-12-20"), // stops in the future: not counted
+      ad("2026-08-20", "2026-10-03"), // 45 days
+      ad("2026-09-20"),               // still running: 66 days so far
+      ad("2026-11-01", "2026-11-02"), // started inside the last 45 days: not counted
+      ad("2026-06-01", "2026-06-20"), // started more than 120 days ago: not counted
     ], true, now);
-    expect(s).toMatchObject({ ads: 4, median: 12, quick: 2, long: 1, since: "2026-03-01", more: true });
-    expect(pastStats([], false, now)).toMatchObject({ ads: 0, median: 0, quick: 0, long: 0, since: null, more: false });
+    expect(s).toMatchObject({ ads: 5, stopped: 4, median: 12, medianOpen: false, quick: 2, long: 2, since: "2026-08-01", until: "2026-09-20", more: true });
+    expect(pastStats([], false, now)).toMatchObject({ ads: 0, stopped: 0, median: 0, quick: 0, long: 0, since: null, more: false });
   });
 });
