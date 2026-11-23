@@ -13,11 +13,12 @@ const NAME: Record<number, string> = { 30: "1 month", 90: "3 months", 180: "6 mo
 const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
 const LIFTS: [number, string][] = [[1, "10% more"], [2, "20% more"], [3, "30% more"]];
 
-export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, level, usd }: {
+export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, level, usd, unitPrice }: {
+  unitPrice: number | null; // the product's own price; an ad's order is worth c.price, the brand's figure for a whole order
   c: Candidate; budget: number; input: Omit<PlanInput, "candidates">; minToLearn: number; stock: number | null; units30: number | null; cycle: number | null; level: 0 | 1 | 2; usd: (v: number) => string;
 }) {
   const [lift, setLift] = useState(2);
-  const t = useMemo(() => timeline({ c, budget, input, stock, pace: (units30 ?? 0) / 30, minToLearn, cycle: cycle ?? 7, lift }), [c, budget, input, stock, units30, minToLearn, cycle, lift]);
+  const t = useMemo(() => timeline({ c, budget, input, stock, pace: (units30 ?? 0) / 30, minToLearn, cycle: cycle ?? 7, lift, unitPrice: unitPrice ?? undefined }), [c, budget, input, stock, units30, minToLearn, cycle, lift, unitPrice]);
   const n = (v: number) => Math.round(v).toLocaleString("en-US"), own = level > 0;
   const Dot = ({ real }: { real: boolean }) => <span aria-label={real ? "From your data" : "Rests on an assumption"} style={{ width: 7, height: 7, borderRadius: 99, flexShrink: 0, ...(real ? { background: "currentColor", opacity: 0.55 } : { boxShadow: "inset 0 0 0 1.5px currentColor", opacity: 0.6 }) }} />;
   return (
@@ -30,8 +31,8 @@ export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, 
         {t.rows.map((r, i) => {
           const on = i === t.best, dim = on ? "rgba(255,255,255,.6)" : "var(--ink-3)", line = on ? "rgba(255,255,255,.14)" : "var(--line)";
           const rows: [string, string, boolean, string?][] = [
-            ["Sells without ads", n(r.organic), units30 != null, "Your own pace of sales over these days"],
-            ["The ads add", `${n(r.ads)} order${Math.round(r.ads) === 1 ? "" : "s"}`, own, own ? "From your own ad results" : "From starting rates — your own results replace them once ads have run"],
+            ["Sells without ads", n(r.organic), units30 != null, `Your own pace of sales over these days${unitPrice ? `, at ${usd(unitPrice)} each` : ""}`],
+            ["The ads add", `${n(r.ads)} order${Math.round(r.ads) === 1 ? "" : "s"}`, own, `${own ? "From your own ad results" : "From starting rates — your own results replace them once ads have run"} · ${usd(c.price)} an order`],
             ["Offer that earns most", r.discount ? `${Math.round(r.discount * 100)}% off` : "Full price", false, r.discount ? `Adds ${usd(r.profit - r.fullProfit)} over full price, if a discount sells as assumed below` : "A discount would earn less"],
             [stock != null ? "Sold · left" : "Sold", stock != null ? `${n(r.sold)} · ${r.clears ? "none left" : `${n(r.left ?? 0)} left`}` : n(r.sold), false],
             ["Tests", r.tests === 0 ? "Too small to read" : r.rounds > 1 ? `${r.rounds} rounds, one after another` : r.tests > 1 ? `${r.tests} at once` : "1", own, `One readable test costs about ${usd(minToLearn)}. The budget buys ${r.tests}; with ${cycle ?? 7} days a round, ${r.rounds} can follow one another by this date.`],

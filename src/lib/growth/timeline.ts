@@ -19,6 +19,8 @@ export type TimeInput = {
   minToLearn: number; // money one test needs before its result can be read
   cycle: number; // days one round of testing takes
   lift: number; // how many times its size a discount adds to units sold: 2 means 10% off sells 20% more
+  /** The product's own price. An order the ads bring is worth `c.price` — the brand's figure for a whole order, which can hold more than this product — but a unit that sells by itself is worth this. */
+  unitPrice?: number;
 };
 export type TimeRow = {
   days: number; daily: number;
@@ -31,13 +33,14 @@ export const DEADLINES = [30, 90, 180];
 const OFFERS = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5];
 
 export function timeline(v: TimeInput, deadlines: number[] = DEADLINES): { rows: TimeRow[]; best: number } {
-  const price = v.c.price, cost = price * (1 - v.input.margin), cap = v.stock ?? Infinity;
+  const order = v.c.price, unit = v.unitPrice ?? order, m = v.input.margin, cap = v.stock ?? Infinity;
   const tests = v.minToLearn > 0 ? Math.floor(v.budget / v.minToLearn) : 0;
   const rows = deadlines.map((days): TimeRow => {
     const organic = Math.min(cap, v.pace * days);
     // The ads' orders at full price: the same money buys the same views, unless a small audience fills up — which more days ease.
     const ads = v.budget > 0 ? outcome({ ...v.c, stock: null }, v.budget, 1, { ...v.input, days, discount: 0, candidates: [] }).orders : 0;
-    const at = (d: number) => { const sold = Math.min(cap, (organic + ads) * (1 + v.lift * d)); return { d, sold, profit: sold * (price * (1 - d) - cost) - v.budget }; };
+    // What is left of a sale after the goods, at an offer d, is its price × (margin − d). The stock caps both kinds of sale alike.
+    const at = (d: number) => { const want = (organic + ads) * (1 + v.lift * d), sold = Math.min(cap, want), k = want > 0 ? sold / (organic + ads) : 0; return { d, sold, profit: k * (organic * unit + ads * order) * (m - d) - v.budget }; };
     // No offer is considered that sells a unit for less than it cost.
     const full = at(0), pick = OFFERS.filter((d) => d < v.input.margin).map(at).reduce((a, b) => (b.profit > a.profit + 0.5 ? b : a), full);
     const daily = v.budget / days, read = daily > 0 && v.minToLearn > 0 ? Math.ceil(v.minToLearn / daily) : null;

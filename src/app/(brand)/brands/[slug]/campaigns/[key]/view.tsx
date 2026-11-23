@@ -27,11 +27,11 @@ const LEVEL = ["Scenario · not a forecast", "Early estimate", "From your result
 const DAYS = [7, 14, 28];
 type Props = {
   slug: string; currency: string; plan: PlanCard; input: Omit<PlanInput, "candidates">; minBudget: number; level: 0 | 1 | 2;
-  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
+  ads: PlanAd[]; facts: PlanFacts; shop: Plans["shop"]; results: PlanExtras["results"]; brief: PlanExtras["brief"]; productPhoto: string | null; unitPrice: number | null; pilot: { mode: Mode; last: string | null; canAct: boolean; changes: PlanExtras["pilot"]["changes"] };
 };
 const label = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 } as const;
 
-export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto }: Props) {
+export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads, facts, shop, results, pilot, brief, productPhoto, unitPrice }: Props) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -292,7 +292,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           </div>
         </div>
 
-        <TimeCard c={p.c} budget={budget} input={input} minToLearn={minBudget} stock={facts.store?.inventory ?? p.c.stock ?? null} units30={facts.store?.units30 ?? null} cycle={facts.rivals?.cycle ?? null} level={level} usd={usd} />
+        <TimeCard unitPrice={unitPrice} c={p.c} budget={budget} input={input} minToLearn={minBudget} stock={facts.store?.inventory ?? p.c.stock ?? null} units30={facts.store?.units30 ?? null} cycle={facts.rivals?.cycle ?? null} level={level} usd={usd} />
       </div>
 
       {confirm === "place" && (() => {

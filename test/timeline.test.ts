@@ -42,6 +42,13 @@ describe("the same budget over different deadlines", () => {
     const t = timeline(base);
     expect(t.rows[t.best].profit).toBe(Math.max(...t.rows.map((r) => r.profit)));
   });
+  it("values a unit that sells by itself at the product's price, and an ad's order at what a whole order is worth", () => {
+    const one = { ...base, stock: null, lift: 0, pace: 1, budget: 0 };
+    expect(timeline(one, [10]).rows[0].profit).toBeCloseTo(10 * 50 * 0.6, 5); // no ads: ten units at the product's own price
+    expect(timeline({ ...one, unitPrice: 20 }, [10]).rows[0].profit).toBeCloseTo(10 * 20 * 0.6, 5);
+    const withAds = timeline({ ...base, stock: null, lift: 0, unitPrice: 20 }, [10]).rows[0];
+    expect(withAds.profit).toBeCloseTo(10 * 20 * 0.6 + withAds.ads * 50 * 0.6 - 900, 4);
+  });
   it("works without a stock count: nothing is 'left', nothing 'clears'", () => {
     const r = timeline({ ...base, stock: null }).rows[1];
     expect(r.left).toBeNull();
