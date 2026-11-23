@@ -2,7 +2,10 @@
 /* eslint-disable @next/next/no-img-element -- stored copies of competitors' ads */
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addRival, addScreenshot, decide, readScreenshot, removeRival, removeScreenshot, rerun } from "./actions";
+import Link from "next/link";
+import { addRival, addScreenshot, decide, readScreenshot, removeRival, removeScreenshot, rerun, testGap, testProducts } from "./actions";
+import { Combo as Picker } from "@/components/combo";
+import { Modal } from "@/components/modal";
 import type { ResearchRow } from "./view";
 import { Combo } from "../creative/shoots/combo";
 import { Icon, type IconName } from "@/components/icon";
@@ -162,6 +165,19 @@ function ReadCard({ read, slug, id, angle, setAngle }: { read: AdsRead; slug: st
   const router = useRouter();
   const [local, setLocal] = useState<Record<string, Decision | null>>({});
   const set = (gid: string, s: Decision | null) => { setLocal((x) => ({ ...x, [gid]: s })); void decide(slug, id, "gap", gid, s).then(() => router.refresh()); };
+  // Testing a message means a campaign for one product: pick it, and the campaign opens.
+  const [test, setTest] = useState<AdsRead["gaps"][number] | null>(null);
+  const [products, setProducts] = useState<{ title: string; price: number; stock: number; image: string | null }[] | null>(null);
+  const [product, setProduct] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const openTest = (g: AdsRead["gaps"][number]) => { setTest(g); setErr(null); if (!products) void testProducts(slug).then((p) => { setProducts(p); setProduct((v) => v || p[0]?.title || ""); }).catch(() => setProducts([])); };
+  const start = async () => {
+    if (!test || !product) return;
+    setStarting(true); setErr(null);
+    try { const r = await testGap(slug, id, test.id, product); if (r.key) router.push(`/brands/${slug}/campaigns/${encodeURIComponent(r.key)}`); else { setErr(r.error ?? "That did not work. Try again."); setStarting(false); } }
+    catch { setErr("That did not work. Try again."); setStarting(false); }
+  };
   const chips = [...read.hooks.map((x) => ["Hook", x] as const), ...read.offers.map((x) => ["Offer", x] as const)];
   return (
     <div className="col g12">
@@ -184,6 +200,17 @@ function ReadCard({ read, slug, id, angle, setAngle }: { read: AdsRead; slug: st
           {chips.slice(0, 10).map(([k, x]) => <span key={k + x} className="row g6 xs" title={x} style={{ height: 26, padding: "0 10px", borderRadius: 99, background: "var(--tray)", maxWidth: 320 }}><b className="w5 i3">{k}</b><span className="ell">{x}</span></span>)}
         </div>}
       </div>
+      {test && <Modal icon={<AgentFace kind="builder" size={18} />} title="Test this message" sub={test.text} onClose={() => { if (!starting) setTest(null); }} width={460}
+        footer={<><span className="xs i3 fill">Nothing is spent. You set the budget on the campaign.</span><button type="button" className="btn sm" disabled={starting} onClick={() => setTest(null)}>Cancel</button>
+          <button type="button" className="btn dark sm" disabled={starting || !product} style={starting || !product ? { opacity: 0.5 } : undefined} onClick={start}>{starting ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : null}Start campaign</button></>}>
+        <div className="col g6">
+          <span className="xs i3">Product</span>
+          {products == null ? <span className="sm i3" style={{ height: 52, display: "flex", alignItems: "center" }}>Loading your products…</span>
+            : products.length ? <Picker label="Product" value={product} onChange={setProduct} items={products.map((x) => ({ value: x.title, label: x.title, right: `${x.stock} in stock`, image: x.image }))} />
+            : <span className="sm c-amber">No product with a price yet. Sync your store first.</span>}
+          {err && <span className="xs c-amber">{err}</span>}
+        </div>
+      </Modal>}
       {read.gaps.length > 0 && <div className="col g8">
         <span className="xs i3" style={{ letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>What nobody is saying</span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
@@ -193,8 +220,9 @@ function ReadCard({ read, slug, id, angle, setAngle }: { read: AdsRead; slug: st
               <div key={g.id} className="col g10" title={g.why} style={{ padding: "12px 14px", borderRadius: 14, background: "#fff", boxShadow: "0 0 0 1px var(--line)", opacity: st === "rejected" ? 0.55 : 1 }}>
                 <span className="row top g8"><Icon name="lightning" size={14} color="#B7791F" style={{ marginTop: 3 }} /><span className="sm w5 i1 fill">{g.text}</span></span>
                 <div className="row g6" style={{ marginTop: "auto" }}>
-                  {st ? <><span className={`pill ${st === "accepted" ? "green" : ""}`} style={{ height: 24, fontSize: 11.5 }}>{st === "accepted" ? "In your test plan" : "Skipped"}</span><button type="button" className="btn quiet sm" onClick={() => set(g.id, null)}>Undo</button></>
-                    : <><button type="button" className="btn dark sm" onClick={() => set(g.id, "accepted")}><Icon name="check" size={12} color="#fff" />Test this</button><button type="button" className="btn quiet sm" onClick={() => set(g.id, "rejected")}>Skip</button></>}
+                  {g.plan ? <><span className="pill green" style={{ height: 24, fontSize: 11.5 }}>Campaign started</span><Link className="btn sm" href={`/brands/${slug}/campaigns/${encodeURIComponent(g.plan)}`}>Open campaign<Icon name="arrow-r" size={11} /></Link></>
+                    : st === "rejected" ? <><span className="pill" style={{ height: 24, fontSize: 11.5 }}>Skipped</span><button type="button" className="btn quiet sm" onClick={() => set(g.id, null)}>Undo</button></>
+                    : <><button type="button" className="btn dark sm" onClick={() => openTest(g)}><AgentFace kind="builder" size={14} />Test this</button><button type="button" className="btn quiet sm" onClick={() => set(g.id, "rejected")}>Skip</button></>}
                 </div>
               </div>
             );

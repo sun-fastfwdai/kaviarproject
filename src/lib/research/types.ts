@@ -77,7 +77,8 @@ export type AdsRead = {
   angles: { name: string; share: number; example: string; who: string[]; ids?: string[]; n?: number; proven?: number }[];
   counted?: boolean; creatives?: number;
   offers: string[]; hooks: string[]; positioning: string;
-  gaps: { id: string; text: string; why: string; status?: Decision }[];
+  /** `plan`: the campaign started to test this message. */
+  gaps: { id: string; text: string; why: string; status?: Decision; plan?: string }[];
 };
 
 export type TestCell = { id: string; segment: string; angle: string; hypothesis: string; audience: string; hook: string; visual: string; metric: string; on: boolean; hypothesisId?: string };

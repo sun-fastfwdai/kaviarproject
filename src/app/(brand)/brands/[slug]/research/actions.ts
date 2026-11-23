@@ -1,5 +1,6 @@
 "use server";
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
@@ -12,6 +13,7 @@ import { readShot } from "@/lib/research/shots";
 import { createTestBatch } from "@/lib/creative/remy";
 import { MARKETS, marketName, type Decision, type ManualAd, type Part, type Positioning, type RivalAds } from "@/lib/research/types";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
+import { addOwnPlan, getPlans, savePlanChoice } from "@/lib/growth/plans";
 
 const R = schema.marketResearch;
 type Result = { error?: string };
@@ -49,6 +51,32 @@ export async function decide(slug: string, id: string, kind: "segment" | "opport
   if (kind === "gap") { if (row.adsRead) await db.update(R).set({ adsRead: { ...row.adsRead, gaps: mark(row.adsRead.gaps) } }).where(eq(R.id, id)); return; }
   if (!row.report) return;
   await db.update(R).set({ report: kind === "segment" ? { ...row.report, segments: mark(row.report.segments) } : { ...row.report, opportunities: mark(row.report.opportunities) } }).where(eq(R.id, id));
+}
+
+/** The products a campaign can be started for — the same ones "New campaign" offers. */
+export async function testProducts(slug: string): Promise<{ title: string; price: number; stock: number; image: string | null }[]> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  return (await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone })).options.products;
+}
+/**
+ * Test a message nobody is using: starts a campaign of the brand's own for the product picked, with the message as Remy's brief. It is
+ * not approved — the brand asked to test a message, not to spend — so its budget gets its yes on the campaign's own page.
+ */
+export async function testGap(slug: string, id: string, gapId: string, productTitle: string): Promise<Result & { key?: string }> {
+  const { me, brand, row } = await own(slug, id);
+  const gap = row.adsRead?.gaps.find((g) => g.id === gapId);
+  if (!gap) return { error: "That message is no longer in this read. Reload the page." };
+  if (gap.plan) return { key: gap.plan };
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const product = plans.options.products.find((x) => x.title === productTitle);
+  if (!product) return { error: "Pick a product." };
+  const key = await addOwnPlan(brand.id, { name: gap.text.slice(0, 80), product: product.title, who: "New people", kind: "cold", audience: null, by: me.name }, plans.minBudget, 14, false);
+  await savePlanChoice(brand.id, key, { brief: { refs: [], note: `Message to test: ${gap.text}. ${gap.why}`.slice(0, 600), shoot: false } });
+  const [now] = await db.select({ adsRead: R.adsRead }).from(R).where(eq(R.id, id));
+  if (now?.adsRead) await db.update(R).set({ adsRead: { ...now.adsRead, gaps: now.adsRead.gaps.map((g) => (g.id === gapId ? { ...g, status: "accepted" as const, plan: key } : g)) } }).where(eq(R.id, id));
+  for (const p of ["campaigns", "today", "plan"]) revalidatePath(`/brands/${slug}/${p}`, p === "campaigns" ? "layout" : "page");
+  return { key };
 }
 
 /** Add a competitor by name and pull its ads right away. */
