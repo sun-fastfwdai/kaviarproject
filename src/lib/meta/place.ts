@@ -1,6 +1,6 @@
 import "server-only";
 import { metaGet, metaWrite } from "./client";
-import { metaConn } from "./apply";
+import { metaConn, WHOLE_UNITS } from "./apply";
 import { adSetParams, creativeParams, problem, type AdCopy } from "./place-rules";
 
 /**
@@ -81,5 +81,24 @@ export async function switchCampaign(brandId: string, v: { campaignId: string; a
     const now = await metaGet<{ status: string }>(v.campaignId, { fields: "status" }, c.token);
     if (now.status !== want) return { ok: false, message: `Meta did not take the change (the campaign is ${now.status.toLowerCase()})` };
     return { ok: true, until };
+  } catch (e) { return { ok: false, message: problem(e) }; }
+}
+
+/** Change the daily budget of a campaign Kaviar made, and — when it is running to an end date — that date. Read back before it is reported done. */
+export async function setCampaignBudget(brandId: string, v: { campaignId: string; daily: number; adsetId?: string; until?: string | null }): Promise<Out<{ daily: number }>> {
+  const c = await metaConn(brandId);
+  if (!c || !c.granted || !c.test?.ok) return { ok: false, message: "Kaviar may not change this ad account yet" };
+  if (!(v.daily >= 1) || v.daily > 10_000) return { ok: false, message: "A daily budget between 1 and 10,000 is needed" };
+  try {
+    const camp = await metaGet<{ account_id: string; daily_budget?: string }>(v.campaignId, { fields: "account_id,daily_budget" }, c.token);
+    if (`act_${camp.account_id}` !== c.account) return { ok: false, message: "That campaign is not in the connected ad account" };
+    if (!camp.daily_budget) return { ok: false, message: "This campaign’s budget is set on its ad set in Meta — change it in Ads Manager" };
+    const acct = await metaGet<{ currency: string }>(c.account, { fields: "currency" }, c.token);
+    const raw = String(Math.round(v.daily * (WHOLE_UNITS.has(acct.currency) ? 1 : 100)));
+    if (raw !== camp.daily_budget) await metaWrite("POST", v.campaignId, { daily_budget: raw }, c.token);
+    const now = await metaGet<{ daily_budget?: string }>(v.campaignId, { fields: "daily_budget" }, c.token);
+    if (now.daily_budget !== raw) return { ok: false, message: "Meta did not take the new budget" };
+    if (v.adsetId && v.until) await metaWrite("POST", v.adsetId, { end_time: String(Math.floor(Date.parse(v.until) / 1000)) }, c.token);
+    return { ok: true, daily: v.daily };
   } catch (e) { return { ok: false, message: problem(e) }; }
 }

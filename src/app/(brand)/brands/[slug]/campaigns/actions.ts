@@ -7,7 +7,7 @@ import { schema } from "@/lib/db";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
 import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget } from "@/lib/growth/plans";
-import { makeAd, makeAdSet, metaReady, switchCampaign, type Ready } from "@/lib/meta/place";
+import { makeAd, makeAdSet, metaReady, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
 import { COUNTRIES, countryFor } from "@/lib/meta/place-rules";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { readAssets } from "@/lib/assets/storage";
@@ -131,6 +131,25 @@ export async function switchPlan(slug: string, key: string, on: boolean): Promis
   const r = await switchCampaign(brand.id, { campaignId: m.campaignId, adsetId: m.adset, on, days: p.days });
   if (!r.ok) return { error: said(r.message) };
   await savePlanChoice(brand.id, key, { meta: { ...m, onAt: on ? new Date().toISOString() : undefined, until: on ? r.until : null } });
+  fresh(slug);
+  return {};
+}
+
+/**
+ * Change the budget or length of a plan whose campaign is already on Meta. The campaign's daily budget is changed there first; the plan
+ * is only updated once Meta confirms it. If it is running to an end date, that date moves with the new length.
+ */
+export async function changeBudgetOnMeta(slug: string, key: string, budget: number, days: number): Promise<{ error?: string }> {
+  await requireMember();
+  const { brand, p } = await planOf(slug, key), m = p?.meta;
+  if (!p || !m) return { error: "This plan has no campaign on Meta." };
+  if (!(budget >= 50) || !(days >= 3)) return { error: "Set a budget of at least 50 over at least 3 days." };
+  const daily = Math.max(1, Math.round((budget / days) * 100) / 100);
+  const until = m.onAt ? new Date(Date.parse(m.onAt) + days * 86_400_000).toISOString() : null;
+  if (until && Date.parse(until) < Date.now() + 3_600_000) return { error: "That length has already passed for this campaign — pick a longer one, or pause it." };
+  const r = await setCampaignBudget(brand.id, { campaignId: m.campaignId, daily, adsetId: m.adset, until });
+  if (!r.ok) return { error: said(r.message) };
+  await savePlanChoice(brand.id, key, { budget, days, meta: { ...m, daily, ...(until ? { until } : {}) } });
   fresh(slug);
   return {};
 }

@@ -59,7 +59,7 @@ export function Budget({ slug, currency, plans, input, level, minBudget, figures
             <span className="xs i3 ell">{p.c.product} · {p.c.audience ? `${p.c.audience.toLocaleString("en-US")} people` : p.c.kind === "warm" ? "your buyers" : p.c.kind === "lookalike" ? "people like your buyers" : "new people"} · {STAGE_NAME[p.stage]}</span>
           </span>
         </Link>
-        <span className="row g8" style={{ flexShrink: 0 }} title={locked ? "This campaign is on Meta — its daily budget is set there" : undefined}>
+        <span className="row g8" style={{ flexShrink: 0 }} title={locked ? "This campaign is on Meta — open it to change its budget there" : undefined}>
           <button type="button" aria-label={`Spend less on ${p.title}`} disabled={locked || v.budget - step < 50} onClick={() => change(p, { budget: Math.max(50, v.budget - step) })} className="btn sm ic" style={{ borderRadius: 99 }}>−</button>
           <span className="col" style={{ width: 92, alignItems: "center", lineHeight: 1.25 }}><span className="tnum w5" style={{ fontSize: 17 }}>{usd(v.budget)}</span><span className="xs i3 tnum">{usd(v.budget / v.days)} a day</span></span>
           <button type="button" aria-label={`Spend more on ${p.title}`} disabled={locked} onClick={() => change(p, { budget: v.budget + step })} className="btn sm ic" style={{ borderRadius: 99 }}>+</button>

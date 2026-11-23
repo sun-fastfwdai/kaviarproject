@@ -13,7 +13,7 @@ import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey
 import { AdsBlock, useAds } from "./ads";
 import { TimeCard } from "./time";
 import { decide, setMode } from "../../optimize/actions";
-import { approvePlanFor, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
+import { approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
 import { Combo } from "@/components/combo";
 import { COUNTRIES } from "@/lib/meta/place-rules";
 import type { Ready } from "@/lib/meta/place";
@@ -37,16 +37,18 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [doing, setDoing] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [work, setWork] = useState<Work | null>(null);
-  const [confirm, setConfirm] = useState<false | "place" | "on" | "off">(false);
+  const [confirm, setConfirm] = useState<false | "place" | "on" | "off" | "budget">(false);
   // What Meta says it needs, asked when the brand opens "Put it on Meta" — and what the brand picks there.
   const [check, setCheck] = useState<{ ready: Ready | null; link: string | null } | "asking" | null>(null);
   const [pick, setPick] = useState<{ page?: string; pixel?: string; country: string }>({ country: p.meta?.country ?? "US" });
   const [budget, setBudget] = useState(p.budget);
   const [days, setDays] = useState(p.days);
+  const [typing, setTyping] = useState<string | null>(null); // the amount while it is being typed
   const [mode, setM] = useState<Mode>(pilot.mode);
   const clear = useCallback(() => setWork(null), []);
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const [lo, mid, hi] = forecast(p.c, budget, days, input), changed = budget !== p.budget || days !== p.days;
+  const sign = usd(0).replace(/[\d.,\s]/g, "");
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
   const { steps, now } = stepsOf(p), nowAt = steps.findIndex((s) => s.key === now), a = p.ads, step = Math.max(50, Math.round(minBudget / 4 / 50) * 50);
   const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, onWork: setWork, onError: setErr });
@@ -109,16 +111,22 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               <div className="row g14" style={{ alignItems: "baseline", flexWrap: "wrap" }}>
                 <span className="col">
                   <span className="row g6" style={{ alignItems: "center" }}>
-                    <button type="button" aria-label="Spend less" disabled={budget - step < 50 || Boolean(p.meta)} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16 }}>−</button>
-                    <span className="tnum" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)" }}>{usd(budget)}</span>
-                    <button type="button" aria-label="Spend more" disabled={Boolean(p.meta)} onClick={() => setBudget((b) => b + step)} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16 }}>+</button>
+                    <button type="button" aria-label="Spend less" disabled={busy || budget - step < 50} onClick={() => setBudget((b) => Math.max(50, b - step))} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16, opacity: budget - step < 50 ? 0.35 : 1 }}>−</button>
+                    <label className="row tnum" title="Type an amount" style={{ fontSize: 34, lineHeight: "40px", fontWeight: 600, letterSpacing: "-0.02em", color: "rgba(255,255,255,.72)", cursor: "text", borderBottom: "1px dashed rgba(255,255,255,.28)" }}>
+                      <span aria-hidden>{sign}</span>
+                      <input aria-label="Budget" inputMode="numeric" value={typing ?? budget.toLocaleString("en-US")} onFocus={(e) => { setTyping(String(budget)); e.currentTarget.select(); }}
+                        onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, "").slice(0, 7); setTyping(v); if (Number(v) >= 50) setBudget(Number(v)); }}
+                        onBlur={() => setTyping(null)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        style={{ width: `${Math.max(2, (typing ?? budget.toLocaleString("en-US")).length) + 0.4}ch`, border: 0, outline: 0, padding: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit" }} />
+                    </label>
+                    <button type="button" aria-label="Spend more" disabled={busy} onClick={() => setBudget((b) => b + step)} style={{ width: 26, height: 26, borderRadius: 99, background: "rgba(255,255,255,.1)", color: "#fff", fontSize: 16 }}>+</button>
                   </span>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>you spend · {usd(daily)} a day</span>
                 </span>
                 <span aria-hidden style={{ fontSize: 28, color: "rgba(255,255,255,.35)" }}>→</span>
                 <span className="col"><span className="tnum" style={{ fontSize: 56, lineHeight: "60px", fontWeight: 600, letterSpacing: "-0.035em" }}>{usd(mid.revenue)}</span>
                   <span className="row g6" style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>likely comes back in
-                    <span style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" disabled={Boolean(p.meta)} onClick={() => setDays(d)} style={{ height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
+                    <span style={{ display: "inline-flex", padding: 2, gap: 2, borderRadius: 99, background: "rgba(255,255,255,.1)" }}>{DAYS.map((d) => <button key={d} type="button" disabled={busy} onClick={() => setDays(d)} style={{ height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, background: days === d ? "#fff" : "transparent", color: days === d ? "#121212" : "rgba(255,255,255,.75)" }}>{d} days</button>)}</span>
                   </span></span>
                 <span className="col" style={{ paddingLeft: 6 }} title={`${Math.round(mid.orders)} orders at the likely rates, after the cost of the goods and the ad spend`}><span className="tnum" style={{ fontSize: 22, lineHeight: "28px", fontWeight: 600, color: mid.profit >= 0 ? "#6EE7A8" : "#FF9B73" }}>{mid.profit >= 0 ? "+" : "−"}{usd(Math.abs(mid.profit))}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>{mid.profit >= 0 ? "profit after costs" : "short of break-even"} · {Math.round(mid.orders)} orders</span></span>
               </div>
@@ -138,7 +146,8 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               </span>
               <span className="row g8" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {!p.approvedAt && p.stage !== "suggested" && now !== "launch" && !changed && <button type="button" disabled={busy} title="Its ads were written before this plan was approved" className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved")}>{spin("approve") || <Icon name="check" size={12} />}Approve the budget</button>}
-                {changed && p.stage !== "suggested" && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => go("save", () => setPlanBudget(slug, p.key, budget, days), "Budget saved")}>{spin("save")}Save the change</button>}
+                {changed && p.stage !== "suggested" && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 16px", borderRadius: 99, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 13.5 }} onClick={() => (p.meta ? setConfirm("budget") : go("save", () => setPlanBudget(slug, p.key, budget, days), "Budget saved"))}>{spin("save")}{p.meta ? "Change it on Meta" : "Save the change"}</button>}
+                {changed && <button type="button" disabled={busy} className="row g6" style={{ height: 40, padding: "0 12px", borderRadius: 99, color: "rgba(255,255,255,.7)", fontSize: 13.5 }} onClick={() => { setBudget(p.budget); setDays(p.days); }}>Undo</button>}
                 {act(now)}
               </span>
             </div>
@@ -319,6 +328,14 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
             </div>
           </Modal>);
       })()}
+      {confirm === "budget" && p.meta && <Modal icon={<Icon name="facebook" size={16} />} title="Change this campaign’s budget on Meta" sub={running ? "It is running — the new amount applies from now." : "It is paused — nothing is spent until you switch it on."} onClose={() => setConfirm(false)} width={440}
+        footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" onClick={() => { setConfirm(false); setWork({ who: "qa", what: "Otto · Changing the budget on Meta", usually: "A few seconds", since: Date.now() }); setDoing("save"); setErr(null);
+          start(async () => { const r = await changeBudgetOnMeta(slug, p.key, budget, days); if (r.error) { setWork({ done: r.error, bad: true }); setErr(r.error); } else { router.refresh(); setWork({ done: `Meta now has ${usd(budget / days)} a day for this campaign` }); } setDoing(null); }); }}>Change it on Meta</button></>}>
+        <div className="col">
+          {([["Daily budget on Meta", `${usd(p.meta.daily)} → ${usd(budget / days)}`], ["In all", `${usd(p.budget)} over ${p.days} days → ${usd(budget)} over ${days} days`], ["Likely comes back", `${usd(p.out[1].revenue)} → ${usd(mid.revenue)}`]] as const).map(([k, v]) => (
+            <span key={k} className="row between g12 sm" style={{ padding: "9px 0", borderBottom: "1px solid var(--line)" }}><span className="i3">{k}</span><span className="w5 tnum">{v}</span></span>))}
+        </div>
+      </Modal>}
       {(confirm === "on" || confirm === "off") && p.meta && <Modal icon={<Icon name={confirm === "on" ? "play" : "pause"} size={16} />} title={confirm === "on" ? "Switch this campaign on" : "Pause this campaign"} sub={confirm === "on" ? "This is the step that spends money." : "Meta stops showing its ads. You can switch it on again."} onClose={() => setConfirm(false)} width={440}
         footer={<><button type="button" className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button><button type="button" className="btn dark" onClick={() => flip(confirm === "on")}>{confirm === "on" ? `Start spending ${usd(p.meta.daily)} a day` : "Pause it"}</button></>}>
         {confirm === "on" ? <div className="col">
