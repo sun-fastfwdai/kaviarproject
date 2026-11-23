@@ -4,7 +4,7 @@ import Link from "next/link";
 import { after } from "next/server";
 import { getNotes, refreshNotes } from "@/lib/ai/notes";
 import { getBrand, getConnections, type ConnectionView } from "@/lib/queries/brands";
-import { runs, tableStats, webhookCount } from "@/lib/queries/sync";
+import { metaPast, runs, tableStats, webhookCount } from "@/lib/queries/sync";
 import { utmHealth } from "@/lib/queries/growth";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { ago, compact, dateTime, duration, num, pct } from "@/lib/format";
@@ -93,7 +93,8 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
   const conns = await getConnections(brand.id);
   const notes = await getNotes(brand.id);
   after(() => refreshNotes(brand.id, ["sync"]));
-  const [tables, history, hooks, health] = await Promise.all([tableStats(brand.id), runs(brand.id, 10), webhookCount(brand.id), utmHealth(brand.id, brand.timezone, 30)]);
+  const [tables, history, hooks, health, past] = await Promise.all([tableStats(brand.id), runs(brand.id, 10), webhookCount(brand.id), utmHealth(brand.id, brand.timezone, 30), metaPast(brand.id)]);
+  const month = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
   const running = history.some((r) => r.status === "running");
   const left = await leftoverFiles(brand.id).catch(() => ({ paths: [] as string[], bytes: 0 })); // stored files with no record: shown only when there are some
   const last = (p: string) => history.find((r) => r.provider === p && r.status === "success")?.finishedAt ?? null;
@@ -130,7 +131,11 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
             <SourceCard slug={slug} provider="shopify" conn={conns.shopify} lastSync={last("shopify")}
               extra={<WebhookCheck conn={conns.shopify} received={hooks.n} />} />
             <SourceCard slug={slug} provider="meta" conn={conns.meta} lastSync={last("meta")}
-              extra={<Check ok={conns.meta ? true : null} label="Insights pulled every hour" value={conns.meta ? "last 7 days restated" : "after connect"} />} />
+              extra={<>
+                <Check ok={conns.meta ? true : null} label="Insights pulled every hour" value={conns.meta ? "last 7 days restated" : "after connect"} />
+                <Check ok={conns.meta && past.done ? true : null} label={past.done ? `Past results read back to ${month(past.reached!)}` : past.reached ? `Past results · reading, back to ${month(past.reached)} so far` : "Past results, up to 3 years back"}
+                  value={!conns.meta ? "after connect" : past.first ? `first ads ${month(past.first)}` : past.done ? "no ads ran" : past.reached ? undefined : "on the next sync"} />
+              </>} />
           </div>
 
           <div className="row g16" style={{ alignItems: "stretch" }}>

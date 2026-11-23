@@ -41,3 +41,13 @@ export const runs = (brandId: string, limit = 12) =>
 
 export const webhookCount = async (brandId: string) =>
   (await rows<{ n: number; last: Date | null }>(sql`select count(*)::int as n, max(received_at) as last from webhook_events where brand_id = ${brandId} and received_at > now() - interval '24 hours'`))[0];
+
+/** How far back the brand's Meta results have been read (the earliest day covered), whether that read is finished, and the first day that had any. */
+export async function metaPast(brandId: string): Promise<{ reached: string | null; done: boolean; first: string | null }> {
+  const r = (await rows<{ reached: string | null; first: string | null }>(sql`select
+      (select cursor from sync_cursors where brand_id = ${brandId} and provider = 'meta' and resource = 'history') as reached,
+      (select min(date)::text from meta_insights_daily where brand_id = ${brandId} and impressions > 0) as first`))[0];
+  const reached = r?.reached ?? null;
+  // Finished once it has gone as far as Meta keeps (a little over three years).
+  return { reached, done: Boolean(reached) && new Date(`${reached}T00:00:00Z`).getTime() <= Date.now() - 1090 * 864e5, first: r?.first ?? null };
+}
