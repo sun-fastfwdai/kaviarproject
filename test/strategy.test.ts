@@ -29,6 +29,9 @@ describe("strategy", () => {
     expect(s.best.audience?.key).toBe(warm > cold + 1 ? "buyers" : "new");
     expect(s.best.out[1].profit).toBeCloseTo(Math.max(warm, cold), 0);
   });
+  it("changes nothing that earns the same: an open audience keeps the campaign's own length", () => {
+    for (const days of [7, 14, 28]) expect(strategy({ c: c(225), audiences: [auds[1]], current: "new", days, input, test: 450, level: 0 }).best.days).toBe(days);
+  });
   it("with the brand's own rates, goes past one test when more spend still pays", () => {
     const s = strategy({ c: c(225), audiences: [auds[1]], input, test: 450, level: 2 });
     expect(s.held).toBe(false);

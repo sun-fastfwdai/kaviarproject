@@ -53,7 +53,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   // Iris's set-up: the audience, budget and length that leave the most, from the same sums as the card. Who sees it can only change on
   // a campaign of the brand's own that has no ads yet — the ads are written for their audience.
   const canAud = p.reason === "own" && !p.ads && !p.meta, nowAud = audiences.find((x) => x.label.split(" · ")[0] === p.c.why)?.key ?? null;
-  const best = useMemo(() => strategy({ c: p.c, audiences: canAud ? audiences : [], current: nowAud, input, test: minBudget, level }), [p.c, canAud, audiences, nowAud, input, minBudget, level]);
+  const best = useMemo(() => strategy({ c: p.c, audiences: canAud ? audiences : [], current: nowAud, days: p.days, input, test: minBudget, level }), [p.c, p.days, canAud, audiences, nowAud, input, minBudget, level]);
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
   const { steps, now } = stepsOf(p), nowAt = steps.findIndex((s) => s.key === now), a = p.ads, step = Math.max(50, Math.round(minBudget / 4 / 50) * 50);
   const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, onWork: setWork, onError: setErr });
