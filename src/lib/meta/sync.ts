@@ -5,7 +5,7 @@ import { decrypt } from "../crypto";
 import { env } from "../env";
 import { metaGetAll } from "./client";
 import { and, eq } from "drizzle-orm";
-import { budget, dateWindows, mapCreative, mapDetail, mapInsight, type InsightRow, type RawCreative, type SliceRow, type TotalRow } from "./map";
+import { budget, dateWindows, historyWindows, mapCreative, mapDetail, mapInsight, type InsightRow, type MonthRow, type RawCreative, type SliceRow, type TotalRow } from "./map";
 
 type Conn = typeof schema.connections.$inferSelect;
 const T = schema;
@@ -64,24 +64,53 @@ export async function syncMeta(conn: Conn, cursor: string | null): Promise<Recor
     : day(new Date(Date.now() - env.meta().backfillDays * 864e5), tz);
 
   let insightRows = 0;
-  for (const w of dateWindows(since, until, 30)) {
-    const rows = await metaGetAll<InsightRow>(`${act}/insights`, {
-      level: "ad",
-      time_increment: "1",
-      time_range: JSON.stringify(w),
-      fields: "ad_id,campaign_id,date_start,spend,impressions,inline_link_clicks,actions,action_values",
-      limit: "500",
-    }, token);
-    await chunks(rows, 500, (b) =>
-      db.insert(T.metaInsightsDaily).values(b.map((r) => mapInsight(brandId, r)))
-        .onConflictDoUpdate({ target: [T.metaInsightsDaily.brandId, T.metaInsightsDaily.adId, T.metaInsightsDaily.date], set: insightSet }),
-    );
-    insightRows += rows.length;
-  }
+  for (const w of dateWindows(since, until, 30)) insightRows += await readDays(brandId, act, token, w);
   // Once a day: what the daily rows cannot hold. It never fails the sync — the numbers above are already saved.
   let detailed = 0;
   if (ads.length && cursor !== until) detailed = await syncDetail(brandId, act, token, tz).catch((e) => { console.error("meta ad detail", (e as Error).message.slice(0, 200)); return 0; });
   return { campaigns: campaigns.length, ads: ads.length, insights: insightRows, ...(detailed ? { detailed } : {}) };
+}
+
+/** One stretch of days, per ad per day, saved over whatever was there. */
+async function readDays(brandId: string, act: string, token: string, w: { since: string; until: string }): Promise<number> {
+  const rows = await metaGetAll<InsightRow>(`${act}/insights`, {
+    level: "ad",
+    time_increment: "1",
+    time_range: JSON.stringify(w),
+    fields: "ad_id,campaign_id,date_start,spend,impressions,inline_link_clicks,actions,action_values",
+    limit: "500",
+  }, token);
+  await chunks(rows, 500, (b) =>
+    db.insert(T.metaInsightsDaily).values(b.map((r) => mapInsight(brandId, r)))
+      .onConflictDoUpdate({ target: [T.metaInsightsDaily.brandId, T.metaInsightsDaily.adId, T.metaInsightsDaily.date], set: insightSet }),
+  );
+  return rows.length;
+}
+
+/** Meta keeps daily totals for 37 months; this stays just inside that. */
+const HISTORY_DAYS = 1100;
+const shift = (d: string, days: number) => new Date(new Date(`${d}T00:00:00Z`).getTime() + days * 864e5).toISOString().slice(0, 10);
+
+/**
+ * The account's older results, as far back as Meta keeps them — so a brand that has run ads before starts with its own rates, not
+ * assumptions. One light read finds the months that had any delivery; only those are read by day, newest first. `reached` is the
+ * earliest day already read; it is saved after every month, and the read stops when its time is up, so a large account is finished
+ * over a few hourly runs and never holds up a sync. Returns null once there is nothing older left to read.
+ */
+export async function syncHistory(conn: Conn, reached: string | null, save: (cursor: string) => Promise<void>, budgetMs = 60_000): Promise<number | null> {
+  const act = conn.externalId!, tz = String(conn.details?.timezone ?? "UTC"), today = day(new Date(), tz);
+  const floor = shift(today, -HISTORY_DAYS), edge = reached ?? shift(today, -env.meta().backfillDays);
+  if (edge <= floor) return null;
+  const token = decrypt(conn.accessToken!), started = Date.now();
+  const months = await metaGetAll<MonthRow>(`${act}/insights`, { level: "account", time_increment: "monthly", time_range: JSON.stringify({ since: floor, until: shift(edge, -1) }), fields: "spend,impressions", limit: "100" }, token);
+  let rows = 0;
+  for (const w of historyWindows(months, floor, shift(edge, -1))) {
+    rows += await readDays(conn.brandId, act, token, w);
+    await save(w.since);
+    if (Date.now() - started > budgetMs) return rows; // the rest on the next run
+  }
+  await save(floor);
+  return rows;
 }
 
 /**

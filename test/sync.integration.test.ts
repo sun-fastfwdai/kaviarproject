@@ -86,6 +86,11 @@ function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respon
     if (u.pathname.endsWith("/ads")) return Promise.resolve(json({ data: [{ id: "120220000000000011", name: "Ritual video", campaign_id: "120210000000000001", creative: { thumbnail_url: "https://x/t.jpg" } }] }));
     if (u.pathname.endsWith("/insights")) {
       const tr = JSON.parse(u.searchParams.get("time_range")!);
+      // The look further back: Meta names one month, about 400 days ago, that had any delivery.
+      if (u.searchParams.get("level") === "account") {
+        const at = (n: number) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+        return Promise.resolve(json({ data: [{ date_start: at(420), date_stop: at(400), spend: "50.00", impressions: "7000" }, { date_start: at(399), date_stop: at(370), spend: "0", impressions: "0" }] }));
+      }
       return Promise.resolve(json({ data: [{ ad_id: "120220000000000011", campaign_id: "120210000000000001", date_start: tr.until, spend: "50.00", impressions: "7000", inline_link_clicks: "90",
         actions: [{ action_type: "omni_purchase", value: "3" }], action_values: [{ action_type: "omni_purchase", value: "150" }] }] }));
     }
@@ -135,7 +140,11 @@ describe("runBrandSync", () => {
     expect(ins[0]).toMatchObject({ spend: 50, purchases: 3, purchaseValue: 150, clicks: 90 });
 
     const cursors = await db.select().from(schema.syncCursors);
-    expect(cursors.map((c) => c.resource).sort()).toEqual(["ads", "campaigns", "customers", "insights", "orders", "products"]);
+    expect(cursors.map((c) => c.resource).sort()).toEqual(["ads", "campaigns", "customers", "history", "insights", "orders", "products"]);
+    // Older results: the month with delivery was read by day, and the read is marked done back to Meta's limit.
+    const old = (n: number) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+    expect(ins.some((r) => r.date <= old(399) && r.date >= old(401))).toBe(true);
+    expect((cursors.find((c) => c.resource === "history")?.cursor ?? "9") <= old(1099)).toBe(true);
     const runs = await db.select().from(schema.syncRuns);
     expect(runs.every((r) => r.status === "success" && r.mode === "backfill")).toBe(true);
   }, 60_000);

@@ -42,3 +42,21 @@ describe("an ad's results in slices", () => {
     expect(d["9"]).toBeUndefined();
   });
 });
+
+describe("historyWindows", () => {
+  it("keeps only months with delivery, newest first, inside the range", async () => {
+    const { historyWindows } = await import("../src/lib/meta/map");
+    const months = [
+      { date_start: "2024-01-10", date_stop: "2024-01-31", impressions: "500", spend: "12.5" },
+      { date_start: "2024-02-01", date_stop: "2024-02-29", impressions: "0", spend: "0" },
+      { date_start: "2025-06-01", date_stop: "2025-06-30", impressions: "9000", spend: "140" },
+      { date_start: "2026-08-01", date_stop: "2026-08-31", impressions: "100" },
+    ];
+    expect(historyWindows(months, "2024-01-15", "2026-08-24")).toEqual([
+      { since: "2026-08-01", until: "2026-08-24" },
+      { since: "2025-06-01", until: "2025-06-30" },
+      { since: "2024-01-15", until: "2024-01-31" },
+    ]);
+    expect(historyWindows([], "2024-01-15", "2026-08-24")).toEqual([]);
+  });
+});

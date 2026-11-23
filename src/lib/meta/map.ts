@@ -59,6 +59,19 @@ export function dateWindows(since: string, until: string, days = 30): { since: s
   return out;
 }
 
+export type MonthRow = { date_start: string; date_stop: string; spend?: string; impressions?: string };
+/**
+ * Which stretches of an account's past are worth reading day by day: only the months Meta says had any delivery, newest first, kept
+ * inside [since, until]. An account that never ran ads gives none, so its history costs one read.
+ */
+export function historyWindows(months: MonthRow[], since: string, until: string): { since: string; until: string }[] {
+  return months
+    .filter((m) => Number(m.impressions ?? 0) > 0 || Number(m.spend ?? 0) > 0)
+    .map((m) => ({ since: m.date_start < since ? since : m.date_start, until: m.date_stop > until ? until : m.date_stop }))
+    .filter((w) => w.since <= w.until)
+    .sort((a, b) => (a.since < b.since ? 1 : a.since > b.since ? -1 : 0));
+}
+
 // ---------------------------------------------------------------- the ad as it ran, and its results in slices
 
 type Cta = { type?: string; value?: { link?: string } };

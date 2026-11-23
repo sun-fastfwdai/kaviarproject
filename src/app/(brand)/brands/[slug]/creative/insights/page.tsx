@@ -29,7 +29,7 @@ export default async function InsightsPage({ params, searchParams }: PageProps<"
   if (!conns.meta) return (<><StudioBar base={base} brand={brand.name} on="insights"><LoopStrip base={base} brandId={brand.id} step="creative" /></StudioBar><div className="scroll" style={{ padding: "20px 24px" }}>
     <EmptyState eyebrow="Creative studio · Insights" title="Connect Meta Ads to see which ads really sell"
       body="Insights puts every live ad next to the Shopify orders it brought in, flags creatives that are getting tired, and turns the pattern into rules Remy follows in the next batch."
-      steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad." }, { agent: "catalog", title: "Cleo pulls 90 days of results", body: "Spend, clicks and daily results per ad." }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand." }]}
+      steps={[{ icon: "plug", title: "Connect the brand’s ad account", body: "Read-only — Kaviar never changes an ad." }, { agent: "catalog", title: "Cleo pulls up to 3 years of results", body: "Spend, clicks and daily results per ad." }, { agent: "analyst", title: "Iris writes what wins", body: "Hooks, formats and angles that make money for this brand." }]}
       art={<InsightsArt />} actions={<Link className="btn dark" href={`${base}/integrations`}><Icon name="plug" size={14} color="#fff" />Connect Meta Ads</Link>} />
   </div></>);
 

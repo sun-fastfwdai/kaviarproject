@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
-import type { Candidate, History } from "./plan";
+import { levelOf, type Candidate, type History } from "./plan";
 
 /**
  * Everything the spend plan reads, from data Kaviar already holds: products, prices, costs and stock; what sold; who bought and who has
@@ -42,8 +42,11 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
       from shop_orders where brand_id = ${brandId} and cancelled_at is null and not coalesce(test, false)`),
     db.execute(sql`with last as (select customer_id, max(created_at) as at, count(*) as n from shop_orders where brand_id = ${brandId} and cancelled_at is null and customer_id is not null group by customer_id)
       select count(*)::int as buyers, count(*) filter (where n >= 2)::int as repeaters, count(*) filter (where at < now() - interval '60 days' and at >= now() - interval '180 days')::int as lapsed from last`),
-    db.execute(sql`select count(distinct date)::int as days, coalesce(sum(spend), 0)::float8 as spend, coalesce(sum(impressions), 0)::float8 as impressions, coalesce(sum(clicks), 0)::float8 as clicks,
-        coalesce(sum(purchases), 0)::float8 as purchases, coalesce(sum(purchase_value), 0)::float8 as value from meta_insights_daily where brand_id = ${brandId}`),
+    // Days with delivery only. Two rows: the last 12 months, then everything Kaviar holds (up to three years).
+    db.execute(sql`select y.recent, count(distinct d.date)::int as days, coalesce(sum(d.spend), 0)::float8 as spend, coalesce(sum(d.impressions), 0)::float8 as impressions, coalesce(sum(d.clicks), 0)::float8 as clicks,
+        coalesce(sum(d.purchases), 0)::float8 as purchases, coalesce(sum(d.purchase_value), 0)::float8 as value
+      from (values (true), (false)) y(recent) left join meta_insights_daily d on d.brand_id = ${brandId} and d.impressions > 0 and (not y.recent or d.date >= current_date - 365)
+      group by y.recent order by y.recent desc`),
     db.execute(sql`select count(*)::int as variants, count(unit_cost)::int as with_cost, avg(case when unit_cost is not null and price > 0 then (price - unit_cost) / price end)::float8 as margin from shop_variants where brand_id = ${brandId}`),
     db.select({ id: schema.marketResearch.id, subject: schema.marketResearch.subject, report: schema.marketResearch.report, positioning: schema.marketResearch.positioning, evidence: schema.marketResearch.evidence })
       .from(schema.marketResearch).where(and(eq(schema.marketResearch.brandId, brandId), eq(schema.marketResearch.market, "US"))).orderBy(desc(schema.marketResearch.updatedAt)).limit(4).catch(() => []),
@@ -53,7 +56,8 @@ export async function planData(brandId: string, currency: string): Promise<PlanD
   const products = rows<{ id: string; title: string; image: string | null; price: number | null; stock: number; sold30: number }>(prod).filter((p) => (p.price ?? 0) > 0);
   const o = rows<{ count: number; aov: number | null; tagged: number }>(ord)[0] ?? { count: 0, aov: null, tagged: 0 };
   const c = rows<{ buyers: number; repeaters: number; lapsed: number }>(cust)[0] ?? { buyers: 0, repeaters: 0, lapsed: 0 };
-  const h = rows<History>(hist)[0], k = rows<{ variants: number; with_cost: number; margin: number | null }>(costs)[0] ?? { variants: 0, with_cost: 0, margin: null };
+  // Rates come from the last 12 months when they hold enough to learn from; older results only stand in when they don't.
+  const [recent, all] = rows<History>(hist), h = recent && levelOf(recent) > 0 ? recent : all, k = rows<{ variants: number; with_cost: number; margin: number | null }>(costs)[0] ?? { variants: 0, with_cost: 0, margin: null };
   const top = products[0] ?? null;
   const hero = top ? { title: top.title, price: top.price!, stock: top.stock, sold30: top.sold30, coverDays: top.sold30 > 0 ? Math.round(top.stock / (top.sold30 / 30)) : null } : null;
   const productFor = (subject: string) => products.find((p) => subject && (p.title.toLowerCase().includes(subject.toLowerCase()) || subject.toLowerCase().includes(p.title.toLowerCase()))) ?? top;

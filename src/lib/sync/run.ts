@@ -6,7 +6,7 @@ import { MetaAuthError } from "../meta/client";
 import { SHOPIFY_RESOURCES, syncShopifyResource } from "../shopify/sync";
 import { ensureWebhooks, type WebhookState } from "../shopify/webhooks";
 import { refreshNotes } from "../ai/notes";
-import { metaCursorFor, syncMeta } from "../meta/sync";
+import { metaCursorFor, syncHistory, syncMeta } from "../meta/sync";
 import type { Provider, SyncTrigger } from "../db/schema";
 
 const T = schema;
@@ -92,6 +92,9 @@ export async function runBrandSync(brandId: string, trigger: SyncTrigger, only?:
       } else {
         Object.assign(detail, await syncMeta(conn, cur.insights ?? null));
         for (const resource of ["campaigns", "ads", "insights"]) await saveCursor(brandId, provider, resource, metaCursorFor(conn));
+        // Older results, a piece per run until Meta has no more. It never fails the sync: today's numbers are already saved.
+        const older = await syncHistory(conn, cur.history ?? null, (c) => saveCursor(brandId, provider, "history", c)).catch((e) => { console.error("meta history", (e as Error).message.slice(0, 200)); return null; });
+        if (older != null) detail.history = older;
       }
       const rows = Object.values(detail).reduce((a, b) => a + b, 0);
       await finishRun(run.id, { status: "success", rows, detail });

@@ -170,7 +170,7 @@ export default async function SyncPage({ params, searchParams }: PageProps<"/bra
                 {history.slice(0, 8).map((r) => {
                   const tone = r.status === "success" ? "#1F8A5B" : r.status === "running" ? "#2563EB" : "#B7791F";
                   const d = r.detail ?? {};
-                  const what = r.provider === "shopify" ? `${num(d.orders ?? 0)} orders · ${num(d.products ?? 0)} products` : `${num(d.insights ?? 0)} insight rows · ${num(d.ads ?? 0)} ads`;
+                  const what = r.provider === "shopify" ? `${num(d.orders ?? 0)} orders · ${num(d.products ?? 0)} products` : `${num(d.insights ?? 0)} insight rows · ${num(d.ads ?? 0)} ads${d.history ? ` · ${num(d.history)} older rows` : ""}`;
                   return (
                     <div key={r.id} className="row top g10" style={{ padding: "8px 0" }}>
                       <span style={{ width: 9, height: 9, borderRadius: 99, marginTop: 5, flexShrink: 0, background: tone }} />
