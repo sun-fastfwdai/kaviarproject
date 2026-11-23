@@ -169,6 +169,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
         {err && <div className="row g8 sm" style={{ padding: "10px 14px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" />{err}</div>}
 
+        {/* ---- time as a limit: the same budget over one, three and six months — straight after the plan, because it changes the plan */}
+        <TimeCard unitPrice={unitPrice} c={p.c} budget={budget} input={input} minToLearn={minBudget} stock={facts.store?.inventory ?? p.c.stock ?? null} units30={facts.store?.units30 ?? null} cycle={facts.rivals?.cycle ?? null} level={level} usd={usd} />
+
         {/* ---- who is on this campaign, what each one does, and where each has got to. Autopilot is Otto's part, switched from here */}
         <div className="col" style={{ borderRadius: 16, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 1, background: "var(--line)", borderRadius: "16px 16px 0 0", overflow: "hidden" }}>
@@ -292,7 +295,6 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
           </div>
         </div>
 
-        <TimeCard unitPrice={unitPrice} c={p.c} budget={budget} input={input} minToLearn={minBudget} stock={facts.store?.inventory ?? p.c.stock ?? null} units30={facts.store?.units30 ?? null} cycle={facts.rivals?.cycle ?? null} level={level} usd={usd} />
       </div>
 
       {confirm === "place" && (() => {
