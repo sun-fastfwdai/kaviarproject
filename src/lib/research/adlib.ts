@@ -4,7 +4,7 @@ import { db, schema } from "../db";
 import { decrypt } from "../crypto";
 import { MetaAuthError, metaGet } from "../meta/client";
 import { toJpeg } from "../audience/media";
-import type { LibAd, LibBlock, RivalAds, RivalStats } from "./types";
+import type { LibAd, LibBlock, PastStats, RivalAds, RivalStats } from "./types";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
@@ -90,6 +90,65 @@ async function pageAds(ids: string[], token: string): Promise<Raw[]> {
     if (!after) break;
   }
   return out;
+}
+
+// ---------------------------------------------------------------- the ads they stopped
+const PAST_PAGES = 3;
+/** The Pages' stopped ads, newest first as Meta lists them (up to 300): only when each started and stopped. */
+async function pastAds(ids: string[], token: string): Promise<{ raw: Raw[]; more: boolean }> {
+  const raw: Raw[] = [];
+  let after: string | undefined;
+  for (let i = 0; i < PAST_PAGES; i++) {
+    const r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "INACTIVE", limit: "100", fields: "id,ad_delivery_start_time,ad_delivery_stop_time", ...(after ? { after } : {}) }, token);
+    raw.push(...(r.data ?? []));
+    after = r.paging?.next ? r.paging.cursors?.after : undefined;
+    if (!after) break;
+  }
+  return { raw, more: Boolean(after) };
+}
+
+/** How long their stopped ads ran, counted from each ad's own start and stop day — nothing estimated. */
+export function pastStats(raw: Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time">[], more = false, now = Date.now()): PastStats {
+  const runs: number[] = [];
+  let since: string | null = null;
+  for (const a of raw) {
+    const s = Date.parse(a.ad_delivery_start_time ?? ""), e = Date.parse(a.ad_delivery_stop_time ?? "");
+    if (Number.isNaN(s) || Number.isNaN(e) || e < s || e > now) continue;
+    runs.push(Math.round((e - s) / 86_400_000) + 1); // an ad started and stopped on one day ran for one day
+    const day = new Date(s).toISOString().slice(0, 10);
+    if (!since || day < since) since = day;
+  }
+  runs.sort((a, b) => a - b);
+  return { ads: runs.length, median: runs.length ? runs[Math.floor(runs.length / 2)] : 0, quick: runs.filter((d) => d <= 7).length, long: runs.filter((d) => d >= 30).length, since, more, at: new Date(now).toISOString() };
+}
+
+/**
+ * Fills in the stopped-ads count for competitors read before Kaviar kept it. It only adds that one figure: the ads already read and
+ * what Iris wrote about them stay as they are. Stops at Meta's first refusal and tries again another day.
+ */
+export async function fillPast(brandId: string): Promise<number> {
+  const R = schema.marketResearch;
+  const rows = await db.select({ id: R.id, rivals: R.rivals }).from(R).where(and(eq(R.brandId, brandId), sql`jsonb_array_length(${R.rivals}) > 0`)).orderBy(desc(R.updatedAt)).limit(4);
+  const todo = rows.filter((r) => r.rivals.some((x) => x.pages?.length && x.stats && !x.stats.past));
+  if (!todo.length) return 0;
+  const token = await adLibraryToken(brandId);
+  if (!token) return 0;
+  let done = 0;
+  for (const row of todo) {
+    const found = new Map<string, PastStats>();
+    for (const x of row.rivals) {
+      if (!x.pages?.length || !x.stats || x.stats.past) continue;
+      try { const p = await pastAds(x.pages.map((pg) => pg.id), token); found.set(x.name, pastStats(p.raw, p.more)); }
+      catch { break; }
+    }
+    if (!found.size) continue;
+    // Written onto the latest copy of the row, so a pull that finished meanwhile is not undone.
+    const [now] = await db.select({ rivals: R.rivals }).from(R).where(eq(R.id, row.id));
+    if (!now) continue;
+    await db.update(R).set({ rivals: now.rivals.map((x) => (x.stats && !x.stats.past && found.has(x.name) ? { ...x, stats: { ...x.stats, past: found.get(x.name)! } } : x)) }).where(eq(R.id, row.id));
+    done += found.size;
+  }
+  return done;
 }
 
 // ---------------------------------------------------------------- Meta's numbers, per creative
@@ -240,6 +299,8 @@ export async function competitorAds(name: string, token: string, brandId: string
   await attachMedia(brandId, name, ads.slice(0, 16), snaps);
   const stats = statsOf(all);
   stats.formats = statsOf(ads).formats;
+  // The ads they stopped are a bonus: a refusal here never loses the live ads just read.
+  if (pages.length) { const p = await pastAds(pages.map((x) => x.id), token).catch(() => null); if (p) stats.past = pastStats(p.raw, p.more); }
   return { ads, pages: pages.map(({ id, name: n }) => ({ id, name: n })), stats };
 }
 

@@ -55,7 +55,14 @@ export type LibAd = {
 export type RivalStats = {
   ads: number; creatives: number; new30: number; longest: number; median: number; proven: number;
   reach: number | null; formats: Record<string, number>; platforms: Record<string, number>; countries: { code: string; reach: number }[]; women: number | null;
+  /** Ads they have stopped, counted from the Ad Library. */
+  past?: PastStats;
 };
+/**
+ * A competitor's stopped ads: how many, how long one typically ran before they stopped it (median days), how many they stopped within
+ * a week and how many they kept 30+ days, and the earliest start among them. `more` = Meta had more than Kaviar read.
+ */
+export type PastStats = { ads: number; median: number; quick: number; long: number; since: string | null; more: boolean; at: string };
 /** Why the Ad Library refused: the login must confirm identity, the login expired, or the hourly limit was hit. */
 export type LibBlock = "identity" | "auth" | "limit";
 export type RivalAds = { name: string; ads: LibAd[]; at: string; error?: string; blocked?: LibBlock; added?: boolean; pages?: { id: string; name: string }[]; stats?: RivalStats };

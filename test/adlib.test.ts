@@ -94,3 +94,21 @@ describe("evidence", () => {
     expect(evidenceValue({ ...e, value: 1.95, unit: "×" })).toBe("1.95×");
   });
 });
+
+describe("pastStats", () => {
+  it("counts how long stopped ads ran, from their own start and stop days", async () => {
+    const { pastStats } = await import("../src/lib/research/adlib");
+    const now = Date.parse("2026-11-24T00:00:00Z");
+    const ad = (start: string, stop?: string) => ({ ad_delivery_start_time: start, ad_delivery_stop_time: stop });
+    const s = pastStats([
+      ad("2026-10-01", "2026-10-01"), // 1 day
+      ad("2026-09-01", "2026-09-05"), // 5 days
+      ad("2026-08-01", "2026-08-12"), // 12 days
+      ad("2026-03-01", "2026-04-14"), // 45 days
+      ad("2026-11-01"),               // no stop day: not counted
+      ad("2026-11-20", "2026-12-20"), // stops in the future: not counted
+    ], true, now);
+    expect(s).toMatchObject({ ads: 4, median: 12, quick: 2, long: 1, since: "2026-03-01", more: true });
+    expect(pastStats([], false, now)).toMatchObject({ ads: 0, median: 0, quick: 0, long: 0, since: null, more: false });
+  });
+});

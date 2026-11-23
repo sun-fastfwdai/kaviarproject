@@ -1,9 +1,11 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { after } from "next/server";
 import { db, schema } from "@/lib/db";
 import { getBrand } from "@/lib/queries/brands";
 import { getCompete, rivalAds } from "@/lib/seo/bench";
 import { compare } from "@/lib/seo/bench-rules";
 import { adLibraryUrl, type AdsRead } from "@/lib/research/types";
+import { fillPast } from "@/lib/research/adlib";
 import { ago } from "@/lib/format";
 import { Bar } from "@/components/shell/parts";
 import { CompetitorsView } from "./view";
@@ -24,6 +26,8 @@ export default async function CompetitorsPage({ params }: PageProps<"/brands/[sl
       .then((r) => (r.rows as { ads: number; new30: number }[])[0] ?? { ads: 0, new30: 0 }),
     db.select({ adsRead: R.adsRead }).from(R).where(and(eq(R.brandId, brand.id), sql`${R.adsRead} is not null`)).orderBy(desc(R.updatedAt)).limit(1).then((r) => (r[0]?.adsRead as AdsRead | undefined) ?? null),
   ]);
+  // Competitors read before Kaviar counted stopped ads get that count now, in the background; it shows on the next visit.
+  if (ads.rows.some((a) => !a.past)) after(() => fillPast(brand.id).catch((e) => console.error("past ads", (e as Error).message.slice(0, 200))));
   // The brand's side is its own store check — the numbers on its Store screen — so the two screens always agree.
   const cmp = c.bench ? compare(c.bench, c.mine) : null, site = (x: { name: string; url: string; audit: unknown; note?: string }) => ({ name: x.name, url: x.url, read: Boolean(x.audit), note: x.note ?? null });
   const research = `/brands/${slug}/research?tab=ads${ads.subject != null ? `&product=${encodeURIComponent(ads.subject)}&market=${ads.market}` : ""}`;
