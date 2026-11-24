@@ -26,10 +26,10 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
   const MARKET = ["competitors", "research"].map((p) => `${base}/${p}`);
   const SET = ["integrations", "sync", "store", "launch"].map((p) => `${base}/${p}`);
   const railItems: [string, string, Parameters<typeof Icon>[0]["name"], string[]?][] = [
-    [`${base}/today`, "Today", "lightning", [`${base}/today`]], [`${base}/campaigns`, "Campaigns", "megaphone", ADS], [`${base}/seo`, "Store", "store", STORE],
+    [base, "Overview", "home"], [`${base}/today`, "Today", "lightning", [`${base}/today`]], [`${base}/campaigns`, "Campaigns", "megaphone", ADS], [`${base}/seo`, "Store", "store", STORE],
     [`${base}/creative`, "Creative studio", "palette", STUDIO],
     ...(builder ? [[`${base}/store?step=build`, "Store builder", "layers", [`${base}/store`]], [`${base}/store?step=review`, "Store preview", "eye", [`${base}/store`]]] as typeof railItems : []),
-    [`${base}/competitors`, "Market", "globe", MARKET], [`${base}/integrations`, "Settings", "settings", SET.filter((p) => !p.endsWith("/store"))], [base, "Overview", "home"],
+    [`${base}/competitors`, "Market", "globe", MARKET], [`${base}/integrations`, "Settings", "settings", SET.filter((p) => !p.endsWith("/store"))],
   ];
   const rail = (
     <aside className="col" style={{ width: 60, flexShrink: 0, alignItems: "center", padding: "14px 0 12px", gap: 12 }} aria-label="Navigation">
@@ -55,7 +55,9 @@ export async function BrandSide({ params }: { params: Promise<{ slug: string }> 
       <SearchBox items={searchItems(all, { slug: brand.slug, name: brand.name, storeBuilder: builder })} />
       <nav className="nav">
         {all.length > 1 && <NavLink href="/brands" exact muted icon={<Icon name="chev-l" />} label="All brands" />}
-        <Link href={base} className="nav-h ell lnk" title={`${brand.name} · overview`}>{brand.name}</Link>
+        <div className="nav-h ell">{brand.name}</div>
+        {/* The page a brand opens on: it has its own item, so there is always a way back to it. */}
+        <NavLink href={base} exact icon={<Icon name="home" />} label="Overview" />
         <NavLink href={`${base}/today`} icon={<Icon name="lightning" />} label="Today" />
         {/* A number always means "this many things are waiting for you" — never a step number. */}
         <NavGroup href={`${base}/campaigns`} match={ADS} icon={<Icon name="megaphone" />} label="Campaigns" count={wait.changes || undefined}>
