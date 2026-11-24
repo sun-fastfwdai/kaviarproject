@@ -11,8 +11,8 @@ import { Bento } from "@/components/bento";
 import { ActionCard, GROUP_TONE as TONE } from "./action-card";
 
 /**
- * Today, as a dashboard. Top: the day and Autopilot's controls, then what the agents finished. Then the board — the month in
- * blocks — and what is ready for action: up to four cards, each one decision with its evidence as a picture and one button. Nothing is only there
+ * Today, as a dashboard. Top: the day and Autopilot's controls. Then the board — the month in blocks — then what is ready for
+ * action, then what the agents already finished: up to four cards, each one decision with its evidence as a picture and one button. Nothing is only there
  * to be read: every number opens where it comes from.
  */
 
@@ -125,12 +125,15 @@ export function TodayView({ slug, t, day }: { slug: string; t: Today; day: strin
           </div>
         </div>
 
+        {/* the numbers first, then what to do about them, then what was already done; the month's detail last */}
+        {board}
         {lead && <div className="col g8">
           <span className="xs i3" style={{ fontWeight: 500 }}>Your next step</span>
           <div className="rise" style={{ display: "flex", minWidth: 0 }}><ActionCard slug={slug} a={lead} n={1} primary /></div>
         </div>}
+        {(!lead || cards.length + t.later.length > 0) && ready}
         {doneBlock}
-        {t.quiet ? <>{cards.length + t.later.length > 0 && ready}{board}{blocks}</> : <>{board}{blocks}{ready}</>}
+        {blocks}
 
       </div>
     </div>
