@@ -65,7 +65,7 @@ export type RivalStats = {
  * the true figure is at least this). `months` = the same counts for each sample. `kept` = the ads they ran longest, with their words.
  * `more` = Meta had more ads than Kaviar read.
  */
-export type KeptAd = { id: string; text: string; title: string | null; start: string; days: number; open: boolean; reach: number | null };
+export type KeptAd = { id: string; text: string; title: string | null; start: string; days: number; open: boolean; reach: number | null; english?: boolean };
 export type PastStats = {
   ads: number; stopped: number; median: number; medianOpen: boolean; quick: number; long: number; since: string | null; until: string | null; more: boolean; at: string;
   months?: { month: string; ads: number; quick: number; long: number }[]; kept?: KeptAd[]; v?: number;

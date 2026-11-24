@@ -37,13 +37,12 @@ export function KeptAds({ slug, items }: { slug: string; items: Kept[] }) {
           <div key={k.id} className="col g12" style={{ padding: 16, borderRadius: 12, background: "#fff", boxShadow: "0 0 0 1px var(--line)" }}>
             <span className="row between g8">
               <span className="sm w5 ell">{k.competitor}</span>
-              <span className="xs tnum" style={{ flexShrink: 0, color: "var(--green)" }}>{k.open ? `running ${k.days} days` : `ran ${k.days} days`}</span>
+              <span className="xs tnum" style={{ flexShrink: 0 }}><span className="c-green">{k.open ? `running ${k.days} days` : `ran ${k.days} days`}</span><span className="i3"> · from {month(k.start)}</span></span>
             </span>
             <span className="sm i2" title={k.text} style={{ display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 80 }}>{k.title ? <b className="w5 i1">{k.title} · </b> : null}{k.text}</span>
             <span className="row g8" style={{ marginTop: "auto" }}>
               <button type="button" className="btn dark sm" onClick={() => open(k)}><AgentFace kind="builder" size={14} />Make our version</button>
               <a className="btn quiet sm" href={`https://www.facebook.com/ads/library/?id=${k.id}`} target="_blank" rel="noreferrer">See it on Meta<Icon name="external" size={11} /></a>
-              <span className="fill" /><span className="xs i3 tnum">from {month(k.start)}</span>
             </span>
           </div>))}
       </div>

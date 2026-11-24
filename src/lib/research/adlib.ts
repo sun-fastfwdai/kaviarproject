@@ -111,7 +111,7 @@ async function pastAds(ids: string[], token: string, now = Date.now()): Promise<
       let r: Page;
       try {
         r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "ALL", ad_delivery_date_min: dayOf(min), ad_delivery_date_max: dayOf(max), limit: "100",
-          fields: "id,ad_delivery_start_time,ad_delivery_stop_time,ad_creative_bodies,ad_creative_link_titles,eu_total_reach", ...(after ? { after } : {}) }, token);
+          fields: "id,ad_delivery_start_time,ad_delivery_stop_time,ad_creative_bodies,ad_creative_link_titles,languages,eu_total_reach", ...(after ? { after } : {}) }, token);
       } catch (e) { if (!raw.length) throw e; return { raw, more: true }; }
       for (const a of r.data ?? []) if (!seen.has(a.id)) { seen.add(a.id); raw.push(a); }
       after = r.paging?.next ? r.paging.cursors?.after : undefined;
@@ -122,7 +122,7 @@ async function pastAds(ids: string[], token: string, now = Date.now()): Promise<
   return { raw, more };
 }
 
-type PastRaw = Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time"> & Partial<Pick<Raw, "id" | "ad_creative_bodies" | "ad_creative_link_titles" | "eu_total_reach">>;
+type PastRaw = Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time"> & Partial<Pick<Raw, "id" | "ad_creative_bodies" | "ad_creative_link_titles" | "languages" | "eu_total_reach">>;
 /**
  * How long their older ads ran, counted from each ad's own start and stop day — nothing estimated. Only ads started between seven
  * months and 30 days ago count, so each has been watched for at least 30 days; one still running has run at least as long as it has been
@@ -144,21 +144,23 @@ export function pastStats(raw: PastRaw[], more = false, now = Date.now()): PastS
   for (const r of runs) byMonth.set(r.start.slice(0, 7), [...(byMonth.get(r.start.slice(0, 7)) ?? []), r]);
   // The ads they kept: longest first, one per message (the same words are often run as many ads).
   const kept: KeptAd[] = [], said = new Set<string>();
-  for (const r of [...runs].filter((x) => x.days >= 30).sort((a, b) => b.days - a.days)) {
+  const english = (a: PastRaw) => (a.languages ?? []).some((l) => l.toLowerCase().startsWith("en"));
+  // English first: the Library only covers ads shown in the EU or UK, so many are in other languages.
+  for (const r of [...runs].filter((x) => x.days >= 30).sort((a, b) => Number(english(b.a)) - Number(english(a.a)) || b.days - a.days)) {
     const text = (r.a.ad_creative_bodies?.[0] ?? "").replace(/\s+/g, " ").trim(), key = norm(text).slice(0, 60);
     if (!r.a.id || text.length < 12 || said.has(key)) continue;
     said.add(key);
-    kept.push({ id: r.a.id, text: text.slice(0, 280), title: r.a.ad_creative_link_titles?.[0]?.slice(0, 90) ?? null, start: r.start, days: r.days, open: r.open, reach: typeof r.a.eu_total_reach === "number" ? r.a.eu_total_reach : null });
+    kept.push({ id: r.a.id, text: text.slice(0, 280), title: r.a.ad_creative_link_titles?.[0]?.slice(0, 90) ?? null, start: r.start, days: r.days, open: r.open, reach: typeof r.a.eu_total_reach === "number" ? r.a.eu_total_reach : null, english: english(r.a) });
     if (kept.length >= 6) break;
   }
   const starts = runs.map((r) => r.start).sort();
   return { ads: runs.length, stopped: runs.filter((r) => !r.open).length, median: mid?.days ?? 0, medianOpen: mid?.open ?? false, quick: quick(runs), long: long(runs),
     since: starts[0] ?? null, until: starts.at(-1) ?? null, more, at: new Date(now).toISOString(),
-    months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])).map(([month, xs]) => ({ month, ads: xs.length, quick: quick(xs), long: long(xs) })), kept, v: 3 };
+    months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])).map(([month, xs]) => ({ month, ads: xs.length, quick: quick(xs), long: long(xs) })), kept, v: 4 };
 }
 
 /** Figures from before the six-month read (no monthly samples, no kept ads) are read again. */
-export const hasPast = (s: RivalStats) => s.past?.v === 3;
+export const hasPast = (s: RivalStats) => s.past?.v === 4;
 
 /**
  * Fills in the stopped-ads count for competitors read before Kaviar kept it. It only adds that one figure: the ads already read and

@@ -110,7 +110,7 @@ describe("pastStats", () => {
       ad("7", "2026-11-01", "2026-11-02"), // started inside the last 30 days: not counted
       ad("8", "2026-03-01", "2026-04-20"), // started more than seven months ago: not counted
     ], true, now);
-    expect(s).toMatchObject({ ads: 6, stopped: 5, quick: 2, long: 3, since: "2026-06-20", until: "2026-09-10", more: true, v: 3 });
+    expect(s).toMatchObject({ ads: 6, stopped: 5, quick: 2, long: 3, since: "2026-06-20", until: "2026-09-10", more: true, v: 4 });
     expect(s.months).toEqual([{ month: "2026-06", ads: 2, quick: 0, long: 2 }, { month: "2026-08", ads: 2, quick: 0, long: 1 }, { month: "2026-09", ads: 2, quick: 2, long: 0 }]);
     expect(s.kept?.map((k) => [k.id, k.days, k.open])).toEqual([["5", 158, true], ["4", 45, false]]);
     expect(pastStats([], false, now)).toMatchObject({ ads: 0, stopped: 0, median: 0, quick: 0, long: 0, since: null, more: false, kept: [] });

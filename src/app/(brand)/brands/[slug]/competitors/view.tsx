@@ -173,7 +173,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                 {a.library ? <a className="btn quiet sm ic" href={a.library} target="_blank" rel="noreferrer" title="Open in Meta’s Ad Library" aria-label={`Open ${a.name} in Meta’s Ad Library`}><Icon name="external" size={12} /></a> : <span />}
               </div>))}
           </div>}
-          <KeptAds slug={slug} items={ads.flatMap((a) => (a.past?.kept ?? []).map((k) => ({ ...k, competitor: a.name }))).sort((x, y) => y.days - x.days).slice(0, 6)} />
+          <KeptAds slug={slug} items={ads.flatMap((a) => (a.past?.kept ?? []).slice(0, 2).map((k) => ({ ...k, competitor: a.name }))).sort((x, y) => Number(y.english ?? false) - Number(x.english ?? false) || y.days - x.days).slice(0, 6)} />
           {angles.length > 0 && <div className="col g8" style={{ padding: "14px 0 8px" }}>
             <span className="xs i3">What their ads say</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 8 }}>

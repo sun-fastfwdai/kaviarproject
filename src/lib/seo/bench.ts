@@ -173,7 +173,7 @@ export async function rivalAds(brandId: string): Promise<{ rows: RivalAdLine[]; 
   for (const r of rows) for (const a of (r.rivals as RivalAds[]) ?? []) {
     if (seen.has(a.name) || !a.stats || !a.stats.ads) continue;
     const f = a.stats.formats ?? {}, all = Object.values(f).reduce((n, x) => n + x, 0);
-    seen.set(a.name, { name: a.name, ads: a.stats.ads, new30: a.stats.new30, longest: a.stats.longest, median: a.stats.median ?? 0, video: all ? Math.round(((f.video ?? 0) / all) * 100) : null, at: a.at, past: a.stats.past?.v === 3 ? a.stats.past : null });
+    seen.set(a.name, { name: a.name, ads: a.stats.ads, new30: a.stats.new30, longest: a.stats.longest, median: a.stats.median ?? 0, video: all ? Math.round(((f.video ?? 0) / all) * 100) : null, at: a.at, past: (a.stats.past?.v ?? 0) >= 3 ? a.stats.past! : null });
   }
   return { rows: [...seen.values()].sort((a, b) => b.ads - a.ads), subject: rows[0]?.subject ?? null, market: rows[0]?.market ?? null };
 }
