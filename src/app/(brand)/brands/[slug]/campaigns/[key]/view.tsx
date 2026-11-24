@@ -56,7 +56,8 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const best = useMemo(() => strategy({ c: p.c, audiences: canAud ? audiences : [], current: nowAud, days: p.days, input, test: minBudget, level }), [p.c, p.days, canAud, audiences, nowAud, input, minBudget, level]);
   const go = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); setErr(null); start(async () => { const r = await f(); if (r && r.error) setErr(r.error); else { router.refresh(); if (done) setWork({ done }); } setDoing(null); }); };
   const { steps, now } = stepsOf(p), nowAt = steps.findIndex((s) => s.key === now), a = p.ads, step = Math.max(50, Math.round(minBudget / 4 / 50) * 50);
-  const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, onWork: setWork, onError: setErr });
+  const make = facts.rivals?.keep?.make ?? 3; // as many ads as it takes to expect one worth keeping, at the rate competitors keep theirs
+  const m = useAds({ slug, planKey: p.key, title: p.title, brief, ads, count: make, onWork: setWork, onError: setErr });
   const toReview = m.toReview, okAds = ads.filter((x) => x.status === "approved");
   const daily = budget / days, spin = (k: string, c?: string) => doing === k && <Icon name="spinner" size={13} className="spin" color={c} />;
 
@@ -90,7 +91,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
     const cls = small ? "row g4" : "row g6", st = small ? ({ height: 26, padding: "0 10px", borderRadius: 6, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", background: "#fff", color: "#121212" } as const) : ({ height: 40, padding: "0 18px", borderRadius: 8, background: "#34C77B", color: "#0B2B1A", fontSize: 14, fontWeight: 600 } as const), ic = small ? 10 : 12;
     if (k === "budget") return <button type="button" disabled={busy} className={cls} style={st} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Plan approved — Remy can write its ads now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={ic} />}Approve plan</button>;
     if (k === "ads") return toReview.length ? <a className={cls} style={st} href="#ads">Review {toReview.length} ad{toReview.length === 1 ? "" : "s"}<Icon name="arrow-r" size={ic} style={{ transform: "rotate(90deg)" }} /></a>
-      : <button type="button" disabled={busy || m.busy} className={cls} style={st} onClick={m.write}>{m.doing === "make" && <Icon name="spinner" size={13} className="spin" color="#0B2B1A" />}{m.doing === "make" ? "Remy is writing…" : "Make 3 ads"}</button>;
+      : <button type="button" disabled={busy || m.busy} className={cls} style={st} onClick={m.write}>{m.doing === "make" && <Icon name="spinner" size={13} className="spin" color="#0B2B1A" />}{m.doing === "make" ? "Remy is writing…" : `Make ${make} ads`}</button>;
     if (k === "launch" && !p.approvedAt) return <button type="button" disabled={busy} className={cls} style={st} onClick={() => go("approve", () => approvePlanFor(slug, p.key, budget, days), "Budget approved — it can go on Meta now")}>{spin("approve", "#0B2B1A") || <Icon name="check" size={ic} />}Approve the budget</button>;
     if (k === "launch") return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}Put it on Meta<Icon name="arrow-r" size={ic} /></button>;
     if (k === "results" && unplaced > 0) return <button type="button" disabled={busy} className={cls} style={st} onClick={openPlace}>{spin("launch", "#0B2B1A")}{doing === "launch" ? "Placing…" : `Add ${unplaced} ad${unplaced === 1 ? "" : "s"} on Meta`}{doing !== "launch" && <Icon name="arrow-r" size={ic} />}</button>;
@@ -279,6 +280,9 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
               if (facts.lastYear) blocks.push({ src: `The same ${p.days} days last year`, big: usd(facts.lastYear.revenue), unit: "in sales", line: `${facts.lastYear.orders.toLocaleString("en-US")} orders, with no plan behind them`, href: `${base}/shopify` });
               if (facts.rivals) blocks.push({ src: "Competitors now · Meta Ad Library", big: facts.rivals.ads.toLocaleString("en-US"), unit: `ads from ${facts.rivals.brands} brand${facts.rivals.brands === 1 ? "" : "s"}`,
                 line: facts.rivals.gap ? `Nobody says: ${facts.rivals.gap}` : facts.rivals.angle ? `Most say “${facts.rivals.angle.name}” · ${facts.rivals.angle.share}% of their ads` : `${facts.rivals.new30} started in the last 30 days`, href: `${base}/competitors` });
+              // What their six months of ads decide here: how many ads Remy writes, and how long a round of testing takes.
+              if (facts.rivals?.keep?.oneIn) blocks.push({ src: "How they test · last 6 months", big: `1 in ${facts.rivals.keep.oneIn}`, unit: "ads kept past 30 days",
+                line: `So Remy writes ${facts.rivals.keep.make} ads${facts.rivals.keep.decide ? ` · they drop an ad after about ${facts.rivals.keep.decide} day${facts.rivals.keep.decide === 1 ? "" : "s"}` : ""}`, href: `${base}/competitors` });
               if (facts.page) blocks.push({ src: "Where the ads send people · product page", big: facts.page.open ? String(facts.page.open) : "Ready", unit: facts.page.open ? `thing${facts.page.open === 1 ? "" : "s"} to fix first` : undefined, bad: facts.page.open > 0,
                 line: facts.page.stars === false ? "No review stars showing in Google yet" : facts.page.stars ? "Review stars show in Google" : "Search listing checked", href: `${base}/seo` });
               blocks.push({ src: "Your ads so far · Meta", big: shop.adBack != null ? `${shop.adBack.toFixed(2)}×` : "None yet", unit: shop.adBack != null ? "back per $1" : undefined,

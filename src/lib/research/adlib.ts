@@ -153,14 +153,15 @@ export function pastStats(raw: PastRaw[], more = false, now = Date.now()): PastS
     kept.push({ id: r.a.id, text: text.slice(0, 280), title: r.a.ad_creative_link_titles?.[0]?.slice(0, 90) ?? null, start: r.start, days: r.days, open: r.open, reach: typeof r.a.eu_total_reach === "number" ? r.a.eu_total_reach : null, english: english(r.a) });
     if (kept.length >= 6) break;
   }
+  const dropped = runs.filter((r) => !r.open && r.days < 30).map((r) => r.days).sort((a, b) => a - b);
   const starts = runs.map((r) => r.start).sort();
   return { ads: runs.length, stopped: runs.filter((r) => !r.open).length, median: mid?.days ?? 0, medianOpen: mid?.open ?? false, quick: quick(runs), long: long(runs),
     since: starts[0] ?? null, until: starts.at(-1) ?? null, more, at: new Date(now).toISOString(),
-    months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])).map(([month, xs]) => ({ month, ads: xs.length, quick: quick(xs), long: long(xs) })), kept, v: 4 };
+    months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])).map(([month, xs]) => ({ month, ads: xs.length, quick: quick(xs), long: long(xs) })), kept, decide: dropped.length ? dropped[Math.floor(dropped.length / 2)] : null, v: 5 };
 }
 
 /** Figures from before the six-month read (no monthly samples, no kept ads) are read again. */
-export const hasPast = (s: RivalStats) => s.past?.v === 4;
+export const hasPast = (s: RivalStats) => s.past?.v === 5;
 
 /**
  * Fills in the stopped-ads count for competitors read before Kaviar kept it. It only adds that one figure: the ads already read and

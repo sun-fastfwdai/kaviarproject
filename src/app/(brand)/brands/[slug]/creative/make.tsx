@@ -110,7 +110,7 @@ export function MakeAds({ slug, brand, products, campaigns, initial, aiOk }: { s
       }
       const shooting = shoot && (pics.length > 0 || (thread === t.key && (shown?.brief.refs.length ?? 0) > 0));
       await saveBrief(slug, t.key, words, shooting);
-      setWorking(shooting ? `Writing 3 ads for ${t.product} and shooting their pictures…` : `Writing 3 ads for ${t.product}…`);
+      setWorking(shooting ? `Writing the ads for ${t.product} and shooting their pictures…` : `Writing the ads for ${t.product}…`);
       const made = await makeAds(slug, t.key, true, true);
       if (made?.error) { say({ who: "remy", text: made.error, bad: true }); return; }
       setThread(t.key); setTarget(null);

@@ -1,4 +1,5 @@
 import "server-only";
+import { category } from "../research/category";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { read, write } from "../seo/run";
@@ -169,7 +170,7 @@ export type PlanAd = { id: string; status: "review" | "approved" | "rejected"; h
 export type PlanFacts = {
   store: { units30: number; inventory: number; runway: number | null } | null; // Shopify: how the product sells and how long its stock lasts
   lastYear: { revenue: number; orders: number } | null; // the same stretch of days a year ago
-  rivals: { ads: number; brands: number; new30: number; angle: { name: string; share: number } | null; gap: string | null; cycle: number | null } | null; // Meta's Ad Library. cycle: how many days competitors' live ads have been running, at the median
+  rivals: { ads: number; brands: number; new30: number; angle: { name: string; share: number } | null; gap: string | null; cycle: number | null; keep: { oneIn: number | null; kept: number; ads: number; brands: number; make: number; decide: number | null } | null } | null; // Meta's Ad Library. cycle: how many days competitors' live ads have been running, at the median
   page: { open: number; stars: boolean | null } | null; // the product page the ads send people to
 };
 export type PlanExtras = {
@@ -217,12 +218,15 @@ export async function planExtras(brand: { id: string; timezone: string }, p: Pla
     db.execute(sql`select count(*)::int as n from store_fixes where brand_id = ${brand.id} and status = 'proposed' and product_title = ${p.c.product}`).then((r) => (r.rows as { n: number }[])[0]?.n ?? 0).catch(() => null),
     read<Audit>(brand.id, "store-audit").catch(() => null),
   ]);
+  const cat = category((rivals?.rows ?? []).map((x) => x.past));
   const top = said?.angles?.[0], gap = said?.gaps?.find((g) => g.status === "accepted") ?? said?.gaps?.find((g) => g.status !== "rejected");
   const facts: PlanFacts = {
     store: stock ? { units30: stock.units30, inventory: stock.inventory, runway: stock.runway } : null,
     lastYear: lastYear && lastYear.orders > 0 ? lastYear : null,
     rivals: rivals?.rows.length ? { ads: rivals.rows.reduce((k, x) => k + x.ads, 0), brands: rivals.rows.length, new30: rivals.rows.reduce((k, x) => k + x.new30, 0), angle: top ? { name: top.name, share: Math.round(top.share) } : null, gap: gap?.text ?? null,
-      cycle: (() => { const m = rivals.rows.map((x) => x.median).filter((x) => x > 0).sort((a, b) => a - b); return m.length ? m[Math.floor(m.length / 2)] : null; })() } : null,
+      // A round of testing lasts as long as competitors give an ad before dropping it (six months of their ads); failing that, how long their live ads have run.
+      cycle: cat?.round ?? (() => { const m = rivals.rows.map((x) => x.median).filter((x) => x > 0).sort((a, b) => a - b); return m.length ? m[Math.floor(m.length / 2)] : null; })(),
+      keep: cat ? { oneIn: cat.oneIn, kept: cat.kept, ads: cat.ads, brands: cat.brands, make: cat.make, decide: cat.decide } : null } : null,
     page: audit?.at && fixes != null ? { open: fixes, stars: audit.site?.find((x) => x.key === "reviews")?.ok ?? null } : null,
   };
   const brief = await briefView(brand.id, p.key);

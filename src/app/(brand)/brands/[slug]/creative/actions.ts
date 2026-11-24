@@ -164,7 +164,7 @@ export async function buildPipeline(slug: string, brief: PlanBrief, stay = false
   if (!aiReady()) return fail("Remy needs the Claude API key to write ads.");
   const brand = await getBrand(slug);
   const format = (["static", "video", "ugc", "full"] as const).find((f) => f === brief.format) ?? "static";
-  const count = [3, 6, 9].includes(brief.count) ? brief.count : 6;
+  const count = Number.isFinite(brief.count) && brief.count >= 3 && brief.count <= 9 ? Math.round(brief.count) : 6;
   const angles = (Array.isArray(brief.angles) ? brief.angles : []).map((a) => String(a).slice(0, 90)).slice(0, 4);
   const product = String(brief.product ?? "").slice(0, 200), audience = String(brief.audience ?? "").slice(0, 200), look = String(brief.look ?? "").slice(0, 200);
   const direction = `Plan agreed with the team — ${format === "full" ? "a full video ad" : `${format} ads`}${product ? ` for ${product}` : ""}${audience ? `, for ${audience}` : ""}. Messages to test: ${angles.join("; ") || "your best angles"}.${look ? ` Look: ${look}.` : ""}`;

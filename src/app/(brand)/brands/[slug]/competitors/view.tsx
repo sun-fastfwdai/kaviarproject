@@ -9,6 +9,7 @@ import { show, stand, VERDICT_NAME, type Measure, type Rival, type Verdict } fro
 import type { RivalAdLine } from "@/lib/seo/bench";
 import { addCompetitor, readRivals, removeCompetitor } from "./actions";
 import { KeptAds } from "./kept";
+import type { Category } from "@/lib/research/category";
 
 /**
  * Market · Competitors. The brand against the sites Kaviar read: three scores beside theirs, every site side by side on the same checks,
@@ -20,7 +21,7 @@ type RowT = Measure & { you: number | null; each: (number | null)[] };
 type Props = {
   slug: string; brand: string; own: string | null; rivals: Rival[]; checked: string | null; you: Site | null; sites: Site[]; rows: RowT[];
   basis: string | null; storeHref: string; // basis: who was read how, for the tooltip
-  ads: (RivalAdLine & { library: string })[]; ownAds: { ads: number; new30: number }; adsHref: string; angles: { name: string; share: number; example: string }[];
+  ads: (RivalAdLine & { library: string })[]; ownAds: { ads: number; new30: number }; adsHref: string; uses: Category | null; angles: { name: string; share: number; example: string }[];
 };
 const DIM = "rgba(255,255,255,.55)";
 const TONE: Record<Verdict, { fg: string; bg: string; bar: string }> = { ahead: { fg: "#1F7A52", bg: "#E4F4EB", bar: "#34C77B" }, level: { fg: "#fff", bg: "rgba(255,255,255,.16)", bar: "#C9C5BD" }, behind: { fg: "#B4532A", bg: "#FBEDE6", bar: "#FF8A5C" } };
@@ -48,7 +49,7 @@ function Pair({ label, pill, you, they, theyName, max, hint }: { label: string; 
 }
 
 const when = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: "UTC" }) : "");
-export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, angles, basis, storeHref }: Props) {
+export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, uses, angles, basis, storeHref }: Props) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -172,6 +173,22 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                 <span className="sm tnum i2" style={{ textAlign: "right" }}>{a.past?.ads ? `${a.past.median}${a.past.medianOpen ? "+" : ""} ${a.past.median === 1 && !a.past.medianOpen ? "day" : "days"}` : "–"}</span>
                 {a.library ? <a className="btn quiet sm ic" href={a.library} target="_blank" rel="noreferrer" title="Open in Meta’s Ad Library" aria-label={`Open ${a.name} in Meta’s Ad Library`}><Icon name="external" size={12} /></a> : <span />}
               </div>))}
+          </div>}
+          {/* what these six months decide in the brand's own campaigns */}
+          {uses && <div className="col g8" style={{ padding: "16px 0 0" }}>
+            <span className="xs i3" title={`Counted from ${uses.ads.toLocaleString("en-US")} ads by ${uses.brands} competitor${uses.brands === 1 ? "" : "s"}, started in the last six months`}>What Kaviar does with this</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 8 }}>
+              <Link href={`/brands/${slug}/campaigns`} className="row g16 hv" style={{ padding: 16, borderRadius: 12, background: "var(--tray)" }}>
+                <span className="col" style={{ flexShrink: 0 }}><span className="tnum" style={{ fontSize: 24, lineHeight: "28px", fontWeight: 600 }}>{uses.oneIn ? `1 in ${uses.oneIn}` : "None"}</span><span className="xs i3">ads kept past 30 days</span></span>
+                <span className="col fill" style={{ minWidth: 0 }}><span className="sm w5">Remy writes {uses.make} ads for each campaign</span><span className="xs i3">{uses.kept.toLocaleString("en-US")} of {uses.ads.toLocaleString("en-US")} ads kept · enough to expect one worth keeping</span></span>
+                <Icon name="arrow-r" size={12} color="#8B8883" />
+              </Link>
+              {uses.round != null && uses.decide != null && <Link href={`/brands/${slug}/campaigns`} className="row g16 hv" style={{ padding: 16, borderRadius: 12, background: "var(--tray)" }}>
+                <span className="col" style={{ flexShrink: 0 }}><span className="tnum" style={{ fontSize: 24, lineHeight: "28px", fontWeight: 600 }}>{uses.decide} day{uses.decide === 1 ? "" : "s"}</span><span className="xs i3">before they drop an ad</span></span>
+                <span className="col fill" style={{ minWidth: 0 }}><span className="sm w5">A round of testing is {uses.round} days in each forecast</span><span className="xs i3">{Math.round(uses.quickRate * 100)}% of their ads stop within a week</span></span>
+                <Icon name="arrow-r" size={12} color="#8B8883" />
+              </Link>}
+            </div>
           </div>}
           <KeptAds slug={slug} items={ads.flatMap((a) => (a.past?.kept ?? []).slice(0, 2).map((k) => ({ ...k, competitor: a.name }))).sort((x, y) => Number(y.english ?? false) - Number(x.english ?? false) || y.days - x.days).slice(0, 6)} />
           {angles.length > 0 && <div className="col g8" style={{ padding: "14px 0 8px" }}>

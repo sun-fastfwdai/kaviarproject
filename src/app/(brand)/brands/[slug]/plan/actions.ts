@@ -1,4 +1,7 @@
 "use server";
+import { category, MAKE } from "@/lib/research/category";
+import { rivalAds } from "@/lib/seo/bench";
+import type { PastStats } from "@/lib/research/types";
 import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
@@ -28,7 +31,7 @@ export async function approvePlan(slug: string, input: SavedPlan, approve: boole
 
 /**
  * The ads for one plan. Ads are never made for their own sake: the plan must exist — which means its reason holds today — and the
- * brand must have approved it — or have asked for these ads itself in the studio (`asked`). Then Remy writes three for that audience,
+ * brand must have approved it — or have asked for these ads itself in the studio (`asked`). Then Remy writes them for that audience — as many as it takes to expect a keeper —
  * filed under the plan. Nothing can run until the plan's budget has its yes: putting it on Meta checks for it.
  */
 export async function makeAds(slug: string, key: string, stay = false, asked = false): Promise<{ error?: string; batchId?: string; note?: string } | undefined> {
@@ -40,8 +43,10 @@ export async function makeAds(slug: string, key: string, stay = false, asked = f
   // From the studio the brand asks for the ads itself: they are written straight away, and the budget waits for its own yes before anything runs.
   if (p.stage === "suggested" && !asked) return { error: "Approve the plan first — ads are made once you’ve said yes to it." };
   const c = p.c, t = tests.find((x) => x.key === c.signal), brief = await planBrief(brand.id, key);
+  // As many ads as it takes to expect one worth keeping, at the rate this brand's competitors keep theirs. Three when nothing is known.
+  const count = category((await rivalAds(brand.id).catch(() => ({ rows: [] as { past: PastStats | null }[] }))).rows.map((x) => x.past))?.make ?? MAKE.fallback;
   const r = await buildPipeline(slug, { format: "static", product: c.product, signal: c.signal ?? key, audience: t?.who ?? `${c.name} — ${c.why}`.slice(0, 200),
-    angles: t?.messages?.length ? t.messages : [`${p.title}`.slice(0, 90)], count: 3, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? p.why, note: brief.note,
+    angles: t?.messages?.length ? t.messages : [`${p.title}`.slice(0, 90)], count, look: t?.visual ?? "", adLook: "Ad look · Big word", seconds: 0, why: t?.hypothesis ?? p.why, note: brief.note,
     reason: { data: p.title, value: p.when ?? null, use: `${REASON_NAME[p.reason]} — ${p.why}`, evidence: [["Why now", p.title], ["Detail", p.why], ["Budget", `${p.budget} over ${p.days} days`]] } }, stay);
   if (!stay) return r?.error ? { error: r.error } : undefined;
   if (r?.error || !r?.batchId) return { error: r?.error ?? "Remy couldn’t write the ads right now." };

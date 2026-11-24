@@ -57,7 +57,7 @@ export function TimeCard({ c, budget, input, minToLearn, stock, units30, cycle, 
         <span className="row g6" title="Kaviar has no measure yet of how your buyers answer a discount, so this is yours to set">Every 10% off sells
           <span className="seg" role="radiogroup" aria-label="How much more a discount sells">{LIFTS.map(([v, name]) => <button key={v} type="button" role="radio" aria-checked={lift === v} className={`o${lift === v ? " on" : ""}`} style={{ height: 22, fontSize: 12 }} onClick={() => setLift(v)}>{name}</button>)}</span></span>
         <span className="fill" />
-        <span title={cycle ? "The median number of days your competitors’ live ads have been running, from Meta’s Ad Library" : "Meta’s own learning period for a new ad"}>A round of testing: {cycle ?? 7} days · {cycle ? "from competitors’ ads" : "Meta’s learning period"}</span>
+        <span title={cycle ? "How long your competitors give an ad before they drop it, from six months of their ads in Meta’s Ad Library" : "Meta’s own learning period for a new ad"}>A round of testing: {cycle ?? 7} days · {cycle ? "as long as competitors give an ad" : "Meta’s learning period"}</span>
         <span>Unsold stock isn’t counted as profit</span>
       </div>
     </div>

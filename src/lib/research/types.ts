@@ -63,12 +63,12 @@ export type RivalStats = {
  * month's end, so every ad has been watched for 30 days or more. `ads` = how many, `stopped` = no longer running, `quick` = stopped
  * within a week, `long` = ran 30+ days (running or not), `median` = the middle run in days (`medianOpen`: that ad is still running, so
  * the true figure is at least this). `months` = the same counts for each sample. `kept` = the ads they ran longest, with their words.
- * `more` = Meta had more ads than Kaviar read.
+ * `more` = Meta had more ads than Kaviar read. `decide` = how long they gave the ads they dropped (stopped before 30 days) — the middle one, in days.
  */
 export type KeptAd = { id: string; text: string; title: string | null; start: string; days: number; open: boolean; reach: number | null; english?: boolean };
 export type PastStats = {
   ads: number; stopped: number; median: number; medianOpen: boolean; quick: number; long: number; since: string | null; until: string | null; more: boolean; at: string;
-  months?: { month: string; ads: number; quick: number; long: number }[]; kept?: KeptAd[]; v?: number;
+  months?: { month: string; ads: number; quick: number; long: number }[]; kept?: KeptAd[]; decide?: number | null; v?: number;
 };
 /** Why the Ad Library refused: the login must confirm identity, the login expired, or the hourly limit was hit. */
 export type LibBlock = "identity" | "auth" | "limit";

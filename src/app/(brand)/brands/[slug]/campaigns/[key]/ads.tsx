@@ -16,8 +16,10 @@ import { addReference, removeReference, saveBrief } from "../actions";
  * what to work from (its own pictures, its own words), presses once, and says yes or no to each ad that comes back. Progress goes to
  * the dock at the bottom of the screen through `onWork`, so the brand never leaves the page it is on.
  */
-type Args = { slug: string; planKey: string; title: string; brief: PlanExtras["brief"]; ads: PlanAd[]; onWork: (w: Work | null) => void; onError?: (m: string | null) => void; onChanged?: () => void };
-export function useAds({ slug, planKey, title, brief, ads, onWork, onError, onChanged }: Args) {
+/** `count`: how many ads Remy writes for this campaign — set from how often competitors keep an ad. Left out where it isn't known. */
+type Args = { slug: string; planKey: string; title: string; brief: PlanExtras["brief"]; ads: PlanAd[]; count?: number; onWork: (w: Work | null) => void; onError?: (m: string | null) => void; onChanged?: () => void };
+export function useAds({ slug, planKey, title, brief, ads, count, onWork, onError, onChanged }: Args) {
+  const n = count ? `${count} ads` : "the ads";
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export function useAds({ slug, planKey, title, brief, ads, onWork, onError, onCh
   const run = (what: string, f: () => Promise<{ error?: string } | void>, done?: string) => { setDoing(what); fail(null); start(async () => { const r = await f(); if (r && r.error) { fail(r.error); onWork({ done: r.error, bad: true }); } else { router.refresh(); onChanged?.(); if (done) onWork({ done }); } setDoing(null); }); };
   const toReview = ads.filter((x) => x.status === "review");
   return {
-    busy, doing, note, setNote, shootNew, setShootNew, toReview,
+    busy, doing, note, setNote, shootNew, setShootNew, toReview, count,
     keepNote: () => { if (note !== brief.note) void saveBrief(slug, planKey, note, shootNew); },
     addRefs: (files: File[]) => { if (!files.length) return; run("ref", async () => { for (const f of files.slice(0, 8)) { const fd = new FormData(); fd.set("file", f); const r = await addReference(slug, planKey, fd); if (r.error) return r; } }); },
     removeRef: (id: string) => run(id, () => removeReference(slug, planKey, id)),
@@ -36,12 +38,12 @@ export function useAds({ slug, planKey, title, brief, ads, onWork, onError, onCh
     // Remy writes the ads while the brand stays here: the dock says so, and the ads appear when he is done.
     write: () => {
       const shooting = shootNew && brief.refs.length > 0;
-      fail(null); setDoing("make"); onWork({ who: "builder", what: shooting ? "Remy is writing 3 ads and shooting their pictures" : `Remy is writing 3 ads for “${title}”`, usually: shooting ? "Usually two to three minutes" : "Usually under a minute", since: Date.now() });
+      fail(null); setDoing("make"); onWork({ who: "builder", what: shooting ? `Remy is writing ${n} and shooting their pictures` : `Remy is writing ${n} for “${title}”`, usually: shooting ? "Usually two to three minutes" : "Usually under a minute", since: Date.now() });
       start(async () => {
         await saveBrief(slug, planKey, note, shootNew);
         const r = await makeAds(slug, planKey, true);
         if (r?.error) { onWork({ done: r.error, bad: true }); fail(r.error); }
-        else { router.refresh(); onWork(r?.note ? { done: r.note, bad: true } : { done: "3 ads are ready — say yes or no to each" }); setTimeout(() => document.getElementById("ads")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400); }
+        else { router.refresh(); onWork(r?.note ? { done: r.note, bad: true } : { done: `${count ? `${count} ads are` : "The ads are"} ready — say yes or no to each` }); setTimeout(() => document.getElementById("ads")?.scrollIntoView({ behavior: "smooth", block: "start" }), 400); }
         setDoing(null);
       });
     },
@@ -91,7 +93,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
             {([[false, "Use my pictures"], [true, "Shoot new ones in their style"]] as const).map(([v, text]) => <button key={text} type="button" role="radio" aria-checked={m.shootNew === v} className={`o${m.shootNew === v ? " on" : ""}`} title={v ? "New pictures are made from your product photo, lit and composed like your references. Each one is charged by the image service." : "Your reference pictures go on the ads as they are"} onClick={() => m.setShootNew(v)}>{text}</button>)}
           </div>}
           <span className="fill" />
-          {stage !== "suggested" && <button type="button" className={`btn sm${ads.length ? "" : " dark"}`} disabled={m.busy} onClick={m.write}>{m.doing === "make" ? <Icon name="spinner" size={12} className="spin" color={ads.length ? undefined : "#fff"} /> : null}{ads.length ? "Make 3 new ads" : "Make 3 ads"}</button>}
+          {stage !== "suggested" && <button type="button" className={`btn sm${ads.length ? "" : " dark"}`} disabled={m.busy} onClick={m.write}>{m.doing === "make" ? <Icon name="spinner" size={12} className="spin" color={ads.length ? undefined : "#fff"} /> : null}{ads.length ? `Make ${m.count ?? ""} new ads`.replace("  ", " ") : `Make ${m.count ?? ""} ads`.replace("  ", " ")}</button>}
         </div>
       </div>}
       {ads.length === 0 ? <span className="sm i3" style={{ padding: "8px 0 4px" }}>{stage === "suggested" ? "Ads are written once you approve the plan." : m.doing === "make" ? "Remy is writing them now…" : "None yet."}</span>
