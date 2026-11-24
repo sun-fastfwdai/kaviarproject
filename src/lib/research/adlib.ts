@@ -4,7 +4,7 @@ import { db, schema } from "../db";
 import { decrypt } from "../crypto";
 import { MetaAuthError, metaGet } from "../meta/client";
 import { toJpeg } from "../audience/media";
-import type { LibAd, LibBlock, PastStats, RivalAds, RivalStats } from "./types";
+import type { KeptAd, LibAd, LibBlock, PastStats, RivalAds, RivalStats } from "./types";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 
 /**
@@ -93,51 +93,72 @@ async function pageAds(ids: string[], token: string): Promise<Raw[]> {
 }
 
 // ---------------------------------------------------------------- what became of their older ads
-const PAST_PAGES = 3, WATCHED = 45, BACK = 120;
+const MONTHS = 6, WATCHED = 30, PAGES_A_MONTH = 2, DAY_MS = 86_400_000;
 const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 /**
- * The Pages' ads that were being shown between 120 and 45 days ago, running or stopped (up to 300, as Meta lists them). Asking for the
- * newest stopped ads instead would only ever return ads that died young: a brand that stops hundreds a month fills the list in days.
+ * Six samples of the Pages' ads, one a month back from 30 days ago: up to 200 ads that were being shown before each month's end, running
+ * or stopped, with their words. Meta lists the newest first, so each sample is the ads started just before that date — and all of them
+ * have had 30 days or more to show how long they ran. (Asking for the newest stopped ads instead only returns ads that died young.)
+ * If Meta's hourly limit is reached part-way, what was read so far is kept.
  */
 async function pastAds(ids: string[], token: string, now = Date.now()): Promise<{ raw: Raw[]; more: boolean }> {
-  const raw: Raw[] = [];
-  let after: string | undefined;
-  for (let i = 0; i < PAST_PAGES; i++) {
-    const r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "ALL", ad_delivery_date_min: dayOf(now - BACK * 86_400_000), ad_delivery_date_max: dayOf(now - WATCHED * 86_400_000),
-      limit: "100", fields: "id,ad_delivery_start_time,ad_delivery_stop_time", ...(after ? { after } : {}) }, token);
-    raw.push(...(r.data ?? []));
-    after = r.paging?.next ? r.paging.cursors?.after : undefined;
-    if (!after) break;
+  const raw: Raw[] = [], seen = new Set<string>();
+  let more = false;
+  for (let m = 0; m < MONTHS; m++) {
+    const max = now - (WATCHED + m * 30) * DAY_MS, min = max - 30 * DAY_MS;
+    let after: string | undefined;
+    for (let i = 0; i < PAGES_A_MONTH; i++) {
+      let r: Page;
+      try {
+        r = await lib({ search_page_ids: JSON.stringify(ids), ad_active_status: "ALL", ad_delivery_date_min: dayOf(min), ad_delivery_date_max: dayOf(max), limit: "100",
+          fields: "id,ad_delivery_start_time,ad_delivery_stop_time,ad_creative_bodies,ad_creative_link_titles,eu_total_reach", ...(after ? { after } : {}) }, token);
+      } catch (e) { if (!raw.length) throw e; return { raw, more: true }; }
+      for (const a of r.data ?? []) if (!seen.has(a.id)) { seen.add(a.id); raw.push(a); }
+      after = r.paging?.next ? r.paging.cursors?.after : undefined;
+      if (!after) break;
+    }
+    if (after) more = true;
   }
-  return { raw, more: Boolean(after) };
+  return { raw, more };
 }
 
+type PastRaw = Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time"> & Partial<Pick<Raw, "id" | "ad_creative_bodies" | "ad_creative_link_titles" | "eu_total_reach">>;
 /**
- * How long their older ads ran, counted from each ad's own start and stop day — nothing estimated. Only ads that started inside the
- * window count, so each has been watched for at least 45 days; one still running has run at least as long as it has been live.
+ * How long their older ads ran, counted from each ad's own start and stop day — nothing estimated. Only ads started between seven
+ * months and 30 days ago count, so each has been watched for at least 30 days; one still running has run at least as long as it has been
+ * live. The ads kept longest come back with their words: the nearest public sign of what worked for them.
  */
-export function pastStats(raw: Pick<Raw, "ad_delivery_start_time" | "ad_delivery_stop_time">[], more = false, now = Date.now()): PastStats {
-  const from = now - BACK * 86_400_000, to = now - WATCHED * 86_400_000;
-  const runs: { days: number; open: boolean }[] = [];
-  let since: string | null = null, until: string | null = null;
+export function pastStats(raw: PastRaw[], more = false, now = Date.now()): PastStats {
+  const from = now - (WATCHED + MONTHS * 30) * DAY_MS, to = now - WATCHED * DAY_MS;
+  const runs: { days: number; open: boolean; start: string; a: PastRaw }[] = [];
   for (const a of raw) {
     const s = Date.parse(a.ad_delivery_start_time ?? ""), e = Date.parse(a.ad_delivery_stop_time ?? "");
     if (Number.isNaN(s) || s < from || s > to) continue;
     const open = Number.isNaN(e) || e > now; // no stop day, or one still ahead: it is running
     if (!open && e < s) continue;
-    runs.push({ days: Math.round(((open ? now : e) - s) / 86_400_000) + 1, open }); // started and stopped on one day = one day
-    const day = dayOf(s);
-    if (!since || day < since) since = day;
-    if (!until || day > until) until = day;
+    runs.push({ days: Math.round(((open ? now : e) - s) / DAY_MS) + 1, open, start: dayOf(s), a }); // started and stopped on one day = one day
   }
-  runs.sort((a, b) => a.days - b.days);
-  const mid = runs[Math.floor(runs.length / 2)];
-  return { ads: runs.length, stopped: runs.filter((r) => !r.open).length, median: mid?.days ?? 0, medianOpen: mid?.open ?? false, quick: runs.filter((r) => !r.open && r.days <= 7).length,
-    long: runs.filter((r) => r.days >= 30).length, since, until, more, at: new Date(now).toISOString() };
+  const sorted = [...runs].sort((a, b) => a.days - b.days), mid = sorted[Math.floor(sorted.length / 2)];
+  const quick = (xs: typeof runs) => xs.filter((r) => !r.open && r.days <= 7).length, long = (xs: typeof runs) => xs.filter((r) => r.days >= 30).length;
+  const byMonth = new Map<string, typeof runs>();
+  for (const r of runs) byMonth.set(r.start.slice(0, 7), [...(byMonth.get(r.start.slice(0, 7)) ?? []), r]);
+  // The ads they kept: longest first, one per message (the same words are often run as many ads).
+  const kept: KeptAd[] = [], said = new Set<string>();
+  for (const r of [...runs].filter((x) => x.days >= 30).sort((a, b) => b.days - a.days)) {
+    const text = (r.a.ad_creative_bodies?.[0] ?? "").replace(/\s+/g, " ").trim(), key = norm(text).slice(0, 60);
+    if (!r.a.id || text.length < 12 || said.has(key)) continue;
+    said.add(key);
+    kept.push({ id: r.a.id, text: text.slice(0, 280), title: r.a.ad_creative_link_titles?.[0]?.slice(0, 90) ?? null, start: r.start, days: r.days, open: r.open, reach: typeof r.a.eu_total_reach === "number" ? r.a.eu_total_reach : null });
+    if (kept.length >= 6) break;
+  }
+  const starts = runs.map((r) => r.start).sort();
+  return { ads: runs.length, stopped: runs.filter((r) => !r.open).length, median: mid?.days ?? 0, medianOpen: mid?.open ?? false, quick: quick(runs), long: long(runs),
+    since: starts[0] ?? null, until: starts.at(-1) ?? null, more, at: new Date(now).toISOString(),
+    months: [...byMonth].sort((a, b) => a[0].localeCompare(b[0])).map(([month, xs]) => ({ month, ads: xs.length, quick: quick(xs), long: long(xs) })), kept, v: 3 };
 }
 
-/** An earlier version counted only the newest stopped ads; those figures have no `stopped` and are read again. */
-export const hasPast = (s: RivalStats) => typeof s.past?.stopped === "number";
+/** Figures from before the six-month read (no monthly samples, no kept ads) are read again. */
+export const hasPast = (s: RivalStats) => s.past?.v === 3;
 
 /**
  * Fills in the stopped-ads count for competitors read before Kaviar kept it. It only adds that one figure: the ads already read and

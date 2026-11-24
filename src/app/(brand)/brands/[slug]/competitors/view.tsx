@@ -8,6 +8,7 @@ import { Modal } from "@/components/modal";
 import { show, stand, VERDICT_NAME, type Measure, type Rival, type Verdict } from "@/lib/seo/bench-rules";
 import type { RivalAdLine } from "@/lib/seo/bench";
 import { addCompetitor, readRivals, removeCompetitor } from "./actions";
+import { KeptAds } from "./kept";
 
 /**
  * Market · Competitors. The brand against the sites Kaviar read: three scores beside theirs, every site side by side on the same checks,
@@ -156,21 +157,23 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
             <Link className="btn sm" href={adsHref}>{ads.length ? "See the ads" : "Read their ads"}<Icon name="arrow-r" size={11} /></Link>
           </div>
           {ads.length > 0 && <div className="col">
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(6, minmax(80px, 1fr)) 30px", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
-              <span className="xs i3">Brand</span>{([["Running"], ["New · 30 days"], ["Longest run"], ["Video"], ["Stopped in a week", "Of the ads they started 6 weeks to 4 months ago, the share they stopped within 7 days"], ["Typical run", "How long one of those ads ran — the middle one"]] as [string, string?][]).map(([h, t]) => <span key={h} className="xs i3" title={t} style={{ textAlign: "right" }}>{h}</span>)}<span />
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(7, minmax(72px, 1fr)) 30px", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+              <span className="xs i3">Brand</span>{([["Running"], ["New · 30 days"], ["Longest run"], ["Video"], ["Stopped in a week", "Of the ads they started in the last six months, the share they stopped within 7 days"], ["Kept 30+ days", "The share of those ads they ran for 30 days or more"], ["Typical run", "How long one of those ads ran — the middle one"]] as [string, string?][]).map(([h, t]) => <span key={h} className="xs i3" title={t} style={{ textAlign: "right" }}>{h}</span>)}<span />
             </div>
             {[{ name: `You · ${brand}`, ads: ownAds.ads, new30: ownAds.new30, longest: null as number | null, video: null as number | null, past: null as RivalAdLine["past"], library: null as string | null, me: true }, ...ads.map((a) => ({ ...a, me: false }))].map((a) => (
-              <div key={a.name} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(6, minmax(80px, 1fr)) 30px", gap: 8, alignItems: "center", padding: "8px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: a.me ? "var(--tray)" : undefined, borderRadius: a.me ? 10 : 0 }}>
+              <div key={a.name} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1.6fr) repeat(7, minmax(72px, 1fr)) 30px", gap: 8, alignItems: "center", padding: "8px 8px", margin: "0 -8px", borderBottom: "1px solid var(--line)", background: a.me ? "var(--tray)" : undefined, borderRadius: a.me ? 10 : 0 }}>
                 <span className="sm w5 ell">{a.name}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{a.ads}</span>
                 <span className="sm tnum" style={{ textAlign: "right" }}>{a.new30}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }}>{a.longest == null ? "–" : `${a.longest} days`}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }}>{a.video == null ? "–" : `${a.video}%`}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }} title={a.past?.ads ? `${a.past.ads}${a.past.more ? "+" : ""} ads started ${when(a.past.since)} – ${when(a.past.until)}: ${a.past.quick} stopped within a week · ${a.past.long} ran 30+ days · ${a.past.ads - a.past.stopped} still running` : undefined}>{a.past?.ads ? `${Math.round((a.past.quick / a.past.ads) * 100)}%` : "–"}</span>
+                <span className="sm tnum i2" style={{ textAlign: "right" }} title={a.past?.months?.length ? a.past.months.map((m) => `${new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}: ${m.long} of ${m.ads} kept`).join(" · ") : undefined}>{a.past?.ads ? `${Math.round((a.past.long / a.past.ads) * 100)}%` : "–"}</span>
                 <span className="sm tnum i2" style={{ textAlign: "right" }}>{a.past?.ads ? `${a.past.median}${a.past.medianOpen ? "+" : ""} ${a.past.median === 1 && !a.past.medianOpen ? "day" : "days"}` : "–"}</span>
                 {a.library ? <a className="btn quiet sm ic" href={a.library} target="_blank" rel="noreferrer" title="Open in Meta’s Ad Library" aria-label={`Open ${a.name} in Meta’s Ad Library`}><Icon name="external" size={12} /></a> : <span />}
               </div>))}
           </div>}
+          <KeptAds slug={slug} items={ads.flatMap((a) => (a.past?.kept ?? []).map((k) => ({ ...k, competitor: a.name }))).sort((x, y) => y.days - x.days).slice(0, 6)} />
           {angles.length > 0 && <div className="col g8" style={{ padding: "14px 0 8px" }}>
             <span className="xs i3">What their ads say</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 8 }}>
