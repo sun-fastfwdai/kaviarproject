@@ -54,13 +54,13 @@ function ProductWindow() {
   );
   const STEPS = ["Why now", "Budget", "Ads", "Test", "Launch", "Results"];
   const TIME: [string, string, [string, string][], boolean][] = [
-    ["1 month", "+$4,120", [["Sells without ads", "243"], ["The ads add", "14 orders"], ["Sold · left", "257 · 153"]], false],
-    ["3 months", "+$6,480", [["Sells without ads", "396"], ["The ads add", "14 orders"], ["Sold · left", "410 · none"]], true],
-    ["6 months", "+$6,480", [["Sells without ads", "396"], ["The ads add", "14 orders"], ["Sold · left", "410 · none"]], false],
+    ["1 month", "+$4,120", [["Sells without ads", "243"], ["The ads add", "14 orders"], ["Offer that earns most", "10% off"], ["Sold · left", "283 · 127"], ["First result you can read", "day 14"]], false],
+    ["3 months", "+$6,480", [["Sells without ads", "396"], ["The ads add", "14 orders"], ["Offer that earns most", "Full price"], ["Sold · left", "410 · none"], ["First result you can read", "day 42"]], true],
+    ["6 months", "+$6,480", [["Sells without ads", "396"], ["The ads add", "14 orders"], ["Offer that earns most", "Full price"], ["Sold · left", "410 · none"], ["First result you can read", "day 84"]], false],
   ];
   return (
     <div className="lp-window" aria-label="Kaviar showing one campaign: its budget, what should come back and what is left">
-      <div style={{ width: 1120, height: 640, display: "flex", background: "var(--page)", borderRadius: 18, overflow: "hidden", boxShadow: "0 0 0 1px rgba(18,18,18,0.08), 0 2px 4px rgba(18,18,18,0.04), 0 32px 72px -16px rgba(18,18,18,0.22)" }}>
+      <div style={{ width: 1120, height: 640, display: "flex", background: "var(--page)", borderRadius: 18, overflow: "hidden", boxShadow: "0 0 0 1px rgba(18,18,18,0.08), 0 1px 2px rgba(18,18,18,0.04), 0 24px 32px -28px rgba(18,18,18,0.28)" }}>
         <aside className="side" style={{ width: 204, overflow: "hidden" }}>
           <Wordmark href="/" />
           <div className="switcher boxed">
@@ -123,8 +123,8 @@ function ProductWindow() {
         </div>
       </div>
 
-      <div className="lp-float hide-md lp-pop" style={css({ right: -12, top: 262, width: 214, "--delay": "2.4s" })}>
-        <div className="card" style={{ overflow: "visible", boxShadow: "0 18px 40px rgba(18,18,18,0.14)", padding: 8, gap: 8 }}>
+      <div className="lp-float hide-md lp-pop" style={css({ right: 4, top: 262, width: 214, "--delay": "2.4s" })}>
+        <div className="card" style={{ overflow: "visible", boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)", padding: 8, gap: 8 }}>
           <div style={{ position: "relative", height: 220, outline: "1.5px solid var(--select)", outlineOffset: -1, borderRadius: 6 }}>
             <div className="thumb" style={{ position: "absolute", inset: 0, borderRadius: 6 }}><Image src="/landing/duo-perfume.jpg" alt="A product photo used in an ad" fill sizes="214px" style={{ objectFit: "cover" }} /></div>
             <span className="sel-label" style={{ top: -21 }}>Ad picture</span>
@@ -140,8 +140,8 @@ function ProductWindow() {
         </div>
       </div>
 
-      <div className="lp-float hide-md lp-pop" style={css({ left: -12, bottom: 26, width: 268, "--delay": "3s" })}>
-        <div className="col g6" style={{ padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 18px 40px rgba(18,18,18,0.14)" }}>
+      <div className="lp-float hide-md lp-pop" style={css({ left: 4, bottom: 24, width: 268, "--delay": "3s" })}>
+        <div className="col g6" style={{ padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)" }}>
           <div className="row g8"><AgentFace kind="analyst" size={20} mood="up" /><span className="sm w5">Iris</span><span className="xs i3">· read 1,032 orders</span></div>
           <span className="sm w5 i1">3,095 buyers have gone quiet</span>
           <span className="xs i2" style={{ lineHeight: "16px" }}>They bought 2–6 months ago and haven’t been back. $250 over 14 days should bring about 14 of them back</span>
