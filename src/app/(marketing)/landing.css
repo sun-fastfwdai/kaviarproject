@@ -63,6 +63,19 @@
 
 .lp-foot { padding: 40px 0 56px; border-top: 1px solid var(--line); }
 
+/* Hero: the words on the left, the product itself on the right, running past the edge of the page. */
+.lp-hero2 { padding: 72px 0 88px; }
+.lp-hero2-in { display: flex; flex-direction: column; gap: 40px; }
+.lp-hero2-text { display: flex; flex-direction: column; gap: 24px; align-items: flex-start; min-width: 0; }
+.lp-hero2 .lp-h1, .lp-hero2 .lp-lead { margin: 0; }
+.lp-hero2 .lp-stage { margin-top: 0; }
+@media (min-width: 1021px) {
+  .lp-hero2-in { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 56px; align-items: center; }
+  .lp-hero2 .lp-h1 { font-size: 54px; line-height: 68px; }
+  .lp-hero2 .lp-stage-box { height: 512px; overflow: visible; }
+  .lp-hero2 .lp-window { left: 0; margin-left: 0; transform: scale(.8); transform-origin: left top; }
+}
+
 /* Product window scales down with the viewport (kept as real layout, not a picture). */
 @media (max-width: 1180px) { .lp-window { transform: scale(0.86); } .lp-stage-box { height: 560px; } }
 @media (max-width: 1020px) { .lp-window { transform: scale(0.72); } .lp-stage-box { height: 470px; } .lp-float.hide-md { display: none; } }

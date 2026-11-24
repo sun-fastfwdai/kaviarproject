@@ -8,7 +8,6 @@ import { MetaLogo, ShopifyLogo } from "@/components/logos";
 import { Wordmark } from "@/components/shell/parts";
 import { ContactForm } from "./contact-form";
 import { CountUp, Dock, NavShell, RevealObserver } from "./motion";
-import { HeroBrief } from "./hero-brief";
 import { Walkthrough } from "./walkthrough";
 import { ApproveList, LoopTabs } from "./loop-tabs";
 import { NumbersCard } from "./numbers";
@@ -27,19 +26,6 @@ type Kind = "analyst" | "catalog" | "builder" | "qa";
 
 function NavItem({ icon, label, on }: { icon: IconName; label: string; on?: boolean }) {
   return <div className={`ni${on ? " on" : ""}`}><Icon name={icon} />{label}</div>;
-}
-
-function Cursor({ kind, name, color, style }: { kind: Kind; name: string; color: string; style: React.CSSProperties }) {
-  return (
-    <div className="lp-cursor" style={style} aria-hidden>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill={color} stroke="#fff" strokeWidth="1.6" strokeLinejoin="round"><path d="M4 3l16 7-7 2.2L10 20z" /></svg>
-      <span className="nm" style={{ background: color }}><i><AgentFace kind={kind} size={13} /></i>{name}</span>
-    </div>
-  );
-}
-
-function SelHandles() {
-  return <>{["h-tl", "h-tr", "h-bl", "h-br"].map((c) => <span key={c} className={`handle ${c}`} />)}</>;
 }
 
 function ProductWindow() {
@@ -81,7 +67,7 @@ function ProductWindow() {
           <header className="bar">
             <div className="crumb"><span>Maison Oré</span><Icon name="chev-r" size={12} color="#B5B2AC" /><span>Campaigns</span><Icon name="chev-r" size={12} color="#B5B2AC" /><b>Win back lapsed buyers</b></div>
             <div className="fill" />
-            <span className="row g6 xs i3"><span className="lp-live" />synced just now</span>
+            <span className="row g6 xs i3"><span className="dot green" />synced just now</span>
           </header>
           <div className="col" style={{ padding: "16px 20px", gap: 12 }}>
             <div className="col g16" style={{ borderRadius: 16, background: "#121212", color: "#fff", padding: "20px 24px 16px" }}>
@@ -123,23 +109,6 @@ function ProductWindow() {
         </div>
       </div>
 
-      <div className="lp-float hide-md lp-pop" style={css({ right: 4, top: 262, width: 214, "--delay": "2.4s" })}>
-        <div className="card" style={{ overflow: "visible", boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)", padding: 8, gap: 8 }}>
-          <div style={{ position: "relative", height: 220, outline: "1.5px solid var(--select)", outlineOffset: -1, borderRadius: 6 }}>
-            <div className="thumb" style={{ position: "absolute", inset: 0, borderRadius: 6 }}><Image src="/landing/duo-perfume.jpg" alt="A product photo used in an ad" fill sizes="214px" style={{ objectFit: "cover" }} /></div>
-            <span className="sel-label" style={{ top: -21 }}>Ad picture</span>
-            <SelHandles />
-          </div>
-          <div className="col g2" style={{ padding: "2px 4px 4px" }}><span className="sm w5">Still thinking about it?</span><span className="xs i3">Your own photo · 1 of 3 ads</span></div>
-        </div>
-        <div className="row g6 lp-remy" style={{ position: "absolute", left: -46, top: 168 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#1AA7C8" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round"><path d="M4 3l16 7-7 2.2L10 20z" /></svg>
-          <span className="row g4" style={{ height: 22, padding: "0 8px 0 4px", borderRadius: 6, background: "#1AA7C8", color: "#fff", fontSize: 12, fontWeight: 500, marginTop: 14 }}>
-            <span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={14} /></span>Remy
-          </span>
-        </div>
-      </div>
-
       <div className="lp-float hide-md lp-pop" style={css({ left: 4, bottom: 24, width: 268, "--delay": "3s" })}>
         <div className="col g6" style={{ padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)" }}>
           <div className="row g8"><AgentFace kind="analyst" size={20} mood="up" /><span className="sm w5">Iris</span><span className="xs i3">· read 1,032 orders</span></div>
@@ -152,17 +121,6 @@ function ProductWindow() {
 }
 
 /* ---------------------------------------------------------------- content */
-const SIGNALS: [IconName, string, string][] = [
-  ["users", "Lapsed buyers", "3,095 · worth winning back"],
-  ["calendar", "Black Friday", "in 4 days · campaign ready"],
-  ["box", "Peony Duo", "12 left · ads held"],
-  ["megaphone", "A competitor", "kept one ad running 190 days"],
-  ["store", "Store check", "161 of 163 pass"],
-  ["trend-up", "Retargeting", "2.11× verified"],
-  ["layers", "Stock sitting", "380 hand creams, none sold in 30 days"],
-  ["lightning", "Best seller", "Amber No. 3 · 312 sold"],
-];
-
 const WALK = [
   { num: "01", title: "Connect.", muted: "Shopify and Meta, a few clicks.", body: "Cleo reads your orders, products, stock and customers, and up to three years of your ad results. No names, emails or addresses are copied." },
   { num: "02", title: "Plan.", muted: "A reason, a budget, what comes back.", body: "Iris lists the campaigns worth running today — a holiday, buyers going quiet, stock sitting — each with a budget and the profit it should leave. You change the budget and approve." },
@@ -325,10 +283,47 @@ const PANES = [
   </Fragment>,
 ];
 
-const FLOATIES: [Kind, React.CSSProperties, number][] = [
-  ["analyst", { left: "7%", top: 120 }, -8], ["catalog", { left: "13%", top: 420 }, 6],
-  ["builder", { right: "8%", top: 150 }, 8], ["qa", { right: "13%", top: 450 }, -6],
-];
+/** The brand's day as the app's Today screen shows it: the month in blocks, then what needs a yes. An example brand's figures. */
+function TodayBoard() {
+  const tile = (label: string, value: string, note: string, logo: React.ReactNode, tone?: string) => (
+    <div className="col g4" style={{ flex: "1 1 40%", minWidth: 0, padding: 16, borderRadius: 16, background: tone ?? "var(--tray)", border: "1px solid var(--line)" }}>
+      <span className="row between xs i3"><span>{label}</span>{logo}</span>
+      <span className="tnum" style={{ fontSize: 28, lineHeight: "32px", fontWeight: 500, letterSpacing: "-0.015em" }}>{value}</span>
+      <span className="xs i3">{note}</span>
+    </div>
+  );
+  const act = (n: string, kind: string, title: string, sub: string, cta: string, tag: string, dark: boolean) => (
+    <div className="col g12" style={{ flex: "1 1 320px", minWidth: 0, padding: 20, borderRadius: 16, background: "#fff", border: dark ? "1.5px solid var(--ink)" : "1px solid var(--line)" }}>
+      <span className="row between g8"><span className="row g8 sm"><span className="mono i3">{n}</span><span className="c-amber">{kind}</span></span><span className="pill amber">{tag}</span></span>
+      <span className="col g4"><span className="h2">{title}</span><span className="sm i3">{sub}</span></span>
+      <span className="row g8"><span className={`btn sm${dark ? " dark" : ""}`} style={{ pointerEvents: "none" }}>{cta}</span></span>
+    </div>
+  );
+  return (
+    <div className="col g12" data-reveal>
+      <div className="row g12" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
+        <div className="col" style={{ flex: "1.3 1 320px", minWidth: 0, padding: 20, borderRadius: 16, background: "#121212", color: "#fff", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>Sales · last 30 days</span>
+          <span className="tnum" style={{ fontSize: 44, lineHeight: "48px", fontWeight: 500, letterSpacing: "-0.02em" }}>$48,920</span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}><span style={{ color: "#6EE7A8" }}>+12%</span> vs the 30 days before</span>
+          <svg viewBox="0 0 320 84" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 84, marginTop: "auto" }} aria-hidden>
+            <polyline points="0,62 26,58 52,64 78,50 104,54 130,40 156,46 182,34 208,38 234,24 260,30 286,16 320,12" fill="none" stroke="#6EE7A8" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </div>
+        <div className="row g12" style={{ flex: "2 1 420px", minWidth: 0, flexWrap: "wrap", alignItems: "stretch" }}>
+          {tile("Orders", "1,032", "+9% vs prior", <ShopifyLogo size={12} />)}
+          {tile("Ad spend", "$9,840", "3 campaigns running", <MetaLogo size={12} />)}
+          {tile("Back per $1", "1.46×", "verified by Shopify orders", <span className="row g4"><ShopifyLogo size={12} /><MetaLogo size={12} /></span>)}
+          {tile("Inventory", "2 to reorder", "1 runs out this week", <Icon name="box" size={13} color="#B7791F" />, "var(--amber-bg)")}
+        </div>
+      </div>
+      <div className="row g12" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
+        {act("01", "Protect", "Peony Duo runs out in 4 days", "12 left · sells 3 a day", "Restock", "4 days with nothing to sell", true)}
+        {act("02", "Holiday", "Black Friday is in 4 days", "$150 over 7 days should bring back about $1,117", "Approve $150", "Campaign ready", false)}
+      </div>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   return (
@@ -347,50 +342,38 @@ export default function LandingPage() {
       </NavShell>
 
       <main>
-        <section id="hero" className="lp-wrap lp-hero" style={{ position: "relative" }}>
-          <Cursor kind="analyst" name="Iris" color="#6A8FD6" style={{ left: "6%", top: 150 }} />
-          <Cursor kind="catalog" name="Cleo" color="#22A46E" style={css({ right: "7%", top: 118, animationDelay: "-4s" })} />
-          <Cursor kind="qa" name="Otto" color="#EB7A3C" style={css({ right: "12%", top: 330, animationDelay: "-8s" })} />
-
-          <span className="lp-eyebrow" data-reveal>
-            <span className="lp-live" />
-            <span className="lp-rot"><span>
-              <span style={{ display: "block" }}>Shopify + Meta, joined in one place</span>
-              <span style={{ display: "block" }}>Decisions on orders Shopify can prove</span>
-              <span style={{ display: "block" }}>Nothing is spent until you approve it</span>
-            </span></span>
-          </span>
-          <h1 className="lp-h1" data-reveal style={css({ "--i": 1 })}>
-            Your Shopify brand’s ads, planned,{" "}
-            <span className="lp-sel">made<span className="box" /><span className="hd sel-tl" /><span className="hd sel-tr" /><span className="hd sel-bl" /><span className="hd sel-br" />
-              <span className="tag"><span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={13} /></span>Remy</span>
-            </span>{" "}and run from your own store data
-          </h1>
-          <p className="lp-lead" data-reveal style={css({ "--i": 2 })}>Kaviar reads your orders, stock and customers, works out what is worth advertising and what it should bring back, makes the ads from your real product photos and runs them on Meta. Nothing is spent until you approve it.</p>
-          <div data-reveal style={css({ "--i": 3, width: "100%", display: "flex", justifyContent: "center" })}><HeroBrief /></div>
-          <div className="row g8" data-reveal style={css({ "--i": 4, justifyContent: "center" })}>
-            <div className="row g4">{(["analyst", "catalog", "builder", "qa"] as const).map((k) => <AgentFace key={k} kind={k} size={22} />)}</div>
-            <span className="sm i3">Iris, Cleo, Remy and Otto do the work. You decide</span>
+        <section id="hero" className="lp-hero2">
+          <div className="lp-wrap lp-hero2-in">
+            <div className="lp-hero2-text">
+              <h1 className="lp-h1" data-reveal>
+                Your Shopify brand’s ads, planned,{" "}
+                <span className="lp-sel">made<span className="box" /><span className="hd sel-tl" /><span className="hd sel-tr" /><span className="hd sel-bl" /><span className="hd sel-br" />
+                  <span className="tag"><span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={13} /></span>Remy</span>
+                </span>{" "}and run for you
+              </h1>
+              <p className="lp-lead" data-reveal style={css({ "--i": 1 })}>Kaviar reads your orders, stock and customers, works out what is worth advertising and what it should bring back, makes the ads from your real product photos and runs them on Meta. Nothing is spent until you approve it.</p>
+              <div className="row g20" data-reveal style={css({ "--i": 2, flexWrap: "wrap" })}>
+                <a href="#contact" className="btn dark lg">Book a call<span className="arr">→</span></a>
+                <a href="#how" className="row g6 t w5 i1">See how it works<Icon name="arrow-r" size={13} /></a>
+              </div>
+              <div className="row g8" data-reveal style={css({ "--i": 3 })}>
+                <div className="row g4">{(["analyst", "catalog", "builder", "qa"] as const).map((k) => <AgentFace key={k} kind={k} size={22} />)}</div>
+                <span className="sm i3">Iris, Cleo, Remy and Otto do the work. You decide</span>
+              </div>
+            </div>
+            <div className="lp-stage" data-observe><div className="lp-stage-box"><ProductWindow /></div></div>
           </div>
-          <div className="lp-stage" data-observe><div className="lp-stage-box"><ProductWindow /></div></div>
         </section>
 
-        <section className="lp-section tight" style={{ paddingTop: 40 }}>
+        <section id="today" className="lp-section white">
           <div className="lp-wrap">
-            <div className="row between" data-reveal style={{ flexWrap: "wrap", gap: 8 }}>
-              <span className="sm i3">What Kaviar watches for a brand, every hour</span>
-              <span className="row g6 xs i3"><ShopifyLogo size={12} /><MetaLogo size={12} />examples from a fragrance brand</span>
+            <div className="lp-head" data-reveal>
+              <span className="lp-kicker">Today</span>
+              <h2 className="lp-h2">One screen says what needs you today</h2>
+              <p className="lp-lead">Sales, stock, ads and competitors, read every hour and turned into a short list of things to do. Each one is a button, not a report.</p>
             </div>
-          </div>
-          <div className="lp-marquee" style={{ marginTop: 14 }} data-reveal>
-            <div className="track">
-              {[...SIGNALS, ...SIGNALS].map(([ic, t, v], i) => (
-                <span key={i} className="lp-sig" aria-hidden={i >= SIGNALS.length}><Icon name={ic} size={15} color="#55534F" /><b>{t}</b>{v}</span>
-              ))}
-            </div>
-          </div>
-          <div className="lp-wrap" style={{ marginTop: 56 }}>
-            <div className="lp-grid">
+            <TodayBoard />
+            <div className="lp-grid" style={{ marginTop: 56 }}>
               {[
                 ["A reason for every ad", "A campaign appears only when your data says it is worth running."],
                 ["Profit, not clicks", "Each budget shows what should be left after costs, as a range."],
@@ -402,10 +385,11 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+            <p className="xs i3" data-reveal style={{ marginTop: 16 }}>Figures from an example fragrance brand</p>
           </div>
         </section>
 
-        <section id="how" className="lp-section white">
+        <section id="how" className="lp-section">
           <div className="lp-wrap">
             <div className="lp-head" data-reveal>
               <span className="lp-kicker">How it works</span>
@@ -415,7 +399,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="loop" className="lp-section">
+        <section id="loop" className="lp-section white">
           <div className="lp-wrap">
             <div className="lp-head" data-reveal>
               <span className="lp-kicker">Campaigns</span>
@@ -426,7 +410,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="numbers" className="lp-section white">
+        <section id="numbers" className="lp-section">
           <div className="lp-wrap lp-split">
             <div className="col g16" data-reveal>
               <span className="lp-kicker">Real numbers</span>
@@ -444,12 +428,25 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="market" className="lp-section">
+        <section id="market" className="lp-section white">
           <div className="lp-wrap">
             <div className="lp-head" data-reveal>
               <span className="lp-kicker">Competitors</span>
               <h2 className="lp-h2">See what your competitors kept running, and what they dropped</h2>
               <p className="lp-lead">Meta publishes every ad a brand runs and how long it ran — never what it earned. Kaviar reads six months of it, so you can see which messages they kept for months and which they stopped in days.</p>
+            </div>
+            <div className="col" data-reveal style={{ marginBottom: 12, padding: "8px 20px", borderRadius: 16, background: "var(--tray)", border: "1px solid var(--line)", overflowX: "auto" }}>
+              {([
+                ["Brand", "Running", "Stopped in a week", "Kept 30+ days", "Typical run"],
+                ["You · Maison Oré", "3", "–", "–", "–"],
+                ["Atelier Nord", "300", "17%", "50%", "29 days"],
+                ["Sol & Sel", "294", "70%", "10%", "3 days"],
+                ["Maison Lune", "155", "41%", "4%", "9 days"],
+              ] as string[][]).map((r, i) => (
+                <div key={r[0]} className="row" style={{ minWidth: 560, padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+                  {r.map((c, j) => <span key={j} className={`${i ? "sm" : "xs i3"} tnum${j === 0 && i ? " w5" : ""}`} style={{ flex: j === 0 ? "1.6 1 0" : "1 1 0", textAlign: j === 0 ? "left" : "right", color: i && j === 3 && c !== "–" ? "var(--green)" : undefined }}>{c}</span>)}
+                </div>
+              ))}
             </div>
             <div className="row g12" data-reveal style={{ alignItems: "stretch", flexWrap: "wrap" }}>
               {([
@@ -480,7 +477,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="agents" className="lp-section white">
+        <section id="agents" className="lp-section">
           <div className="lp-wrap">
             <div className="lp-head" data-reveal>
               <span className="lp-kicker">The team</span>
@@ -495,7 +492,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="lp-section tight">
+        <section className="lp-section white tight">
           <div className="lp-wrap">
             <div className="lp-grid">
               {([
@@ -513,7 +510,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="faq" className="lp-section white">
+        <section id="faq" className="lp-section">
           <div className="lp-wrap lp-split" style={{ alignItems: "flex-start" }}>
             <div className="col g12" data-reveal style={{ flex: "0 1 360px" }}>
               <span className="lp-kicker">FAQ</span>
@@ -531,15 +528,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="contact" className="lp-section lp-close">
-          {FLOATIES.map(([k, pos, r], i) => (
-            <div key={k} className="lp-floaty lp-float hide-md" style={css({ ...pos, "--i": i, "--r": `${r}deg` })} aria-hidden><AgentFace kind={k} size={44} mood="happy" /></div>
-          ))}
-          {([["cream-jars", { left: "3%", top: 250 }, -6], ["gold-bottles", { right: "3%", top: 290 }, 5]] as [string, React.CSSProperties, number][]).map(([p, pos, r], i) => (
-            <div key={p} className="lp-floaty lp-float hide-md thumb" style={css({ ...pos, "--i": i + 4, "--r": `${r}deg`, width: 92, height: 116, borderRadius: 14 })} aria-hidden>
-              <Image src={`/landing/${p}.jpg`} alt="" fill sizes="92px" style={{ objectFit: "cover" }} />
-            </div>
-          ))}
+        <section id="contact" className="lp-section white lp-close">
           <div className="lp-wrap col" style={{ alignItems: "center", gap: 28, position: "relative" }}>
             <div className="col g12" data-reveal style={{ alignItems: "center", textAlign: "center", maxWidth: 620 }}>
               <span className="lp-kicker">Book a call</span>
