@@ -12,7 +12,7 @@
 
 /* type */
 .lp-eyebrow { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 8px; border-radius: 99px; background: #fff; border: 1px solid var(--line); font-size: 13px; color: var(--ink-2); box-shadow: 0 1px 2px rgba(18,18,18,0.04); }
-.lp-h1 { margin-bottom: 10px; font-size: 64px; line-height: 68px; font-weight: 500; letter-spacing: -0.03em; max-width: 880px; text-wrap: balance; }
+.lp-h1 { margin-bottom: 10px; font-size: 64px; line-height: 78px; font-weight: 500; letter-spacing: -0.03em; max-width: 880px; text-wrap: balance; }
 .lp-h2 { font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; }
 .lp-lead { font-size: 18px; line-height: 28px; color: var(--ink-2); max-width: 620px; text-wrap: pretty; }
 .lp-kicker { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
@@ -177,11 +177,13 @@
 /* sticky walkthrough */
 .lp-walk { display: flex; gap: 48px; align-items: flex-start; }
 .lp-walk .steps { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
-.lp-walk .step { position: relative; padding: 28px 0 28px 28px; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; gap: 10px; opacity: .38; transition: opacity .4s var(--ease); }
+.lp-walk .step { position: relative; padding: 28px 0 28px 32px; min-height: 60vh; display: flex; flex-direction: column; justify-content: center; gap: 12px; opacity: .38; transition: opacity .4s var(--ease); }
 .lp-walk .step.on { opacity: 1; }
 .lp-walk .rail { position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .lp-walk .rail i { position: absolute; left: 0; top: 0; width: 2px; height: 100%; background: var(--ink); transform-origin: top; transform: scaleY(var(--p, 0)); transition: transform .15s linear; }
-.lp-walk .stage { flex: 1.15 1 0; min-width: 0; position: sticky; top: 104px; height: 460px; border-radius: 18px; background: var(--tray); border: 1px solid var(--line); overflow: hidden; }
+.lp-walk .stage { flex: 1.15 1 0; min-width: 0; position: sticky; top: 104px; height: 540px; border-radius: 20px; background: var(--tray); border: 1px solid var(--line); overflow: hidden; }
+.lp-step-n { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 99px; font-family: var(--mono); font-size: 12px; color: var(--ink-3); background: var(--sheet); border: 1px solid var(--line); transition: background-color .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }
+.lp-walk .step.on .lp-step-n { background: var(--ink); color: #fff; border-color: var(--ink); }
 .lp-walk .scene { position: absolute; inset: 0; padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 12px; opacity: 0; transform: scale(.98) translateY(8px); transition: opacity .5s var(--ease), transform .5s var(--ease); pointer-events: none; }
 .lp-walk .scene.on { opacity: 1; transform: none; pointer-events: auto; }
 .lp-walk .scene .row-in { opacity: 0; transform: translateX(-8px); transition: opacity .45s var(--ease), transform .45s var(--ease); transition-delay: calc(var(--i) * 140ms + 150ms); }

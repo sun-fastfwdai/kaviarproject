@@ -11,6 +11,7 @@ import { CountUp, Dock, NavShell, RevealObserver } from "./motion";
 import { Walkthrough } from "./walkthrough";
 import { ApproveList, LoopTabs } from "./loop-tabs";
 import { NumbersCard } from "./numbers";
+import { HeroBrief } from "./hero-brief";
 import { AgentCards } from "./agent-cards";
 
 export const metadata: Metadata = {
@@ -26,6 +27,19 @@ type Kind = "analyst" | "catalog" | "builder" | "qa";
 
 function NavItem({ icon, label, on }: { icon: IconName; label: string; on?: boolean }) {
   return <div className={`ni${on ? " on" : ""}`}><Icon name={icon} />{label}</div>;
+}
+
+function Cursor({ kind, name, color, style }: { kind: Kind; name: string; color: string; style: React.CSSProperties }) {
+  return (
+    <div className="lp-cursor" style={style} aria-hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill={color} stroke="#fff" strokeWidth="1.6" strokeLinejoin="round"><path d="M4 3l16 7-7 2.2L10 20z" /></svg>
+      <span className="nm" style={{ background: color }}><i><AgentFace kind={kind} size={13} /></i>{name}</span>
+    </div>
+  );
+}
+
+function SelHandles() {
+  return <>{["h-tl", "h-tr", "h-bl", "h-br"].map((c) => <span key={c} className={`handle ${c}`} />)}</>;
 }
 
 function ProductWindow() {
@@ -109,6 +123,23 @@ function ProductWindow() {
         </div>
       </div>
 
+      <div className="lp-float hide-md lp-pop" style={css({ right: 4, top: 262, width: 214, "--delay": "2.4s" })}>
+        <div className="card" style={{ overflow: "visible", boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)", padding: 8, gap: 8 }}>
+          <div style={{ position: "relative", height: 220, outline: "1.5px solid var(--select)", outlineOffset: -1, borderRadius: 6 }}>
+            <div className="thumb" style={{ position: "absolute", inset: 0, borderRadius: 6 }}><Image src="/landing/duo-perfume.jpg" alt="A product photo used in an ad" fill sizes="214px" style={{ objectFit: "cover" }} /></div>
+            <span className="sel-label" style={{ top: -21 }}>Ad picture</span>
+            <SelHandles />
+          </div>
+          <div className="col g2" style={{ padding: "2px 4px 4px" }}><span className="sm w5">Still thinking about it?</span><span className="xs i3">Your own photo · 1 of 3 ads</span></div>
+        </div>
+        <div className="row g6 lp-remy" style={{ position: "absolute", left: -46, top: 168 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#1AA7C8" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round"><path d="M4 3l16 7-7 2.2L10 20z" /></svg>
+          <span className="row g4" style={{ height: 22, padding: "0 8px 0 4px", borderRadius: 6, background: "#1AA7C8", color: "#fff", fontSize: 12, fontWeight: 500, marginTop: 14 }}>
+            <span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={14} /></span>Remy
+          </span>
+        </div>
+      </div>
+
       <div className="lp-float hide-md lp-pop" style={css({ left: 4, bottom: 24, width: 268, "--delay": "3s" })}>
         <div className="col g6" style={{ padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 0 0 1px rgba(18,18,18,0.04), 0 8px 20px -4px rgba(18,18,18,0.12)" }}>
           <div className="row g8"><AgentFace kind="analyst" size={20} mood="up" /><span className="sm w5">Iris</span><span className="xs i3">· read 1,032 orders</span></div>
@@ -121,10 +152,10 @@ function ProductWindow() {
 }
 
 /* ---------------------------------------------------------------- content */
-const WALK = [
-  { num: "01", title: "Connect.", muted: "Shopify and Meta, a few clicks.", body: "Cleo reads your orders, products, stock and customers, and up to three years of your ad results. No names, emails or addresses are copied." },
-  { num: "02", title: "Plan.", muted: "A reason, a budget, what comes back.", body: "Iris lists the campaigns worth running today — a holiday, buyers going quiet, stock sitting — each with a budget and the profit it should leave. You change the budget and approve." },
-  { num: "03", title: "Run.", muted: "Ads on Meta, results you can check.", body: "Remy writes the ads from your real product photos. Otto puts them on Meta paused, you switch them on, and Autopilot watches spend against the orders Shopify can prove." },
+const WALK: { num: string; title: string; muted: string; body: string; who: Kind[]; you: string }[] = [
+  { num: "01", title: "Connect.", muted: "Shopify and Meta, a few clicks.", body: "Cleo reads your orders, products, stock and customers, and up to three years of your ad results. No names, emails or addresses are copied.", who: ["catalog", "analyst"], you: "You connect two accounts" },
+  { num: "02", title: "Plan.", muted: "A reason, a budget, what comes back.", body: "Iris lists the campaigns worth running today — a holiday, buyers going quiet, stock sitting — each with a budget and the profit it should leave.", who: ["analyst"], you: "You set the budget and approve" },
+  { num: "03", title: "Run.", muted: "Ads on Meta, results you can check.", body: "Remy writes the ads from your real product photos. Otto puts them on Meta paused, then watches spend against the orders Shopify can prove.", who: ["builder", "qa"], you: "You switch it on" },
 ];
 
 const AGENTS: { kind: Kind; name: string; role: string; does: string; asks: string }[] = [
@@ -145,56 +176,83 @@ const FAQ: [string, string][] = [
 ];
 
 function ScenePanel({ children }: { children: React.ReactNode }) {
-  return <div className="col g10" style={{ width: "100%", maxWidth: 460, margin: "0 auto" }}>{children}</div>;
+  return <div className="col g12" style={{ width: "100%", maxWidth: 540, margin: "0 auto" }}>{children}</div>;
 }
-
-const pill = { height: 32, padding: "0 12px 0 8px", borderRadius: 8, background: "#fff", border: "1px solid var(--line)", fontSize: 12, fontWeight: 500 };
+const paper = { background: "#fff", border: "1px solid var(--line)", borderRadius: 12 } as const;
 
 const SCENES = [
+  /* 1 · Connect — the two sources, and what is in Kaviar a few minutes later */
   <ScenePanel key="connect">
-    {([
-      ["catalog", "Cleo synced 1,032 orders and 38 products", "stock, prices and costs with them", true],
-      ["analyst", "Iris read your past ad results", "back to 2023 · 3 campaigns", true],
-      ["qa", "Otto checked the store", "163 checks · 161 pass", true],
-      [null, "You connect Shopify and Meta", "done", true],
-    ] as [Kind | null, string, string, boolean][]).map(([k, t, s, done], i) => (
-      <div key={t} className="row g10 row-in" style={css({ "--i": i, padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 })}>
-        {k ? <AgentFace kind={k} size={22} /> : <div className="av j">JN</div>}
-        <div className="col fill"><span className="sm i1 w5">{t}</span><span className="xs i3">{s}</span></div>
-        <Icon name={done ? "check-circle" : "circle"} size={18} weight={done ? "fill" : "regular"} color={done ? "#1F8A5B" : "#B7791F"} />
-      </div>
-    ))}
-  </ScenePanel>,
-  <ScenePanel key="plan">
-    {([
-      ["Black Friday is in 4 days", "Holiday", "$150", "+$652"],
-      ["Win back lapsed buyers", "Buyers going quiet", "$250", "+$622"],
-      ["380 hand creams are sitting", "Stock sitting", "$150", "+$6"],
-    ] as [string, string, string, string][]).map(([t, why, budget, profit], i) => (
-      <div key={t} className="row g12 row-in" style={css({ "--i": i, padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 })}>
-        <div className="col fill" style={{ minWidth: 0 }}><span className="sm i1 w5 ell">{t}</span><span className="xs i3">{why}</span></div>
-        <div className="col" style={{ alignItems: "flex-end" }}><span className="sm w5 tnum">{budget}</span><span className="xs tnum c-green">{profit}</span></div>
-        <span className="btn dark sm" style={{ pointerEvents: "none" }}>Approve</span>
-      </div>
-    ))}
-    <div className="row g8 row-in" style={css({ "--i": 3, padding: "8px 12px", background: "var(--tray)", borderRadius: 12 })}><AgentFace kind="analyst" size={18} /><span className="xs i2">Each campaign sells one product to one audience, with its own budget</span></div>
-  </ScenePanel>,
-  <ScenePanel key="run">
-    <div className="row g8 row-in" style={css({ "--i": 0 })}>
-      {["amber-eau-de-parfum", "gold-bottles", "duo-perfume"].map((p) => (
-        <div key={p} className="lp-thumb-ad" style={{ width: 96, height: 120 }}><Image src={`/landing/${p}.jpg`} alt="" fill sizes="96px" style={{ objectFit: "cover" }} /></div>
+    <div className="row g12 row-in" style={css({ "--i": 0, alignItems: "stretch" })}>
+      {([[<ShopifyLogo key="s" size={18} />, "Shopify", "maison-ore.myshopify.com"], [<MetaLogo key="m" size={18} />, "Meta Ads", "Maison Oré · ad account"]] as [React.ReactNode, string, string][]).map(([logo, name, sub]) => (
+        <div key={name} className="col g12 fill" style={{ ...paper, padding: 16, minWidth: 0 }}>
+          <span className="row between"><span className="row center" style={{ width: 36, height: 36, borderRadius: 8, alignItems: "center", border: "1px solid var(--line)" }}>{logo}</span><span className="pill green"><span className="dot green" />Connected</span></span>
+          <span className="col"><span className="sm w5 i1">{name}</span><span className="xs i3 ell">{sub}</span></span>
+        </div>
       ))}
-      <div className="col g6 fill" style={{ justifyContent: "center", minWidth: 0 }}>
-        <span className="sm w5 i1">3 ads approved</span><span className="xs i3">written by Remy from your photos</span>
+    </div>
+    <div className="col row-in" style={css({ "--i": 1, ...paper, padding: "4px 16px" })}>
+      {([["bag", "Orders", "a year back, and every new one", "1,032"], ["box", "Products", "prices, costs and stock", "38"], ["users", "Customers", "counted, never copied", "3,095"], ["chart-bar", "Ad results", "per ad, per day, back to 2023", "412 days"]] as [IconName, string, string, string][]).map(([ic, t, sub, n], i) => (
+        <div key={t} className="row g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+          <Icon name={ic} size={15} color="#8B8883" />
+          <span className="sm w5 i1" style={{ width: 96 }}>{t}</span><span className="xs i3 fill ell">{sub}</span><span className="sm w5 tnum">{n}</span>
+        </div>
+      ))}
+    </div>
+    <div className="row g8 row-in" style={css({ "--i": 2, padding: "8px 12px", ...paper })}><AgentFace kind="catalog" size={18} /><span className="xs i2">Cleo syncs every hour, and the moment a new order arrives</span></div>
+  </ScenePanel>,
+
+  /* 2 · Plan — the Budget screen: what is suggested, what it brings back, one press to approve */
+  <ScenePanel key="plan">
+    <div className="row g12 row-in" style={css({ "--i": 0, alignItems: "stretch" })}>
+      {([["Suggested by Iris", "$550", "3 campaigns", "#121212"], ["Likely comes back", "$2,548", "at the likely rates", null], ["Profit after costs", "+$1,280", "after goods and ads", null]] as [string, string, string, string | null][]).map(([k, v, sub, dark], i) => (
+        <div key={k} className="col g4 fill" style={{ padding: "12px 16px", borderRadius: 12, minWidth: 0, background: dark ?? "#fff", color: dark ? "#fff" : undefined, border: dark ? 0 : "1px solid var(--line)" }}>
+          <span className="xs" style={{ color: dark ? "rgba(255,255,255,.6)" : "var(--ink-3)" }}>{k}</span>
+          <span className="tnum" style={{ fontSize: 24, lineHeight: "28px", fontWeight: 500, letterSpacing: "-0.015em", color: i === 2 ? "var(--green)" : undefined }}>{v}</span>
+          <span className="xs" style={{ color: dark ? "rgba(255,255,255,.6)" : "var(--ink-3)" }}>{sub}</span>
+        </div>
+      ))}
+    </div>
+    <div className="col row-in" style={css({ "--i": 1, ...paper, padding: "4px 16px" })}>
+      {([
+        ["amber-eau-de-parfum", "Black Friday is in 4 days", "Holiday", "$150", "+$652", true],
+        ["duo-perfume", "Win back lapsed buyers", "Buyers going quiet", "$250", "+$622", false],
+        ["cream-jars", "380 hand creams are sitting", "Stock sitting", "$150", "+$6", false],
+      ] as [string, string, string, string, string, boolean][]).map(([img, t, why, budget, profit, first], i) => (
+        <div key={t} className="row g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+          <div className="thumb" style={{ width: 40, height: 40, borderRadius: 8, position: "relative" }}><Image src={`/landing/${img}.jpg`} alt="" fill sizes="40px" /></div>
+          <div className="col fill" style={{ minWidth: 0 }}><span className="sm i1 w5 ell">{t}</span><span className="xs i3">{why}</span></div>
+          <div className="col" style={{ alignItems: "flex-end" }}><span className="sm w5 tnum">{budget}</span><span className="xs tnum c-green">{profit}</span></div>
+          <span className={`btn sm${first ? " dark" : ""}`} style={{ pointerEvents: "none" }}>{first ? "Approve" : "Open"}</span>
+        </div>
+      ))}
+    </div>
+    <div className="row g8 row-in" style={css({ "--i": 2, padding: "8px 12px", ...paper })}><AgentFace kind="analyst" size={18} /><span className="xs i2">Each campaign sells one product to one audience, with its own budget</span></div>
+  </ScenePanel>,
+
+  /* 3 · Run — the ad as it runs, the switch, and what it brought back */
+  <ScenePanel key="run">
+    <div className="row g12" style={{ alignItems: "stretch" }}>
+      <div className="col row-in" style={css({ "--i": 0, ...paper, width: 216, flexShrink: 0, overflow: "hidden" })}>
+        <span className="row g8" style={{ padding: "8px 12px" }}>
+          <span className="thumb" style={{ width: 24, height: 24, borderRadius: 99, position: "relative" }}><Image src="/landing/amber-eau-de-parfum.jpg" alt="" fill sizes="24px" /></span>
+          <span className="col" style={{ lineHeight: "14px" }}><span className="xs w5 i1">Maison Oré</span><span className="i3" style={{ fontSize: 11 }}>Sponsored</span></span>
+        </span>
+        <span className="xs i1" style={{ padding: "0 12px 8px" }}>Still thinking about it? Amber No. 3 is back, and yours ships today</span>
+        <div style={{ position: "relative", height: 196 }}><Image src="/landing/duo-perfume.jpg" alt="An ad made from the brand’s own product photo" fill sizes="216px" style={{ objectFit: "cover" }} /></div>
+        <span className="row between" style={{ padding: "8px 12px", background: "var(--tray)" }}><span className="col" style={{ lineHeight: "14px" }}><span className="i3" style={{ fontSize: 11 }}>maison-ore.com</span><span className="xs w5 i1 ell">Amber No. 3</span></span><span className="btn sm" style={{ pointerEvents: "none" }}>Shop now</span></span>
       </div>
-    </div>
-    <div className="col g4 row-in" style={css({ "--i": 1, padding: "12px 16px", background: "#fff", border: "1px solid var(--line)", borderRadius: 12 })}>
-      <span className="row between"><span className="sm w5 i1">On Meta · paused</span><span className="pill blue"><span className="dot blue" />Ready to switch on</span></span>
-      <span className="xs i3">$18 a day for 14 days, then Meta stops it</span>
-    </div>
-    <div className="row g8 row-in" style={css({ "--i": 2, flexWrap: "wrap" })}>
-      <span className="row g6" style={pill}><AgentFace kind="qa" size={18} />Otto watches the spend</span>
-      <span className="pill green">Verified by Shopify orders</span>
+      <div className="col g12 fill" style={{ minWidth: 0 }}>
+        <div className="col g8 row-in" style={css({ "--i": 1, ...paper, padding: 16 })}>
+          <span className="row between"><span className="sm w5 i1">On Meta</span><span className="switch on"><span className="k" /></span></span>
+          <span className="xs i3">Running · $18 a day · Meta stops it in 9 days</span>
+        </div>
+        <div className="col g8 row-in" style={css({ "--i": 2, ...paper, padding: 16 })}>
+          <span className="xs i3">Day 5 of 14</span>
+          {([["Spent", "$90"], ["Orders Shopify can prove", "6"], ["Came back", "$522"]] as [string, string][]).map(([k, v]) => <span key={k} className="row between sm"><span className="i2">{k}</span><span className="w5 tnum i1">{v}</span></span>)}
+        </div>
+        <div className="row g8 row-in" style={css({ "--i": 3, padding: "8px 12px", ...paper })}><AgentFace kind="qa" size={18} /><span className="xs i2">Otto pauses it if it starts losing money</span></div>
+      </div>
     </div>
   </ScenePanel>,
 ];
@@ -342,27 +400,24 @@ export default function LandingPage() {
       </NavShell>
 
       <main>
-        <section id="hero" className="lp-hero2">
-          <div className="lp-wrap lp-hero2-in">
-            <div className="lp-hero2-text">
-              <h1 className="lp-h1" data-reveal>
-                Your Shopify brand’s ads, planned,{" "}
-                <span className="lp-sel">made<span className="box" /><span className="hd sel-tl" /><span className="hd sel-tr" /><span className="hd sel-bl" /><span className="hd sel-br" />
-                  <span className="tag"><span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={13} /></span>Remy</span>
-                </span>{" "}and run for you
-              </h1>
-              <p className="lp-lead" data-reveal style={css({ "--i": 1 })}>Kaviar reads your orders, stock and customers, works out what is worth advertising and what it should bring back, makes the ads from your real product photos and runs them on Meta. Nothing is spent until you approve it.</p>
-              <div className="row g20" data-reveal style={css({ "--i": 2, flexWrap: "wrap" })}>
-                <a href="#contact" className="btn dark lg">Book a call<span className="arr">→</span></a>
-                <a href="#how" className="row g6 t w5 i1">See how it works<Icon name="arrow-r" size={13} /></a>
-              </div>
-              <div className="row g8" data-reveal style={css({ "--i": 3 })}>
-                <div className="row g4">{(["analyst", "catalog", "builder", "qa"] as const).map((k) => <AgentFace key={k} kind={k} size={22} />)}</div>
-                <span className="sm i3">Iris, Cleo, Remy and Otto do the work. You decide</span>
-              </div>
-            </div>
-            <div className="lp-stage" data-observe><div className="lp-stage-box"><ProductWindow /></div></div>
+        <section id="hero" className="lp-wrap lp-hero" style={{ position: "relative" }}>
+          <Cursor kind="analyst" name="Iris" color="#6A8FD6" style={{ left: "6%", top: 150 }} />
+          <Cursor kind="catalog" name="Cleo" color="#22A46E" style={css({ right: "7%", top: 118, animationDelay: "-4s" })} />
+          <Cursor kind="qa" name="Otto" color="#EB7A3C" style={css({ right: "12%", top: 330, animationDelay: "-8s" })} />
+
+          <h1 className="lp-h1" data-reveal style={css({ "--i": 1 })}>
+            Your Shopify brand’s ads, planned,{" "}
+            <span className="lp-sel">made<span className="box" /><span className="hd sel-tl" /><span className="hd sel-tr" /><span className="hd sel-bl" /><span className="hd sel-br" />
+              <span className="tag"><span style={{ width: 16, height: 16, borderRadius: 99, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><AgentFace kind="builder" size={13} /></span>Remy</span>
+            </span>{" "}and run from your own store data
+          </h1>
+          <p className="lp-lead" data-reveal style={css({ "--i": 2 })}>Kaviar reads your orders, stock and customers, works out what is worth advertising and what it should bring back, makes the ads from your real product photos and runs them on Meta. Nothing is spent until you approve it.</p>
+          <div data-reveal style={css({ "--i": 3, width: "100%", display: "flex", justifyContent: "center" })}><HeroBrief /></div>
+          <div className="row g8" data-reveal style={css({ "--i": 4, justifyContent: "center" })}>
+            <div className="row g4">{(["analyst", "catalog", "builder", "qa"] as const).map((k) => <AgentFace key={k} kind={k} size={22} />)}</div>
+            <span className="sm i3">Iris, Cleo, Remy and Otto do the work. You decide</span>
           </div>
+          <div className="lp-stage" data-observe><div className="lp-stage-box"><ProductWindow /></div></div>
         </section>
 
         <section id="today" className="lp-section white">
@@ -395,7 +450,8 @@ export default function LandingPage() {
               <span className="lp-kicker">How it works</span>
               <h2 className="lp-h2">From a connected store to ads that are running</h2>
             </div>
-            <Walkthrough steps={WALK} scenes={SCENES} />
+            <Walkthrough steps={WALK.map(({ who, ...w }) => ({ ...w, who: who.map((k) => <AgentFace key={k} kind={k} size={20} />) }))} scenes={SCENES} />
+            <p className="xs i3" data-reveal style={{ marginTop: 16 }}>Figures from an example fragrance brand</p>
           </div>
         </section>
 
