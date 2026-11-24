@@ -4,8 +4,19 @@ import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
 import { addRival, removeRival, runBench } from "@/lib/seo/bench";
 import { addOwnPlan, getPlans, savePlanChoice } from "@/lib/growth/plans";
+import { runAnswers } from "@/lib/seo/answers";
+import { aiReady } from "@/lib/ai/client";
 
 const fresh = (slug: string) => { for (const p of ["competitors", "seo", "today"]) revalidatePath(`/brands/${slug}/${p}`); };
+
+/** Ask the assistant the brand's buyer questions and count who it names. About a minute; the same questions as last time. */
+export async function askAssistant(slug: string): Promise<{ error?: string }> {
+  const me = await requireMember();
+  if (!aiReady()) return { error: "The assistant isn’t switched on for this workspace yet" };
+  const brand = await getBrand(slug);
+  try { const r = await runAnswers({ id: brand.id, name: brand.name, category: brand.category ?? null }, me.name); if (!r.error) revalidatePath(`/brands/${slug}/competitors`); return r; }
+  catch (e) { console.error("ai answers", (e as Error).message.slice(0, 200)); return { error: "The assistant couldn’t be asked just now — try again" }; }
+}
 
 /** The products a campaign can be started for — the same ones "New campaign" offers. */
 export async function versionProducts(slug: string): Promise<{ title: string; price: number; stock: number; image: string | null }[]> {

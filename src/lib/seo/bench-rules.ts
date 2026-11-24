@@ -17,7 +17,7 @@ export type ProductInfo = { url: string; name: string | null; text: string | nul
 export type Point = { at: string; you: Record<"seo" | "ai" | "speed", number | null>; avg: Record<"seo" | "ai" | "speed", number | null> };
 export type Bench = { at: string; sites: SiteRead[]; history?: Point[] }; // history: one point per read, so a trend can be drawn once there are a few
 
-export const PUBLIC = { pages: 3, mainWords: 150 } as const; // product pages read on a competitor's site; and, only where a site publishes no product text, how many words the page itself must carry
+export const PUBLIC = { pages: 8, mainWords: 150 } as const; // product pages read on a competitor's site; and, only where a site publishes no product text, how many words the page itself must carry
 const plain = (s: string) => s.replace(/&amp;/g, "&").replace(/&#0?39;|&apos;|&rsquo;/g, "’").replace(/&quot;/g, "\"").replace(/&nbsp;/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
 const attr = (tag: string, name: string) => new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag)?.slice(2).find((x) => x != null) ?? null;
 

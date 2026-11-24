@@ -60,3 +60,31 @@ export async function ask<S extends z.ZodType>(agent: Agent, opts: {
     return null;
   }
 }
+
+/**
+ * A plain answer to a shopper's question, with web search — the way an AI assistant answers it. Returns the answer's words and the
+ * pages it linked. Used to see which brands an assistant names; the question never mentions a brand.
+ */
+export async function answer(question: string, country = "US"): Promise<{ text: string; cited: string[] } | null> {
+  if (!aiReady()) return null;
+  const tools: Anthropic.Beta.BetaToolUnion[] = [{ type: "web_search_20260209", name: "web_search", max_uses: 3, user_location: { type: "approximate", country } }];
+  let messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: question }];
+  const cited: string[] = [], parts: string[] = [];
+  try {
+    for (let turn = 0; turn < 3; turn++) {
+      const msg = await api().beta.messages.stream({
+        model: AGENTS.kaviar.model, max_tokens: 2000, tools, messages, output_config: { effort: "low" },
+        system: "You are an AI assistant answering a shopper. Search the web, then recommend specific products by brand and name, with a line on why each fits. Keep it short. Do not ask questions back.",
+        betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
+      }).finalMessage();
+      for (const b of msg.content) if (b.type === "text") {
+        parts.push(b.text);
+        for (const x of b.citations ?? []) if (x.type === "web_search_result_location" && !cited.includes(x.url)) cited.push(x.url);
+      }
+      if (msg.stop_reason !== "pause_turn") break;
+      messages = [...messages, { role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] }];
+    }
+  } catch (e) { console.error("[ai:answer]", (e as Error).message?.slice(0, 160)); return null; }
+  const text = parts.join("").trim();
+  return text.length > 40 ? { text, cited } : null;
+}

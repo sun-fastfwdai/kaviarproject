@@ -9,6 +9,8 @@ import { show, stand, VERDICT_NAME, type Measure, type Rival, type Verdict } fro
 import type { RivalAdLine } from "@/lib/seo/bench";
 import { addCompetitor, readRivals, removeCompetitor } from "./actions";
 import { KeptAds } from "./kept";
+import { AiAnswers } from "./answers";
+import type { AnswerRun } from "@/lib/seo/answers-rules";
 import type { Category } from "@/lib/research/category";
 
 /**
@@ -21,7 +23,7 @@ type RowT = Measure & { you: number | null; each: (number | null)[] };
 type Props = {
   slug: string; brand: string; own: string | null; rivals: Rival[]; checked: string | null; you: Site | null; sites: Site[]; rows: RowT[];
   basis: string | null; storeHref: string; // basis: who was read how, for the tooltip
-  ads: (RivalAdLine & { library: string })[]; ownAds: { ads: number; new30: number }; adsHref: string; uses: Category | null; angles: { name: string; share: number; example: string }[];
+  ads: (RivalAdLine & { library: string })[]; ownAds: { ads: number; new30: number }; adsHref: string; uses: Category | null; answers: AnswerRun[]; angles: { name: string; share: number; example: string }[];
 };
 const DIM = "rgba(255,255,255,.55)";
 const TONE: Record<Verdict, { fg: string; bg: string; bar: string }> = { ahead: { fg: "#1F7A52", bg: "#E4F4EB", bar: "#34C77B" }, level: { fg: "#fff", bg: "rgba(255,255,255,.16)", bar: "#C9C5BD" }, behind: { fg: "#B4532A", bg: "#FBEDE6", bar: "#FF8A5C" } };
@@ -49,7 +51,7 @@ function Pair({ label, pill, you, they, theyName, max, hint }: { label: string; 
 }
 
 const when = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: "UTC" }) : "");
-export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, uses, angles, basis, storeHref }: Props) {
+export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites, rows, ads, ownAds, adsHref, uses, answers, angles, basis, storeHref }: Props) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [doing, setDoing] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
   const behind = rows.map((r) => ({ r, s: st(r) })).filter((x) => x.s.verdict === "behind"), names = (v: Verdict) => head.filter((r) => st(r).verdict === v).map((r) => r.name);
   const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]);
   const theyName = one >= 0 ? sites[one].name : "Their average";
-  const line = !checked ? `See where ${brand} stands` : !readN ? "No competitor could be read" : names("behind").length ? `Behind on ${list(names("behind"))}` : names("ahead").length ? `Ahead on ${list(names("ahead"))}` : one >= 0 ? `Level with ${sites[one].name}` : "Level with your competitors";
+  const line = !checked ? `See where ${brand} stands` : !readN ? "No competitor could be read" : names("behind").length ? `Behind on page checks: ${list(names("behind"))}` : names("ahead").length ? `Ahead on page checks: ${list(names("ahead"))}` : one >= 0 ? `Level with ${sites[one].name}` : "Level with your competitors";
   const pill = (dark: boolean) => ({ height: 38, padding: "0 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, flexShrink: 0, background: dark ? "#fff" : "rgba(255,255,255,.12)", color: dark ? "#121212" : "#fff" }) as const;
   const all: (Site & { me?: boolean })[] = checked ? [...(you ? [{ ...you, me: true }] : []), ...sites] : rivals.map((r) => ({ name: r.name, url: r.url, read: false, note: "Not read yet" }));
   const cols = `minmax(170px, 1.6fr) repeat(${TABLE.length}, minmax(70px, 1fr)) 30px`;
@@ -85,7 +87,7 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
               <div className="col g4">
                 <span style={{ fontSize: 12, fontWeight: 500, color: DIM }}>{checked ? `You against ${one >= 0 ? sites[one].name : `${readN} competitor${readN === 1 ? "" : "s"}`}` : "Competitors"}</span>
                 <span style={{ fontSize: 30, lineHeight: "36px", fontWeight: 600, letterSpacing: "-0.015em" }}>{line}</span>
-                <span style={{ fontSize: 13, color: DIM }}>{checked ? `Measured by Kaviar on each site · ${checked}` : own ? "Kaviar opens each site the way Google does. About two minutes." : "This brand has no website Kaviar can open yet."}</span>
+                <span style={{ fontSize: 13, color: DIM }}>{checked ? `Kaviar’s own checks of each site’s pages, not rankings · ${checked}` : own ? "Kaviar opens each site the way Google does. About two minutes." : "This brand has no website Kaviar can open yet."}</span>
               </div>
             </div>
             <div className="row g8" style={{ flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -150,6 +152,9 @@ export function CompetitorsView({ slug, brand, own, rivals, checked, you, sites,
                 </Link>))}</>}
           </div>}
         </div>
+
+        {/* ---- whether an assistant recommends them: a result, where the checks above are a set-up */}
+        <AiAnswers slug={slug} runs={answers} />
 
         {/* ---- what each runs on Meta */}
         <div className="card" style={{ padding: "14px 16px 8px" }}>
