@@ -11,8 +11,8 @@ import { Bento } from "@/components/bento";
 import { ActionCard, GROUP_TONE as TONE } from "./action-card";
 
 /**
- * Today, as a dashboard. Top: the day and Autopilot's controls. Then the board — the month in blocks. Then
- * what is ready for action: up to four cards, each one decision with its evidence as a picture and one button. Nothing is only there
+ * Today, as a dashboard. Top: the day and Autopilot's controls, then what the agents finished. Then the board — the month in
+ * blocks — and what is ready for action: up to four cards, each one decision with its evidence as a picture and one button. Nothing is only there
  * to be read: every number opens where it comes from.
  */
 
@@ -27,35 +27,26 @@ export function TodayView({ slug, t, day }: { slug: string; t: Today; day: strin
   const total = t.actions.length + t.later.length;
   const Go = (a: Action) => <Link className="btn sm" href={a.href ?? base} style={{ flexShrink: 0 }}>{a.cta}<Icon name="arrow-r" size={11} /></Link>;
 
-  return (
-    <div className="scroll" style={{ padding: "22px 24px 48px" }}>
-      <div className="col g16">
-        {/* ---- the day and the agents at work: Autopilot is switched, run and answered from here */}
-        <div className="row between g16" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div className="col g2" style={{ minWidth: 0 }}>
-            <span className="xs i3" style={{ fontWeight: 500 }}>Today</span>
-            <span style={{ fontSize: 28, lineHeight: "36px", fontWeight: 500, letterSpacing: "-0.015em" }}>{day}</span>
-            {t.pulse && <span className="sm i2 tnum" title="The last full day, against the same day a week earlier">Yesterday <b className="i1 w5">{t.pulse.sales}</b> from {t.pulse.orders} order{t.pulse.orders === 1 ? "" : "s"}
-              {t.pulse.delta && <span style={{ color: t.pulse.delta.good ? "var(--green)" : t.pulse.delta.good === false ? "var(--red)" : "var(--ink-3)", fontWeight: 600 }}> {t.pulse.delta.dir === "up" ? "↗" : t.pulse.delta.dir === "down" ? "↘" : "→"} {t.pulse.delta.text}</span>}{t.pulse.delta && <span className="i3"> on last week</span>}</span>}
-            {t.more.note && <span className="row top g8 sm i2" style={{ maxWidth: 720, paddingTop: 4 }}><AgentFace kind="analyst" size={18} /><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }} title={t.more.note}>{t.more.note}</span></span>}
-          </div>
-          <div className="row g10 rise" style={{ padding: "8px 8px 8px 12px", borderRadius: 10, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", flexWrap: "wrap" }}
-            title={`${t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · ${t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}${t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}`}>
-            <span className="row" aria-hidden>{(["analyst", "builder", "qa", "catalog"] as const).map((k, i) => <span key={k} style={{ marginLeft: i ? -7 : 0, borderRadius: 99, boxShadow: "0 0 0 2px #fff", display: "flex" }}><AgentFace kind={k} size={24} mood="happy" /></span>)}</span>
-            <span className="col" style={{ lineHeight: 1.2 }}><span className="sm w5">Autopilot</span><span className="xs i3">{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"}</span></span>
-            <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
-              {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
-            </div>
-            <button type="button" className="btn sm" style={{ borderRadius: 99 }} disabled={busy} onClick={() => go("check", () => checkNow(slug))}>{doing === "check" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Check now</button>
-            {t.pilot.waiting > 0 && <Link href={`${base}/performance#autopilot`} className="btn dark sm" style={{ borderRadius: 99 }}>Decide {t.pilot.waiting}<Icon name="arrow-r" size={11} color="#fff" /></Link>}
-          </div>
-        </div>
-
-        {/* ---- the board: the month in blocks — sales, the numbers around it, campaigns, customers, stock and the store's score */}
-        <Bento tiles={t.status} />
-
-        {/* ---- the month in the store, a block per source: what sells, where it comes from, when, and what competitors run */}
-        {(t.more.sellers.length > 0 || t.more.channels.length > 0 || t.more.week.length > 0 || t.more.rivals) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+  // A brand with little to chart yet opens on its one next step; the numbers that are still empty are left out.
+  const lead = t.quiet ? t.actions[0] ?? null : null, cards = lead ? t.actions.slice(1) : t.actions, skip = lead ? 1 : 0;
+  const empty = (v: string) => /^(\$0|0|0×|0%|—|–|-)$/.test(v.trim());
+  const board = <Bento tiles={t.quiet ? t.status.filter((x) => x.kind === "score" || !empty(x.value)) : t.status} />;
+  // What the agents finished: only things recorded as done, each with where to see it.
+  const doneBlock = t.done.length > 0 && (
+    <div className="col g8">
+      <span className="xs i3" style={{ fontWeight: 500 }}>Done for you · last 7 days</span>
+      <div className="card" style={{ padding: "0 16px" }}>
+        {t.done.map((d, i) => (
+          <div key={`${d.at}-${i}`} className="row g12" style={{ padding: "12px 0", borderTop: i ? "1px solid var(--line)" : 0 }}>
+            <AgentFace kind={d.who} size={22} mood="happy" />
+            <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1 ell">{d.text}</span>{d.sub && <span className="xs i3 ell" title={d.sub}>{d.sub}</span>}</div>
+            <span className="xs i3 tnum" style={{ flexShrink: 0 }}>{d.when}</span>
+            <Link className="btn sm" href={d.href} style={{ flexShrink: 0 }}>Open<Icon name="arrow-r" size={11} /></Link>
+          </div>))}
+      </div>
+    </div>);
+  // The month in the store, a block per source: what sells, where it comes from, when, and what competitors run.
+  const blocks = (t.more.sellers.length > 0 || t.more.channels.length > 0 || t.more.week.length > 0 || t.more.rivals) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
           {t.more.sellers.length > 0 && <Link href={`${base}/shopify?tab=products`} className="bt rise" style={{ padding: "12px 16px 12px", gap: 8, ["--i" as string]: 10 }}>
             <span className="row between g8"><span style={{ fontSize: 13, color: "var(--ink-2)" }}>Best sellers · 30 days</span><Icon name="bag" size={15} color="#8B8883" /></span>
             {t.more.sellers.map((x) => (
@@ -88,12 +79,11 @@ export function TodayView({ slug, t, day }: { slug: string; t: Today; day: strin
             <span className="xs i3 tnum">{t.more.rivals.new30.toLocaleString("en-US")} started in the last 30 days</span>
             {t.more.rivals.top && <span className="xs" style={{ marginTop: "auto", padding: "4px 8px", borderRadius: 8, background: "#fff", alignSelf: "flex-start", maxWidth: "100%" }} title="The message most of their ads lead with">Most say “{t.more.rivals.top}”</span>}
           </Link>}
-        </div>}
-
-        {/* ---- ready for action: each decision with its evidence and one button */}
-        {total > 0 ? <div className="col g10">
+        </div>;
+  // Ready for action: each decision with its evidence and one button.
+  const ready = total > 0 ? <div className="col g10">
           <span className="xs i3" style={{ fontWeight: 500 }}>Ready for action</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{t.actions.map((a, i) => <div key={a.key} className="rise" style={{ display: "flex", minWidth: 0, ["--i" as string]: i + 3 }}><ActionCard slug={slug} a={a} n={i + 1} primary={i === 0} /></div>)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 12 }}>{cards.map((a, i) => <div key={a.key} className="rise" style={{ display: "flex", minWidth: 0, ["--i" as string]: i + 3 }}><ActionCard slug={slug} a={a} n={i + 1 + skip} primary={i === 0 && !lead} /></div>)}</div>
           {t.later.length > 0 && <div className="card" style={{ padding: "0 16px" }}>
             {more && t.later.map((a, i) => (
               <div key={a.key} className="row g12" style={{ padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
@@ -109,7 +99,38 @@ export function TodayView({ slug, t, day }: { slug: string; t: Today; day: strin
           </div>}
         </div> : (
           <div className="row g12" style={{ padding: 22, background: "#fff", borderRadius: 20, boxShadow: "0 0 0 1px var(--line)" }}><AgentFace kind="catalog" size={36} mood="happy" /><span className="col"><span style={{ fontSize: 20, fontWeight: 600 }}>Nothing needs you today</span><span className="sm i3">Kaviar is watching stock, ads and orders</span></span></div>
-        )}
+        );
+
+  return (
+    <div className="scroll" style={{ padding: "22px 24px 48px" }}>
+      <div className="col g16">
+        {/* ---- the day and the agents at work: Autopilot is switched, run and answered from here */}
+        <div className="row between g16" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="col g2" style={{ minWidth: 0 }}>
+            <span className="xs i3" style={{ fontWeight: 500 }}>Today</span>
+            <span style={{ fontSize: 28, lineHeight: "36px", fontWeight: 500, letterSpacing: "-0.015em" }}>{day}</span>
+            {t.pulse && <span className="sm i2 tnum" title="The last full day, against the same day a week earlier">Yesterday <b className="i1 w5">{t.pulse.sales}</b> from {t.pulse.orders} order{t.pulse.orders === 1 ? "" : "s"}
+              {t.pulse.delta && <span style={{ color: t.pulse.delta.good ? "var(--green)" : t.pulse.delta.good === false ? "var(--red)" : "var(--ink-3)", fontWeight: 600 }}> {t.pulse.delta.dir === "up" ? "↗" : t.pulse.delta.dir === "down" ? "↘" : "→"} {t.pulse.delta.text}</span>}{t.pulse.delta && <span className="i3"> on last week</span>}</span>}
+            {t.more.note && <span className="row top g8 sm i2" style={{ maxWidth: 720, paddingTop: 4 }}><AgentFace kind="analyst" size={18} /><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }} title={t.more.note}>{t.more.note}</span></span>}
+          </div>
+          <div className="row g10 rise" style={{ padding: "8px 8px 8px 12px", borderRadius: 10, background: "#fff", boxShadow: "0 0 0 1px var(--line), 0 1px 2px rgba(18,18,18,.04)", flexWrap: "wrap" }}
+            title={`${t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"} · ${t.pilot.watched.campaigns ? `${t.pilot.watched.campaigns} campaign${t.pilot.watched.campaigns === 1 ? "" : "s"}, ${t.pilot.watched.ads} ads` : `orders and stock on ${t.pilot.watched.products} products`}${t.store ? ` · the store’s ${t.store.open ? `${t.store.open} open fixes` : "search listing"}` : ""}`}>
+            <span className="row" aria-hidden>{(["analyst", "builder", "qa", "catalog"] as const).map((k, i) => <span key={k} style={{ marginLeft: i ? -7 : 0, borderRadius: 99, boxShadow: "0 0 0 2px #fff", display: "flex" }}><AgentFace kind={k} size={24} mood="happy" /></span>)}</span>
+            <span className="col" style={{ lineHeight: 1.2 }}><span className="sm w5">Autopilot</span><span className="xs i3">{t.pilot.last ? `Checked ${t.pilot.last}` : "First check within the hour"}</span></span>
+            <div className="seg" role="radiogroup" aria-label="How much Autopilot may decide alone">
+              {(Object.keys(MODES) as Mode[]).map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} disabled={busy} className={`o${mode === m ? " on" : ""}`} onClick={() => { setM(m); go("mode", () => setMode(slug, m)); }}>{MODES[m].name}</button>)}
+            </div>
+            <button type="button" className="btn sm" style={{ borderRadius: 99 }} disabled={busy} onClick={() => go("check", () => checkNow(slug))}>{doing === "check" ? <Icon name="spinner" size={12} className="spin" /> : <Icon name="refresh" size={12} />}Check now</button>
+            {t.pilot.waiting > 0 && <Link href={`${base}/performance#autopilot`} className="btn dark sm" style={{ borderRadius: 99 }}>Decide {t.pilot.waiting}<Icon name="arrow-r" size={11} color="#fff" /></Link>}
+          </div>
+        </div>
+
+        {lead && <div className="col g8">
+          <span className="xs i3" style={{ fontWeight: 500 }}>Your next step</span>
+          <div className="rise" style={{ display: "flex", minWidth: 0 }}><ActionCard slug={slug} a={lead} n={1} primary /></div>
+        </div>}
+        {doneBlock}
+        {t.quiet ? <>{cards.length + t.later.length > 0 && ready}{board}{blocks}</> : <>{board}{blocks}{ready}</>}
 
       </div>
     </div>

@@ -12,6 +12,7 @@ import { planData } from "./plan-data";
 import { currentAudit, getStore, storeWaiting } from "../seo/run";
 import { benchGaps } from "../seo/bench";
 import { getPlans } from "./plans";
+import { doneFor, type Done } from "./done";
 import { channels } from "../queries/growth";
 import { products } from "../queries/shop";
 import { CHANNEL_COLOR, CHANNEL_LABEL } from "../sync/attribution";
@@ -56,6 +57,9 @@ export type Today = {
   flow: FlowStep[]; now: FlowKey; // the six steps and which one the top action belongs to
   pilot: { mode: Mode; last: string | null; watched: Run["watched"]; waiting: number; toSwitch: number };
   store: { open: number; canFix: boolean } | null; // fixes waiting on the Shopify store itself (SEO & AI search)
+  done: Done[]; // what the agents finished in the last 7 days, each with where to see it
+  /** A brand with little to chart yet: under 10 orders in 30 days and no ad spend. Today then leads with its one next step. */
+  quiet: boolean;
 };
 const STEP: Partial<Record<Action["group"], FlowKey>> = { Plan: "plan", Decide: "plan", Create: "create", Review: "create", Test: "test", Launch: "launch", Improve: "learn" };
 
@@ -199,7 +203,9 @@ export async function today(brand: { id: string; currency: string | null; timezo
           { label: "Speed", value: sc.speed != null ? String(sc.speed) : speed != null ? `${speed}%` : "–", you: speed, ...vs("speed") }]; })(),
       ...(st.length ? { tag: at("behind") ? { text: `Behind on ${NAME[at("behind")!]}`, tone: "bad" as const } : at("ahead") ? { text: `Ahead on ${NAME[at("ahead")!]}`, tone: "good" as const } : { text: "Level with competitors", tone: "flat" as const } } : {}) });
   }
-  return { status, pulse, more, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now,
+  const done = await doneFor(brand.id, base, plans?.list ?? null).catch(() => [] as Done[]);
+  const quiet = ord < 10 && sp === 0;
+  return { status, pulse, more, actions: sorted.slice(0, 4), later: sorted.slice(4), currency, flow, now, done, quiet,
     pilot: { mode: pilot.mode, last: pilot.runs[0] ? ago(new Date(pilot.runs[0].at)) : null, watched, waiting: changes.length, toSwitch },
     store: shop ? { open: shop.open, canFix: Boolean(shopAccess?.canFix) } : null,
     plan: p.rows.length ? { approved, budget, weeks: Math.round(days / 7), lo: lo.revenue, mid: mid.revenue, hi: hi.revenue, profit: mid.profit, campaigns: p.rows.length, level: levelOf(d.history), product: sells, image: d.products.find((x) => x.title === sells)?.image ?? null } : null };
