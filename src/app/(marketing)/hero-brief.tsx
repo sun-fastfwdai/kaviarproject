@@ -3,15 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { sendBrief } from "./motion";
 
 const PHRASES = [
-  "Move our store from Cafe24 to Shopify before the holidays…",
   "Win back customers who haven’t ordered in 60 days…",
   "Which of our Meta ads actually sells the Peony Duo?",
-  "Launch a new Shopify store for our skincare line…",
+  "We have 380 hand creams sitting. What should we do?",
+  "What are our competitors running that we aren’t?",
 ];
 const CHIPS: [string, string][] = [
-  ["Move to Shopify", "We’re on Cafe24 and want to move to Shopify without losing sales."],
-  ["New store", "We need a new Shopify store for our brand, built and ready to launch."],
-  ["Grow with Meta ads", "We run Meta ads and want to know what really sells, then grow it."],
+  ["Plan our ads", "We sell on Shopify and want to know what is worth advertising, and what it should bring back."],
+  ["Check our Meta ads", "We run Meta ads and want to see what really sells, then put the budget there."],
+  ["Read our competitors", "We want to see what our competitors keep running on Meta and what they dropped."],
 ];
 
 /** Instant/Relume-style brief box: a typewriter suggests what to write; chips fill it; the CTA carries it to the form. */
