@@ -64,7 +64,8 @@ export function useAds({ slug, planKey, title, brief, ads, count, onWork, onErro
 export type AdsMaker = ReturnType<typeof useAds>;
 
 const label = { fontSize: 12, fontWeight: 500 } as const;
-export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, batchId, heading = "Its ads", extra, placed, plain = false }: {
+export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, product, batchId, heading = "Its ads", extra, placed, plain = false }: {
+  product?: string | null; // what the campaign sells — Shoots opens on it
   plain?: boolean; // only the ads and their yes/no — the studio's thread has its own place to say what Remy works from
   m: AdsMaker; base: string; stage: Stage; locked: boolean; ads: PlanAd[]; brief: PlanExtras["brief"]; productPhoto: string | null; batchId: string | null; heading?: string; extra?: React.ReactNode;
   placed?: Record<string, string>; // the plan's ads already on Meta, by ad
@@ -87,6 +88,8 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
           {!Object.keys(placed ?? {}).length && ads.length > 0 && (designed < ads.length
             ? <button type="button" className="btn sm" disabled={m.busy} onClick={() => m.design(true)} title="Remy sets each ad’s words on its picture, a different layout on each">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}Design the pictures</button>
             : <button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.design(false)} title="Put each ad’s plain picture back">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : null}Use plain pictures</button>)}
+          {/* the pictures are made in the Creative studio: Shoots takes these ads and the product's own photo, and sends the pictures back here */}
+          {batchId && !Object.keys(placed ?? {}).length && ads.length > 0 && <Link className="btn dark sm" href={`${base}/creative/shoots?batch=${batchId}&layout=static&n=${Math.min(9, ads.length)}&plan=1${product ? `&product=${encodeURIComponent(product)}` : ""}`} title="Pick a look, and the studio shoots your real product in it — one picture for each ad. Each picture is charged by the image service."><Icon name="image" size={12} color="#fff" />Shoot the pictures</Link>}
           {batchId && <Link className="btn quiet sm" href={`${base}/creative/${batchId}`} title="Change the words or the picture">Edit the ads<Icon name="arrow-r" size={11} /></Link>}
           {extra}
         </span>

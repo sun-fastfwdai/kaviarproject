@@ -116,6 +116,23 @@ export async function avgColor(buf: Buffer, box: { x: number; y: number; w: numb
   finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
 }
 
+/** A small RGBA copy of a picture (`width` wide), for reading what is in it: its background, where the product sits. */
+export async function smallRgba(buf: Buffer, width = 160): Promise<{ px: Uint8Array; w: number; h: number; ar: number } | null> {
+  const size = await imageSize(buf);
+  if (!size) return null;
+  const w = width, h = Math.max(8, Math.round((width * size.h) / size.w));
+  const dir = await mkdtemp(join(tmpdir(), "aud-a-"));
+  try {
+    const bin = await ffmpegPath();
+    const inp = join(dir, "in"), out = join(dir, "s.rgba");
+    await writeFile(inp, buf);
+    await run(bin, ["-hide_banner", "-y", "-i", inp, "-vf", `format=rgba,scale=${w}:${h}:flags=area`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgba", out], 30_000);
+    const px = await readFile(out);
+    return px.length >= w * h * 4 ? { px: new Uint8Array(px.buffer, px.byteOffset, px.length), w, h, ar: size.w / size.h } : null;
+  } catch { return null; }
+  finally { await rm(dir, { recursive: true, force: true }).catch(() => undefined); }
+}
+
 /** A list thumbnail: pictures shrunk to `width`, videos as a frame half a second in. */
 export async function thumbnail(buf: Buffer, mime: string, width = 480): Promise<Buffer | null> {
   if (mime.startsWith("image/")) return toJpeg(buf, width);

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import type { AdDesign, Layer } from "../db/schema";
 import { cutoutPng, loadImage } from "../audience/media";
-import { behindBand } from "./cutout";
+import { behindBand, placeProduct } from "./cutout";
 
 /**
  * Draws an ad design (the Editor's layers over a photo) to a PNG on the server — the same layout rules as the Editor's canvas,
@@ -47,19 +47,32 @@ export async function renderDesign(brandId: string, d: AdDesign, size: keyof typ
   const uri = (x: { media: string; data: string } | null) => (x ? `data:${x.media};base64,${x.data}` : null);
   const bgUri = uri(bg);
   // Type set behind the product: the photo's subject (its backdrop made see-through) is drawn again over those layers.
-  const band = bg ? behindBand(d.layers, W, H) : null;
+  // A product shot set in its own box: the type behind it is drawn first, then the product, then the rest — no cut-out needed.
+  const fit = bg && d.fit ? d.fit : null;
+  const band = bg && !fit ? behindBand(d.layers, W, H) : null;
   const cut = band ? await cutoutPng(Buffer.from(bg!.data, "base64")).catch(() => null) : null;
-  const order = cut ? [...d.layers.filter((l) => l.behind), ...d.layers.filter((l) => !l.behind)] : d.layers;
-  const firstFront = cut ? order.findIndex((l) => !l.behind) : -1;
+  const order = cut || fit ? [...d.layers.filter((l) => l.behind), ...d.layers.filter((l) => !l.behind)] : d.layers;
+  const firstFront = cut || fit ? order.findIndex((l) => !l.behind) : -1;
+  const at = fit ? placeProduct(fit, d.crop, d.crop?.ar ?? 1, W, H) : null;
+  const product = at ? (
+    <div key="product" style={{ position: "absolute", left: 0, top: 0, width: W, height: H, display: "flex" }}>
+      {/* the floor it stands on */}
+      <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.1, top: at.clip.top + at.clip.height - at.clip.width * 0.09, width: at.clip.width * 1.2, height: at.clip.width * 0.16, backgroundImage: "radial-gradient(closest-side, rgba(40,32,20,.22), rgba(40,32,20,0))" }} />
+      <div style={{ position: "absolute", left: at.clip.left, top: at.clip.top, width: at.clip.width, height: at.clip.height, overflow: "hidden", display: "flex" }}>
+        <img src={bgUri!} alt="" width={at.img.width} height={at.img.height} style={{ position: "absolute", left: at.img.left, top: at.img.top, width: at.img.width, height: at.img.height }} />
+      </div>
+    </div>
+  ) : null;
   const res = new ImageResponse(
     (
-      <div style={{ width: W, height: H, display: "flex", position: "relative", backgroundImage: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }}>
-        {bgUri && <img src={bgUri} width={W} height={H} alt="" style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} />}
+      <div style={{ width: W, height: H, display: "flex", position: "relative", ...(fit && d.bg ? { backgroundColor: d.bg } : { backgroundImage: "linear-gradient(160deg, #EDE9E2, #D9D3C7)" }) }}>
+        {bgUri && !fit && <img src={bgUri} width={W} height={H} alt="" style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} />}
+        {fit && !order.length && product}
         {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)` }} />}
         {d.overlay > 0 && <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)` }} />}
         {order.flatMap((l, n) => {
           const left = l.x * W, top = l.y * H, width = l.w * W;
-          const subject = cut && band && (n === firstFront || (firstFront < 0 && n === order.length - 1)) ? (
+          const subject = fit ? (n === firstFront || (firstFront < 0 && n === order.length - 1) ? product : null) : cut && band && (n === firstFront || (firstFront < 0 && n === order.length - 1)) ? (
             <div key="subject" style={{ position: "absolute", left: 0, top: band.y0 * H, width: W, height: (band.y1 - band.y0) * H, overflow: "hidden", display: "flex" }}>
               <img src={`data:image/png;base64,${cut.toString("base64")}`} width={W} height={H} alt="" style={{ position: "absolute", left: 0, top: -band.y0 * H, width: W, height: H, objectFit: "cover" }} />
             </div>

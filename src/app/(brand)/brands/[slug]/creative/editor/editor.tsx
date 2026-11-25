@@ -8,7 +8,7 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import type { AdDesign, Layer } from "@/lib/db/schema";
 import { LAYOUTS, REGIONS, copyOf, isLayout, layoutDesign, toneFor, type Box, type CardCopy, type LayoutKey } from "@/lib/creative/layouts";
-import { MASK_W, behindBand, canGoBehind, coverage, subjectMask, type Mask } from "@/lib/creative/cutout";
+import { MASK_W, behindBand, canGoBehind, coverage, placeProduct, subjectMask, type Mask } from "@/lib/creative/cutout";
 
 type Size = { key: string; label: string; w: number; h: number; note: string };
 const SIZES: Size[] = [
@@ -179,16 +179,22 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand, cut }: { d: AdDes
       <div onPointerDown={(e) => { if (e.target === e.currentTarget) onSelect(null); }}
         onPointerMove={(e) => { const g = drag.current; if (!g) return; onMove(g.id, Math.min(0.98, Math.max(0, g.lx + (e.clientX - g.sx) / W)), Math.min(0.98, Math.max(0, g.ly + (e.clientY - g.sy) / H))); }}
         onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}
-        style={{ position: "relative", width: W, height: H, overflow: "hidden", borderRadius: 8, background: "linear-gradient(160deg,#EDE9E2,#D9D3C7)", boxShadow: "0 0 0 1px var(--line), 0 6px 20px rgba(18,18,18,.08)", touchAction: "none", userSelect: "none" }}>
+        style={{ position: "relative", width: W, height: H, overflow: "hidden", borderRadius: 8, background: d.fit && d.bg ? d.bg : "linear-gradient(160deg,#EDE9E2,#D9D3C7)", boxShadow: "0 0 0 1px var(--line), 0 6px 20px rgba(18,18,18,.08)", touchAction: "none", userSelect: "none" }}>
         {d.video ? <video src={d.video} muted loop autoPlay playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
-          : d.image && <img src={d.image} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />}
+          : d.image && (d.fit
+            ? (() => { const at = placeProduct(d.fit, d.crop, d.crop?.ar ?? 1, W, H); return (
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
+                <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.1, top: at.clip.top + at.clip.height - at.clip.width * 0.09, width: at.clip.width * 1.2, height: at.clip.width * 0.16, background: "radial-gradient(closest-side, rgba(40,32,20,.22), rgba(40,32,20,0))" }} />
+                <div style={{ position: "absolute", ...at.clip, overflow: "hidden" }}><img src={d.image} alt="" draggable={false} style={{ position: "absolute", ...at.img, maxWidth: "none" }} /></div>
+              </div>); })()
+            : <img src={d.image} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />)}
         {(d.overlayTop ?? 0) > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,${d.overlayTop}) 0%, rgba(0,0,0,0) 46%)`, pointerEvents: "none" }} />}
         {d.overlay > 0 && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0) 48%, rgba(0,0,0,${d.overlay}) 100%)`, pointerEvents: "none" }} />}
         {s.key === "9x16" && <><div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "14%", background: STRIPES, pointerEvents: "none" }} /><div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "20%", background: STRIPES, pointerEvents: "none" }} /></>}
         {band && cut && <div style={{ position: "absolute", left: 0, right: 0, top: `${band.y0 * 100}%`, height: `${(band.y1 - band.y0) * 100}%`, overflow: "hidden", pointerEvents: "none", zIndex: 2 }}>
           <img src={cut} alt="" draggable={false} style={{ position: "absolute", left: 0, top: -band.y0 * H, width: W, height: H, objectFit: "cover" }} /></div>}
         {d.layers.map((l) => {
-          const common: React.CSSProperties = { position: "absolute", left: `${l.x * 100}%`, top: `${l.y * 100}%`, cursor: "move", outline: sel === l.id ? "1.5px solid #1AA7C8" : "none", outlineOffset: 2, ...(band ? { zIndex: l.behind ? 1 : 3 } : {}) };
+          const common: React.CSSProperties = { position: "absolute", left: `${l.x * 100}%`, top: `${l.y * 100}%`, cursor: "move", outline: sel === l.id ? "1.5px solid #1AA7C8" : "none", outlineOffset: 2, ...(band || d.fit ? { zIndex: l.behind ? 1 : 3 } : {}) };
           const start = (e: React.PointerEvent) => { e.stopPropagation(); onSelect(l.id); drag.current = { id: l.id, sx: e.clientX, sy: e.clientY, lx: l.x, ly: l.y }; };
           if (l.kind === "logo") return l.src ? <img key={l.id} src={l.src} alt="logo" draggable={false} onPointerDown={start} style={{ ...common, width: `${l.w * 100}%` }} /> : null;
           const fs = l.size * scale;

@@ -38,6 +38,26 @@ export const REGIONS: Record<LayoutKey, { top: Box; bottom: Box }> = {
   caption: { top: { x: 0.04, y: 0.04, w: 0.62, h: 0.3 }, bottom: { x: 0.04, y: 0.84, w: 0.5, h: 0.13 } },
 };
 
+/**
+ * Where a product shot goes in each layout — the part of the card its type leaves free, on the 4:5 card and on the square (where the
+ * same type takes more of the height). Used when the picture is the product alone on a plain background (a store's own product
+ * photo): it is set whole inside this box, never under the words.
+ */
+const PRODUCT_BOX: Record<LayoutKey, { tall: Box; square: Box }> = {
+  bold: { tall: { x: 0.2, y: 0.31, w: 0.6, h: 0.5 }, square: { x: 0.25, y: 0.41, w: 0.5, h: 0.43 } },
+  bigword: { tall: { x: 0.24, y: 0.27, w: 0.52, h: 0.52 }, square: { x: 0.26, y: 0.26, w: 0.48, h: 0.5 } },
+  benefits: { tall: { x: 0.56, y: 0.16, w: 0.42, h: 0.72 }, square: { x: 0.58, y: 0.14, w: 0.4, h: 0.74 } },
+  statement: { tall: { x: 0.27, y: 0.46, w: 0.46, h: 0.41 }, square: { x: 0.3, y: 0.47, w: 0.4, h: 0.38 } },
+  poster: { tall: { x: 0.2, y: 0.11, w: 0.6, h: 0.49 }, square: { x: 0.25, y: 0.1, w: 0.5, h: 0.39 } },
+  chips: { tall: { x: 0.6, y: 0.2, w: 0.38, h: 0.6 }, square: { x: 0.62, y: 0.16, w: 0.36, h: 0.6 } },
+  stack: { tall: { x: 0.26, y: 0.42, w: 0.48, h: 0.45 }, square: { x: 0.56, y: 0.6, w: 0.3, h: 0.3 } },
+  editorial: { tall: { x: 0.52, y: 0.38, w: 0.44, h: 0.56 }, square: { x: 0.52, y: 0.38, w: 0.44, h: 0.56 } },
+  luxe: { tall: { x: 0.25, y: 0.12, w: 0.5, h: 0.52 }, square: { x: 0.25, y: 0.13, w: 0.5, h: 0.5 } },
+  minimal: { tall: { x: 0.2, y: 0.25, w: 0.6, h: 0.62 }, square: { x: 0.2, y: 0.25, w: 0.6, h: 0.6 } },
+  caption: { tall: { x: 0.58, y: 0.2, w: 0.4, h: 0.7 }, square: { x: 0.6, y: 0.2, w: 0.38, h: 0.7 } },
+};
+export const productBox = (key: LayoutKey, square = false): Box => PRODUCT_BOX[key][square ? "square" : "tall"];
+
 /** Type colour for a patch of photo: white (with a soft scrim when the patch isn't dark enough) or the brand's dark ink. */
 export type Tone = { color: string; shadow: boolean; scrim: number; lum?: number | null };
 export const toneFor = (lum: number | null, ink = "#1C1B19"): Tone =>

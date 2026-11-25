@@ -4,13 +4,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask, type Block } from "../ai/client";
 import type { AdDesign } from "../db/schema";
-import { avgColor, loadImage, subjectOf, toJpeg } from "../audience/media";
+import { avgColor, loadImage, smallRgba, subjectOf, toJpeg } from "../audience/media";
+import { packshotOf } from "./cutout";
 import { canGoBehind, coverage } from "./cutout";
 import { deleteAssets, saveAsset } from "../assets/storage";
 import { marketContext } from "../research/context";
 import { brandContext } from "./remy";
 import { renderDesign, renderStory, SIZES } from "./card";
-import { REGIONS, copyOf, isLayout, layoutDesign, toneFor, type CardCopy, type LayoutKey, type Tone } from "./layouts";
+import { REGIONS, copyOf, isLayout, layoutDesign, productBox, toneFor, type CardCopy, type LayoutKey, type Tone } from "./layouts";
 
 /**
  * Static ad cards. Shoots makes the photo; here Remy writes the words that go ON the picture (a headline that is the message, a line
@@ -66,14 +67,41 @@ async function tonesFor(brandId: string, image: string | null, key: LayoutKey, i
   return { top: toneFor(lum(t), ink), bottom: toneFor(lum(b), ink), behind: subject ? canGoBehind(coverage(subject.mask, 0.1, 0.46)) : false };
 }
 
+type Photo = { media: string; data: string };
+/** A photo, asked for up to three times: a card is never drawn without the picture it was designed for. */
+async function photoFor(brandId: string, url: string | null): Promise<Photo | null> {
+  if (!url) return null;
+  for (let i = 0; i < 3; i++) {
+    const img = await loadImage(brandId, url).catch(() => null);
+    if (img) return img;
+    await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+  }
+  return null;
+}
+/**
+ * Is this picture the product alone on a plain background — a store's own product photo? Then it is set whole in the layout's free
+ * space, on that background (`bg`) or, when the background is see-through, on the card's soft field (`bg: null`), and drawn to the
+ * product's own edges (`crop`). A scene — a styled shot, a person, a room — fills the card as before.
+ */
+type Pack = { bg: string | null; crop: { x: number; y: number; w: number; h: number; ar: number } };
+async function packshot(img: Photo): Promise<Pack | null> {
+  const small = await smallRgba(Buffer.from(img.data, "base64"));
+  const p = small ? packshotOf(small.px, small.w, small.h) : null;
+  return p && small ? { bg: p.bg, crop: { ...p.crop, ar: small.ar } } : null;
+}
+/** What a product shot adds to a design in `key`'s layout. */
+const packed = (key: LayoutKey, p: { bg?: string | null; crop?: AdDesign["crop"] }, square = false) => ({ fit: productBox(key, square), bg: p.bg ?? null, ...(p.crop ? { crop: p.crop } : {}) });
+/** Dark or light type for a plain field of this colour (the soft default field is light). */
+const fieldTones = (bg: string | null, ink: string) => { const t = toneFor(bg && /^#[0-9a-f]{6}$/i.test(bg) ? hexLum(bg) : 0.9, ink); return { top: t, bottom: t, behind: true }; };
+
 const A = schema.ads;
 const cardId = (url?: string | null) => /^\/api\/assets\/([0-9a-f-]{36})$/i.exec(url ?? "")?.[1] ?? null;
 /** The photo behind an ad: its design's picture, or its own picture when that isn't a finished card. */
 const photoOf = (a: { imageUrl: string | null; design: AdDesign | null }) => (a.design?.card && a.imageUrl === a.design.card ? a.design.image : a.imageUrl);
 
 /** Draw the card for a design, save it as the ad's picture and drop the card it replaces. */
-async function drawCard(brandId: string, memberId: string | null, ad: { id: string; product: string | null; design: AdDesign | null }, design: AdDesign, plan?: string): Promise<string> {
-  const png = await renderDesign(brandId, design);
+async function drawCard(brandId: string, memberId: string | null, ad: { id: string; product: string | null; design: AdDesign | null }, design: AdDesign, plan?: string, photo: Photo | null = null): Promise<string> {
+  const png = await renderDesign(brandId, design, "4x5", photo);
   const [asset] = await saveAsset({ brandId, kind: "imagery", name: `${(ad.product ?? "Ad").slice(0, 40)} · ad card`, mime: "image/png", size: png.length, data: png, meta: { ai: true, product: ad.product ?? undefined, edit: "card", ...(design.look ? { look: design.look } : {}), ...(plan ? { plan } : {}) }, createdBy: memberId }); // `plan`: drawn for a campaign, so it is that campaign's picture
   const card = `/api/assets/${asset.id}`, old = cardId(ad.design?.card);
   await db.update(A).set({ design: { ...design, card, pending: false }, imageUrl: card, updatedAt: new Date() }).where(eq(A.id, ad.id));
@@ -99,8 +127,14 @@ export async function layoutBatch(brandId: string, batchId: string, memberId: st
   // Remy sees the photos (each once), so the type goes where each picture has room for it.
   const photos = [...new Set(ads.map((a) => photoOf(a)).filter((x): x is string => Boolean(x)))].slice(0, 5);
   const seen: Block[] = [];
+  // Each picture is read once and kept: Remy looks at it, the layout is chosen for it, and the card is drawn with it.
+  const got = new Map<string, { img: Photo; pack: Pack | null }>();
+  for (const url of new Set(ads.map((a) => photoOf(a)).filter((x): x is string => Boolean(x)))) {
+    const img = await photoFor(brandId, url);
+    if (img) got.set(url, { img, pack: await packshot(img).catch(() => null) });
+  }
   for (const [i, url] of photos.entries()) {
-    const img = await loadImage(brandId, url).catch(() => null);
+    const img = got.get(url)?.img ?? null;
     const small = img ? await toJpeg(Buffer.from(img.data, "base64"), 640).catch(() => null) : null;
     if (small) seen.push({ type: "text", text: `Photo ${i + 1}:` }, { type: "image", source: { type: "base64", media_type: "image/jpeg", data: small.toString("base64") } });
   }
@@ -130,13 +164,16 @@ export async function layoutBatch(brandId: string, batchId: string, memberId: st
     if (!c) continue;
     try {
       const copy: CardCopy = { headline: c.headline, subline: c.subline, tagline: c.tagline, note: c.note, brand: ctx.brand.name, cta: a.cta, word: c.word.replace(/[^\p{L}]/gu, "").slice(0, 9), benefits: c.benefits.map((b) => b.slice(0, 40)).slice(0, 4) };
-      const photo = photoOf(a);
+      const photo = photoOf(a), held = photo ? got.get(photo) : undefined;
+      if (photo && !held) continue; // its picture could not be read: the ad keeps the picture it has, no card is drawn without it
       const want: LayoutKey = isLayout(c.layout) ? c.layout : "bold";
       // One layout a card when asked to vary: Remy's choice, or the next one nobody has taken yet.
       const key: LayoutKey = layout ?? (opts.vary ? (!used.has(want) ? want : ON_A_PACKSHOT.find((k) => !used.has(k)) ?? want) : byPhoto.get(photo ?? "") ?? want);
       byPhoto.set(photo ?? "", key); used.add(key);
-      const tones = await tonesFor(brandId, photo, key, ink);
-      await drawCard(brandId, memberId, a, { ...layoutDesign(key, copy, { ...tones, accent, chip }, photo, 1080, 1350, { behind: tones.behind }), ...(look ? { look } : {}) }, opts.plan);
+      // A product shot on a plain background is set whole in the layout's free space; a scene fills the card and the type reads off it.
+      const pack = held?.pack ?? null;
+      const tones = pack ? fieldTones(pack.bg, ink) : await tonesFor(brandId, photo, key, ink);
+      await drawCard(brandId, memberId, a, { ...layoutDesign(key, copy, { ...tones, accent, chip }, photo, 1080, 1350, { behind: tones.behind }), ...(pack ? packed(key, pack) : {}), ...(look ? { look } : {}) }, opts.plan, held?.img ?? null);
       made++;
     } catch (e) { console.error("layout card", a.id, (e as Error).message); }
   }
@@ -156,8 +193,8 @@ export async function relayout(brandId: string, key: LayoutKey, current: AdDesig
   const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
   const inkHex = b?.onboarding?.analysis?.palette?.find((p) => /text/i.test(p.role))?.hex;
   const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
-  const tones = await tonesFor(brandId, current.image, key, ink);
-  return { ...layoutDesign(key, copyOf(current, ad, brand), tones, current.image, 1080, 1350, { behind: tones.behind }), ...(current.look ? { look: current.look } : {}) };
+  const tones = current.fit ? fieldTones(current.bg ?? null, ink) : await tonesFor(brandId, current.image, key, ink);
+  return { ...layoutDesign(key, copyOf(current, ad, brand), tones, current.image, 1080, 1350, { behind: tones.behind }), ...(current.fit ? packed(key, current) : {}), ...(current.look ? { look: current.look } : {}) };
 }
 
 const rgbHex = (c: { r: number; g: number; b: number } | null) => (c ? `#${[c.r, c.g, c.b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")}` : "#EDE9E2");
@@ -174,10 +211,13 @@ export async function cardAt(brandId: string, ad: { design: AdDesign | null; hoo
     const [b] = await db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId));
     const inkHex = b?.onboarding?.analysis?.palette?.find((p) => /text/i.test(p.role))?.hex;
     const ink = inkHex && /^#[0-9a-f]{6}$/i.test(inkHex) && hexLum(inkHex) < 0.3 ? inkHex : "#1C1B19";
-    const tones = await tonesFor(brandId, d.image, key, ink);
-    return renderDesign(brandId, layoutDesign(key, copyOf(d, ad, d.copy?.brand ?? ""), tones, d.image, SIZES["1x1"].w, SIZES["1x1"].h, { behind: tones.behind }), "1x1");
+    const tones = d.fit ? fieldTones(d.bg ?? null, ink) : await tonesFor(brandId, d.image, key, ink);
+    return renderDesign(brandId, { ...layoutDesign(key, copyOf(d, ad, d.copy?.brand ?? ""), tones, d.image, SIZES["1x1"].w, SIZES["1x1"].h, { behind: tones.behind }), ...(d.fit ? packed(key, d, true) : {}) }, "1x1");
   }
-  const card = await renderDesign(brandId, d), img = d.image ? await loadImage(brandId, d.image).catch(() => null) : null;
+  const card = await renderDesign(brandId, d);
+  // The field round a story: the card's own background — its plain field, or the top edge of its photo.
+  if (d.fit) return renderStory(card, d.bg ?? "#EAE5DD");
+  const img = d.image ? await loadImage(brandId, d.image).catch(() => null) : null;
   const edge = img ? await avgColor(Buffer.from(img.data, "base64"), { x: 0, y: 0, w: 1, h: 0.06 }).catch(() => null) : null;
   return renderStory(card, rgbHex(edge));
 }

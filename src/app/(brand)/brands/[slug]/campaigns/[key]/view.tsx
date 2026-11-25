@@ -260,7 +260,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
         </div>}
 
         {/* ---- its ads: written here, judged here */}
-        <AdsBlock m={m} base={base} stage={p.stage} locked={Boolean(p.meta)} ads={ads} brief={brief} productPhoto={productPhoto} batchId={a?.batchId ?? null} placed={p.meta?.placed} />
+        <AdsBlock m={m} base={base} stage={p.stage} locked={Boolean(p.meta)} ads={ads} brief={brief} productPhoto={productPhoto} product={p.c.product} batchId={a?.batchId ?? null} placed={p.meta?.placed} />
 
         {/* ---- what the plan rests on: one block per source Kaviar read, each opening that source */}
         <div className="col g10">

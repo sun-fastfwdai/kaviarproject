@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
@@ -167,7 +168,13 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   }
   if (!done) return { error: "Nothing to send yet — run the flow first." };
   // Static ads become cards: Remy writes the words for each picture and lays them out, ready to refine in the Editor.
-  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name).catch(() => ({ made: 0 }))).made : 0;
+  // Shot for a campaign's ads: the pictures and their cards are that campaign's own, so its page shows them (a picture made by the
+  // studio is otherwise kept off a campaign in favour of the store's product photo).
+  const [of] = await db.select({ signal: schema.adBatches.signal }).from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brand.id)));
+  const plan = of?.signal ?? undefined;
+  if (plan && photos.length) await db.update(A).set({ meta: sql`${A.meta} || ${JSON.stringify({ plan })}::jsonb` }).where(and(eq(A.brandId, brand.id), inArray(A.id, photos)));
+  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name, { plan }).catch(() => ({ made: 0 }))).made : 0;
+  if (plan) revalidatePath(`/brands/${slug}/campaigns`, "layout");
   return { done, cards, firstAd: list[0].id };
 }
 

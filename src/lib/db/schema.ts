@@ -413,6 +413,10 @@ export type AdDesign = {
   image: string | null; overlay: number; layers: Layer[]; overlayTop?: number; card?: string | null; pending?: boolean; layout?: string;
   copy?: { headline: string; subline: string; tagline: string; note: string; brand: string; cta: string; word?: string; benefits?: string[] }; video?: string | null;
   look?: string; // the ad look its photo was shot in — the card becomes that style's example in the picker
+  /** A product shot on a plain background: the photo is drawn whole inside this box (fractions of the card), on `bg` or the soft default field, so the type never lands on the product. */
+  fit?: { x: number; y: number; w: number; h: number } | null; bg?: string | null;
+  /** Where the product is inside that photo (fractions of the photo) and the photo's width ÷ height: the product is drawn to fill the box, not the photo's empty margins. */
+  crop?: { x: number; y: number; w: number; h: number; ar: number } | null;
 };
 export const adBatches = pgTable(
   "ad_batches",
