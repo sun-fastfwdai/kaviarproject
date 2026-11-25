@@ -27,10 +27,12 @@ export function creativeParams(v: { name: string; pageId: string; hash: string; 
 /** Meta's refusal in the brand's words where Kaviar knows the cause; Meta's own words otherwise. */
 export function problem(e: unknown): string {
   const m = (e instanceof Error ? e.message : String(e)).replace(/^Meta API:\s*/, "");
+  // An app that Meta hasn't been told is live may read and may make campaigns and ad sets, but not the ad's own post.
+  if (/1885183|development mode|app.*must be (in )?(public|live)/i.test(m)) return "Meta only lets a published app create the ad itself, and Kaviar’s Meta app is still in development mode. Publish it in Meta for Developers — it asks for a privacy policy address first — then press again; the campaign and ad set already made are kept.";
   if (/pages_manage_ads|pages_read_engagement|permission.*page|\(#?200\)|\(10\)/i.test(m)) return "Meta won’t let Kaviar post as your Page yet — it needs the Page permission. Reconnect Meta in Settings › Integrations.";
   if (/business information|business info/i.test(m)) return "Meta wants your business information before this account can run ads — add it in Ads Manager.";
   if (/payment|funding|billing/i.test(m) && !/billing_event/.test(m)) return "Meta needs a payment method on this ad account before ads can be placed.";
-  return m.slice(0, 220);
+  return m.slice(0, 320);
 }
 
 export const COUNTRIES: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"], ["NZ", "New Zealand"], ["IE", "Ireland"], ["DE", "Germany"], ["FR", "France"], ["ES", "Spain"], ["IT", "Italy"], ["NL", "Netherlands"], ["SE", "Sweden"], ["KR", "South Korea"], ["JP", "Japan"], ["SG", "Singapore"], ["IN", "India"], ["AE", "United Arab Emirates"], ["MX", "Mexico"], ["BR", "Brazil"],

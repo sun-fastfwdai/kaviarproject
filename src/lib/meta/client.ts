@@ -9,7 +9,15 @@ export class MetaAuthError extends Error {
   }
 }
 
-type MetaError = { error?: { message: string; code: number; error_subcode?: number; type?: string } };
+type MetaError = { error?: { message: string; code: number; error_subcode?: number; type?: string; error_user_title?: string; error_user_msg?: string } };
+/**
+ * Meta's refusal, whole: its plain-words explanation when it gives one ("Invalid parameter" alone says nothing), then the code and
+ * sub-code, which name the exact rule.
+ */
+const refusal = (err: MetaError["error"], status: number, statusText: string) => {
+  const said = [err?.error_user_title, err?.error_user_msg].filter(Boolean).join(": ") || err?.message || statusText;
+  return `Meta API: ${said} (${err?.code ?? status}${err?.error_subcode ? `/${err.error_subcode}` : ""})`;
+};
 const RATE_LIMIT = new Set([4, 17, 32, 613, 80000, 80001, 80002, 80003, 80004, 80005, 80006, 80008, 80009, 80014]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -36,7 +44,7 @@ export async function metaGet<T>(path: string, params: Record<string, string>, t
       await sleep(3000 * (attempt + 1));
       continue;
     }
-    throw new Error(`Meta API: ${err?.message ?? res.statusText} (${err?.code ?? res.status})`);
+    throw new Error(refusal(err, res.status, res.statusText));
   }
 }
 
@@ -63,7 +71,7 @@ export async function metaWrite<T = { success?: boolean; id?: string }>(method: 
     const out = (await res.json()) as T & MetaError;
     if (out.error?.code === 190 || out.error?.code === 102) throw new MetaAuthError(out.error.message);
     if (out.error && RATE_LIMIT.has(out.error.code) && attempt < 2) { await sleep(32_000); continue; }
-    if (out.error || !res.ok) throw new Error(`Meta API: ${out.error?.message ?? res.statusText} (${out.error?.code ?? res.status})`);
+    if (out.error || !res.ok) throw new Error(refusal(out.error, res.status, res.statusText));
     return out;
   }
 }

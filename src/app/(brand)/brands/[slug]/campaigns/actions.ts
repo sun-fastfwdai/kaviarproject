@@ -138,7 +138,12 @@ export async function metaCheck(slug: string, key: string, country?: string): Pr
   // until the brand has chosen, or the ad set already exists.
   const advice = p.meta?.adset ? null : await placeAdvice({ id: brand.id, currency: brand.currency ?? null }, market, p.budget / Math.max(1, p.days)).catch((e) => { console.error("place advice", (e as Error).message.slice(0, 160)); return null; });
   const c = countriesIn(country).join(",") || p.meta?.country || advice?.picks.join(",") || countryFor(market, brand.currency);
-  const [ready, link] = await Promise.all([metaReady(brand.id, p.meta?.campaignId ?? null, c).catch(() => null), productLink(brand.id, p.c.product)]);
+  const link = await productLink(brand.id, p.c.product);
+  // Once the ad set is on Meta, the check is of the next ad to place: Meta is asked whether it would take it, and nothing is made.
+  const m = p.meta, next = m?.adset && m.page && p.ads && link && p.image?.startsWith("https://")
+    ? (await planAds(p.ads.batchId).catch(() => [])).find((a) => a.status === "approved" && !m.placed?.[a.id]) ?? null : null;
+  const ready = await metaReady(brand.id, m?.campaignId ?? null, c, next && m?.adset && m.page && link && p.image
+    ? { adsetId: m.adset, pageId: m.page, picture: p.image, urlTags: META_URL_PARAMS, copy: { text: next.text, headline: next.headline || next.hook, link, cta: next.cta } } : null).catch(() => null);
   return { ready, country: c, link, advice };
 }
 

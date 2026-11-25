@@ -45,5 +45,6 @@ describe("placing ads on Meta", () => {
   it("says a Page-permission refusal in plain words and keeps Meta's own words otherwise", () => {
     expect(problem(new Error("Meta API: (#200) Requires pages_manage_ads permission (200)"))).toMatch(/Page permission/);
     expect(problem(new Error("Meta API: Invalid parameter (100)"))).toBe("Invalid parameter (100)");
+    expect(problem(new Error("Meta API: Ads creative post was created by an app that is in development mode. It must be in public to create this ad. (100/1885183)"))).toMatch(/published app/);
   });
 });
