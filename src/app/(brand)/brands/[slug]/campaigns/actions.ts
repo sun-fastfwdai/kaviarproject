@@ -10,7 +10,7 @@ import { aiReady } from "@/lib/ai/client";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
 import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget, setOwnAudience } from "@/lib/growth/plans";
-import { makeAd, makeAdSet, metaReady, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
+import { makeAd, makeAdSet, metaReady, sendPicture, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
 import { countriesIn, countryFor, countryNames } from "@/lib/meta/place-rules";
 import { placeAdvice } from "@/lib/meta/places";
 import type { PlaceAdvice } from "@/lib/meta/places-rules";
@@ -212,6 +212,25 @@ export async function placeStep(slug: string, key: string, pick?: { page?: strin
   fresh(slug);
   const n = count({ placed });
   return n >= total ? { done: true, placed: n, total } : { placed: n, total, next: `Placing ad ${n + 1} of ${total}` };
+}
+
+/**
+ * Put the approved ads' pictures in the ad account's media library on Meta, without making any ad. Used when Meta refuses the ad itself,
+ * so the ads can be finished by hand in Ads Manager from the set-up sheet.
+ */
+export async function sendPictures(slug: string, key: string): Promise<{ sent: number; total: number; error?: string }> {
+  await requireMember();
+  const { brand, p } = await planOf(slug, key);
+  if (!p?.ads) return { sent: 0, total: 0, error: "This campaign has no ads yet." };
+  const ads = (await planAds(p.ads.batchId)).filter((a) => a.status === "approved" && !p.meta?.placed?.[a.id]);
+  let sent = 0, error: string | undefined;
+  for (const [i, ad] of ads.entries()) {
+    const picture = await pictureOf(brand.id, ad.image).catch(() => null);
+    if (!picture) { error = `“${ad.hook.slice(0, 50)}” has no picture Kaviar can send.`; continue; }
+    const r = await sendPicture(brand.id, { name: `Kaviar ${i + 1} · ${ad.headline || ad.hook}.png`, picture });
+    if (r.ok) sent++; else error = said(r.message);
+  }
+  return { sent, total: ads.length, ...(error ? { error } : {}) };
 }
 
 /** Switch the plan's campaign on — for the plan's number of days, after which Meta stops it by itself — or pause it. This is the step that spends money. */

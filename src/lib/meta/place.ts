@@ -57,6 +57,20 @@ export async function makeAdSet(brandId: string, v: { campaignId: string; name: 
   } catch (e) { return { ok: false, message: problem(e) }; }
 }
 
+/**
+ * A picture into the ad account's media library, and nothing else. For when Meta won't let Kaviar make the ad itself: the pictures are
+ * then already in Ads Manager, where the ad can be finished by hand.
+ */
+export async function sendPicture(brandId: string, v: { name: string; picture: Buffer }): Promise<Out<{ hash: string }>> {
+  const c = await metaConn(brandId);
+  if (!c || !c.granted || !c.test?.ok) return { ok: false, message: "Kaviar may not change this ad account yet" };
+  try {
+    const up = await metaWrite<{ images?: Record<string, { hash: string }> }>("POST", `${c.account}/adimages`, { bytes: v.picture.toString("base64"), name: v.name.slice(0, 100) }, c.token);
+    const hash = Object.values(up.images ?? {})[0]?.hash;
+    return hash ? { ok: true, hash } : { ok: false, message: "Meta didn’t take the picture" };
+  } catch (e) { return { ok: false, message: `Meta refused the picture: ${problem(e)}` }; }
+}
+
 /** One ad: its picture into the account's library, its words as a link ad from the brand's Page, filed in the plan's ad set. */
 export async function makeAd(brandId: string, v: { adsetId: string; pageId: string; name: string; copy: AdCopy; picture: Buffer; urlTags: string }): Promise<Out<{ id: string }>> {
   const c = await metaConn(brandId);

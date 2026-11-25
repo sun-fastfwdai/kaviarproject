@@ -13,7 +13,7 @@ import { forecast, REASON_NAME, STAGE_NAME, stepsOf, type PlanCard, type StepKey
 import { AdsBlock, useAds } from "./ads";
 import { TimeCard } from "./time";
 import { decide, setMode } from "../../optimize/actions";
-import { applySetup, approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
+import { applySetup, approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, sendPictures, setPlanBudget, switchPlan } from "../actions";
 import { strategy } from "@/lib/growth/strategy";
 import { Combo } from "@/components/combo";
 import { COUNTRIES, countriesIn } from "@/lib/meta/place-rules";
@@ -42,6 +42,8 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [confirm, setConfirm] = useState<false | "place" | "on" | "off" | "budget" | "best">(false);
   // What Meta says it needs, asked when the brand opens "Put it on Meta" — and what the brand picks there.
   const [check, setCheck] = useState<{ ready: Ready | null; link: string | null; advice: PlaceAdvice | null } | "asking" | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sentNote, setSentNote] = useState<string | null>(null);
   const [pick, setPick] = useState<{ page?: string; pixel?: string; country: string }>({ country: p.meta?.country ?? "US" });
   const [budget, setBudget] = useState(p.budget);
   const [days, setDays] = useState(p.days);
@@ -396,6 +398,13 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                   </div>);
               })()}
               {stop && <span className="row top g8 sm" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" style={{ marginTop: 2, flexShrink: 0 }} /><span>{stop}</span></span>}
+              {/* Meta took the ad set but refuses the ad: the pictures can still go to its library, and the ads be finished by hand. */}
+              {stop && p.meta?.adset && r?.dry && !r.dry.ok && <div className="row g8" style={{ marginTop: 10, flexWrap: "wrap" }}>
+                <button type="button" className="btn sm" disabled={sending} onClick={() => { setSending(true); setSentNote(null); sendPictures(slug, p.key).then((x) => setSentNote(x.error ? `${x.sent} of ${x.total} sent · ${x.error}` : `${x.sent} picture${x.sent === 1 ? " is" : "s are"} in the ad account’s media library on Meta`)).catch((e: Error) => setSentNote(e.message.slice(0, 160))).finally(() => setSending(false)); }}>
+                  {sending && <Icon name="spinner" size={12} className="spin" />}{sending ? "Sending…" : "Send the pictures to Meta’s library"}</button>
+                {p.ads && <Link className="btn quiet sm" href={`${base}/run/${p.ads.batchId}`}>Set-up sheet<Icon name="arrow-r" size={11} /></Link>}
+                {sentNote && <span className="xs i2" style={{ width: "100%" }}>{sentNote}</span>}
+              </div>}
             </div>
           </Modal>);
       })()}
