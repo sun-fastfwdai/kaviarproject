@@ -184,7 +184,7 @@ function Artboard({ d, s, scale, sel, onSelect, onMove, brand, cut }: { d: AdDes
           : d.image && (d.fit
             ? (() => { const at = placeProduct(d.fit, d.crop, d.crop?.ar ?? 1, W, H); return (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
-                <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.1, top: at.clip.top + at.clip.height - at.clip.width * 0.09, width: at.clip.width * 1.2, height: at.clip.width * 0.16, background: "radial-gradient(closest-side, rgba(40,32,20,.22), rgba(40,32,20,0))" }} />
+                <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.05, top: at.clip.top + at.clip.height - at.clip.width * 0.07, width: at.clip.width * 1.1, height: at.clip.width * 0.13, borderRadius: "50%", background: "radial-gradient(ellipse at center, rgba(40,32,20,.3) 0%, rgba(40,32,20,.1) 45%, rgba(40,32,20,0) 70%)" }} />
                 <div style={{ position: "absolute", ...at.clip, overflow: "hidden" }}><img src={d.image} alt="" draggable={false} style={{ position: "absolute", ...at.img, maxWidth: "none" }} /></div>
               </div>); })()
             : <img src={d.image} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />)}

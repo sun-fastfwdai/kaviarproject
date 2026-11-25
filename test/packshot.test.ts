@@ -27,6 +27,9 @@ describe("packshotOf", () => {
     for (let y = 95; y < 100; y++) for (let x = 95; x < 100; x++) uneven.set([150, 150, 150, 255], (y * 100 + x) * 4);
     expect(packshotOf(uneven, 100, 100)).toBeNull();
   });
+  it("leaves a studio shot alone: a coloured backdrop is a finished photo, not a product to cut out", () => {
+    expect(packshotOf(picture(100, 100, [245, 228, 184, 255], [150, 150, 150, 255], { x0: 35, y0: 30, x1: 64, y1: 89 }), 100, 100)).toBeNull();
+  });
   it("leaves a picture the subject fills edge to edge alone", () => {
     expect(packshotOf(picture(100, 100, [255, 255, 255, 255], [90, 90, 90, 255], { x0: 0, y0: 8, x1: 99, y1: 99 }), 100, 100)).toBeNull();
   });

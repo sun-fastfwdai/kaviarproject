@@ -67,7 +67,7 @@ export function behindBand(layers: { y: number; size: number; text: string; w: n
 /** A product alone on a plain background: the background (`bg`, null when see-through) and where the product sits in the picture. */
 export type Packshot = { bg: string | null; crop: { x: number; y: number; w: number; h: number } };
 /**
- * Reads a small RGBA copy of a picture. A store's product photo — every corner see-through, or every corner the same near-white —
+ * Reads a small RGBA copy of a picture. A store's product photo — every corner see-through, or every corner the same flat white —
  * comes back with the box the product fills, so a card can set the product large instead of carrying the photo's empty margins.
  * Anything else (a scene, a person, a coloured backdrop) is null and fills the card as a photo.
  */
@@ -85,8 +85,10 @@ export function packshotOf(px: Uint8Array, w: number, h: number): Packshot | nul
   let bg: { r: number; g: number; b: number } | null = null;
   if (!clear) {
     if (cs.some((c) => c.a < 215)) return null;
+    // Only a flat, neutral white counts: a coloured or lit backdrop is a finished photograph — cut into a box it would show its edges.
     const ls = cs.map((c) => (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255);
-    if (Math.min(...ls) < 0.84 || Math.max(...ls) - Math.min(...ls) > 0.05) return null;
+    if (Math.min(...ls) < 0.93 || Math.max(...ls) - Math.min(...ls) > 0.03) return null;
+    if (cs.some((c) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) > 10)) return null;
     bg = { r: cs.reduce((n, c) => n + c.r, 0) / 4, g: cs.reduce((n, c) => n + c.g, 0) / 4, b: cs.reduce((n, c) => n + c.b, 0) / 4 };
   }
   // The product: every pixel that is not background. A row or column counts once a few of its pixels are product, so specks don't widen the box.

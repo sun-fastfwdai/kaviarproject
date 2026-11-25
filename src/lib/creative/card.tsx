@@ -57,7 +57,7 @@ export async function renderDesign(brandId: string, d: AdDesign, size: keyof typ
   const product = at ? (
     <div key="product" style={{ position: "absolute", left: 0, top: 0, width: W, height: H, display: "flex" }}>
       {/* the floor it stands on */}
-      <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.1, top: at.clip.top + at.clip.height - at.clip.width * 0.09, width: at.clip.width * 1.2, height: at.clip.width * 0.16, backgroundImage: "radial-gradient(closest-side, rgba(40,32,20,.22), rgba(40,32,20,0))" }} />
+      <div style={{ position: "absolute", left: at.clip.left - at.clip.width * 0.05, top: at.clip.top + at.clip.height - at.clip.width * 0.07, width: at.clip.width * 1.1, height: at.clip.width * 0.13, borderRadius: "50%", backgroundImage: "radial-gradient(ellipse at center, rgba(40,32,20,.3) 0%, rgba(40,32,20,.1) 45%, rgba(40,32,20,0) 70%)" }} />
       <div style={{ position: "absolute", left: at.clip.left, top: at.clip.top, width: at.clip.width, height: at.clip.height, overflow: "hidden", display: "flex" }}>
         <img src={bgUri!} alt="" width={at.img.width} height={at.img.height} style={{ position: "absolute", left: at.img.left, top: at.img.top, width: at.img.width, height: at.img.height }} />
       </div>
