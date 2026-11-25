@@ -30,7 +30,9 @@ export async function chooseMetaAccount(slug: string, form: FormData) {
       status: "connected",
       externalId: acct.id,
       displayName: acct.name,
-      details: { ...conn.details, currency: acct.currency, timezone: acct.timezone_name, accounts: undefined },
+      // The access test carried over from before the sign-in counts only for the account it was passed on.
+      details: { ...conn.details, currency: acct.currency, timezone: acct.timezone_name, accounts: undefined, writeFor: undefined,
+        ...((conn.details as { writeFor?: string }).writeFor === acct.id ? {} : { write: undefined }) },
       updatedAt: new Date(),
     })
     .where(eq(schema.connections.id, conn.id));
