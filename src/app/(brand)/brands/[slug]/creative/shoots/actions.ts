@@ -146,7 +146,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   const me = await requireMember();
   const brand = await getBrand(slug);
   const A = schema.brandAssets;
-  const mine = await db.select({ id: A.id, mime: A.mime }).from(A).where(and(eq(A.brandId, brand.id), inArray(A.id, [...ids, ...clipIds].slice(0, 40))));
+  const mine = await db.select({ id: A.id, mime: A.mime, finished: sql<boolean>`coalesce((${A.meta}->>'finished')::boolean, false)` }).from(A).where(and(eq(A.brandId, brand.id), inArray(A.id, [...ids, ...clipIds].slice(0, 40))));
   const photos = ids.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("image/")));
   const clips = clipIds.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("video/")));
   if (!batchId) return { done: photos.length + clips.length };
@@ -162,8 +162,12 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
     await db.update(schema.ads).set({ imageUrl: `/api/assets/${clip}?w=480`, design: { image: null, overlay: 0, layers: [], video: `/api/assets/${clip}` }, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
     done++;
   }
+  // A finished ad (made with its words designed in) is the ad's picture as it is; a photo gets the ad's words set on it.
+  const toDesign: string[] = [];
   if (photos.length) for (const [i, a] of stills.entries()) {
-    await db.update(schema.ads).set({ imageUrl: `/api/assets/${photos[i % photos.length]}`, design: null, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
+    const photo = photos[i % photos.length];
+    await db.update(schema.ads).set({ imageUrl: `/api/assets/${photo}`, design: null, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
+    if (!mine.find((m) => m.id === photo)?.finished) toDesign.push(a.id);
     done++;
   }
   if (!done) return { error: "Nothing to send yet — run the flow first." };
@@ -173,7 +177,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   const [of] = await db.select({ signal: schema.adBatches.signal }).from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brand.id)));
   const plan = of?.signal ?? undefined;
   if (plan && photos.length) await db.update(A).set({ meta: sql`${A.meta} || ${JSON.stringify({ plan })}::jsonb` }).where(and(eq(A.brandId, brand.id), inArray(A.id, photos)));
-  const cards = photos.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name, { plan }).catch(() => ({ made: 0 }))).made : 0;
+  const cards = toDesign.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, toDesign.length < stills.length ? toDesign : undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name, { plan }).catch(() => ({ made: 0 }))).made : 0;
   if (plan) revalidatePath(`/brands/${slug}/campaigns`, "layout");
   return { done, cards, firstAd: list[0].id };
 }

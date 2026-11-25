@@ -375,7 +375,7 @@ export const brandAssets = pgTable(
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
     thumb: bytea("thumb"), // a small JPEG (480 px) for lists, made once
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; look?: string; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; plan?: string; ref?: boolean; from?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; finished?: boolean; look?: string; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; plan?: string; ref?: boolean; from?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string } }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },

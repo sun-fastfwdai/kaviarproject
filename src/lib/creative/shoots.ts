@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
+import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_ADS, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { ShotPlan } from "../db/schema";
 import { marketContext } from "../research/context";
@@ -47,17 +47,19 @@ export async function writeShotPrompt(brandId: string, input: PromptIn): Promise
     marketContext(brandId, input.product || null),
   ]);
   const look = adLook(input.scene);
-  const words = look ? (look.person ? 270 : 240) : { short: 90, medium: 150, detailed: 220 }[input.length];
+  const words = look ? (look.person ? 460 : 420) : { short: 160, medium: 280, detailed: 420 }[input.length];
   const out = await ask("remy", {
-    system: `You are Remy, Kaviar's creative agent, writing the brief for an image model — GPT Image 2.5 in Higgsfield Marketing Studio — that edits a product photo. It receives the brand's real product photo as reference image 1 and must keep that product exactly (pack shape and proportions, cap, label design, printed words, colours) while building a new photograph around it for a Meta ad. This model follows long, literal, well-organised briefs far better than short ones, so write a complete production brief the way an art director briefs a photographer — never a caption.
+    system: `You are Remy, Kaviar's creative agent, writing the shoot brief for an image model — GPT Image, through Higgsfield — that builds a campaign picture round a product photo. It receives the brand's real product photo as reference image 1 and must keep that product exactly (pack shape and proportions, cap, label design, printed words, colours) while building a new photograph around it for a Meta ad. This model follows long, literal, well-organised briefs far better than short ones, so write a complete production brief the way a senior art director briefs a photographer and a set stylist the day before a campaign shoot — every decision made, nothing left to taste, never a caption.
 Write these labelled parts in this order, each starting on a new line with its label in capitals and a colon:
 SUBJECT: the product by its exact name and pack type, how many pieces, how each stands or lies, which face is to camera, and what must stay identical to reference image 1.
 SET: the place, backdrop and surface — materials and colours, each colour named with its hex.
 COMPOSITION: the frame's proportions; where the product sits and how much of the frame it fills, in percentages; what is in each third of the frame; which areas stay completely empty and plain.
-CAMERA: lens in mm, camera height and angle, distance, depth of field, what is in sharp focus.
-LIGHT: key, fill and rim — where each comes from, hard or soft, the shadows they make, colour temperature.
+CAMERA: camera format, lens in mm, aperture, camera height in cm and angle in degrees, distance to the product, depth of field, exactly what is in sharp focus and what falls soft.
+LIGHT: key, fill and rim — each one's modifier and size, where it stands by clock position and height, hard or soft, its strength against the key as a ratio, colour temperature in kelvin; the shadow the product casts (direction, length, edge softness, how dark) and the highlight that runs along the pack.
+MATERIALS: the small physical truths that make it a photograph — how the pack's own material reads in this light (the sheen on metal, the grain of a paper label, the gloss of a cap), the texture of the surface it stands on, reflections and the contact shadow where it touches down, any drop, smear or swatch of the formula with its real colour and thickness.
+COLOUR: the whole palette as three to five named colours with hex, where each one appears and roughly how much of the frame it takes, and the one accent.
 STYLING: props, real ingredients, textures; hands or a person (casting, pose, expression, outfit) — only what belongs in this picture.
-FINISH: retouching level, surface detail, colour grade, and the kind of campaign it should look like.
+FINISH: retouching level, surface detail, colour grade and contrast, grain, and the kind of campaign it should sit beside — named by category and tier, never by another brand's name.
 AVOID: what must not appear — added text, lettering, logos or watermarks; extra or duplicate products; a changed label; anything that breaks the composition (name it).
 About ${words} words in all. Concrete nouns, numbers and positions instead of adjectives — never "beautiful", "stunning" or "high quality".
 If a character is given, the scene features that exact person (from their character sheet) holding or using the product with the label facing the camera: describe their action, expression, outfit and framing. UGC scenes ("Selfie talking to camera", "Unboxing at home", "Get ready with me"…) must look like real phone footage from a customer: vertical, handheld, natural light at home, authentic and unpolished, not a studio ad.
@@ -143,9 +145,29 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   let model: PhotoModel = isPhotoModel(input.model) ? input.model : DEFAULT_PHOTO;
   const prices = await hfPrices().catch(() => null);
   const count = Math.min(4, Math.max(1, input.n));
-  let runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 170_000)));
+  // Ads Studio (GPT Image) takes a brief, not a scene, and returns the whole batch from one request — each a finished ad, a different concept.
+  let ads: string[] = [];
+  if (model === "ads") {
+    const [b] = await db.select({ name: schema.brands.name }).from(schema.brands).where(eq(schema.brands.id, brandId));
+    const brief = [
+      `An ad for ${input.product}${b?.name ? ` by the brand ${b.name}` : ""}, for Facebook and Instagram.`,
+      `Art direction for the picture (its ban on lettering is about the set and props — the ad's own headline is yours to design):\n${input.prompt}`,
+      `Reference image 1 is the real product: show it exactly — same pack shape, cap, label, colours and printed text. Do not redraw or rename it.${person ? " Reference image 2 is the person to show — same face, hair, skin tone and build." : ""}`,
+      `A premium, editorial brand ad: one clear idea, generous space, a short headline of at most six words in correct English and at most one supporting line${b?.name ? `; the only brand name on it is ${b.name}` : ""}.`,
+      "No medical or cure claims, no before-and-after, no prices, discounts, star ratings, badges or awards, no logos of other companies, no watermark.",
+    ].join("\n");
+    const r = await hfRun(HF_ADS, { prompt: brief.slice(0, 8000), image_urls: urls.filter(Boolean).slice(0, 10), aspect_ratio: input.aspect, batch_size: count }, 230_000);
+    ads = (r.out?.images ?? []).map((x) => x.url).filter(Boolean);
+    if (!ads.length) {
+      if (/credit|safety|busy/i.test(r.error ?? "")) return { ids: [], error: r.error };
+      // Not open to every account: when it returns nothing at all, shoot a photo with the precise model rather than fail.
+      console.error("higgsfield", HF_ADS, "returned nothing — using sunburst:", r.error);
+      model = "sunburst";
+    }
+  }
+  let runs: Awaited<ReturnType<typeof hfRun>>[] = ads.length ? ads.map((url) => ({ out: { status: "completed" as const, request_id: "", images: [{ url }] } })) : await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 170_000)));
   // The precise model isn't open to every account: when it returns nothing at all, shoot with the fast one rather than fail.
-  if (model !== "flare" && runs.every((r) => !r.out?.images?.[0]?.url) && !runs.some((r) => /credit|safety|busy/i.test(r.error ?? ""))) {
+  if (model === "sunburst" && runs.every((r) => !r.out?.images?.[0]?.url) && !runs.some((r) => /credit|safety|busy/i.test(r.error ?? ""))) {
     console.error("higgsfield", PHOTO_MODELS[model].path, "returned nothing — using flare:", runs[0]?.error);
     model = "flare";
     runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS.flare.path, body, 150_000)));
@@ -160,7 +182,7 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
       const img = await hfImage(url);
       const [row] = await saveAsset({
         brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · shoot`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
-        meta: { ai: true, prompt: input.prompt.slice(0, 2400), product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name}`, ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
+        meta: { ai: true, prompt: input.prompt.slice(0, 2400), product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name}`, ...(PHOTO_MODELS[model].finished ? { finished: true } : {}), ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
       });
       ids.push(row.id);
     } catch (e) { error = (e as Error).message; }
@@ -241,7 +263,7 @@ export async function checkShot(brandId: string, assetId: string, referenceUrl: 
     content: [
       { type: "text", text: `Reference: the real product “${product}”.` },
       { type: "image", source: { type: "url", url: referenceUrl } },
-      { type: "text", text: "Generated photo to check:" },
+      { type: "text", text: a.meta.finished ? "Generated picture to check. It is a finished ad: the designed words on it are intended, so answer noTextOrWatermark true unless it carries a watermark or another company's logo. Judge the product in it:" : "Generated photo to check:" },
       { type: "image", source: { type: "base64", media_type: a.mime as "image/png" | "image/jpeg" | "image/webp", data: Buffer.from(a.data).toString("base64") } },
     ],
     schema: CheckOut,

@@ -10,15 +10,19 @@ import { env } from "../env";
 const API = "https://api.higgsfield.ai";
 export const HF_PHOTO = "marketing-studio/image/flare"; // product-ad images; the product photo goes in first
 /**
- * The photo models Shoots offers. Both are Marketing Studio Image 2.5 with the same settings: Sunburst is the precise one — it keeps
- * a product's shape and label closest to the reference, which is what an ad needs; Flare is the fast one, for drafts.
+ * The picture models Shoots offers. Ads Studio renders with GPT Image: from a brief and the real product photo it returns a FINISHED ad —
+ * the scene and the words designed together — so nothing is laid over it afterwards. The two Marketing Studio Image 2.5 models make a
+ * photo with no words, for Remy to set the ad's words on: Sunburst is the precise one (keeps a product's shape and label closest to the
+ * reference), Flare the fast one, for drafts.
  */
-export type PhotoModel = "sunburst" | "flare";
-export const PHOTO_MODELS: Record<PhotoModel, { name: string; path: string; note: string }> = {
+export type PhotoModel = "ads" | "sunburst" | "flare";
+export const HF_ADS = "higgsfield/ads-studio/v1.0";
+export const PHOTO_MODELS: Record<PhotoModel, { name: string; path: string; note: string; finished?: boolean }> = {
+  ads: { name: "Ads Studio · GPT Image", path: HF_ADS, note: "A finished ad — the scene and the words designed together", finished: true },
   sunburst: { name: "Marketing Studio · Sunburst", path: "marketing-studio/image/sunburst", note: "The precise one — keeps the product and its label closest to the real thing" },
   flare: { name: "Marketing Studio · Flare", path: HF_PHOTO, note: "The fast one — for drafts and quick variations" },
 };
-export const DEFAULT_PHOTO: PhotoModel = "sunburst";
+export const DEFAULT_PHOTO: PhotoModel = "ads";
 export const isPhotoModel = (m: unknown): m is PhotoModel => typeof m === "string" && m in PHOTO_MODELS;
 export const HF_VIDEO = "bytedance/seedance-2.5/image-to-video"; // 4–30 s, generates sound with the clip; starts from our frame
 export const HF_VIDEO_REF = "bytedance/seedance-2.5/reference-to-video"; // same model, with a brand voice sample (and the character sheet) as references
@@ -37,6 +41,8 @@ export const isVideoModel = (m: unknown): m is VideoModel => typeof m === "strin
 export type Rate = { second: number; sound: number; res: Record<"480p" | "720p" | "1080p", number> };
 export const hfReady = () => Boolean(env.higgsfield());
 
+/** What Higgsfield's docs give as a budgeting figure for one Ads Studio image, used only when its estimate can't be read. */
+const ADS_APPROX = 0.084;
 type Status = { status: "queued" | "in_progress" | "completed" | "failed" | "nsfw" | "canceled"; request_id: string; error?: string | null;
   images?: { url: string }[]; video?: { url: string }; audio?: { url: string } };
 
@@ -170,13 +176,14 @@ export async function hfPrices(): Promise<{ photo: number; photos: Partial<Recor
   if (!hfReady()) return null;
   const keys = Object.keys(VIDEO_MODELS) as VideoModel[];
   const shot = { prompt: "A product on a table", resolution: "2k", aspect_ratio: "3:4", quality: "high" };
+  const ad = await hfQuote(HF_ADS, { prompt: "An ad for a skincare serum", aspect_ratio: "4:5", batch_size: 1 }).catch(() => null);
   const [p, precise, ...rates] = await Promise.all([hfQuote(HF_PHOTO, shot), hfQuote(PHOTO_MODELS.sunburst.path, shot).catch(() => null), ...keys.map((k) => videoRate(VIDEO_MODELS[k].i2v).catch(() => null))]);
   const video = Object.fromEntries(keys.flatMap((k, i) => (rates[i] ? [[k, rates[i]]] : []))) as Partial<Record<VideoModel, Rate>>;
   const main = video[DEFAULT_VIDEO] ?? video.seedance;
   // A failed estimate is thrown, not returned, so it isn't cached for hours — the next request asks again.
   if (!p || !main) throw new Error("Higgsfield prices unavailable");
   const flare = p.usd ?? PHOTO_APPROX;
-  return { photo: flare, photos: { flare, sunburst: precise?.usd ?? flare }, video, videoSecond: main.second, soundSecond: main.sound, res: main.res };
+  return { photo: flare, photos: { flare, sunburst: precise?.usd ?? flare, ads: ad?.usd ?? ADS_APPROX }, video, videoSecond: main.second, soundSecond: main.sound, res: main.res };
 }
 
 /** Width/height of a PNG or JPEG, to keep an edit's framing. */
