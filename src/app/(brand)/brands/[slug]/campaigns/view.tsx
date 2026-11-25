@@ -24,6 +24,7 @@ type Props = { slug: string; currency: string; plans: PlanCard[]; meta: LibRow[]
 const TONE: Record<Reason, [string, string]> = { holiday: ["#121212", "#fff"], overstock: ["var(--amber-bg)", "var(--amber)"], lapsed: ["var(--blue-bg)", "var(--blue)"], sales: ["var(--red-bg)", "var(--red)"], own: ["var(--tray-2)", "var(--ink)"] };
 const COLS = "minmax(240px, 2.4fr) 110px repeat(3, minmax(84px, 1fr)) 132px";
 
+const initials = (n: string) => n.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMeta, sales, options, minBudget, pilot, startNew = false }: Props & { startNew?: boolean }) {
   const base = `/brands/${slug}`, router = useRouter();
   const [busy, start] = useTransition();
@@ -61,8 +62,14 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
         </span>
       </div>
       <div className="row between g12" style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-        <span className="row g8 xs i3"><AgentFace kind={p.reason === "overstock" ? "qa" : "analyst"} size={22} mood="happy" /><span className="tnum" style={{ color: m.profit >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{m.profit >= 0 ? "+" : "−"}{usd(Math.abs(m.profit))} profit</span></span>
-        <span className={`btn sm${first ? " dark" : ""}`}>{p.stage === "suggested" ? "Review plan" : "Open plan"}<Icon name="arrow-r" size={11} color={first ? "#fff" : undefined} /></span>
+        {/* The forecast is the agent's, said in words. The face on the card is whoever really made or approved the campaign. */}
+        <span className="row g6 xs i3" style={{ minWidth: 0 }}><span style={{ flexShrink: 0 }}>{p.reason === "overstock" ? "Otto" : "Iris"} expects</span><span className="tnum ell" style={{ color: m.profit >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{m.profit >= 0 ? "+" : "−"}{usd(Math.abs(m.profit))} profit</span></span>
+        <span className="row g10" style={{ flexShrink: 0 }}>
+          {p.approvedBy
+            ? <span className="row g6 xs i2" title={`${p.reason === "own" ? "Started" : "Approved"} by ${p.approvedBy}`}><span className="av k" style={{ width: 22, height: 22, fontSize: 10 }}>{initials(p.approvedBy)}</span>{p.approvedBy.split(" ")[0]}</span>
+            : <span className="row g6 xs i3" title={`Suggested by ${p.reason === "overstock" ? "Otto" : "Iris"} · not approved yet`}><AgentFace kind={p.reason === "overstock" ? "qa" : "analyst"} size={22} />{p.reason === "overstock" ? "Otto" : "Iris"}</span>}
+          <span className={`btn sm${first ? " dark" : ""}`}>{p.stage === "suggested" ? "Review plan" : "Open plan"}<Icon name="arrow-r" size={11} color={first ? "#fff" : undefined} /></span>
+        </span>
       </div>
     </Link>); };
 
