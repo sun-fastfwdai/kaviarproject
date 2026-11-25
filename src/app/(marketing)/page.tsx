@@ -602,7 +602,7 @@ export default function LandingPage() {
         <div className="lp-wrap row between" style={{ flexWrap: "wrap", gap: 16 }}>
           <div className="col g8"><Wordmark href="/" /><span className="xs i3">Ads for Shopify brands, planned from their own store data · © 2026 Kaviar</span></div>
           <div className="row g20 sm i2" style={{ flexWrap: "wrap" }}>
-            <a href="#how">How it works</a><a href="#loop">Campaigns</a><a href="#market">Competitors</a><a href="#faq">FAQ</a><a href="#contact">Book a call</a><Link href="/login">Sign in</Link>
+            <a href="#how">How it works</a><a href="#loop">Campaigns</a><a href="#market">Competitors</a><a href="#faq">FAQ</a><a href="#contact">Book a call</a><Link href="/privacy">Privacy</Link><Link href="/login">Sign in</Link>
           </div>
         </div>
       </footer>
