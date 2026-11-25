@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask, type Block } from "../ai/client";
 import type { AdDesign } from "../db/schema";
@@ -119,8 +119,11 @@ const ON_A_PACKSHOT: LayoutKey[] = ["bold", "benefits", "statement", "bigword", 
 export async function layoutBatch(brandId: string, batchId: string, memberId: string | null, adIds?: string[], layout?: LayoutKey, shotFor?: LayoutKey, look?: string,
   opts: { plan?: string; vary?: boolean } = {}): Promise<{ made: number; error?: string }> { // plan: the campaign these cards belong to · vary: a different layout on every card
   const [batch] = await db.select().from(schema.adBatches).where(and(eq(schema.adBatches.id, batchId), eq(schema.adBatches.brandId, brandId)));
-  const ads = (await db.select().from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : []))))
+  const all = (await db.select().from(A).where(and(eq(A.batchId, batchId), ...(adIds?.length ? [inArray(A.id, adIds)] : []))))
     .filter((a) => a.status !== "rejected" && (a.format === "static" || a.format === "carousel")).sort((x, y) => x.position - y.position);
+  // A finished ad — made with its words designed in — is never drawn over.
+  const done = new Set((await db.select({ id: schema.brandAssets.id }).from(schema.brandAssets).where(and(eq(schema.brandAssets.brandId, brandId), sql`coalesce((${schema.brandAssets.meta}->>'finished')::boolean, false)`))).map((x) => `/api/assets/${x.id}`));
+  const ads = all.filter((a) => !done.has((a.imageUrl ?? "").split("?")[0]));
   if (!batch || !ads.length) return { made: 0 };
   const [ctx, market, [b]] = await Promise.all([brandContext(brandId), marketContext(brandId).catch(() => null), db.select({ onboarding: schema.brands.onboarding }).from(schema.brands).where(eq(schema.brands.id, brandId))]);
   const palette = b?.onboarding?.analysis?.palette ?? [];

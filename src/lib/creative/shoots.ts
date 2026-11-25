@@ -128,6 +128,18 @@ export async function shoot(brandId: string, memberId: string | null, input: { p
   return { ids, error };
 }
 
+/** The creative angles a set of ads is spread across — one each, so no two ads of a shoot are the same idea in another colour. */
+const AD_ANGLES = [
+  "Problem and solution — the moment the buyer knows, answered calmly",
+  "Ingredient storytelling — what is in it, shown as real material",
+  "Sensory experience — the formula's texture and feel, close and tactile",
+  "Scientific credibility — precise, lab-clean, measured",
+  "Lifestyle and identity — the buyer's own world, the product at home in it",
+  "Minimalist product positioning — the pack, one line, a great deal of space",
+  "Product education — how and when it is used, in one glance",
+  "Luxury and aspiration — material richness, dramatic light and scale",
+];
+
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
 async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids: string[]; error?: string }> {
   const urls = [input.imageUrl];
@@ -148,24 +160,57 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   // Ads Studio (GPT Image) takes a brief, not a scene, and returns the whole batch from one request — each a finished ad, a different concept.
   let ads: string[] = [];
   if (model === "ads") {
-    const [b] = await db.select({ name: schema.brands.name }).from(schema.brands).where(eq(schema.brands.id, brandId));
-    // Shot for a campaign's ads: each picture carries its own ad's headline, so the ad says what the campaign set out to say.
-    const lines = input.forBatch && /^[0-9a-f-]{36}$/i.test(input.forBatch)
-      ? await db.select({ headline: schema.ads.headline, hook: schema.ads.hook }).from(schema.ads).where(and(eq(schema.ads.batchId, input.forBatch), eq(schema.ads.brandId, brandId), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position)).limit(count)
-      : [];
-    const brief = (line?: { headline: string; hook: string }) => [
-      `An ad for ${input.product}${b?.name ? ` by the brand ${b.name}` : ""}, for Facebook and Instagram.`,
-      line ? `The headline on the ad, set exactly as written, spelled exactly: “${line.headline.slice(0, 80)}”.${line.hook ? ` One small supporting line, optional: “${line.hook.slice(0, 110)}”.` : ""} No other sentence on the ad.` : "",
-      `Art direction for the picture (its ban on lettering is about the set and props — the ad's own headline is yours to design):\n${input.prompt}`,
-      `Reference image 1 is the real product: show it exactly — same pack shape, cap, label, colours and printed text. Do not redraw or rename it.${person ? " Reference image 2 is the person to show — same face, hair, skin tone and build." : ""}`,
-      `A premium, editorial brand ad: one clear idea, generous space, ${line ? "the headline large and well set" : "a short headline of at most six words in correct English and at most one supporting line"}${b?.name ? `; the only brand name on it is ${b.name}` : ""}.`,
-      "Any drop, smear or swatch of the formula shows the colour the label or the direction gives it. Invent no ingredient, number or claim.",
-      "No medical or cure claims, no before-and-after, no prices, discounts, star ratings, badges or awards, no logos of other companies, no watermark.",
-    ].filter(Boolean).join("\n").slice(0, 8000);
+    // The brief is a creative director's, not a photographer's: who the brand is, what may be said, the one message of this ad, and the
+    // craft it is held to. Shot for a campaign's ads, each picture carries its own ad's headline and takes its own creative angle.
+    const [[b], [pr], market, lines] = await Promise.all([
+      db.select({ name: schema.brands.name, category: schema.brands.category, website: schema.brands.website }).from(schema.brands).where(eq(schema.brands.id, brandId)),
+      db.select({ vendor: schema.shopProducts.vendor, type: schema.shopProducts.productType }).from(schema.shopProducts).where(and(eq(schema.shopProducts.brandId, brandId), eq(schema.shopProducts.title, input.product))).limit(1),
+      marketContext(brandId, input.product || null).catch(() => null),
+      input.forBatch && /^[0-9a-f-]{36}$/i.test(input.forBatch)
+        ? db.select({ headline: schema.ads.headline, hook: schema.ads.hook, text: schema.ads.primaryText }).from(schema.ads).where(and(eq(schema.ads.batchId, input.forBatch), eq(schema.ads.brandId, brandId), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position)).limit(count)
+        : Promise.resolve([] as { headline: string; hook: string; text: string }[]),
+    ]);
+    // The name on the pack and the store (its vendor) is the brand's full name; the workspace name can be a short form of it.
+    const vendor = pr?.vendor?.trim() ? pr.vendor.trim().toLowerCase().replace(/(^|[\s-])\p{L}/gu, (m) => m.toUpperCase()) : "";
+    const brandName = vendor || b?.name || "";
+    const pos = market?.positioning ?? null;
+    const brief = (i: number, line?: { headline: string; hook: string; text: string }) => {
+      const facts = [...(pos?.proofWeCanUse ?? []).slice(0, 5), ...(line?.text ? [line.text.slice(0, 420)] : [])];
+      return [
+        "ROLE",
+        "You are a world-class advertising creative director, graphic designer and product photographer, with the creative standards of a leading agency and the conversion sense of a successful direct-to-consumer brand. Turn the product in reference image 1 into ONE exceptional, scroll-stopping, production-ready static ad for the Facebook and Instagram feed.",
+        "",
+        "BRAND",
+        `${brandName}${b?.name && b.name !== brandName ? ` (also written ${b.name})` : ""}${b?.category ? ` — ${b.category}` : pr?.type ? ` — ${pr.type}` : ""}${b?.website ? ` · ${b.website}` : ""}.${pos?.statement ? ` Positioning: ${pos.statement}` : ""}${pos?.voice ? ` Voice: ${pos.voice}` : ""}`,
+        "",
+        "PRODUCT",
+        `${input.product}. Reference image 1 is the real pack.${person ? " Reference image 2 is the person to show — same face, hair, skin tone and build." : ""}`,
+        facts.length ? `Facts you may use — and nothing beyond them or what is printed on the pack:\n${facts.map((x) => `- ${x}`).join("\n")}` : "Use only what is printed on the pack as fact.",
+        "",
+        ...(pos?.primaryBuyer || market?.buyers[0]?.who ? ["AUDIENCE", String(pos?.primaryBuyer ?? market?.buyers[0]?.who), ""] : []),
+        "THIS AD",
+        `Creative angle: ${AD_ANGLES[i % AD_ANGLES.length]}. One strong primary message.`,
+        line ? `Headline, set exactly as written and spelled exactly: “${line.headline.slice(0, 80)}”` : "Headline: write one distinctive, product-specific headline of 3–8 words — never a stock line such as “Elevate your routine” or “Discover the difference”.",
+        line?.hook ? `Supporting line, one short sentence (you may tighten it, never add a claim): “${line.hook.slice(0, 120)}”` : "Supporting line: one short sentence, only if it strengthens the message.",
+        "Up to three benefit callouts of 2–4 words, each with a thin line icon, drawn only from the facts above — leave them out if the composition is stronger without.",
+        "",
+        "ART DIRECTION",
+        "It must look designed by experienced human creative professionals: strong editorial typography with a clear hierarchy (the headline dominant, two weights of one family), intentional negative space, a sophisticated palette built from the pack's own colours plus one warm or fresh tone, a thoughtful asymmetric composition with depth and scale.",
+        "Realistic product photography: physically accurate light, a soft contact shadow, true reflections on the pack's material, premium textures that belong to this product — stone, glass, water, the formula itself, a real ingredient. The product is the hero: large, sharp, its label readable.",
+        `The brand wordmark “${brandName}” small at the top, plainly typeset — do not invent a logo symbol.`,
+        `Photography notes from the team, for set, light and colour only (ignore anything in them about leaving areas empty or avoiding lettering):\n${input.prompt.slice(0, 1400)}`,
+        "",
+        "RULES",
+        "Preserve the pack exactly as in reference image 1 — shape, proportions, cap and nozzle, label layout, printed words, colours, material. Never redesign, rename or relabel it. One pack only unless the facts name a set.",
+        "Never invent benefits, clinical results, percentages, prices, discounts, certifications, awards, ratings, dermatologist endorsements or testimonials. No before-and-after, no cure or medical claims.",
+        "Any drop, smear or swatch of the formula shows the colour the pack or the facts give it.",
+        "All lettering in correct English, fully inside the frame with a 6% safe margin, nothing cut off. No other company's logo, no watermark, no QR code, no fake interface buttons.",
+      ].join("\n").slice(0, 8000);
+    };
     const refs = urls.filter(Boolean).slice(0, 10);
     const rs = lines.length
-      ? await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(lines[i % lines.length]), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)))
-      : [await hfRun(HF_ADS, { prompt: brief(), image_urls: refs, aspect_ratio: input.aspect, batch_size: count }, 230_000)];
+      ? await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(i, lines[i % lines.length]), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)))
+      : await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(i), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)));
     const r = rs.find((x) => x.error) ?? rs[0];
     ads = rs.flatMap((x) => (x.out?.images ?? []).map((y) => y.url)).filter(Boolean);
     if (!ads.length) {

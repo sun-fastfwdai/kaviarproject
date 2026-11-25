@@ -140,7 +140,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, pro
               {ad.image && (ad.designed
                 ? <a href={`/api/ads/${ad.id}/card?size=${size}`} target="_blank" rel="noreferrer" title="Open this size on its own" style={{ display: "block", background: "var(--tray-2)" }}>
                   <img key={size} src={size === "4x5" ? ad.image : `/api/ads/${ad.id}/card?size=${size}`} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: shape, objectFit: "cover" }} /></a>
-                : <img src={ad.image} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", background: "var(--tray-2)" }} />)}
+                : <img src={ad.image} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", aspectRatio: ad.image.startsWith("/api/assets/") ? "4 / 5" : "4 / 3", objectFit: "cover", background: "var(--tray-2)" }} />)}
               <div className="col g4" style={{ padding: "10px 12px" }}>
                 <span className="sm w5" style={{ lineHeight: "19px" }}>{ad.hook || ad.headline}</span>
                 <span className="xs i2" title={ad.text} style={{ lineHeight: "17px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ad.text}</span>
