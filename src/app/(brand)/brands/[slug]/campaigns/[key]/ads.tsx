@@ -83,7 +83,8 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, bat
           {designed > 0 && <div className="seg" role="radiogroup" aria-label="Which shape to look at">
             {([["4x5", "Feed"], ["1x1", "Square"], ["9x16", "Story"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={size === k} className={`o${size === k ? " on" : ""}`} title={k === "4x5" ? "4:5 — Facebook and Instagram feed" : k === "1x1" ? "1:1 — square placements" : "9:16 — Stories and Reels"} onClick={() => setSize(k)}>{t}</button>)}
           </div>}
-          {!locked && ads.length > 0 && (designed < ads.length
+          {/* a campaign made on Meta can still have its pictures designed until its ads are placed there */}
+          {!Object.keys(placed ?? {}).length && ads.length > 0 && (designed < ads.length
             ? <button type="button" className="btn sm" disabled={m.busy} onClick={() => m.design(true)} title="Remy sets each ad’s words on its picture, a different layout on each">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}Design the pictures</button>
             : <button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.design(false)} title="Put each ad’s plain picture back">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : null}Use plain pictures</button>)}
           {batchId && <Link className="btn quiet sm" href={`${base}/creative/${batchId}`} title="Change the words or the picture">Edit the ads<Icon name="arrow-r" size={11} /></Link>}
