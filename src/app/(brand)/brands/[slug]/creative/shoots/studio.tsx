@@ -336,7 +336,7 @@ function Studio(props: Props) {
     mark(xid, "running");
     const refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null;
     const chNode = up(g, xid, "character");
-    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: c.model ?? null });
+    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: c.model ?? null, forBatch: g.nodes.map((x) => (x.type === "send" ? cfgOf(x).send : null)).find(Boolean) ?? null });
     if (!r.ids?.length) { fail(xid, r.error ?? "No photos came back."); return null; }
     if (r.error) setMsg(r.error);
     const ids = r.ids;

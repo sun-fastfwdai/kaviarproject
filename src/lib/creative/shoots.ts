@@ -2,7 +2,7 @@ import "server-only";
 import { experimental_generateVideo as generateVideo, generateImage } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
@@ -102,7 +102,7 @@ export async function describeReference(brandId: string, assetId: string): Promi
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
-export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids: string[]; error?: string }> {
+export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids: string[]; error?: string }> {
   if (hfReady()) return shootHiggsfield(brandId, memberId, input);
   const ref = await fetchPublic(input.imageUrl, 15_000, "image/*");
   if (!ref?.ok) return { ids: [], error: "Couldn’t load the product photo." };
@@ -129,7 +129,7 @@ export async function shoot(brandId: string, memberId: string | null, input: { p
 }
 
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
-async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids: string[]; error?: string }> {
+async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids: string[]; error?: string }> {
   const urls = [input.imageUrl];
   let person = false;
   if (input.characterId) {
@@ -149,15 +149,25 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   let ads: string[] = [];
   if (model === "ads") {
     const [b] = await db.select({ name: schema.brands.name }).from(schema.brands).where(eq(schema.brands.id, brandId));
-    const brief = [
+    // Shot for a campaign's ads: each picture carries its own ad's headline, so the ad says what the campaign set out to say.
+    const lines = input.forBatch && /^[0-9a-f-]{36}$/i.test(input.forBatch)
+      ? await db.select({ headline: schema.ads.headline, hook: schema.ads.hook }).from(schema.ads).where(and(eq(schema.ads.batchId, input.forBatch), eq(schema.ads.brandId, brandId), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position)).limit(count)
+      : [];
+    const brief = (line?: { headline: string; hook: string }) => [
       `An ad for ${input.product}${b?.name ? ` by the brand ${b.name}` : ""}, for Facebook and Instagram.`,
+      line ? `The headline on the ad, set exactly as written, spelled exactly: “${line.headline.slice(0, 80)}”.${line.hook ? ` One small supporting line, optional: “${line.hook.slice(0, 110)}”.` : ""} No other sentence on the ad.` : "",
       `Art direction for the picture (its ban on lettering is about the set and props — the ad's own headline is yours to design):\n${input.prompt}`,
       `Reference image 1 is the real product: show it exactly — same pack shape, cap, label, colours and printed text. Do not redraw or rename it.${person ? " Reference image 2 is the person to show — same face, hair, skin tone and build." : ""}`,
-      `A premium, editorial brand ad: one clear idea, generous space, a short headline of at most six words in correct English and at most one supporting line${b?.name ? `; the only brand name on it is ${b.name}` : ""}.`,
+      `A premium, editorial brand ad: one clear idea, generous space, ${line ? "the headline large and well set" : "a short headline of at most six words in correct English and at most one supporting line"}${b?.name ? `; the only brand name on it is ${b.name}` : ""}.`,
+      "Any drop, smear or swatch of the formula shows the colour the label or the direction gives it. Invent no ingredient, number or claim.",
       "No medical or cure claims, no before-and-after, no prices, discounts, star ratings, badges or awards, no logos of other companies, no watermark.",
-    ].join("\n");
-    const r = await hfRun(HF_ADS, { prompt: brief.slice(0, 8000), image_urls: urls.filter(Boolean).slice(0, 10), aspect_ratio: input.aspect, batch_size: count }, 230_000);
-    ads = (r.out?.images ?? []).map((x) => x.url).filter(Boolean);
+    ].filter(Boolean).join("\n").slice(0, 8000);
+    const refs = urls.filter(Boolean).slice(0, 10);
+    const rs = lines.length
+      ? await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(lines[i % lines.length]), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)))
+      : [await hfRun(HF_ADS, { prompt: brief(), image_urls: refs, aspect_ratio: input.aspect, batch_size: count }, 230_000)];
+    const r = rs.find((x) => x.error) ?? rs[0];
+    ads = rs.flatMap((x) => (x.out?.images ?? []).map((y) => y.url)).filter(Boolean);
     if (!ads.length) {
       if (/credit|safety|busy/i.test(r.error ?? "")) return { ids: [], error: r.error };
       // Not open to every account: when it returns nothing at all, shoot a photo with the precise model rather than fail.

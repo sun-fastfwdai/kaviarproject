@@ -94,7 +94,7 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
   return editShot(brand.id, me.id, assetId, kind);
 }
 
-export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids?: string[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   if (input.prompt.trim().length < 10) return { error: "Describe the scene first." };
