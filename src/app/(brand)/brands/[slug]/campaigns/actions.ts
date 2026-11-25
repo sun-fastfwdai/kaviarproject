@@ -2,9 +2,10 @@
 import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { layoutBatch } from "@/lib/creative/design";
+import { sendShots } from "../creative/shoots/actions";
 import { aiReady } from "@/lib/ai/client";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
@@ -33,6 +34,34 @@ export async function setPlanBudget(slug: string, key: string, budget: number, d
   fresh(slug);
 }
 /** The brand's monthly sales target: falling short of it is a reason to advertise. */
+/** The brand's pictures from the Creative studio a campaign's ads can wear: photos shot in Shoots and its own uploads, the campaign's product first. */
+export async function studioPhotos(slug: string, key: string): Promise<{ id: string; name: string; ai: boolean; mine: boolean }[]> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const product = plans.list.find((x) => x.key === key)?.c.product ?? null;
+  const A = schema.brandAssets;
+  const rows = await db.select({ id: A.id, name: A.name, meta: A.meta }).from(A)
+    .where(and(eq(A.brandId, brand.id), eq(A.kind, "imagery"), sql`${A.mime} like 'image/%'`, sql`coalesce(${A.meta}->>'edit', '') <> 'card'`)).orderBy(desc(A.createdAt)).limit(80);
+  const list = rows.map((r) => ({ id: r.id, name: r.name, ai: Boolean(r.meta.ai), mine: Boolean(product && r.meta.product === product) }));
+  return [...list.filter((x) => x.mine), ...list.filter((x) => !x.mine)];
+}
+
+/** Put chosen studio pictures on a campaign's ads, in order (they repeat when there are fewer pictures than ads), and design each card on its picture. */
+export async function wearPhotos(slug: string, key: string, ids: string[]): Promise<{ error?: string; done?: number; cards?: number }> {
+  await requireMember();
+  const brand = await getBrand(slug);
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const p = plans.list.find((x) => x.key === key);
+  if (!p?.ads) return { error: "This campaign has no ads yet" };
+  if (Object.keys(p.meta?.placed ?? {}).length) return { error: "Its ads are already on Meta — make new ads to change the pictures" };
+  const picked = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 12);
+  if (!picked.length) return { error: "Pick at least one picture" };
+  const r = await sendShots(slug, picked, p.ads.batchId);
+  fresh(slug);
+  return r.error ? { error: r.error } : { done: r.done, cards: r.cards };
+}
+
 /**
  * Design a campaign's ads as cards — its words set on its picture, a different layout on each — or put the plain pictures back.
  * Not once an ad is on Meta: what is running stays as it was approved.

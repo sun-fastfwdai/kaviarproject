@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- product photos, brand pictures and drawn cards, served by the app itself */
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
@@ -10,7 +10,8 @@ import type { PlanAd, PlanExtras } from "@/lib/growth/plans";
 import type { Stage } from "@/lib/growth/plans-rules";
 import { makeAds } from "../../plan/actions";
 import { setAdStatus } from "../../creative/actions";
-import { addReference, designAds, removeReference, saveBrief } from "../actions";
+import { Modal } from "@/components/modal";
+import { addReference, designAds, removeReference, saveBrief, studioPhotos, wearPhotos } from "../actions";
 
 /**
  * A campaign's ads, made and judged in one place — used on the campaign's own page and in the Creative studio. The brand gives Remy
@@ -46,6 +47,18 @@ export function useAds({ slug, planKey, title, brief, ads, count, onWork, onErro
         setDoing(null);
       });
     },
+    photos: () => studioPhotos(slug, planKey),
+    // Pictures already made in the Creative studio, put on these ads and designed.
+    wear: (ids: string[], after?: () => void) => {
+      fail(null); setDoing("wear");
+      onWork({ who: "builder", what: `Remy is setting “${title}” on your studio pictures`, usually: "Usually under a minute", since: Date.now() });
+      start(async () => {
+        const r = await wearPhotos(slug, planKey, ids);
+        if (r.error) { onWork({ done: r.error, bad: true }); fail(r.error); }
+        else { router.refresh(); onChanged?.(); after?.(); onWork({ done: `${r.done} ad${r.done === 1 ? "" : "s"} now on your studio pictures${r.cards ? ` · ${r.cards} designed` : ""}` }); }
+        setDoing(null);
+      });
+    },
     approveAll: () => run("all", async () => { for (const x of toReview) await setAdStatus(slug, x.id, "approved"); }, `${toReview.length} ads approved`),
     // Remy writes the ads while the brand stays here: the dock says so, and the ads appear when he is done.
     write: () => {
@@ -73,6 +86,7 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, pro
   const fileRef = useRef<HTMLInputElement>(null);
   // A designed ad comes in Meta's three shapes; a plain photo is shown as it is.
   const [size, setSize] = useState<"4x5" | "1x1" | "9x16">("4x5");
+  const [pick, setPick] = useState(false);
   const designed = ads.filter((x) => x.designed).length, shape = { "4x5": "4 / 5", "1x1": "1 / 1", "9x16": "9 / 16" }[size];
   const okAds = ads.filter((x) => x.status === "approved"), toReview = m.toReview, spin = (k: string, c?: string) => m.doing === k && <Icon name="spinner" size={13} className="spin" color={c} />;
   return (
@@ -88,8 +102,8 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, pro
           {!Object.keys(placed ?? {}).length && ads.length > 0 && (designed < ads.length
             ? <button type="button" className="btn sm" disabled={m.busy} onClick={() => m.design(true)} title="Remy sets each ad’s words on its picture, a different layout on each">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : <AgentFace kind="builder" size={14} />}Design the pictures</button>
             : <button type="button" className="btn quiet sm" disabled={m.busy} onClick={() => m.design(false)} title="Put each ad’s plain picture back">{m.doing === "design" ? <Icon name="spinner" size={12} className="spin" /> : null}Use plain pictures</button>)}
-          {/* the pictures are made in the Creative studio: Shoots takes these ads and the product's own photo, and sends the pictures back here */}
-          {batchId && !Object.keys(placed ?? {}).length && ads.length > 0 && <Link className="btn dark sm" href={`${base}/creative/shoots?batch=${batchId}&layout=static&n=${Math.min(9, ads.length)}&plan=1${product ? `&product=${encodeURIComponent(product)}` : ""}`} title="Pick a look, and the studio shoots your real product in it — one picture for each ad. Each picture is charged by the image service."><Icon name="image" size={12} color="#fff" />Shoot the pictures</Link>}
+          {/* the pictures come from the Creative studio: ones already shot there, or a new shoot for these ads */}
+          {batchId && !Object.keys(placed ?? {}).length && ads.length > 0 && <button type="button" className="btn dark sm" disabled={m.busy} onClick={() => setPick(true)} title="Use pictures from your Creative studio on these ads, or shoot new ones">{m.doing === "wear" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="image" size={12} color="#fff" />}Studio pictures</button>}
           {batchId && <Link className="btn quiet sm" href={`${base}/creative/${batchId}`} title="Change the words or the picture">Edit the ads<Icon name="arrow-r" size={11} /></Link>}
           {extra}
         </span>
@@ -138,6 +152,36 @@ export function AdsBlock({ m, base, stage, locked, ads, brief, productPhoto, pro
               </div>
             </div>))}
         </div>}
+      {pick && batchId && <StudioPictures m={m} n={ads.length} shoot={`${base}/creative/shoots?batch=${batchId}&layout=static&n=${Math.min(9, ads.length)}&plan=1${product ? `&product=${encodeURIComponent(product)}` : ""}`} onClose={() => setPick(false)} />}
     </div>
+  );
+}
+
+/** Pictures for a campaign's ads, from the Creative studio: tick ones already made there, or open Shoots to make new ones for these ads. */
+function StudioPictures({ m, n, shoot, onClose }: { m: AdsMaker; n: number; shoot: string; onClose: () => void }) {
+  const [list, setList] = useState<Awaited<ReturnType<AdsMaker["photos"]>> | null>(null);
+  const [on, setOn] = useState<string[]>([]);
+  const load = m.photos;
+  useEffect(() => { let live = true; void load().then((l) => { if (live) setList(l); }).catch(() => { if (live) setList([]); }); return () => { live = false; }; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- asked once, when the dialog opens
+  const toggle = (id: string) => setOn((v) => (v.includes(id) ? v.filter((x) => x !== id) : v.length < 12 ? [...v, id] : v));
+  return (
+    <Modal icon={<Icon name="image" size={16} />} title="Pictures for these ads" sub={`${n} ad${n === 1 ? "" : "s"} · from your Creative studio`} onClose={onClose} width={640}
+      footer={<>
+        <Link className="btn sm" href={shoot} title="The studio shoots your real product in a look you pick, one picture for each ad. Each picture is charged by the image service — you see the price before it runs."><Icon name="plus" size={12} />Shoot new ones</Link>
+        <span className="fill" />
+        <button type="button" className="btn quiet sm" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn dark sm" disabled={!on.length || m.busy} onClick={() => m.wear(on, onClose)}>{m.doing === "wear" ? <Icon name="spinner" size={12} className="spin" color="#fff" /> : <Icon name="check" size={12} color="#fff" />}{on.length ? `Use ${on.length} on these ads` : "Use on these ads"}</button>
+      </>}>
+      {list === null ? <div className="row g8 i3 sm" style={{ padding: 24, justifyContent: "center" }}><Icon name="spinner" size={14} className="spin" />Loading your pictures</div>
+        : !list.length ? <div className="col g4" style={{ padding: 24, alignItems: "center", textAlign: "center" }}><span className="sm">No studio pictures yet</span><span className="xs i3">Shoot the first ones for these ads</span></div>
+        : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))", gap: 8, maxHeight: 420, overflowY: "auto" }}>
+          {list.map((a) => { const k = on.indexOf(a.id); return (
+            <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={k >= 0} title={a.name} style={{ position: "relative", padding: 0, border: 0, borderRadius: 8, overflow: "hidden", aspectRatio: "4 / 5", cursor: "pointer", background: "#F4F2EE", boxShadow: k >= 0 ? "0 0 0 2px var(--ink)" : "0 0 0 1px var(--line)" }}>
+              <img src={`/api/assets/${a.id}?w=480`} alt={a.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              {k >= 0 && <span className="xs tnum" style={{ position: "absolute", top: 6, right: 6, minWidth: 20, height: 20, borderRadius: 10, background: "var(--ink)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 600 }}>{k + 1}</span>}
+              {a.mine && <span className="pill xs" style={{ position: "absolute", left: 6, bottom: 6, background: "rgba(255,255,255,.92)" }}>This product</span>}
+            </button>); })}
+        </div>}
+    </Modal>
   );
 }
