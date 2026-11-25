@@ -1,8 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask, type Block } from "../ai/client";
+import { readAssets } from "@/lib/assets/storage";
 import { marketContext } from "../research/context";
 import type { AdConcept, AdPlan } from "../db/schema";
 
@@ -28,7 +29,8 @@ export const AD_ANGLES = [
 /** Headlines every brand has already run. */
 const STOCK = ["Elevate your routine", "Discover the difference", "Unlock your glow", "Your skin deserves", "Say goodbye to", "Game changer", "Glow like never before", "The secret to", "Transform your", "Experience the power"];
 
-export type PlanIn = { product: string; imageUrl: string; n: number; forBatch?: string | null; look?: string | null; person?: boolean };
+/** `templates` = imported ads the brand wants its own to be built like: each concept follows one, in turn. */
+export type PlanIn = { product: string; imageUrl: string; n: number; forBatch?: string | null; look?: string | null; person?: boolean; templates?: string[] };
 type Line = { id: string; headline: string; hook: string; text: string };
 
 const title = (v: string) => v.trim().toLowerCase().replace(/(^|[\s-])\p{L}/gu, (m) => m.toUpperCase());
@@ -118,6 +120,13 @@ Plain words. No hype.`,
   const facts = iris.facts.map((f) => ({ fact: cut(f.fact, 200), source: f.source })).filter((f) => f.fact).slice(0, 8);
   const ideas = Array.from({ length: n }, (_, i) => iris.ideas[i] ?? { angle: AD_ANGLES[i % AD_ANGLES.length], insight: "", message: lines[i]?.hook ?? "" });
 
+  // ---- Templates: finished ads the brand imported as layouts to follow. Remy looks at each one, so what he writes fits its structure.
+  const ids = (input.templates ?? []).filter((v) => /^[0-9a-f-]{36}$/i.test(v)).slice(0, 4);
+  const tpl = ids.length ? (await readAssets(and(eq(schema.brandAssets.brandId, brandId), inArray(schema.brandAssets.id, ids))).catch(() => []))
+    .filter((a) => /^image\/(png|jpeg|webp)$/.test(a.mime)).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id)) : [];
+  const shown: Block[] = tpl.flatMap((a, k) => [{ type: "text" as const, text: `Template ${k + 1}:` }, { type: "image" as const, source: { type: "base64" as const, media_type: a.mime as "image/png" | "image/jpeg" | "image/webp", data: Buffer.from(a.data).toString("base64") } }]);
+  const templateFor = (i: number) => (tpl.length ? tpl[i % tpl.length] : null);
+
   // ---- Art direction and copy (Remy): each idea gets its own picture and its own words. Two jobs, written together so they fit.
   const remy = await ask("remy", {
     system: `You are Remy, Kaviar's creative agent, working as the ART DIRECTOR and the COPYWRITER on ${n} static ads for the Facebook and Instagram feed. An image model (GPT Image) will render each one from your direction, with the real pack photo as its reference, and it sets the words into the picture. Agency standard: these must look made by experienced people, never like a template with a product pasted on.
@@ -133,13 +142,14 @@ ART DIRECTION — every ad a different picture: no two share a set, a palette or
 - palette: three or four colours with hex and where each sits; built from the pack's own colours plus ONE tone that fits this idea. A different lead colour for every ad.
 - type: 12–25 words — the typeface style (e.g. high-contrast serif, grotesque sans), weights, case, and how headline, sub and callouts differ in size.
 - layout: 20–40 words — where the pack, the headline, the sub and the callouts sit (thirds, left/right, top/bottom), what stays empty, and one bold decision of scale or crop.
-Use only the facts given. Never invent a benefit, result, percentage, price, discount, certification, rating, award or testimonial; nothing from the "never" list; no before-and-after. If teamLook is given, at most one ad may follow it.`,
-    content: JSON.stringify({
+Use only the facts given. Never invent a benefit, result, percentage, price, discount, certification, rating, award or testimonial; nothing from the "never" list; no before-and-after. If teamLook is given, at most one ad may follow it.${tpl.length ? `
+TEMPLATES. The brand imported ${tpl.length} finished ad${tpl.length > 1 ? "s" : ""} as templates, shown first. Each idea names the template it must be built on ("template"). For that ad, layout and type DESCRIBE the template's own structure exactly — where its product, headline, supporting line and callouts sit, their relative sizes, its typeface style and hierarchy, how much is left empty — and scene is the kind of picture the template uses (a flat colour field stays a flat colour field; a styled set stays a styled set), rebuilt for this product and this idea. Write only as many callouts as the template has places for. Take the structure only: never its brand, logo, words, product or people. Ads on the same template still differ in colour and scene.` : ""}`,
+    content: [...shown, { type: "text" as const, text: JSON.stringify({
       brand: iris.brand || x.brand, pack: iris.pack, formula: iris.formula || null, voice: iris.voice, audience: iris.audience,
       facts: facts.map((f) => f.fact), never: iris.never, brandColours: palette, teamLook: input.look || null, withPerson: Boolean(input.person),
-      ideas: ideas.map((d, i) => ({ ad: i + 1, ...d })),
+      ideas: ideas.map((d, i) => ({ ad: i + 1, ...d, ...(tpl.length ? { template: (i % tpl.length) + 1 } : {}) })),
       campaignAds: lines.map((l, i) => ({ ad: i + 1, headline: l.headline, hook: l.hook })),
-    }),
+    }) }],
     schema: z.object({ ads: z.array(z.object({
       headline: z.string(), sub: z.string(), callouts: z.array(z.string()), cta: z.string(),
       scene: z.string(), light: z.string(), palette: z.string(), type: z.string(), layout: z.string(),
@@ -155,7 +165,7 @@ Use only the facts given. Never invent a benefit, result, percentage, price, dis
       headline: cut(line?.headline || r?.headline || "", 80), sub: cut(r?.sub ?? line?.hook ?? "", 140),
       callouts: (r?.callouts ?? []).map((c) => cut(c, 40)).filter(Boolean).slice(0, 3), cta: cut(r?.cta || "Shop now", 20),
       scene: cut(r?.scene, 700), light: cut(r?.light, 300), palette: cut(r?.palette, 300), type: cut(r?.type, 260), layout: cut(r?.layout, 400),
-      adId: line?.id ?? null,
+      adId: line?.id ?? null, template: templateFor(i)?.id ?? null,
     };
   });
   return {
@@ -177,6 +187,7 @@ export function cleanPlan(p: unknown): AdPlan | null {
       callouts: (Array.isArray(c?.callouts) ? c.callouts : []).slice(0, 3).map((s) => cut(s, 40)).filter(Boolean), cta: cut(c?.cta, 20),
       scene: cut(c?.scene, 700), light: cut(c?.light, 300), palette: cut(c?.palette, 300), type: cut(c?.type, 260), layout: cut(c?.layout, 400),
       adId: typeof c?.adId === "string" && /^[0-9a-f-]{36}$/i.test(c.adId) ? c.adId : null,
+      template: typeof c?.template === "string" && /^[0-9a-f-]{36}$/i.test(c.template) ? c.template : null,
     })),
     at: cut(v.at, 40) || new Date().toISOString(),
   };
@@ -186,7 +197,7 @@ export function cleanPlan(p: unknown): AdPlan | null {
  * The brief the image model renders one concept from — a creative director's, not a photographer's: who the brand is, what may be said,
  * the one message of this ad, how it looks, and the rules it is held to. `revise` = what Otto sent an earlier render back for.
  */
-export function adBrief(plan: AdPlan, c: AdConcept, opts: { product: string; aspect: "4:5" | "9:16" | "1:1"; person?: boolean; styleRef?: boolean; revise?: string[] }): string {
+export function adBrief(plan: AdPlan, c: AdConcept, opts: { product: string; aspect: "4:5" | "9:16" | "1:1"; person?: boolean; styleRef?: boolean; template?: boolean; revise?: string[] }): string {
   const art = [c.scene && `Scene: ${c.scene}`, c.light && `Light: ${c.light}`, c.palette && `Palette: ${c.palette}`, c.type && `Typography: ${c.type}`, c.layout && `Layout: ${c.layout}`].filter(Boolean) as string[];
   return [
     "ROLE",
@@ -209,6 +220,7 @@ export function adBrief(plan: AdPlan, c: AdConcept, opts: { product: string; asp
     "No other words anywhere, apart from the wordmark.",
     "",
     "ART DIRECTION",
+    ...(opts.template ? ["The last reference image is a layout TEMPLATE the brand chose. Build this ad on its structure: the same placement and proportions of the product, the headline, the supporting line and the callouts, the same type hierarchy, the same balance of filled and empty space. Put the pack from reference image 1 where its product is and this ad's words where its words are. Copy nothing else from it — not its brand name, logo, wording, product, people or exact colours."] : []),
     ...(art.length ? art : ["A thoughtful asymmetric composition with depth and scale, premium textures that belong to this product, a sophisticated palette built from the pack's own colours plus one warm or fresh tone."]),
     "It must look designed by experienced human creative professionals: editorial typography with a clear hierarchy (the headline dominant), intentional negative space, physically accurate light, a soft contact shadow, true reflections on the pack's material. The product is the hero: large, sharp, its label readable.",
     `The brand wordmark “${plan.brand}” small at the top, plainly typeset — do not invent a logo symbol.`,

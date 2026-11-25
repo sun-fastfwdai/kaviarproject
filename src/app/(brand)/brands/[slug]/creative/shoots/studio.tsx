@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planCreative, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
+import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, importTemplates, keepTemplate, planCreative, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
 import { ALLOWED, CAT, DEFAULTS, clipCost, clipModel, type ClipModel, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
@@ -75,7 +75,7 @@ type Props = {
   perImage: number; perVideoSecond: number; month: { photos: number; clips: number; cost: number }; toReview: number;
   examples?: Record<string, string>;
   engines: { photo: string; photoModel: string; photoModels: { key: string; name: string; note: string; price: number }[]; video: string; via: string; sound: boolean; perSoundSecond: number; res: Record<"480p" | "720p" | "1080p", number>; model: string; models: ClipModel[] }; voices: Voice[]; characters: (Character & { at: string })[];
-  batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; store: { url: string; name: string }[]; shots: Shot[];
+  batches: Batch[]; signals: Signal[]; palette: string[]; look: string | null; tone: string | null; lessons: Lesson[]; products: Product[]; refs: { id: string; name: string }[]; templates: { id: string; name: string }[]; store: { url: string; name: string }[]; shots: Shot[];
 };
 
 /** Board 17c · Shoots: a real node canvas — drag nodes, draw and remove wires, and Run flow follows the wires. */
@@ -105,6 +105,8 @@ function Studio(props: Props) {
   const { slug, base, perImage, perVideoSecond, products, signals, shots, batches, store } = props;
   // The brand photos a Reference can use: the brand's uploads, plus any it adds or takes from its store while it is here.
   const [refs, setRefs] = useState(props.refs);
+  const [templates, setTemplates] = useState(props.templates);
+  const [importing, setImporting] = useState(false);
   const refFile = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -266,7 +268,7 @@ function Studio(props: Props) {
   const batchOf = (g: ShootFlow) => g.nodes.map((x) => (x.type === "send" ? cfgOf(x).send : null)).find(Boolean) ?? null;
   /** Where a Photo node's plan is kept: on the Prompt wired into it, or on itself when there is none. */
   const planHome = (g: ShootFlow, X: ShootNode) => promptOf(g, X.id) ?? X;
-  const planKey = (g: ShootFlow, X: ShootNode) => { const P = promptOf(g, X.id); return JSON.stringify([productOf(g, X.id)?.url ?? null, cfgOf(X).n, batchOf(g), P ? cfgOf(P).scene : null, Boolean(up(g, X.id, "character"))]); };
+  const planKey = (g: ShootFlow, X: ShootNode) => { const P = promptOf(g, X.id); return JSON.stringify([productOf(g, X.id)?.url ?? null, cfgOf(X).n, batchOf(g), P ? cfgOf(P).scene : null, Boolean(up(g, X.id, "character")), cfgOf(planHome(g, X)).templates ?? []]); };
   const planOf = (g: ShootFlow, X: ShootNode): AdPlan | null => { const c = cfgOf(planHome(g, X)); return c.creative?.concepts?.length ? c.creative : null; };
   const planStale = (g: ShootFlow, X: ShootNode) => Boolean(planOf(g, X)) && cfgOf(planHome(g, X)).creativeFor !== planKey(g, X);
   const staleOf = (g: ShootFlow, P: ShootNode) => { const X = adsNode(g, P.id); if (X) return planStale(g, X); const c = cfgOf(P); return Boolean(c.prompt) && c.promptFor !== keyOf(g, P); };
@@ -325,7 +327,7 @@ function Studio(props: Props) {
     const prod = productOf(g, xid), H = planHome(g, X), P = promptOf(g, xid);
     if (!prod) { fail(H.id, "Wire a Product node in — the plan starts from the real pack."); return null; }
     mark(H.id, "running");
-    const r = await planCreative(slug, { product: prod.title, imageUrl: prod.url, n: cfgOf(X).n, forBatch: batchOf(g), look: P ? cfgOf(P).scene : null, person: Boolean(up(g, xid, "character")) });
+    const r = await planCreative(slug, { product: prod.title, imageUrl: prod.url, n: cfgOf(X).n, forBatch: batchOf(g), look: P ? cfgOf(P).scene : null, person: Boolean(up(g, xid, "character")), templates: cfgOf(H).templates ?? [] });
     if (!r.plan) { fail(H.id, r.error ?? "The plan didn’t come back."); return null; }
     patchNode(H.id, { creative: r.plan, creativeFor: planKey(flowRef.current, find(flowRef.current, xid) ?? X) }, false);
     if (H.id !== xid) mark(H.id, "done");
@@ -360,8 +362,10 @@ function Studio(props: Props) {
     if (!X) return null;
     const prod = productOf(g, xid);
     if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
-    const plan = (!planStale(g, X) && planOf(g, X)) || await planRun(xid);
+    const kept = !planStale(g, X) ? planOf(g, X) : null;
+    const plan = kept ?? await planRun(xid);
     if (!plan) return null;
+    if (kept && planHome(g, X).id !== xid) mark(planHome(g, X).id, "done");
     const c = cfgOf(X), P = promptOf(g, xid), refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null, chNode = up(g, xid, "character");
     const base = { product: prod.title, imageUrl: prod.url, prompt: "", aspect: c.aspect, n: 1, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: "ads", forBatch: batchOf(g) };
     // Four renders a request, so no request waits on more than the image service finishes in time.
@@ -742,6 +746,20 @@ function Studio(props: Props) {
     setRefs((l) => (l.some((x) => x.id === r.id) ? l : [{ id: r.id!, name: r.name ?? "Photo" }, ...l]));
     pickReference(rid, r.id);
   });
+  /** Import ad templates into Brand assets and put them to use on this plan straight away. */
+  const addTemplates = (homeId: string, files: File[]) => {
+    const form = new FormData();
+    files.slice(0, 8).forEach((f) => form.append("file", f));
+    setImporting(true);
+    importTemplates(slug, form).then((r) => {
+      if (r.added?.length) {
+        setTemplates((l) => [...r.added!, ...l]);
+        const H = find(flowRef.current, homeId);
+        if (H) patchNode(homeId, { templates: [...(cfgOf(H).templates ?? []), ...r.added.map((x) => x.id)].slice(-4) });
+      }
+      setMsg(r.error ?? null);
+    }).catch((e: Error) => setMsg(e.message.slice(0, 160))).finally(() => setImporting(false));
+  };
   const pickReference = (rid: string, assetId: string) => go(async () => {
     patchNode(rid, { reference: { id: assetId, note: "Remy is reading this photo…", close: cfgOf(find(flowRef.current, rid)!).reference?.close ?? false } });
     const r = await readReference(slug, assetId);
@@ -1098,7 +1116,7 @@ function Studio(props: Props) {
       {n && c && <>
         <div className="row g10" style={{ flexShrink: 0, position: "relative" }}>
           <Tile k={n.type} size={32} icon={n.type === "product" ? <ShopifyLogo size={15} /> : undefined} />
-          <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1">{NODES[n.type].name}</span><span className="xs i3 ell">{NODES[n.type].sub}</span></div>
+          <div className="col fill" style={{ minWidth: 0 }}><span className="sm w5 i1">{n.type === "prompt" && nAds ? "Creative plan" : NODES[n.type].name}</span><span className="xs i3 ell">{n.type === "prompt" && nAds ? "Make · Iris and Remy write it" : NODES[n.type].sub}</span></div>
           <button type="button" aria-label="More" onClick={() => setMenu(!menu)} className="hv" style={{ width: 24, height: 24, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="more" size={16} color="#8B8883" /></button>
           {menu && (
             <div className="col" style={{ position: "absolute", right: 0, top: 30, zIndex: 5, width: 200, padding: 4, background: "#fff", borderRadius: 10, boxShadow: "0 0 0 1px var(--line), 0 8px 24px rgba(18,18,18,.12)" }}>
@@ -1109,7 +1127,7 @@ function Studio(props: Props) {
             </div>
           )}
         </div>
-        <span className="xs i2" style={{ lineHeight: "17px", flexShrink: 0, padding: "8px 10px", borderRadius: 8, background: "var(--tray)" }}>{NODES[n.type].does}</span>
+        <span className="xs i2" style={{ lineHeight: "17px", flexShrink: 0, padding: "8px 10px", borderRadius: 8, background: "var(--tray)" }}>{n.type === "prompt" && nAds ? "What is true of the brand, who the ads are for, and one idea per ad with its words and its picture. Read it and edit it before anything is rendered." : NODES[n.type].does}</span>
 
         {n.type === "character" && <CharacterPicker slug={slug} characters={props.characters} value={c.characterId} onChange={(id) => patchNode(n.id, { characterId: id })} price={perImage}
           signal={(() => { const d = flow.nodes.find((x) => x.type === "data"); const sg = d ? signals.find((y) => y.key === cfgOf(d).signal) : null; return sg ? `${sg.data}: ${sg.value ?? ""}` : null; })()} product={headProduct?.title ?? null} onView={(id) => setViewer({ node: n.id, id })} />}
@@ -1207,7 +1225,8 @@ function Studio(props: Props) {
 
         {n.type === "prompt" && nAds && (
           <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={cfgOf(nAds).n}
-            onPlan={() => runNode(n.id)} onEdit={(p) => patchNode(planHome(flow, nAds).id, { creative: p }, false)} />
+            onPlan={() => runNode(n.id)} onEdit={(p) => patchNode(planHome(flow, nAds).id, { creative: p }, false)}
+            templates={templates} picked={(c.templates ?? []).filter((x) => templates.some((t) => t.id === x))} onPick={(ids) => patchNode(n.id, { templates: ids })} onImport={(fs) => addTemplates(n.id, fs)} importing={importing} />
         )}
 
         {n.type === "prompt" && !nAds && <>
@@ -1238,7 +1257,8 @@ function Studio(props: Props) {
             {nAds
               ? (nPrompt
                 ? <Field label="Creative plan" sub={planOf(flow, nAds) ? `${planOf(flow, nAds)!.concepts.length} ads planned by Iris and Remy` : "Written when you run — or plan first to read and edit it"}><button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => select(nPrompt.id)}>{planOf(flow, nAds) ? "Open the plan" : "Plan the ads"}<Icon name="arrow-r" size={12} /></button></Field>
-                : <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={c.n} onPlan={() => go(async () => { await planRun(n.id); mark(n.id, "done"); })} onEdit={(p) => patchNode(n.id, { creative: p }, false)} />)
+                : <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={c.n} onPlan={() => go(async () => { await planRun(n.id); mark(n.id, "done"); })} onEdit={(p) => patchNode(n.id, { creative: p }, false)}
+                    templates={templates} picked={(c.templates ?? []).filter((x) => templates.some((t) => t.id === x))} onPick={(ids) => patchNode(n.id, { templates: ids })} onImport={(fs) => addTemplates(n.id, fs)} importing={importing} />)
               : <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>}
             <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" />
               <Pills label="Count" value={c.n} options={[...new Set([...(nAds ? [1, 2, 4, 6, 8] : [1, 2, 4]), c.n])].sort((a, b) => a - b).map((v) => [v, `× ${v}`] as [number, string])} onChange={(v) => patchNode(n.id, { n: v })} /></div>
@@ -1408,6 +1428,8 @@ function Studio(props: Props) {
           title={`${NODES[find(flow, viewer.node)?.type ?? "photo"].name} · ${name}`} checkOf={checkOf} onClose={() => setViewer(null)}
           actions={{
             design: (id) => { setViewer(null); design(id); },
+            template: { on: (id) => templates.some((t) => t.id === id), toggle: (id) => { const on = !templates.some((t) => t.id === id);
+              keepTemplate(slug, id, on).then((r) => { if (r.ok) setTemplates((l) => (on ? [{ id, name: r.name ?? "Template" }, ...l] : l.filter((t) => t.id !== id))); setMsg(r.error ?? (on ? "Kept as a template — pick it in the creative plan" : null)); }).catch((e: Error) => setMsg(e.message.slice(0, 160))); } },
             ...(viewerNode?.type === "photo" ? {
               edit: (id, k) => edit(viewerNode.id, id, k), recheck: (id) => recheck(id, viewerNode.id),
               ...(viewerChecks[0] ? { rerun: (id: string) => rerunOne(viewerChecks[0].id, id) } : {}),

@@ -40,7 +40,7 @@ export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: str
     id: n.id.slice(0, 40), type: n.type, x: Math.round(Number(n.x) || 0), y: Math.round(Number(n.y) || 0),
     cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
       ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 8, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
-      ...(n.cfg?.creative ? { creative: cleanPlan(n.cfg.creative) } : {}),
+      ...(n.cfg?.creative ? { creative: cleanPlan(n.cfg.creative) } : {}), ...(n.cfg?.templates ? { templates: n.cfg.templates.filter((v) => /^[0-9a-f-]{36}$/i.test(String(v))).slice(0, 4) } : {}),
       ...(n.cfg?.storyboard ? { storyboard: { ...n.cfg.storyboard, scenes: (n.cfg.storyboard.scenes ?? []).slice(0, 10).map((x) => ({ ...x, keyframe: String(x.keyframe ?? "").slice(0, 900), motion: String(x.motion ?? "").slice(0, 400), line: String(x.line ?? "").slice(0, 200), caption: String(x.caption ?? "").slice(0, 60) })) } } : {}),
       ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 8).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
   }));
@@ -97,13 +97,33 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
 }
 
 /** The creative plan for a set of finished ads: Iris reads the pack and the research and picks each ad's idea, Remy art-directs and writes it. */
-export async function planCreative(slug: string, input: { product: string; imageUrl: string; n: number; forBatch?: string | null; look?: string | null; person?: boolean }): Promise<{ plan?: AdPlan; error?: string }> {
+export async function planCreative(slug: string, input: { product: string; imageUrl: string; n: number; forBatch?: string | null; look?: string | null; person?: boolean; templates?: string[] }): Promise<{ plan?: AdPlan; error?: string }> {
   await requireMember();
   if (!aiReady()) return { error: "Iris and Remy need the Claude API key." };
   const brand = await getBrand(slug);
   if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
-  const plan = await planAds(brand.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, n: Math.min(8, Math.max(1, Math.round(Number(input.n) || 1))), forBatch: input.forBatch ?? null, look: input.look ? String(input.look).slice(0, 60) : null, person: Boolean(input.person) });
+  const plan = await planAds(brand.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, n: Math.min(8, Math.max(1, Math.round(Number(input.n) || 1))), forBatch: input.forBatch ?? null, look: input.look ? String(input.look).slice(0, 60) : null, person: Boolean(input.person),
+    templates: (Array.isArray(input.templates) ? input.templates : []).filter((v) => typeof v === "string").slice(0, 4) });
   return plan.concepts.length ? { plan } : { error: "The plan didn’t come back — try again." };
+}
+
+/**
+ * Import ad templates: finished ads (the brand's own best ones, or any it wants its ads to be built like) kept in Brand assets.
+ * A template lends its layout and type to an ad — never its words, brand or product.
+ */
+export async function importTemplates(slug: string, form: FormData): Promise<{ added?: { id: string; name: string }[]; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const files = form.getAll("file").filter((f): f is File => f instanceof File).slice(0, 8);
+  const good = files.filter((f) => /^image\/(png|jpe?g|webp)$/.test(f.type) && f.size > 0 && f.size <= 4_000_000);
+  if (!good.length) return { error: "Add JPG, PNG or WebP pictures under 4 MB each." };
+  const added: { id: string; name: string }[] = [];
+  for (const f of good) {
+    const data = Buffer.from(await f.arrayBuffer()), name = f.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || "Template";
+    const [row] = await saveAsset({ brandId: brand.id, kind: "imagery", name, mime: f.type === "image/jpg" ? "image/jpeg" : f.type, size: data.byteLength, data, meta: { ...dims(data), template: true }, createdBy: me.id });
+    added.push({ id: row.id, name });
+  }
+  return { added, ...(good.length < files.length ? { error: `${files.length - good.length} skipped — JPG, PNG or WebP under 4 MB only.` } : {}) };
 }
 
 /** `ads` = the plan on the canvas and which of its concepts to render (at most four a call; `revise` = what Otto sent one back for). */
@@ -201,6 +221,14 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   const cards = toDesign.length && aiReady() ? (await layoutBatch(brand.id, batchId, me.id, toDesign.length < stills.length ? toDesign : undefined, undefined, adLook(look ?? "")?.layout, adLook(look ?? "")?.name, { plan }).catch(() => ({ made: 0 }))).made : 0;
   if (plan) revalidatePath(`/brands/${slug}/campaigns`, "layout");
   return { done, cards, firstAd: list[0].id };
+}
+
+/** Keep a picture the brand already has as an ad template (or stop using it as one). The picture itself is untouched. */
+export async function keepTemplate(slug: string, id: string, on: boolean): Promise<{ ok?: boolean; name?: string; error?: string }> {
+  await requireMember();
+  const brand = await getBrand(slug), A = schema.brandAssets;
+  const [a] = await db.update(A).set({ meta: sql`${A.meta} || ${JSON.stringify({ template: on })}::jsonb` }).where(and(eq(A.id, id), eq(A.brandId, brand.id), sql`${A.mime} like 'image/%'`)).returning({ name: A.name });
+  return a ? { ok: true, name: a.name } : { error: "That picture is no longer in Brand assets." };
 }
 
 export async function deleteShot(slug: string, id: string): Promise<void> {

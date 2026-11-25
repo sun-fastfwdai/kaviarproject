@@ -2,7 +2,7 @@ import "server-only";
 import { experimental_generateVideo as generateVideo, generateImage } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
@@ -159,9 +159,18 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   if (model === "ads") {
     plan = input.ads?.plan ?? await planAds(brandId, { product: input.product, imageUrl: input.imageUrl, n: count, forBatch: input.forBatch ?? null, person });
     const items: { i: number; revise?: string[] }[] = (input.ads?.items ?? plan.concepts.map((_, i) => ({ i }))).filter((x) => plan!.concepts[x.i]).slice(0, 4);
-    const refs = urls.filter(Boolean).slice(0, 10);
+    const refs = urls.filter(Boolean).slice(0, 9);
     const styleRef = refs.length > (person ? 2 : 1);
-    const rs = await Promise.all(items.map((it) => hfRun(HF_ADS, { prompt: adBrief(plan!, plan!.concepts[it.i], { product: input.product, aspect: input.aspect, person, styleRef, revise: it.revise }), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)));
+    // A concept built on an imported template sends that template as its last reference (and no style reference: the template sets the look).
+    const want = [...new Set(items.map((it) => plan!.concepts[it.i].template).filter((v): v is string => Boolean(v)))];
+    const tplRows = want.length ? await readAssets(and(eq(schema.brandAssets.brandId, brandId), inArray(schema.brandAssets.id, want))).catch(() => []) : [];
+    const tplUrl = new Map<string, string>();
+    await Promise.all(tplRows.filter((a) => a.mime.startsWith("image/")).map(async (a) => { const u = await hfUpload(a.data, a.mime).catch(() => ""); if (u) tplUrl.set(a.id, u); }));
+    const rs = await Promise.all(items.map((it) => {
+      const c = plan!.concepts[it.i], t = c.template ? tplUrl.get(c.template) : undefined;
+      return hfRun(HF_ADS, { prompt: adBrief(plan!, c, { product: input.product, aspect: input.aspect, person, styleRef: styleRef && !t, template: Boolean(t), revise: it.revise }),
+        image_urls: t ? [...refs.slice(0, person ? 2 : 1), t] : refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000);
+    }));
     const r = rs.find((x) => x.error) ?? rs[0];
     ads = rs.flatMap((x, k) => (x.out?.images ?? []).slice(0, 1).map((y) => ({ url: y.url, i: items[k].i }))).filter((y) => y.url);
     if (ads.length < items.length) adsError = rs.find((x) => x.error)?.error ?? "One of the ads didn’t come back.";

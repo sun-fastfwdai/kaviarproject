@@ -12,7 +12,7 @@ type Edit = "remove-bg" | "extend" | "relight";
 export function ResultViewer({ items, start, title, now, busy, checkOf, onClose, actions }: {
   items: Shot[]; start: number; title: string; now: number; busy: boolean; checkOf: (id: string) => Check | null; onClose: () => void;
   actions: {
-    design: (id: string) => void; edit?: (id: string, k: Edit) => void; startClip?: (id: string) => void; rerun?: (id: string) => void; recheck?: (id: string) => void;
+    design: (id: string) => void; template?: { on: (id: string) => boolean; toggle: (id: string) => void }; edit?: (id: string, k: Edit) => void; startClip?: (id: string) => void; rerun?: (id: string) => void; recheck?: (id: string) => void;
     pick?: { on: (id: string) => boolean; toggle: (id: string) => void }; remove: (id: string) => void;
   };
 }) {
@@ -88,6 +88,7 @@ export function ResultViewer({ items, start, title, now, busy, checkOf, onClose,
         <div className="col g6">
           <button type="button" className="btn dark" disabled={busy} onClick={() => actions.design(shot.id)} style={{ justifyContent: "center" }}><Icon name="pen" size={13} color="#fff" />Design an ad with it</button>
           {!video && actions.startClip && <button type="button" className="btn" onClick={() => actions.startClip!(shot.id)} style={{ justifyContent: "center" }}><Icon name="video" size={13} />Start the clip from this photo</button>}
+          {!video && actions.template && <button type="button" className="btn" disabled={busy} onClick={() => actions.template!.toggle(shot.id)} style={{ justifyContent: "center" }}><Icon name={actions.template.on(shot.id) ? "check-circle" : "squares"} size={13} weight={actions.template.on(shot.id) ? "fill" : "regular"} color={actions.template.on(shot.id) ? "#1F8A5B" : undefined} />{actions.template.on(shot.id) ? "Kept as a template" : "Keep as a template"}</button>}
           {actions.pick && <button type="button" className="btn" onClick={() => actions.pick!.toggle(shot.id)} style={{ justifyContent: "center" }}><Icon name={actions.pick.on(shot.id) ? "check-circle" : "circle"} size={13} weight={actions.pick.on(shot.id) ? "fill" : "regular"} color={actions.pick.on(shot.id) ? "#1F8A5B" : undefined} />{actions.pick.on(shot.id) ? "Picked to send" : "Pick to send"}</button>}
         </div>
         {!video && actions.edit && (

@@ -376,7 +376,7 @@ export const brandAssets = pgTable(
     size: integer("size").notNull(),
     data: bytea("data").notNull(),
     thumb: bytea("thumb"), // a small JPEG (480 px) for lists, made once
-    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; finished?: boolean; look?: string; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; plan?: string; ref?: boolean; from?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: AdCheck; concept?: { angle: string; headline: string; sub: string; callouts: string[]; facts: string[] }; ad?: string }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ width?: number; height?: number; pages?: number; ai?: boolean; finished?: boolean; look?: string; prompt?: string; product?: string; seconds?: number; edit?: string; cost?: number; engine?: string; sound?: boolean; consent?: { by: string; at: string }; voice?: string; job?: string; character?: { description: string; uploaded?: boolean }; competitor?: string; note?: string; plan?: string; ref?: boolean; from?: string; scene?: string; libId?: string; format?: string; n?: number; source?: "adlib" | "shot"; tile?: number; stored?: string; check?: AdCheck; concept?: { angle: string; headline: string; sub: string; callouts: string[]; facts: string[] }; ad?: string; template?: boolean }>().notNull().default({}),
     createdBy: uuid("created_by").references(() => members.id, { onDelete: "set null" }),
     createdAt: tz("created_at").notNull().defaultNow(),
   },
@@ -562,13 +562,14 @@ export type ShootNodeCfg = {
   sceneOut?: Record<string, string>;                                           // video fed by a storyboard: the latest clip per scene
   creative?: AdPlan | null; creativeFor?: string | null;                       // prompt (or photo with no prompt): the plan a finished ad is made from, and the inputs it was made for
   conceptOf?: Record<string, number>;                                          // photo: which concept of the plan each picture is
+  templates?: string[];                                                        // with the plan: the imported ad templates its ads follow, one each in turn
 };
-/** One ad of a creative plan: the idea (Iris), then how it looks and what it says (Remy). `adId` = the campaign ad it is the picture for. */
+/** One ad of a creative plan: the idea (Iris), then how it looks and what it says (Remy). `adId` = the campaign ad it is the picture for; `template` = the imported ad whose layout it follows. */
 export type AdConcept = {
   angle: string; insight: string; message: string;
   headline: string; sub: string; callouts: string[]; cta: string;
   scene: string; light: string; palette: string; type: string; layout: string;
-  adId?: string | null;
+  adId?: string | null; template?: string | null;
 };
 /** What a set of finished ads is made from: what is true of the brand and the pack, who it is for, and one concept per ad. */
 export type AdPlan = {
