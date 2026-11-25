@@ -16,7 +16,7 @@ import { decide, setMode } from "../../optimize/actions";
 import { applySetup, approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaCheck, placeStep, setPlanBudget, switchPlan } from "../actions";
 import { strategy } from "@/lib/growth/strategy";
 import { Combo } from "@/components/combo";
-import { COUNTRIES } from "@/lib/meta/place-rules";
+import { COUNTRIES, countriesIn } from "@/lib/meta/place-rules";
 import type { Ready } from "@/lib/meta/place";
 
 /**
@@ -367,7 +367,14 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                 {r.dry && row("Meta’s check", r.dry.ok ? <span className="row g6" style={{ justifyContent: "flex-end", color: "var(--green)" }}><Icon name="check" size={12} color="#1F7A52" />Accepts this set-up</span> : <span style={{ color: "var(--red)" }}>Refused</span>)}
               </>}
               {!p.meta?.adset && <div className="col g4" style={{ paddingTop: 12 }}><span className="xs i2 w5">Shown to people in</span>
-                <Combo label="Country" searchText="Search countries" value={pick.country} onChange={(v) => setPick({ ...pick, country: v })} items={COUNTRIES.map(([k, name]) => ({ value: k, label: name, icon: "globe" as const, sub: "Meta finds the likely buyers there" }))} /></div>}
+                {/* Several countries can share the one ad set and its one budget. */}
+                <div className="row g6" style={{ flexWrap: "wrap" }}>{countriesIn(pick.country).map((k) => (
+                  <span key={k} className="row g6 sm w5" style={{ height: 30, padding: "0 6px 0 10px", borderRadius: 8, background: "var(--tray)" }}>{COUNTRIES.find(([c]) => c === k)?.[1]}
+                    {countriesIn(pick.country).length > 1 && <button type="button" aria-label={`Remove ${COUNTRIES.find(([c]) => c === k)?.[1]}`} onClick={() => setPick({ ...pick, country: countriesIn(pick.country).filter((c) => c !== k).join(",") })} style={{ width: 20, height: 20, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={10} color="#8B8883" /></button>}
+                    {countriesIn(pick.country).length === 1 && <span style={{ width: 4 }} />}</span>))}</div>
+                {countriesIn(pick.country).length < 10 && <Combo label="Add a country" placeholder="Add another country" searchText="Search countries" value="" onChange={(v) => setPick({ ...pick, country: [...countriesIn(pick.country), v].join(",") })}
+                  items={COUNTRIES.filter(([k]) => !countriesIn(pick.country).includes(k)).map(([k, name]) => ({ value: k, label: name, icon: "globe" as const, sub: "Meta finds the likely buyers there" }))} />}
+                {countriesIn(pick.country).length > 1 && <span className="xs i3">One budget across all of them — Meta spends it where buyers cost least</span>}</div>}
               {stop && <span className="row top g8 sm" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" style={{ marginTop: 2, flexShrink: 0 }} /><span>{stop}</span></span>}
             </div>
           </Modal>);

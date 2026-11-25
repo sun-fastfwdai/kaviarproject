@@ -11,7 +11,8 @@ export function adSetParams(v: { name: string; campaignId: string; pixelId: stri
     // The campaign carries the budget and the bid, so the ad set carries neither.
     optimization_goal: "OFFSITE_CONVERSIONS", billing_event: "IMPRESSIONS", destination_type: "WEBSITE",
     promoted_object: JSON.stringify({ pixel_id: v.pixelId, custom_event_type: "PURCHASE" }),
-    targeting: JSON.stringify({ geo_locations: { countries: [v.country.toUpperCase().slice(0, 2)] }, targeting_automation: { advantage_audience: 1 } }),
+    // One ad set can be shown in several countries; Meta then spends the one budget wherever buyers cost least.
+    targeting: JSON.stringify({ geo_locations: { countries: countriesIn(v.country).length ? countriesIn(v.country) : [v.country.toUpperCase().slice(0, 2)] }, targeting_automation: { advantage_audience: 1 } }),
   };
 }
 
@@ -33,6 +34,14 @@ export function problem(e: unknown): string {
 }
 
 export const COUNTRIES: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"], ["NZ", "New Zealand"], ["IE", "Ireland"], ["DE", "Germany"], ["FR", "France"], ["ES", "Spain"], ["IT", "Italy"], ["NL", "Netherlands"], ["SE", "Sweden"], ["KR", "South Korea"], ["JP", "Japan"], ["SG", "Singapore"], ["IN", "India"], ["AE", "United Arab Emirates"], ["MX", "Mexico"], ["BR", "Brazil"]];
+/** The countries in a choice ("US" or "US,CA,GB"), in the order chosen: only ones Kaviar offers, each once, ten at most. */
+export const countriesIn = (v: string | null | undefined): string[] =>
+  [...new Set((v ?? "").split(",").map((c) => c.trim().toUpperCase()).filter((c) => COUNTRIES.some(([k]) => k === c)))].slice(0, 10);
+/** Their names, for an ad set's name or a line on screen: "United States", "United States and Canada", "United States + 2 more". */
+export const countryNames = (v: string | null | undefined): string => {
+  const names = countriesIn(v).map((c) => COUNTRIES.find(([k]) => k === c)![1]);
+  return names.length <= 2 ? names.join(" and ") : `${names[0]} + ${names.length - 1} more`;
+};
 const BY_CURRENCY: Record<string, string> = { USD: "US", CAD: "CA", GBP: "GB", AUD: "AU", NZD: "NZ", KRW: "KR", JPY: "JP", SGD: "SG", INR: "IN", AED: "AE", MXN: "MX", BRL: "BR", SEK: "SE" };
 /** Where the ads are shown unless the brand says otherwise: the market it was researched in, else the country of the store's currency. */
 export const countryFor = (market: string | null | undefined, currency: string | null | undefined): string => {

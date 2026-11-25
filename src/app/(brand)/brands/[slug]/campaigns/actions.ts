@@ -11,7 +11,7 @@ import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
 import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget, setOwnAudience } from "@/lib/growth/plans";
 import { makeAd, makeAdSet, metaReady, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
-import { COUNTRIES, countryFor } from "@/lib/meta/place-rules";
+import { countriesIn, countryFor, countryNames } from "@/lib/meta/place-rules";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { readAssets } from "@/lib/assets/storage";
 import { createPausedCampaign } from "@/lib/meta/apply";
@@ -131,7 +131,7 @@ export async function metaCheck(slug: string, key: string, country?: string): Pr
   await requireMember();
   const { brand, p } = await planOf(slug, key);
   if (!p) return { ready: null, country: "US", link: null, error: "That plan is no longer there." };
-  const c = country && COUNTRIES.some(([k]) => k === country) ? country : p.meta?.country ?? countryFor(await planMarket(brand.id), brand.currency);
+  const c = countriesIn(country).join(",") || p.meta?.country || countryFor(await planMarket(brand.id), brand.currency);
   const [ready, link] = await Promise.all([metaReady(brand.id, p.meta?.campaignId ?? null, c).catch(() => null), productLink(brand.id, p.c.product)]);
   return { ready, country: c, link };
 }
@@ -174,13 +174,14 @@ export async function placeStep(slug: string, key: string, pick?: { page?: strin
   }
   const m = p.meta;
   if (!m.adset) {
-    const country = pick?.country && COUNTRIES.some(([k]) => k === pick.country) ? pick.country : countryFor(await planMarket(brand.id), brand.currency);
+    // One or several countries, as the brand chose them ("US" or "US,CA").
+    const country = countriesIn(pick?.country).join(",") || countryFor(await planMarket(brand.id), brand.currency);
     const ready = await metaReady(brand.id, null, country);
     if (!ready) return { placed: 0, total, error: "Meta isn’t connected." };
     const page = ready.pages.find((x) => x.id === pick?.page) ?? ready.pages[0], pixel = ready.pixels.find((x) => x.id === pick?.pixel) ?? ready.pixels[0];
     if (!page) return { placed: 0, total, error: "Kaviar can’t see a Facebook Page on this ad account. Ads are shown as coming from a Page — reconnect Meta in Settings › Integrations and include your Page." };
     if (!pixel) return { placed: 0, total, error: "This ad account has no Meta pixel, so Meta can’t count purchases. Add the Facebook & Instagram app in Shopify, then try again." };
-    const r = await makeAdSet(brand.id, { campaignId: m.campaignId, name: `${p.title} · ${COUNTRIES.find(([k]) => k === country)?.[1] ?? country}`, pixelId: pixel.id, country });
+    const r = await makeAdSet(brand.id, { campaignId: m.campaignId, name: `${p.title} · ${countryNames(country) || country}`, pixelId: pixel.id, country });
     if (!r.ok) return { placed: 0, total, error: said(r.message) };
     await savePlanChoice(brand.id, key, { meta: { ...m, adset: r.id, page: page.id, pixel: pixel.id, country } });
     fresh(slug);

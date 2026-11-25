@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adSetParams, countryFor, creativeParams, ctaType, problem } from "../src/lib/meta/place-rules";
+import { adSetParams, countriesIn, countryFor, countryNames, creativeParams, ctaType, problem } from "../src/lib/meta/place-rules";
 
 describe("placing ads on Meta", () => {
   it("the ad set carries no budget or bid — the campaign does — and counts purchases", () => {
@@ -27,6 +27,15 @@ describe("placing ads on Meta", () => {
     expect(ctaType("Learn more")).toBe("LEARN_MORE");
     expect(ctaType("Get the offer")).toBe("GET_OFFER");
     expect(ctaType("Treat yourself")).toBe("SHOP_NOW");
+  });
+  it("shows one ad set in several countries when the brand picks several", () => {
+    const p = adSetParams({ name: "x", campaignId: "1", pixelId: "9", country: "us, ca,GB,ca,ZZ" });
+    expect(JSON.parse(p.targeting).geo_locations.countries).toEqual(["US", "CA", "GB"]);
+    expect(countriesIn("US")).toEqual(["US"]);
+    expect(countriesIn(null)).toEqual([]);
+    expect(countryNames("US")).toBe("United States");
+    expect(countryNames("US,CA")).toBe("United States and Canada");
+    expect(countryNames("US,CA,GB")).toBe("United States + 2 more");
   });
   it("picks the country from the researched market, then the store's currency", () => {
     expect(countryFor("GB", "USD")).toBe("GB");
