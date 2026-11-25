@@ -31,7 +31,9 @@ export function CampaignsView({ slug, currency, plans, meta, tiles, loose, hasMe
   const [target, setTarget] = useState(sales.target ? String(sales.target) : "");
   const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(v));
   const save = (v: number | null) => start(async () => { await setSalesTarget(slug, v); setEditing(false); router.refresh(); });
-  const live = plans.filter((p) => p.stage === "live"), under = plans.filter((p) => p.stage !== "suggested" && p.stage !== "live"), fresh = plans.filter((p) => p.stage === "suggested");
+  // Newest first in every row: the campaign just started or just moved on is the one the brand is looking for.
+  const newest = (l: typeof plans) => [...l].sort((a, b) => (b.touched ?? "").localeCompare(a.touched ?? ""));
+  const live = newest(plans.filter((p) => p.stage === "live")), under = newest(plans.filter((p) => p.stage !== "suggested" && p.stage !== "live")), fresh = newest(plans.filter((p) => p.stage === "suggested"));
   // A campaign of the brand's own: what to sell, to whom, for how much.
   const [creating, setCreating] = useState(startNew);
   const [mode, setM] = useState<Mode>(pilot.mode);

@@ -41,7 +41,7 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
     planData(brand.id, currency), read<SavedPlans>(brand.id, KEY),
     have.byDay ? Promise.resolve(have.byDay) : trend(brand.id, brand.timezone, 30).catch(() => [] as Day[]),
     have.stock !== undefined ? Promise.resolve(have.stock) : getStock(brand.id, brand.timezone).catch(() => null),
-    db.select({ id: B.id, signal: B.signal,
+    db.select({ id: B.id, signal: B.signal, at: B.createdAt,
       review: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'review')::int`,
       approved: sql<number>`(select count(*) from ads a where a.batch_id = "ad_batches"."id" and a.status = 'approved')::int` }).from(B).where(eq(B.brandId, brand.id)).orderBy(desc(B.createdAt)).limit(60),
     db.execute(sql`select distinct source->>'batchId' as id from audience_tests where brand_id = ${brand.id} and status = 'done' and source->>'type' = 'batch'`).then((r) => new Set((r.rows as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[])).catch(() => new Set<string>()),
@@ -61,11 +61,14 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
   };
   const pic = (title: string) => d.products.find((x) => x.title === title)?.image ?? stock?.rows.find((x) => x.title === title)?.image ?? null;
   const round = (v: number) => Math.max(50, Math.round(v / 50) * 50);
-  const make = (c: Candidate, reason: Reason, title: string, why: string, o: { when?: string; urgent?: boolean; days?: number } = {}): PlanCard => {
+  const make = (c: Candidate, reason: Reason, title: string, why: string, o: { when?: string; urgent?: boolean; days?: number; at?: string } = {}): PlanCard => {
     const s = plans[c.key] ?? {}, funded = p.rows.find((r) => r.c.key === c.key);
     const budget = s.budget && s.budget > 0 ? s.budget : round(funded?.spend ?? p.minToLearn), days = s.days && s.days > 0 ? s.days : o.days ?? 14;
     const ads = adsFor(c.signal), stage = stageOf(Boolean(s.approvedAt), ads, Boolean(s.meta));
-    return { key: c.key, reason, title, why, when: o.when, c, image: pic(c.product), budget, days, out: forecast(c, budget, days, rest), stage, ads, urgent: Boolean(o.urgent) && stage !== "ready" && stage !== "live", approvedAt: s.approvedAt ?? null, approvedBy: s.by ?? null, meta: s.meta ?? null };
+    // When the brand last moved it on: started it, approved it, or had its ads made — the newest comes first in a row of campaigns.
+    const made = c.signal ? live.find((x) => x.signal === c.signal)?.at : undefined;
+    const touched = [o.at, s.approvedAt, made ? new Date(made).toISOString() : undefined].filter((x): x is string => Boolean(x)).sort().pop() ?? null;
+    return { touched, key: c.key, reason, title, why, when: o.when, c, image: pic(c.product), budget, days, out: forecast(c, budget, days, rest), stage, ads, urgent: Boolean(o.urgent) && stage !== "ready" && stage !== "live", approvedAt: s.approvedAt ?? null, approvedBy: s.by ?? null, meta: s.meta ?? null };
   };
   // What one order brings: the brand's own setting, else its measured average once there are enough orders (the rule in planFor).
   const worth = d.saved?.order && d.saved.order > 0 ? d.saved.order : d.orders.count >= 10 && d.orders.aov ? Math.round(d.orders.aov) : null;
@@ -103,7 +106,7 @@ export async function getPlans(brand: { id: string; currency: string | null; tim
     const pr = d.products.find((x) => x.title === o.product) ?? d.products[0];
     if (!pr) continue;
     // An order is worth what the brand's orders are worth — the figure every other campaign uses — never less than the product itself.
-    list.push(make({ key: o.key, name: o.name, why: o.who, kind: o.kind, audience: o.audience, product: pr.title, price: Math.max(pr.price, worth ?? 0), stock: pr.stock, signal: o.key, rank: 0 }, "own", o.name, `${pr.title} · ${o.who}`));
+    list.push(make({ key: o.key, name: o.name, why: o.who, kind: o.kind, audience: o.audience, product: pr.title, price: Math.max(pr.price, worth ?? 0), stock: pr.stock, signal: o.key, rank: 0 }, "own", o.name, `${pr.title} · ${o.who}`, { at: o.at }));
   }
   // A plan that is under way keeps its page even after its reason has passed (the holiday came, sales recovered).
   const listed = new Set(list.map((x) => x.key));

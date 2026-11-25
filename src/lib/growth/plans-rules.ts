@@ -21,6 +21,7 @@ export type PlanCard = {
   key: string; reason: Reason; title: string; why: string; when?: string; // when: for a holiday, how soon ("in 4 days")
   c: Candidate; image: string | null; budget: number; days: number; out: [Outcome, Outcome, Outcome];
   stage: Stage; ads: PlanAds | null; urgent: boolean; approvedAt: string | null; approvedBy?: string | null; meta?: OnMeta | null;
+  touched?: string | null; // when the brand last moved it on (started, approved, ads made)
 };
 /** What the brand gives Remy to work from for one plan: its own pictures, its own words, and whether new pictures should be shot in their style. */
 export type Brief = { refs: string[]; note: string; shoot: boolean };
