@@ -3,7 +3,9 @@ import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { getBrand } from "@/lib/queries/brands";
 import { and, eq, sql } from "drizzle-orm";
-import { schema } from "@/lib/db";
+import { db, schema } from "@/lib/db";
+import { layoutBatch } from "@/lib/creative/design";
+import { aiReady } from "@/lib/ai/client";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { imageSize } from "@/lib/creative/higgsfield";
 import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget, setOwnAudience } from "@/lib/growth/plans";
@@ -31,6 +33,37 @@ export async function setPlanBudget(slug: string, key: string, budget: number, d
   fresh(slug);
 }
 /** The brand's monthly sales target: falling short of it is a reason to advertise. */
+/**
+ * Design a campaign's ads as cards — its words set on its picture, a different layout on each — or put the plain pictures back.
+ * Not once an ad is on Meta: what is running stays as it was approved.
+ */
+export async function designAds(slug: string, key: string, on: boolean): Promise<{ error?: string; made?: number }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  const plans = await getPlans({ id: brand.id, currency: brand.currency ?? null, timezone: brand.timezone });
+  const p = plans.list.find((x) => x.key === key);
+  if (!p?.ads) return { error: "This campaign has no ads yet" };
+  if (Object.keys(p.meta?.placed ?? {}).length) return { error: "Its ads are already on Meta — make new ads to change the pictures" };
+  const A = schema.ads;
+  if (on) {
+    if (!aiReady()) return { error: "Remy isn’t switched on for this workspace yet" };
+    if (!p.image && !p.ads.thumbs.length) return { error: "These ads have no picture yet — add the product’s photo in Shopify, or a reference picture here" };
+    const r = await layoutBatch(brand.id, p.ads.batchId, me.id, undefined, undefined, undefined, undefined, { plan: key, vary: true }).catch(() => ({ made: 0, error: "Remy couldn’t design them just now — try again" }));
+    fresh(slug);
+    return r.error || !r.made ? { error: r.error ?? "No picture could be designed" } : { made: r.made };
+  }
+  const rows = await db.select({ id: A.id, imageUrl: A.imageUrl, design: A.design }).from(A).where(and(eq(A.batchId, p.ads.batchId), eq(A.brandId, brand.id)));
+  for (const a of rows) {
+    const card = a.design?.card;
+    if (!card || a.imageUrl !== card) continue;
+    await db.update(A).set({ imageUrl: a.design?.image ?? null, design: null, updatedAt: new Date() }).where(eq(A.id, a.id));
+    const id = /^\/api\/assets\/([0-9a-f-]{36})$/i.exec(card)?.[1];
+    if (id) await deleteAssets(and(eq(schema.brandAssets.id, id), eq(schema.brandAssets.brandId, brand.id))).catch(() => undefined);
+  }
+  fresh(slug);
+  return {};
+}
+
 /**
  * Take the set-up Iris worked out: the budget and length, and — for a campaign of the brand's own with no ads yet — who sees it. It is
  * saved, not approved: saying yes to the spend stays the brand's own press.

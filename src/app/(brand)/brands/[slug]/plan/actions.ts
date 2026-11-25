@@ -13,6 +13,8 @@ import { shoot } from "@/lib/creative/shoots";
 import { getPlans, planBrief } from "@/lib/growth/plans";
 import { REASON_NAME } from "@/lib/growth/plans-rules";
 import { buildPipeline } from "../creative/actions";
+import { layoutBatch } from "@/lib/creative/design";
+import { aiReady } from "@/lib/ai/client";
 
 /** Keep the brand's choices (margin, budget, period, goal, offer) and mark the plan approved. */
 export async function approvePlan(slug: string, input: SavedPlan, approve: boolean): Promise<{ ok?: true; error?: string }> {
@@ -71,6 +73,10 @@ export async function makeAds(slug: string, key: string, stay = false, asked = f
       if (made < ads.length) note = made ? `${made} of ${ads.length} pictures were shot — the rest use the product photo` : `No picture could be shot (${shots.find((x) => x.error)?.error?.slice(0, 80) ?? "the image service didn’t answer"}) — the ads use the product photo`;
     } else for (const [i, ad] of ads.entries()) await db.update(schema.ads).set({ imageUrl: `/api/assets/${order[i % order.length]}` }).where(eq(schema.ads.id, ad.id));
   }
+  // Each ad becomes a designed card: Remy sets its words on its picture, a different layout on each, so the test compares designs as
+  // well as messages. If that fails the ads keep their plain pictures — they are still good to run.
+  // Only over a real picture: words on an empty field are not an ad.
+  if (aiReady() && (p.image || order.length)) await layoutBatch(brand.id, r.batchId, me.id, undefined, undefined, undefined, undefined, { plan: key, vary: true }).catch((e) => { console.error("design ads", (e as Error).message.slice(0, 160)); });
   revalidatePath(`/brands/${slug}/campaigns`, "layout"); revalidatePath(`/brands/${slug}/today`);
   return { batchId: r.batchId, ...(note ? { note } : {}) };
 }

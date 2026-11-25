@@ -165,7 +165,7 @@ export async function removeOwnPlan(brandId: string, key: string): Promise<void>
 }
 
 /** Everything one plan's page shows beyond the plan itself: its ads, what its Meta campaign has done, and what Autopilot is doing about it. */
-export type PlanAd = { id: string; status: "review" | "approved" | "rejected"; hook: string; headline: string; text: string; cta: string; image: string | null };
+export type PlanAd = { id: string; status: "review" | "approved" | "rejected"; hook: string; headline: string; text: string; cta: string; image: string | null; designed: boolean }; // designed: its picture is a card Kaviar drew, available in three sizes
 /** What a plan rests on, source by source. Each is something Kaviar read — from the store, its customers, last year, competitors' ads, the product page. */
 export type PlanFacts = {
   store: { units30: number; inventory: number; runway: number | null } | null; // Shopify: how the product sells and how long its stock lasts
@@ -181,7 +181,8 @@ export type PlanExtras = {
 };
 /** A plan's ads as the brand sees them — the same words and the same picture that go to Meta. */
 export async function planAds(batchId: string): Promise<PlanAd[]> {
-  const r = await db.execute(sql`select a.id, a.status, a.hook, a.headline, a.primary_text as text, a.cta, ${realPic} as image from ads a
+  const r = await db.execute(sql`select a.id, a.status, a.hook, a.headline, a.primary_text as text, a.cta, ${realPic} as image,
+      (a.design->>'card' is not null and a.image_url = a.design->>'card') as designed from ads a
     left join brand_assets ai on a.image_url = '/api/assets/' || ai.id::text and coalesce((ai.meta->>'ai')::boolean, false) and ai.meta->>'plan' is null
     where a.batch_id = ${batchId} and a.status in ('review', 'approved') order by a.position limit 12`);
   return r.rows as PlanAd[];

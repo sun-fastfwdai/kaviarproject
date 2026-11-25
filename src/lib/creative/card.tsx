@@ -20,6 +20,19 @@ const loadFonts = () => (fonts ??= Promise.all([
   return { name: name as string, data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, weight: weight as 300 | 400 | 500 | 600 | 700, style: "normal" as const };
 })));
 
+/**
+ * The story and reel size (9:16). The feed card sits whole in the middle on a plain field of the photo's own colour: the top and bottom
+ * of a story are covered by the app's own buttons, so nothing the ad says is put there.
+ */
+export async function renderStory(card: Buffer, field: string): Promise<Buffer> {
+  const { w: W, h: H } = SIZES["9x16"], h = SIZES["4x5"].h;
+  const res = new ImageResponse(
+    (<div style={{ width: W, height: H, display: "flex", position: "relative", backgroundColor: field }}>
+      <img src={`data:image/png;base64,${card.toString("base64")}`} width={W} height={h} alt="" style={{ position: "absolute", left: 0, top: (H - h) / 2, width: W, height: h }} />
+    </div>), { width: W, height: H });
+  return Buffer.from(await res.arrayBuffer());
+}
+
 const family = (l: Layer) => (l.font === "serif" ? "DM Serif Display" : l.font === "condensed" ? "Anton" : "Poppins");
 /** Is this colour light? (decides the tick's colour inside a bullet) */
 const lightHex = (c: string) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.trim()); return m ? (0.2126 * parseInt(m[1], 16) + 0.7152 * parseInt(m[2], 16) + 0.0722 * parseInt(m[3], 16)) / 255 > 0.6 : true; };
