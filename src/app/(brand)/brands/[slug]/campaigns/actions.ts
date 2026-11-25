@@ -12,6 +12,8 @@ import { imageSize } from "@/lib/creative/higgsfield";
 import { addOwnPlan, briefView, getPlans, planAds, planBrief, planMarket, productLink, removeOwnPlan, savePlanChoice, saveTarget, setOwnAudience } from "@/lib/growth/plans";
 import { makeAd, makeAdSet, metaReady, setCampaignBudget, switchCampaign, type Ready } from "@/lib/meta/place";
 import { countriesIn, countryFor, countryNames } from "@/lib/meta/place-rules";
+import { placeAdvice } from "@/lib/meta/places";
+import type { PlaceAdvice } from "@/lib/meta/places-rules";
 import { META_URL_PARAMS } from "@/lib/sync/attribution";
 import { readAssets } from "@/lib/assets/storage";
 import { createPausedCampaign } from "@/lib/meta/apply";
@@ -127,13 +129,17 @@ async function planOf(slug: string, key: string) {
 }
 
 /** What Meta needs before this plan's ads can go on it, asked from Meta now. Creates nothing. */
-export async function metaCheck(slug: string, key: string, country?: string): Promise<{ ready: Ready | null; country: string; link: string | null; error?: string }> {
+export async function metaCheck(slug: string, key: string, country?: string): Promise<{ ready: Ready | null; country: string; link: string | null; advice: PlaceAdvice | null; error?: string }> {
   await requireMember();
   const { brand, p } = await planOf(slug, key);
-  if (!p) return { ready: null, country: "US", link: null, error: "That plan is no longer there." };
-  const c = countriesIn(country).join(",") || p.meta?.country || countryFor(await planMarket(brand.id), brand.currency);
+  if (!p) return { ready: null, country: "US", link: null, advice: null, error: "That plan is no longer there." };
+  const market = await planMarket(brand.id);
+  // Where to show it: Iris's choice from the store's orders, where it ships, competitors' countries and the researched market —
+  // until the brand has chosen, or the ad set already exists.
+  const advice = p.meta?.adset ? null : await placeAdvice({ id: brand.id, currency: brand.currency ?? null }, market, p.budget / Math.max(1, p.days)).catch((e) => { console.error("place advice", (e as Error).message.slice(0, 160)); return null; });
+  const c = countriesIn(country).join(",") || p.meta?.country || advice?.picks.join(",") || countryFor(market, brand.currency);
   const [ready, link] = await Promise.all([metaReady(brand.id, p.meta?.campaignId ?? null, c).catch(() => null), productLink(brand.id, p.c.product)]);
-  return { ready, country: c, link };
+  return { ready, country: c, link, advice };
 }
 
 /** The picture of one ad, as a file: from Kaviar's own storage, or from the store's public address. */

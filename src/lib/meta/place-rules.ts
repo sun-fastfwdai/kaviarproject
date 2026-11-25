@@ -33,7 +33,8 @@ export function problem(e: unknown): string {
   return m.slice(0, 220);
 }
 
-export const COUNTRIES: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"], ["NZ", "New Zealand"], ["IE", "Ireland"], ["DE", "Germany"], ["FR", "France"], ["ES", "Spain"], ["IT", "Italy"], ["NL", "Netherlands"], ["SE", "Sweden"], ["KR", "South Korea"], ["JP", "Japan"], ["SG", "Singapore"], ["IN", "India"], ["AE", "United Arab Emirates"], ["MX", "Mexico"], ["BR", "Brazil"]];
+export const COUNTRIES: [string, string][] = [["US", "United States"], ["CA", "Canada"], ["GB", "United Kingdom"], ["AU", "Australia"], ["NZ", "New Zealand"], ["IE", "Ireland"], ["DE", "Germany"], ["FR", "France"], ["ES", "Spain"], ["IT", "Italy"], ["NL", "Netherlands"], ["SE", "Sweden"], ["KR", "South Korea"], ["JP", "Japan"], ["SG", "Singapore"], ["IN", "India"], ["AE", "United Arab Emirates"], ["MX", "Mexico"], ["BR", "Brazil"],
+  ["BE", "Belgium"], ["AT", "Austria"], ["PT", "Portugal"], ["DK", "Denmark"], ["FI", "Finland"], ["NO", "Norway"], ["CH", "Switzerland"], ["PL", "Poland"], ["GR", "Greece"], ["CZ", "Czechia"], ["RO", "Romania"], ["HU", "Hungary"]];
 /** The countries in a choice ("US" or "US,CA,GB"), in the order chosen: only ones Kaviar offers, each once, ten at most. */
 export const countriesIn = (v: string | null | undefined): string[] =>
   [...new Set((v ?? "").split(",").map((c) => c.trim().toUpperCase()).filter((c) => COUNTRIES.some(([k]) => k === c)))].slice(0, 10);

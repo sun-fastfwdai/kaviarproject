@@ -17,6 +17,7 @@ import { applySetup, approvePlanFor, changeBudgetOnMeta, deleteOwnPlan, metaChec
 import { strategy } from "@/lib/growth/strategy";
 import { Combo } from "@/components/combo";
 import { COUNTRIES, countriesIn } from "@/lib/meta/place-rules";
+import { PER_COUNTRY, type PlaceAdvice } from "@/lib/meta/places-rules";
 import type { Ready } from "@/lib/meta/place";
 
 /**
@@ -40,7 +41,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
   const [work, setWork] = useState<Work | null>(null);
   const [confirm, setConfirm] = useState<false | "place" | "on" | "off" | "budget" | "best">(false);
   // What Meta says it needs, asked when the brand opens "Put it on Meta" — and what the brand picks there.
-  const [check, setCheck] = useState<{ ready: Ready | null; link: string | null } | "asking" | null>(null);
+  const [check, setCheck] = useState<{ ready: Ready | null; link: string | null; advice: PlaceAdvice | null } | "asking" | null>(null);
   const [pick, setPick] = useState<{ page?: string; pixel?: string; country: string }>({ country: p.meta?.country ?? "US" });
   const [budget, setBudget] = useState(p.budget);
   const [days, setDays] = useState(p.days);
@@ -63,7 +64,7 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
 
   const openPlace = () => {
     setConfirm("place"); setCheck("asking");
-    metaCheck(slug, p.key).then((r) => { setCheck({ ready: r.ready, link: r.link }); setPick((x) => ({ country: r.country, page: x.page ?? r.ready?.pages[0]?.id, pixel: x.pixel ?? r.ready?.pixels[0]?.id })); }).catch(() => setCheck({ ready: null, link: null }));
+    metaCheck(slug, p.key).then((r) => { setCheck({ ready: r.ready, link: r.link, advice: r.advice }); setPick((x) => ({ country: r.country, page: x.page ?? r.ready?.pages[0]?.id, pixel: x.pixel ?? r.ready?.pixels[0]?.id })); }).catch(() => setCheck({ ready: null, link: null, advice: null }));
   };
   // Otto puts it on Meta piece by piece — the campaign, the ad set, each ad — and the dock says which piece he is on.
   const launch = () => {
@@ -366,15 +367,34 @@ export function PlanView({ slug, currency, plan: p, input, minBudget, level, ads
                 {row("Purchases counted by", pixel ? <span className="row g6" style={{ justifyContent: "flex-end" }}><Icon name="check" size={12} color="#1F7A52" />{pixel.name}</span> : <span style={{ color: "var(--red)" }}>No pixel found</span>)}
                 {r.dry && row("Meta’s check", r.dry.ok ? <span className="row g6" style={{ justifyContent: "flex-end", color: "var(--green)" }}><Icon name="check" size={12} color="#1F7A52" />Accepts this set-up</span> : <span style={{ color: "var(--red)" }}>Refused</span>)}
               </>}
-              {!p.meta?.adset && <div className="col g4" style={{ paddingTop: 12 }}><span className="xs i2 w5">Shown to people in</span>
-                {/* Several countries can share the one ad set and its one budget. */}
-                <div className="row g6" style={{ flexWrap: "wrap" }}>{countriesIn(pick.country).map((k) => (
-                  <span key={k} className="row g6 sm w5" style={{ height: 30, padding: "0 6px 0 10px", borderRadius: 8, background: "var(--tray)" }}>{COUNTRIES.find(([c]) => c === k)?.[1]}
-                    {countriesIn(pick.country).length > 1 && <button type="button" aria-label={`Remove ${COUNTRIES.find(([c]) => c === k)?.[1]}`} onClick={() => setPick({ ...pick, country: countriesIn(pick.country).filter((c) => c !== k).join(",") })} style={{ width: 20, height: 20, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={10} color="#8B8883" /></button>}
-                    {countriesIn(pick.country).length === 1 && <span style={{ width: 4 }} />}</span>))}</div>
-                {countriesIn(pick.country).length < 10 && <Combo label="Add a country" placeholder="Add another country" searchText="Search countries" value="" onChange={(v) => setPick({ ...pick, country: [...countriesIn(pick.country), v].join(",") })}
-                  items={COUNTRIES.filter(([k]) => !countriesIn(pick.country).includes(k)).map(([k, name]) => ({ value: k, label: name, icon: "globe" as const, sub: "Meta finds the likely buyers there" }))} />}
-                {countriesIn(pick.country).length > 1 && <span className="xs i3">One budget across all of them — Meta spends it where buyers cost least</span>}</div>}
+              {!p.meta?.adset && (() => {
+                // Where it is shown. Iris's choice comes from the store's orders, where it ships, competitors' countries and the
+                // researched market; the brand adds or removes any country, and several share the one ad set and its one budget.
+                const picked = countriesIn(pick.country), advice = got?.advice ?? null, name = (k: string) => COUNTRIES.find(([c]) => c === k)?.[1] ?? k;
+                const set = (list: string[]) => setPick({ ...pick, country: list.join(",") });
+                const each = p.budget / Math.max(1, p.days) / Math.max(1, picked.length);
+                return (
+                  <div className="col g8" style={{ paddingTop: 12 }}>
+                    <span className="row between"><span className="xs i2 w5">Shown to people in</span>{asking && <span className="row g6 xs i3"><Icon name="spinner" size={11} className="spin" />Iris is choosing</span>}</span>
+                    {!asking && <div className="row g6" style={{ flexWrap: "wrap" }}>{picked.map((k) => (
+                      <span key={k} className="row g6 sm w5" style={{ height: 30, padding: picked.length > 1 ? "0 6px 0 10px" : "0 10px", borderRadius: 8, background: "var(--tray)" }}>{name(k)}
+                        {picked.length > 1 && <button type="button" aria-label={`Remove ${name(k)}`} onClick={() => set(picked.filter((c) => c !== k))} style={{ width: 20, height: 20, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={10} color="#8B8883" /></button>}</span>))}</div>}
+                    {advice && advice.places.length > 0 && <div className="col" style={{ borderRadius: 12, border: "1px solid var(--line)", overflow: "hidden" }}>
+                      <span className="row g8 xs w5 i1" style={{ padding: "8px 12px", background: "var(--tray)" }}><AgentFace kind="analyst" size={18} />Iris’s pick · {advice.picks.map(name).join(", ")}</span>
+                      {advice.places.map((x) => { const on = picked.includes(x.code), no = x.ships === false; return (
+                        <div key={x.code} className="row g10" style={{ padding: "8px 12px", borderTop: "1px solid var(--line)", minHeight: 44 }}>
+                          <span className="col fill" style={{ minWidth: 0, lineHeight: 1.3 }}><span className="sm w5 i1">{x.name}</span>
+                            <span className="xs ell" title={x.why.join(" · ")} style={{ color: no ? "var(--amber)" : "var(--ink-3)" }}>{x.why.length ? x.why.join(" · ") : "No numbers yet"}</span></span>
+                          {on ? <button type="button" className="row g4 xs w5" disabled={picked.length < 2} onClick={() => set(picked.filter((c) => c !== x.code))} style={{ flexShrink: 0, color: "var(--green)" }}><Icon name="check" size={12} color="#1F7A52" />Added</button>
+                            : <button type="button" className="btn quiet sm" disabled={no || picked.length >= 10} onClick={() => set([...picked, x.code])} style={{ flexShrink: 0 }}>Add</button>}
+                        </div>); })}
+                    </div>}
+                    {!asking && picked.length < 10 && <Combo label="Add a country" placeholder="Add another country" searchText="Search countries" value="" onChange={(v) => set([...picked, v])}
+                      items={COUNTRIES.filter(([k]) => !picked.includes(k)).map(([k, n]) => ({ value: k, label: n, icon: "globe" as const, sub: advice?.places.find((x) => x.code === k)?.why.join(" · ") || "Meta finds the likely buyers there" }))} />}
+                    {!asking && <span className="xs" style={{ lineHeight: "16px", color: each < PER_COUNTRY && picked.length > 1 ? "var(--amber)" : "var(--ink-3)" }}>
+                      {picked.length > 1 ? `One budget across ${picked.length} countries — about ${usd(each)} a day each. ` : ""}Assumed: a country needs about {usd(PER_COUNTRY)} a day{advice?.rivals ? " · competitors’ countries are known for the UK and EU only" : ""}</span>}
+                  </div>);
+              })()}
               {stop && <span className="row top g8 sm" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 12, background: "#FBEDE6", color: "#B4532A" }}><Icon name="warning-circle" size={14} weight="fill" color="#B4532A" style={{ marginTop: 2, flexShrink: 0 }} /><span>{stop}</span></span>}
             </div>
           </Modal>);
