@@ -134,7 +134,7 @@ For EACH idea, in the order given, write:
 COPY
 - headline: 3–8 words, specific to this product and this idea. Never a stock line (${STOCK.map((p) => `“${p}”`).join(", ")}) and nothing any other brand in the category could run unchanged.${lines.length ? " When campaignAds gives a headline for this ad, return that headline exactly as written." : ""}
 - sub: one supporting sentence under 14 words that completes the headline; empty if the headline stands alone.
-- callouts: 0–3 benefit callouts of 2–4 words, each a fact from the list given, in the buyer's words. Fewer is better; none for a minimalist or aspirational ad.
+- callouts: 0–3 benefit callouts of 1–4 words, each a fact from the list given, said the way a pack says it (“Hypoallergenic”, “With vitamin B12”) — never the fact's own hedging such as “Marketed as…” or “Described as…”. Fewer is better; none for a minimalist or aspirational ad.
 - cta: the button Meta shows under the ad — one of "Shop now", "Learn more", "Order now", "Get offer" (only with a real offer). It is NOT drawn in the picture.
 ART DIRECTION — every ad a different picture: no two share a set, a palette or a layout.
 - scene: 45–80 words. The set and surface with real materials, the props or ingredients (only ones this product truly has), where the pack stands or lies and how large it is in the frame, any hand or person, any drop or swatch of the formula (only in the colour given for the formula — if none is given, show no formula).
