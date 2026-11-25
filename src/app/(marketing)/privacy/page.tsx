@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Wordmark } from "@/components/shell/parts";
 
-export const metadata: Metadata = { title: "Privacy · Kaviar", description: "What Kaviar reads from a brand's store and ad account, what it does with it, and how to have it deleted." };
+export const metadata: Metadata = { title: "Privacy", description: "What Kaviar reads from a brand's store and ad account, what it does with it, and how to have it deleted." };
 
 /**
  * Kaviar's privacy policy. Every statement here describes what the code does today: what is read from Shopify and Meta, what is kept,
