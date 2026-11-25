@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
+import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, planCreative, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
 import { ALLOWED, CAT, DEFAULTS, clipCost, clipModel, type ClipModel, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
@@ -26,7 +26,9 @@ import { LookGallery } from "@/components/look-art";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
 import type { PromptIn } from "@/lib/creative/shoots";
-import type { ShootFlow, ShootNode, ShootNodeCfg, ShotPlan } from "@/lib/db/schema";
+import type { AdPlan, ShootFlow, ShootNode, ShootNodeCfg, ShotPlan } from "@/lib/db/schema";
+import { PASS_SCORE, better, totalOf } from "@/lib/creative/rubric";
+import { PlanPanel, ScoreBars } from "./plan-ui";
 
 export type { Shot } from "./canvas-nodes";
 type Edit = "remove-bg" | "extend" | "relight";
@@ -256,7 +258,18 @@ function Studio(props: Props) {
     };
   };
   const keyOf = (g: ShootFlow, P: ShootNode) => JSON.stringify(promptIn(g, P));
-  const staleOf = (g: ShootFlow, P: ShootNode) => { const c = cfgOf(P); return Boolean(c.prompt) && c.promptFor !== keyOf(g, P); };
+  // ---- finished ads (GPT Image): made from a creative plan instead of a photographer's prompt. A Photo node that feeds a clip makes
+  // photographs — a clip starts from a picture, not from an ad with words on it.
+  const modelOf = (g: ShootFlow, X: ShootNode) => cfgOf(X).model || (props.engines.photoModel === "ads" && outs(g, X.id).some((n) => n.type === "video") ? "sunburst" : props.engines.photoModel);
+  /** The Photo node whose finished ads this node (itself, or the Prompt before it) is for. */
+  const adsNode = (g: ShootFlow, id: string) => { const n = find(g, id); const X = n?.type === "photo" ? n : n?.type === "prompt" ? outs(g, n.id).find((x) => x.type === "photo") ?? null : null; return X && modelOf(g, X) === "ads" ? X : null; };
+  const batchOf = (g: ShootFlow) => g.nodes.map((x) => (x.type === "send" ? cfgOf(x).send : null)).find(Boolean) ?? null;
+  /** Where a Photo node's plan is kept: on the Prompt wired into it, or on itself when there is none. */
+  const planHome = (g: ShootFlow, X: ShootNode) => promptOf(g, X.id) ?? X;
+  const planKey = (g: ShootFlow, X: ShootNode) => { const P = promptOf(g, X.id); return JSON.stringify([productOf(g, X.id)?.url ?? null, cfgOf(X).n, batchOf(g), P ? cfgOf(P).scene : null, Boolean(up(g, X.id, "character"))]); };
+  const planOf = (g: ShootFlow, X: ShootNode): AdPlan | null => { const c = cfgOf(planHome(g, X)); return c.creative?.concepts?.length ? c.creative : null; };
+  const planStale = (g: ShootFlow, X: ShootNode) => Boolean(planOf(g, X)) && cfgOf(planHome(g, X)).creativeFor !== planKey(g, X);
+  const staleOf = (g: ShootFlow, P: ShootNode) => { const X = adsNode(g, P.id); if (X) return planStale(g, X); const c = cfgOf(P); return Boolean(c.prompt) && c.promptFor !== keyOf(g, P); };
   const frameOf = (g: ShootFlow, vid: string, extra?: Map<string, Check>) => {
     const V = find(g, vid);
     if (!V) return null;
@@ -305,9 +318,25 @@ function Studio(props: Props) {
   const mark = (id: string, v: RunState) => { setStatus((s) => ({ ...s, [id]: v })); if (v === "running") setStatusAt((t) => ({ ...t, [id]: Date.now() })); };
   const fail = (id: string, m: string) => { mark(id, "error"); errorsRef.current = { ...errorsRef.current, [id]: m }; setErrors(errorsRef.current); setMsg(m); };
 
+  /** Iris, then Remy, write the plan for a Photo node's finished ads. It is kept on the canvas, where the team reads and edits it. */
+  const planRun = async (xid: string): Promise<AdPlan | null> => {
+    const g = flowRef.current, X = find(g, xid);
+    if (!X) return null;
+    const prod = productOf(g, xid), H = planHome(g, X), P = promptOf(g, xid);
+    if (!prod) { fail(H.id, "Wire a Product node in — the plan starts from the real pack."); return null; }
+    mark(H.id, "running");
+    const r = await planCreative(slug, { product: prod.title, imageUrl: prod.url, n: cfgOf(X).n, forBatch: batchOf(g), look: P ? cfgOf(P).scene : null, person: Boolean(up(g, xid, "character")) });
+    if (!r.plan) { fail(H.id, r.error ?? "The plan didn’t come back."); return null; }
+    patchNode(H.id, { creative: r.plan, creativeFor: planKey(flowRef.current, find(flowRef.current, xid) ?? X) }, false);
+    if (H.id !== xid) mark(H.id, "done");
+    return r.plan;
+  };
+
   const write = async (pid: string): Promise<string | null> => {
     let P = find(flowRef.current, pid);
     if (!P) return null;
+    const forAds = adsNode(flowRef.current, pid);
+    if (forAds) { const plan = await planRun(forAds.id); return plan ? plan.concepts.map((x) => x.headline).join(" · ") : null; }
     const input = promptIn(flowRef.current, P);
     if (!input.product) { fail(pid, "Wire a Product node into the Prompt — Remy writes the scene around it."); return null; }
     mark(pid, "running");
@@ -322,9 +351,73 @@ function Studio(props: Props) {
     return text;
   };
 
-  const photoRun = async (xid: string, checks: Map<string, Check>) => {
+  /**
+   * Finished ads, start to end: the plan (written now if it is missing or out of date) → one render per concept → Otto scores each out of
+   * 100 → anything under 85, or with the wrong product, goes back to the image model once with his notes → the better render is kept.
+   */
+  const adsRun = async (xid: string, checks: Map<string, Check>) => {
     const g = flowRef.current, X = find(g, xid);
     if (!X) return null;
+    const prod = productOf(g, xid);
+    if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
+    const plan = (!planStale(g, X) && planOf(g, X)) || await planRun(xid);
+    if (!plan) return null;
+    const c = cfgOf(X), P = promptOf(g, xid), refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null, chNode = up(g, xid, "character");
+    const base = { product: prod.title, imageUrl: prod.url, prompt: "", aspect: c.aspect, n: 1, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: "ads", forBatch: batchOf(g) };
+    // Four renders a request, so no request waits on more than the image service finishes in time.
+    const render = async (items: { i: number; revise?: string[] }[]) => {
+      const made: { id: string; i: number }[] = []; let error: string | undefined;
+      for (let k = 0; k < items.length; k += 4) {
+        const r = await runShoot(slug, { ...base, ads: { plan, items: items.slice(k, k + 4) } });
+        if (r.made) made.push(...r.made);
+        if (r.error) error = r.error;
+      }
+      return { made: made.sort((a, b) => a.i - b.i), error };
+    };
+    mark(xid, "running");
+    const first = await render(Array.from({ length: Math.min(c.n, plan.concepts.length) }, (_, i) => ({ i })));
+    if (!first.made.length) { fail(xid, first.error ?? "No ads came back."); return null; }
+    if (first.error) setMsg(first.error);
+    let made = first.made, rendered = made.length, flagged = 0;
+    const put = () => patchNode(xid, { out: made.map((x) => x.id), conceptOf: Object.fromEntries(made.map((x) => [x.id, x.i])), at: new Date().toISOString() }, false);
+    put(); mark(xid, "done"); router.refresh();
+    const ck = outs(flowRef.current, xid).filter((n) => n.type === "check");
+    if (ck.length) {
+      const critique = async (ids: string[]) => {
+        const res = await Promise.all(ids.map((id) => runCheck(slug, id, prod.url, prod.title)));
+        res.forEach((x, i) => { if (x.check) checks.set(ids[i], x.check); });
+        setFresh((f) => ({ ...f, ...Object.fromEntries([...checks]) }));
+        return res.every((x) => x.check);
+      };
+      ck.forEach((k) => mark(k.id, "running"));
+      let ok = await critique(made.map((x) => x.id));
+      const back = made.filter((x) => { const k = checks.get(x.id); return k && !passes(k); });
+      if (back.length) {
+        setMsg(`Otto sent ${back.length} of ${made.length} back — rendering ${back.length === 1 ? "it" : "them"} again with his notes`);
+        ck.forEach((k) => mark(k.id, "queued")); mark(xid, "running");
+        const again = await render(back.map((x) => { const k = checks.get(x.id)!; return { i: x.i, revise: k.fixes?.length ? k.fixes : [k.note] }; }));
+        mark(xid, "done");
+        rendered += again.made.length;
+        if (again.made.length) {
+          router.refresh();
+          ck.forEach((k) => mark(k.id, "running"));
+          ok = (await critique(again.made.map((x) => x.id))) && ok;
+          made = made.map((x) => { const y = again.made.find((z) => z.i === x.i), ky = y ? checks.get(y.id) ?? null : null; return y && ky && better(checks.get(x.id) ?? null, ky) === ky ? y : x; });
+          put();
+        }
+      }
+      flagged = made.filter((x) => { const k = checks.get(x.id); return k && !passes(k); }).length;
+      setMsg(`${made.length - flagged} of ${made.length} ads scored ${PASS_SCORE} or more${back.length ? ` · ${back.length} rendered a second time` : ""}`);
+      ck.forEach((k) => mark(k.id, ok ? "done" : "error"));
+      router.refresh();
+    }
+    return { ids: made.map((x) => x.id), flagged, rendered };
+  };
+
+  const photoRun = async (xid: string, checks: Map<string, Check>): Promise<{ ids: string[]; flagged: number; rendered?: number } | null> => {
+    const g = flowRef.current, X = find(g, xid);
+    if (!X) return null;
+    if (modelOf(g, X) === "ads") return adsRun(xid, checks);
     const prod = productOf(g, xid);
     if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
     const P = promptOf(g, xid);
@@ -336,7 +429,7 @@ function Studio(props: Props) {
     mark(xid, "running");
     const refNode = P ? inc(g, P.id).find((x) => x.type === "reference") : null;
     const chNode = up(g, xid, "character");
-    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: c.model ?? null, forBatch: g.nodes.map((x) => (x.type === "send" ? cfgOf(x).send : null)).find(Boolean) ?? null });
+    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: c.aspect, n: c.n, referenceId: refNode ? cfgOf(refNode).reference?.id ?? null : null, characterId: chNode ? cfgOf(chNode).characterId : null, model: modelOf(g, X), forBatch: batchOf(g) });
     if (!r.ids?.length) { fail(xid, r.error ?? "No photos came back."); return null; }
     if (r.error) setMsg(r.error);
     const ids = r.ids;
@@ -554,7 +647,7 @@ function Studio(props: Props) {
     }
     const checks = new Map<string, Check>();
     let p = 0, cl = 0, flagged = 0, spent = 0;
-    for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += r.ids.length * perImage; } }
+    for (const X of photos) { const r = await photoRun(X.id, checks); if (r) { p += r.ids.length; flagged += r.flagged; spent += (r.rendered ?? r.ids.length) * perImage; } }
     let rendering = 0;
     for (const V of videos) {
       const r = storyNodeOf(flowRef.current, V.id) ? await scenesRun(V.id) : await videoRun(V.id, checks);
@@ -584,11 +677,14 @@ function Studio(props: Props) {
     if (!X || !prod) return;
     const P = promptOf(g, X.id);
     const text = (P && cfgOf(P).prompt) || `${prod.title} in a calm everyday scene.`;
+    // A finished ad is rendered again from its own concept, with what Otto asked to be fixed.
+    const plan = modelOf(g, X) === "ads" ? planOf(g, X) : null, i = cfgOf(X).conceptOf?.[shotId], k0 = checkOf(shotId);
     mark(X.id, "running");
-    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: cfgOf(X).aspect, n: 1 });
+    const r = await runShoot(slug, { product: prod.title, imageUrl: prod.url, prompt: text, aspect: cfgOf(X).aspect, n: 1, model: modelOf(g, X), forBatch: batchOf(g),
+      ...(plan && i != null && plan.concepts[i] ? { ads: { plan, items: [{ i, revise: k0?.fixes?.length ? k0.fixes : k0 ? [k0.note] : undefined }] } } : {}) });
     if (!r.ids?.length) { fail(X.id, r.error ?? "No photo came back."); return; }
     const nid = r.ids[0];
-    patchNode(X.id, { out: cfgOf(find(flowRef.current, X.id)!).out.map((x) => (x === shotId ? nid : x)) }, false);
+    patchNode(X.id, { out: cfgOf(find(flowRef.current, X.id)!).out.map((x) => (x === shotId ? nid : x)), ...(i != null ? { conceptOf: { ...cfgOf(X).conceptOf, [nid]: i } } : {}) }, false);
     mark(X.id, "done"); mark(checkId, "running");
     const k = await runCheck(slug, nid, prod.url, prod.title);
     if (k.check) setFresh((f) => ({ ...f, [nid]: k.check! }));
@@ -657,7 +753,7 @@ function Studio(props: Props) {
   useEffect(() => {
     if (!props.planned || wrote.current) return;
     wrote.current = true;
-    const P = flowRef.current.nodes.find((x) => x.type === "prompt" && !cfgOf(x).prompt);
+    const P = flowRef.current.nodes.find((x) => x.type === "prompt" && (adsNode(flowRef.current, x.id) ? !cfgOf(x).creative : !cfgOf(x).prompt));
     if (P) go(async () => { await write(P.id); });
   });
 
@@ -784,6 +880,8 @@ function Studio(props: Props) {
     flow, status, busy, now, currency: props.currency, brand: props.brand, byId, palette: props.palette, look: props.look, tone: props.tone, lessons: props.lessons, batches: sortedBatches,
     perImage, perVideoSecond, perSoundSecond: props.engines.perSoundSecond, engines: props.engines, clip: (m) => clipModel(props.engines, perVideoSecond, m), voiceName: (id) => (id ? props.voices.find((v) => v.id === id)?.name ?? "Brand voice" : null),
     productFor: (id) => productOf(flow, id), signalFor: (id) => signalOf(flow, id), sceneFor: (id) => { const P = promptOf(flow, id); return P ? cfgOf(P).scene : "No prompt wired"; },
+    adsFor: (id) => Boolean(adsNode(flow, id)), planFor: (id) => { const X = adsNode(flow, id); return X ? planOf(flow, X) : null; },
+    modelName: (id) => { const X = find(flow, id); const m = X ? props.engines.photoModels.find((x) => x.key === modelOf(flow, X)) : null; return m?.name ?? props.engines.photo; },
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
     characterOf: (id) => charById(id), errorFor: (id) => errors[id] ?? null,
@@ -937,6 +1035,7 @@ function Studio(props: Props) {
   const nP = n?.type === "product" ? productOf(flow, n.id) : null;
   const nSig = n?.type === "data" ? signalOf(flow, n.id) : null, nCh = n?.type === "data" ? changedOf(n.id) : false;
   const nPrompt = n?.type === "photo" ? promptOf(flow, n.id) : null;
+  const nAds = n ? adsNode(flow, n.id) : null;
   const nMine = n?.type === "photo" && c ? c.out.filter((x) => byId.has(x)) : [];
   const nEarlier = n?.type === "photo" ? shots.filter((s) => s.kind === "image" && !nMine.includes(s.id)) : [];
   const nVideos = n?.type === "photo" ? outs(flow, n.id).filter((x) => x.type === "video") : [];
@@ -1106,7 +1205,12 @@ function Studio(props: Props) {
           <Field label="How closely to follow"><Pills label="How closely to follow" value={c.reference?.close ? "close" : "loose"} options={[["loose", "Loosely"], ["close", "Closely"]]} onChange={(v) => c.reference && patchNode(n.id, { reference: { ...c.reference, close: v === "close" } })} /></Field>
         </>}
 
-        {n.type === "prompt" && <>
+        {n.type === "prompt" && nAds && (
+          <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={cfgOf(nAds).n}
+            onPlan={() => runNode(n.id)} onEdit={(p) => patchNode(planHome(flow, nAds).id, { creative: p }, false)} />
+        )}
+
+        {n.type === "prompt" && !nAds && <>
           <Field label="Prompt" sub={c.segments && c.prompt === joinSegs(c.segments) ? "Written by Remy · edit it and it’s yours" : c.prompt ? "Edited by hand" : undefined}>
             <textarea value={c.prompt} rows={18} onChange={(e) => patchNode(n.id, { prompt: e.target.value, promptFor: keyOf(flow, n) }, false)} placeholder="Describe the scene, or let Remy write it from the inputs wired in."
               style={{ border: "1px solid var(--line-2)", borderRadius: 8, padding: 8, resize: "vertical", font: "inherit", fontSize: 12, lineHeight: "17px" }} />
@@ -1126,13 +1230,18 @@ function Studio(props: Props) {
 
         {n.type === "photo" && <>
             {props.engines.photoModels.length > 1
-              ? <Field label="Model" sub={(props.engines.photoModels.find((x) => x.key === (c.model ?? props.engines.photoModel)) ?? props.engines.photoModels[0]).note}>
-                  <Combo label="Model" value={c.model ?? props.engines.photoModel} onChange={(v) => patchNode(n.id, { model: v })}
-                    options={props.engines.photoModels.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.price)} a photo · keeps the real product from the Shopify photo` }))} />
+              ? <Field label="Model" sub={(props.engines.photoModels.find((x) => x.key === modelOf(flow, n)) ?? props.engines.photoModels[0]).note}>
+                  <Combo label="Model" value={modelOf(flow, n)} onChange={(v) => patchNode(n.id, { model: v })}
+                    options={props.engines.photoModels.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.price)} a picture · ${x.key === "ads" ? "the words designed in" : "a photo, the words set on it after"}` }))} />
                 </Field>
               : <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="pencil" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>}
-            <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>
-            <div className="row g6" style={{ flexShrink: 0 }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" /><Pills label="Count" value={c.n} options={[[1, "× 1"], [2, "× 2"], [4, "× 4"]]} onChange={(v) => patchNode(n.id, { n: v })} /></div>
+            {nAds
+              ? (nPrompt
+                ? <Field label="Creative plan" sub={planOf(flow, nAds) ? `${planOf(flow, nAds)!.concepts.length} ads planned by Iris and Remy` : "Written when you run — or plan first to read and edit it"}><button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => select(nPrompt.id)}>{planOf(flow, nAds) ? "Open the plan" : "Plan the ads"}<Icon name="arrow-r" size={12} /></button></Field>
+                : <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={c.n} onPlan={() => go(async () => { await planRun(n.id); mark(n.id, "done"); })} onEdit={(p) => patchNode(n.id, { creative: p }, false)} />)
+              : <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>}
+            <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" />
+              <Pills label="Count" value={c.n} options={[...new Set([...(nAds ? [1, 2, 4, 6, 8] : [1, 2, 4]), c.n])].sort((a, b) => a - b).map((v) => [v, `× ${v}`] as [number, string])} onChange={(v) => patchNode(n.id, { n: v })} /></div>
             {(nMine.length > 0 || nEarlier.length > 0) && <Field label={focusShot ? "Selected photo" : "Pick a photo to edit or design"}>
               {focusShot && focusShot.kind === "image" && <div className="col g6">
                 <img src={asset(focusShot.id)} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 8, background: "var(--tray)" }} />
@@ -1152,7 +1261,7 @@ function Studio(props: Props) {
             </Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
               <button type="button" className="btn dark" disabled={busy} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * perImage)}</button>
-              <span className="xs i3" style={{ textAlign: "center" }}>about 20 seconds · product stays locked</span>
+              <span className="xs i3" style={{ textAlign: "center" }}>{nAds ? `about 2 minutes · Otto scores each one, under ${PASS_SCORE} is rendered once more` : "about 20 seconds · product stays locked"}</span>
             </div>
           </>}
 
@@ -1254,13 +1363,15 @@ function Studio(props: Props) {
             <div key={s.id} className="row top g8" style={{ padding: "8px 0", borderTop: "1px solid var(--line)", flexShrink: 0 }}>
               <Thumb id={s.id} w={40} h={48} onClick={() => setFocus(s.id)} />
               <div className="col g2 fill" style={{ minWidth: 0 }}>
-                <span className="xs w5 i1">Photo {i + 1} {k ? (passes(k) ? <span className="c-green">· passed</span> : <span className="c-amber">· {flagOf(k)}</span>) : <span className="i3">· not checked</span>}</span>
+                <span className="xs w5 i1">{k?.scores ? "Ad" : "Photo"} {i + 1} {k ? (passes(k) ? <span className="c-green">· {k.scores ? `${totalOf(k.scores)} of 100` : "passed"}</span> : <span className="c-amber">· {flagOf(k)}</span>) : <span className="i3">· not checked</span>}</span>
                 <span className="xs i3" style={{ lineHeight: "15px" }}>{k?.note ?? "Otto hasn’t looked at this one yet."}</span>
-                <span className="row g8 xs">{k && !passes(k) && <button type="button" className="lnk i2" disabled={busy} onClick={() => rerunOne(n.id, s.id)}>Re-run · {usd(perImage)}</button>}<button type="button" className="lnk i3" disabled={busy} onClick={() => recheck(s.id, n.id)}>Check {k ? "again" : "now"}</button></span>
+                {k?.scores && <details><summary className="xs i2" style={{ cursor: "pointer" }}>The seven scores</summary><div style={{ paddingTop: 6 }}><ScoreBars check={k} compact /></div></details>}
+                {k && !passes(k) && k.fixes?.length ? <div className="col g2">{k.fixes.map((f) => <span key={f} className="row top g6 xs i2" style={{ lineHeight: "15px" }}><Icon name="arrow-r" size={11} color="#8A8782" />{f}</span>)}</div> : null}
+                <span className="row g8 xs">{k && !passes(k) && <button type="button" className="lnk i2" disabled={busy} onClick={() => rerunOne(n.id, s.id)}>{k.scores ? "Render again with these fixes" : "Re-run"} · {usd(perImage)}</button>}<button type="button" className="lnk i3" disabled={busy} onClick={() => recheck(s.id, n.id)}>Check {k ? "again" : "now"}</button></span>
               </div>
             </div>); })
-            : <span className="xs i3" style={{ lineHeight: "16px" }}>Wire a Photo node in and run it. Otto checks each photo next to the real product: label, shape, colours, and no added text or watermark.</span>}
-          {nChecked.length > 0 && <span className="xs i2">{nOk} passed · {nChecked.length - nOk} flagged — flagged photos aren’t sent unless you pick them.</span>}
+            : <span className="xs i3" style={{ lineHeight: "16px" }}>Wire a Photo node in and run it. Otto checks each picture next to the real product: label, shape, colours. A finished ad is also scored out of 100 and needs {PASS_SCORE} to go forward.</span>}
+          {nChecked.length > 0 && <span className="xs i2">{nOk} passed · {nChecked.length - nOk} flagged — flagged ones aren’t sent unless you pick them.</span>}
         </>}
 
         {n.type === "send" && <>

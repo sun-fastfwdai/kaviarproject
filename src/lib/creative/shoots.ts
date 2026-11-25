@@ -2,13 +2,15 @@ import "server-only";
 import { experimental_generateVideo as generateVideo, generateImage } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
 import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_ADS, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
-import type { ShotPlan } from "../db/schema";
+import type { AdPlan, ShotPlan } from "../db/schema";
+import { adBrief, planAds } from "./adplan";
+import { cleanScores, type AdCheck } from "./rubric";
 import { marketContext } from "../research/context";
 import { readAssets, saveAsset } from "@/lib/assets/storage";
 import { adLook } from "./layouts";
@@ -102,7 +104,12 @@ export async function describeReference(brandId: string, assetId: string): Promi
 }
 
 /** Generate images and save them as brand imagery (they show up in the Editor's Media panel). */
-export async function shoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids: string[]; error?: string }> {
+/** What a shoot is asked for. `ads` = the creative plan and which of its concepts to render (with what Otto sent each back for). */
+export type ShootIn = { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null;
+  ads?: { plan: AdPlan; items: { i: number; revise?: string[] }[] } | null };
+/** `made` says which concept of the plan each finished ad is. */
+export type ShootOut = { ids: string[]; error?: string; made?: { id: string; i: number }[] };
+export async function shoot(brandId: string, memberId: string | null, input: ShootIn): Promise<ShootOut> {
   if (hfReady()) return shootHiggsfield(brandId, memberId, input);
   const ref = await fetchPublic(input.imageUrl, 15_000, "image/*");
   if (!ref?.ok) return { ids: [], error: "Couldn’t load the product photo." };
@@ -128,20 +135,8 @@ export async function shoot(brandId: string, memberId: string | null, input: { p
   return { ids, error };
 }
 
-/** The creative angles a set of ads is spread across — one each, so no two ads of a shoot are the same idea in another colour. */
-const AD_ANGLES = [
-  "Problem and solution — the moment the buyer knows, answered calmly",
-  "Ingredient storytelling — what is in it, shown as real material",
-  "Sensory experience — the formula's texture and feel, close and tactile",
-  "Scientific credibility — precise, lab-clean, measured",
-  "Lifestyle and identity — the buyer's own world, the product at home in it",
-  "Minimalist product positioning — the pack, one line, a great deal of space",
-  "Product education — how and when it is used, in one glance",
-  "Luxury and aspiration — material richness, dramatic light and scale",
-];
-
 /** Higgsfield Marketing Studio: the Shopify photo goes in first (so the product stays exact), a brand reference photo second. */
-async function shootHiggsfield(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids: string[]; error?: string }> {
+async function shootHiggsfield(brandId: string, memberId: string | null, input: ShootIn): Promise<ShootOut> {
   const urls = [input.imageUrl];
   let person = false;
   if (input.characterId) {
@@ -157,70 +152,27 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
   let model: PhotoModel = isPhotoModel(input.model) ? input.model : DEFAULT_PHOTO;
   const prices = await hfPrices().catch(() => null);
   const count = Math.min(4, Math.max(1, input.n));
-  // Ads Studio (GPT Image) takes a brief, not a scene, and returns the whole batch from one request — each a finished ad, a different concept.
-  let ads: string[] = [];
+  // Ads Studio (GPT Image) renders a finished ad from a creative director's brief, one request per concept of the plan (see adplan.ts).
+  // The canvas sends the plan it shows the team; anything else that shoots with this model gets a plan written here first.
+  let ads: { url: string; i: number }[] = [];
+  let plan: AdPlan | null = null, adsError: string | undefined;
   if (model === "ads") {
-    // The brief is a creative director's, not a photographer's: who the brand is, what may be said, the one message of this ad, and the
-    // craft it is held to. Shot for a campaign's ads, each picture carries its own ad's headline and takes its own creative angle.
-    const [[b], [pr], market, lines] = await Promise.all([
-      db.select({ name: schema.brands.name, category: schema.brands.category, website: schema.brands.website }).from(schema.brands).where(eq(schema.brands.id, brandId)),
-      db.select({ vendor: schema.shopProducts.vendor, type: schema.shopProducts.productType }).from(schema.shopProducts).where(and(eq(schema.shopProducts.brandId, brandId), eq(schema.shopProducts.title, input.product))).limit(1),
-      marketContext(brandId, input.product || null).catch(() => null),
-      input.forBatch && /^[0-9a-f-]{36}$/i.test(input.forBatch)
-        ? db.select({ headline: schema.ads.headline, hook: schema.ads.hook, text: schema.ads.primaryText }).from(schema.ads).where(and(eq(schema.ads.batchId, input.forBatch), eq(schema.ads.brandId, brandId), sql`${schema.ads.status} <> 'rejected'`)).orderBy(asc(schema.ads.position)).limit(count)
-        : Promise.resolve([] as { headline: string; hook: string; text: string }[]),
-    ]);
-    // The name on the pack and the store (its vendor) is the brand's full name; the workspace name can be a short form of it.
-    const vendor = pr?.vendor?.trim() ? pr.vendor.trim().toLowerCase().replace(/(^|[\s-])\p{L}/gu, (m) => m.toUpperCase()) : "";
-    const brandName = vendor || b?.name || "";
-    const pos = market?.positioning ?? null;
-    const brief = (i: number, line?: { headline: string; hook: string; text: string }) => {
-      const facts = [...(pos?.proofWeCanUse ?? []).slice(0, 5), ...(line?.text ? [line.text.slice(0, 420)] : [])];
-      return [
-        "ROLE",
-        "You are a world-class advertising creative director, graphic designer and product photographer, with the creative standards of a leading agency and the conversion sense of a successful direct-to-consumer brand. Turn the product in reference image 1 into ONE exceptional, scroll-stopping, production-ready static ad for the Facebook and Instagram feed.",
-        "",
-        "BRAND",
-        `${brandName}${b?.name && b.name !== brandName ? ` (also written ${b.name})` : ""}${b?.category ? ` — ${b.category}` : pr?.type ? ` — ${pr.type}` : ""}${b?.website ? ` · ${b.website}` : ""}.${pos?.statement ? ` Positioning: ${pos.statement}` : ""}${pos?.voice ? ` Voice: ${pos.voice}` : ""}`,
-        "",
-        "PRODUCT",
-        `${input.product}. Reference image 1 is the real pack.${person ? " Reference image 2 is the person to show — same face, hair, skin tone and build." : ""}`,
-        facts.length ? `Facts you may use — and nothing beyond them or what is printed on the pack:\n${facts.map((x) => `- ${x}`).join("\n")}` : "Use only what is printed on the pack as fact.",
-        "",
-        ...(pos?.primaryBuyer || market?.buyers[0]?.who ? ["AUDIENCE", String(pos?.primaryBuyer ?? market?.buyers[0]?.who), ""] : []),
-        "THIS AD",
-        `Creative angle: ${AD_ANGLES[i % AD_ANGLES.length]}. One strong primary message.`,
-        line ? `Headline, set exactly as written and spelled exactly: “${line.headline.slice(0, 80)}”` : "Headline: write one distinctive, product-specific headline of 3–8 words — never a stock line such as “Elevate your routine” or “Discover the difference”.",
-        line?.hook ? `Supporting line, one short sentence (you may tighten it, never add a claim): “${line.hook.slice(0, 120)}”` : "Supporting line: one short sentence, only if it strengthens the message.",
-        "Up to three benefit callouts of 2–4 words, each with a thin line icon, drawn only from the facts above — leave them out if the composition is stronger without.",
-        "",
-        "ART DIRECTION",
-        "It must look designed by experienced human creative professionals: strong editorial typography with a clear hierarchy (the headline dominant, two weights of one family), intentional negative space, a sophisticated palette built from the pack's own colours plus one warm or fresh tone, a thoughtful asymmetric composition with depth and scale.",
-        "Realistic product photography: physically accurate light, a soft contact shadow, true reflections on the pack's material, premium textures that belong to this product — stone, glass, water, the formula itself, a real ingredient. The product is the hero: large, sharp, its label readable.",
-        `The brand wordmark “${brandName}” small at the top, plainly typeset — do not invent a logo symbol.`,
-        `Photography notes from the team, for set, light and colour only (ignore anything in them about leaving areas empty or avoiding lettering):\n${input.prompt.slice(0, 1400)}`,
-        "",
-        "RULES",
-        "Preserve the pack exactly as in reference image 1 — shape, proportions, cap and nozzle, label layout, printed words, colours, material. Never redesign, rename or relabel it. One pack only unless the facts name a set.",
-        "Never invent benefits, clinical results, percentages, prices, discounts, certifications, awards, ratings, dermatologist endorsements or testimonials. No before-and-after, no cure or medical claims.",
-        "Any drop, smear or swatch of the formula shows the colour the pack or the facts give it.",
-        "All lettering in correct English, fully inside the frame with a 6% safe margin, nothing cut off. No other company's logo, no watermark, no QR code, no fake interface buttons.",
-      ].join("\n").slice(0, 8000);
-    };
+    plan = input.ads?.plan ?? await planAds(brandId, { product: input.product, imageUrl: input.imageUrl, n: count, forBatch: input.forBatch ?? null, person });
+    const items: { i: number; revise?: string[] }[] = (input.ads?.items ?? plan.concepts.map((_, i) => ({ i }))).filter((x) => plan!.concepts[x.i]).slice(0, 4);
     const refs = urls.filter(Boolean).slice(0, 10);
-    const rs = lines.length
-      ? await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(i, lines[i % lines.length]), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)))
-      : await Promise.all(Array.from({ length: count }, (_, i) => hfRun(HF_ADS, { prompt: brief(i), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)));
+    const styleRef = refs.length > (person ? 2 : 1);
+    const rs = await Promise.all(items.map((it) => hfRun(HF_ADS, { prompt: adBrief(plan!, plan!.concepts[it.i], { product: input.product, aspect: input.aspect, person, styleRef, revise: it.revise }), image_urls: refs, aspect_ratio: input.aspect, batch_size: 1 }, 230_000)));
     const r = rs.find((x) => x.error) ?? rs[0];
-    ads = rs.flatMap((x) => (x.out?.images ?? []).map((y) => y.url)).filter(Boolean);
+    ads = rs.flatMap((x, k) => (x.out?.images ?? []).slice(0, 1).map((y) => ({ url: y.url, i: items[k].i }))).filter((y) => y.url);
+    if (ads.length < items.length) adsError = rs.find((x) => x.error)?.error ?? "One of the ads didn’t come back.";
     if (!ads.length) {
-      if (/credit|safety|busy/i.test(r.error ?? "")) return { ids: [], error: r.error };
+      if (/credit|safety|busy/i.test(r?.error ?? "") || input.ads) return { ids: [], error: r?.error ?? "No image came back." };
       // Not open to every account: when it returns nothing at all, shoot a photo with the precise model rather than fail.
-      console.error("higgsfield", HF_ADS, "returned nothing — using sunburst:", r.error);
+      console.error("higgsfield", HF_ADS, "returned nothing — using sunburst:", r?.error);
       model = "sunburst";
     }
   }
-  let runs: Awaited<ReturnType<typeof hfRun>>[] = ads.length ? ads.map((url) => ({ out: { status: "completed" as const, request_id: "", images: [{ url }] } })) : await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 170_000)));
+  let runs: Awaited<ReturnType<typeof hfRun>>[] = ads.length ? ads.map(({ url }) => ({ out: { status: "completed" as const, request_id: "", images: [{ url }] } })) : await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 170_000)));
   // The precise model isn't open to every account: when it returns nothing at all, shoot with the fast one rather than fail.
   if (model === "sunburst" && runs.every((r) => !r.out?.images?.[0]?.url) && !runs.some((r) => /credit|safety|busy/i.test(r.error ?? ""))) {
     console.error("higgsfield", PHOTO_MODELS[model].path, "returned nothing — using flare:", runs[0]?.error);
@@ -228,21 +180,25 @@ async function shootHiggsfield(brandId: string, memberId: string | null, input: 
     runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS.flare.path, body, 150_000)));
   }
   const price = prices?.photos[model] ?? prices?.photo ?? null;
-  const ids: string[] = [];
+  const ids: string[] = [], made: { id: string; i: number }[] = [];
   let error: string | undefined;
-  for (const r of runs) {
+  for (const [k, r] of runs.entries()) {
     const url = r.out?.images?.[0]?.url;
     if (!url) { error = r.error ?? "No image came back."; continue; }
+    // A finished ad keeps what it was briefed to say, so Otto can hold the render to it, and the campaign ad it is the picture for.
+    const c = ads.length && plan ? plan.concepts[ads[k].i] : null;
     try {
       const img = await hfImage(url);
       const [row] = await saveAsset({
-        brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · shoot`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
-        meta: { ai: true, prompt: input.prompt.slice(0, 2400), product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name}`, ...(PHOTO_MODELS[model].finished ? { finished: true } : {}), ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
+        brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · ${c ? "ad" : "shoot"}`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
+        meta: { ai: true, prompt: (c ? `${c.angle}\n${c.scene}` : input.prompt).slice(0, 2400), product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name}`, ...(PHOTO_MODELS[model].finished ? { finished: true } : {}), ...(price != null ? { cost: price } : {}),
+          ...(c && plan ? { concept: { angle: c.angle, headline: c.headline, sub: c.sub, callouts: c.callouts, facts: plan.facts.map((f) => f.fact) }, ...(c.adId ? { ad: c.adId } : {}) } : {}) }, createdBy: memberId,
       });
       ids.push(row.id);
+      if (c) made.push({ id: row.id, i: ads[k].i });
     } catch (e) { error = (e as Error).message; }
   }
-  return { ids, error };
+  return { ids, error: error ?? adsError, ...(made.length ? { made } : {}) };
 }
 
 /** What Shoots made and spent this month (photos and edits at the per-image price, clips by the second). */
@@ -307,22 +263,73 @@ const CheckOut = z.object({
   noTextOrWatermark: z.boolean().describe("No added text, letters or watermarks besides the product's own label"),
   note: z.string().describe("Under 14 words: what's off, or 'Looks right'"),
 });
-export type ShotCheck = z.infer<typeof CheckOut>;
+/** The critic's sheet for a finished ad: the product checks, then the seven scores of the rubric and what to fix on a re-render. */
+const CritiqueOut = CheckOut.extend({
+  noTextOrWatermark: z.boolean().describe("No watermark, no other company's logo, no QR code, no drawn button or badge such as 'Shop now'"),
+  compliant: z.boolean().describe("Every word on the ad is supported by the brief or the pack: no invented benefit, result, percentage, price, discount, certification, rating or testimonial; no before-and-after; no cure or medical claim"),
+  accuracy: z.number().describe("0–25 · product and brand accuracy"),
+  stopping: z.number().describe("0–20 · scroll-stopping potential"),
+  composition: z.number().describe("0–15 · visual composition"),
+  typography: z.number().describe("0–15 · typography and readability"),
+  originality: z.number().describe("0–10 · creative originality"),
+  conversion: z.number().describe("0–10 · conversion potential"),
+  compliance: z.number().describe("0–5 · advertising compliance"),
+  fixes: z.array(z.string()).describe("Up to 3 exact instructions for a re-render, each under 24 words; empty when it scores 85 or more"),
+});
+export type ShotCheck = AdCheck;
 
-/** Otto looks at a generated photo next to the real product and checks it before it can go in an ad. */
+const PRODUCT_RULES = "Be strict about the product itself: brands get complaints when a product looks different from what arrives. The pose is free — the product may be tilted, lying down, held in a hand, partly behind a finger, much larger or smaller, or stretched by a wide lens close to it: that is the photographer's choice, not a fault. Judge whether it is the SAME product: same pack type and proportions, same cap or closure, same label design, wording and colours. People, hands and props are not added text. Judge the label at the size it appears in the photo: small print that is too small to read is not a fault as long as the label's layout, colours and the position of the brand or product name match. Mark labelMatches false only for a visibly different label — a wrong or misspelled name in readable letters, a different design, a missing label, or the label on the wrong face.";
+
+/**
+ * Otto looks at a generated picture next to the real product and checks it before it can go in an ad. A finished ad is also scored as a
+ * creative director would score it (rubric.ts): it goes forward at 85 of 100, and never with the wrong product or an unsupported claim.
+ */
 export async function checkShot(brandId: string, assetId: string, referenceUrl: string, product: string): Promise<ShotCheck | null> {
-  const [a] = await readAssets(eq(schema.brandAssets.id, assetId));
+  const [a] = await readAssets(and(eq(schema.brandAssets.id, assetId), eq(schema.brandAssets.brandId, brandId)));
   if (!a || !a.mime.startsWith("image/")) return null;
-  const out = await ask("otto", {
-    system: "You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. Be strict about the product itself: brands get complaints when a product looks different from what arrives. The pose is free — the product may be tilted, lying down, held in a hand, partly behind a finger, much larger or smaller, or stretched by a wide lens close to it: that is the photographer's choice, not a fault. Judge whether it is the SAME product: same pack type and proportions, same cap or closure, same label design, wording and colours. People, hands and props are not added text. Judge the label at the size it appears in the photo: small print that is too small to read is not a fault as long as the label's layout, colours and the position of the brand or product name match. Mark labelMatches false only for a visibly different label — a wrong or misspelled name in readable letters, a different design, a missing label, or the label on the wrong face.",
-    content: [
-      { type: "text", text: `Reference: the real product “${product}”.` },
-      { type: "image", source: { type: "url", url: referenceUrl } },
-      { type: "text", text: a.meta.finished ? "Generated picture to check. It is a finished ad: the designed words on it are intended, so answer noTextOrWatermark true unless it carries a watermark or another company's logo. Judge the product in it:" : "Generated photo to check:" },
-      { type: "image", source: { type: "base64", media_type: a.mime as "image/png" | "image/jpeg" | "image/webp", data: Buffer.from(a.data).toString("base64") } },
-    ],
-    schema: CheckOut,
-  });
+  const picture = { type: "image" as const, source: { type: "base64" as const, media_type: a.mime as "image/png" | "image/jpeg" | "image/webp", data: Buffer.from(a.data).toString("base64") } };
+  let out: AdCheck | null = null;
+  if (a.meta.finished) {
+    const c = a.meta.concept ?? null;
+    const r = await ask("otto", {
+      system: `You are Otto, Kaviar's QA agent, acting as the creative critic on a finished static ad before a brand pays to run it. You are given the real product photo, what the ad was briefed to say, and the rendered ad.
+FIRST, the product. ${PRODUCT_RULES}
+The designed headline, supporting line, callouts and the brand's wordmark are intended. Answer noTextOrWatermark false only for a watermark, another company's logo, a QR code, or a drawn button or badge such as "Shop now".
+THEN score it as a demanding agency creative director would. Be honest, not kind: 85 or more in total means it could run for a premium direct-to-consumer brand tomorrow. A clean but ordinary product-on-a-backdrop with stacked text earns 60–72.
+- accuracy (0–25): the pack is the real one; the brand name and every briefed word are present and spelled exactly; nothing renamed or relabelled.
+- stopping (0–20): would it stop a thumb in a feed — one clear idea, strong scale, contrast or tension, read in under a second.
+- composition (0–15): hierarchy, balance, intentional negative space, depth, the product as hero, nothing crowded or floating.
+- typography (0–15): type choice, hierarchy, spacing, legibility at phone size. Any misspelled, garbled, repeated or cut-off word caps this at 5.
+- originality (0–10): a specific idea for this product, not a category template or a stock headline.
+- conversion (0–10): the benefit is clear, the product and brand are identifiable, a buyer knows what it is and why to tap.
+- compliance (0–5): only supported claims; no before-and-after, no medical or guaranteed result, no invented offer.
+fixes: when the total is under 85 or a check fails, the up to three changes that would lift it most, each an exact instruction a designer can act on (what, where, how) — never "make it better". note: the single most important thing, under 14 words.`,
+      content: [
+        { type: "text", text: `Reference: the real product “${product}”.` },
+        { type: "image", source: { type: "url", url: referenceUrl } },
+        { type: "text", text: `The brief: ${JSON.stringify(c ? { angle: c.angle, headline: c.headline, supportingLine: c.sub, callouts: c.callouts, factsItMayUse: c.facts } : { note: "No brief was kept for this ad: judge the claims against what is printed on the pack." })}\nThe rendered ad:` },
+        picture,
+      ],
+      schema: CritiqueOut,
+      effort: "medium",
+    });
+    if (r) {
+      const exact = r.labelMatches && r.shapeExact && r.coloursOnBrand;
+      out = { labelMatches: r.labelMatches, shapeExact: r.shapeExact, coloursOnBrand: r.coloursOnBrand, noTextOrWatermark: r.noTextOrWatermark, compliant: r.compliant, note: r.note.slice(0, 160),
+        scores: cleanScores(r, exact, r.compliant), fixes: r.fixes.map((f) => f.trim().slice(0, 220)).filter(Boolean).slice(0, 3) };
+    }
+  } else {
+    out = await ask("otto", {
+      system: `You are Otto, Kaviar's QA agent. Compare a generated ad photo with the brand's real product photo. ${PRODUCT_RULES}`,
+      content: [
+        { type: "text", text: `Reference: the real product “${product}”.` },
+        { type: "image", source: { type: "url", url: referenceUrl } },
+        { type: "text", text: "Generated photo to check:" },
+        picture,
+      ],
+      schema: CheckOut,
+    });
+  }
   if (out) await db.update(schema.brandAssets).set({ meta: { ...a.meta, check: out } }).where(eq(schema.brandAssets.id, assetId));
   return out;
 }

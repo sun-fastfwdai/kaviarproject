@@ -7,7 +7,8 @@ import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
 import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotList, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
-import type { ShootFlow, ShotPlan, Story } from "@/lib/db/schema";
+import type { AdPlan, ShootFlow, ShotPlan, Story } from "@/lib/db/schema";
+import { cleanPlan, planAds } from "@/lib/creative/adplan";
 import { STYLE } from "@/lib/creative/director";
 import { writeStoryboard } from "@/lib/creative/storyboard";
 import { cutAd } from "@/lib/creative/cut";
@@ -38,7 +39,8 @@ export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: str
   const nodes = (Array.isArray(flow.nodes) ? flow.nodes : []).filter((n) => n && TYPES.includes(n.type) && typeof n.id === "string").slice(0, 40).map((n) => ({
     id: n.id.slice(0, 40), type: n.type, x: Math.round(Number(n.x) || 0), y: Math.round(Number(n.y) || 0),
     cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
-      ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 4, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
+      ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 8, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
+      ...(n.cfg?.creative ? { creative: cleanPlan(n.cfg.creative) } : {}),
       ...(n.cfg?.storyboard ? { storyboard: { ...n.cfg.storyboard, scenes: (n.cfg.storyboard.scenes ?? []).slice(0, 10).map((x) => ({ ...x, keyframe: String(x.keyframe ?? "").slice(0, 900), motion: String(x.motion ?? "").slice(0, 400), line: String(x.line ?? "").slice(0, 200), caption: String(x.caption ?? "").slice(0, 60) })) } } : {}),
       ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 8).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
   }));
@@ -94,13 +96,28 @@ export async function runEdit(slug: string, assetId: string, kind: EditKind): Pr
   return editShot(brand.id, me.id, assetId, kind);
 }
 
-export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+/** The creative plan for a set of finished ads: Iris reads the pack and the research and picks each ad's idea, Remy art-directs and writes it. */
+export async function planCreative(slug: string, input: { product: string; imageUrl: string; n: number; forBatch?: string | null; look?: string | null; person?: boolean }): Promise<{ plan?: AdPlan; error?: string }> {
+  await requireMember();
+  if (!aiReady()) return { error: "Iris and Remy need the Claude API key." };
+  const brand = await getBrand(slug);
+  if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
+  const plan = await planAds(brand.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, n: Math.min(8, Math.max(1, Math.round(Number(input.n) || 1))), forBatch: input.forBatch ?? null, look: input.look ? String(input.look).slice(0, 60) : null, person: Boolean(input.person) });
+  return plan.concepts.length ? { plan } : { error: "The plan didn’t come back — try again." };
+}
+
+/** `ads` = the plan on the canvas and which of its concepts to render (at most four a call; `revise` = what Otto sent one back for). */
+export async function runShoot(slug: string, input: { product: string; imageUrl: string; prompt: string; aspect: "4:5" | "9:16" | "1:1"; n: number; referenceId?: string | null; characterId?: string | null; model?: string | null; forBatch?: string | null;
+  ads?: { plan: AdPlan; items: { i: number; revise?: string[] }[] } | null }): Promise<{ ids?: string[]; made?: { id: string; i: number }[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
-  if (input.prompt.trim().length < 10) return { error: "Describe the scene first." };
+  const plan = input.ads ? cleanPlan(input.ads.plan) : null;
+  if (!plan && input.prompt.trim().length < 10) return { error: "Describe the scene first." };
   if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
-  const r = await shoot(brand.id, me.id, { ...input, prompt: input.prompt.slice(0, 4400) });
-  return r.ids.length ? { ids: r.ids, ...(r.error ? { error: `Some images failed: ${r.error}` } : {}) } : { error: r.error ?? "No image came back." };
+  const items = plan ? (input.ads?.items ?? []).filter((x) => Number.isInteger(x?.i) && plan.concepts[x.i]).slice(0, 4).map((x) => ({ i: x.i, ...(Array.isArray(x.revise) && x.revise.length ? { revise: x.revise.slice(0, 4).map((v) => String(v).slice(0, 220)) } : {}) })) : [];
+  if (plan && !items.length) return { error: "Nothing to render — plan the ads first." };
+  const r = await shoot(brand.id, me.id, { ...input, prompt: input.prompt.slice(0, 4400), ads: plan ? { plan, items } : null });
+  return r.ids.length ? { ids: r.ids, made: r.made, ...(r.error ? { error: `Some images failed: ${r.error}` } : {}) } : { error: r.error ?? "No image came back." };
 }
 
 export async function runCheck(slug: string, assetId: string, referenceUrl: string, product: string): Promise<{ check?: ShotCheck; error?: string }> {
@@ -146,7 +163,7 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
   const me = await requireMember();
   const brand = await getBrand(slug);
   const A = schema.brandAssets;
-  const mine = await db.select({ id: A.id, mime: A.mime, finished: sql<boolean>`coalesce((${A.meta}->>'finished')::boolean, false)` }).from(A).where(and(eq(A.brandId, brand.id), inArray(A.id, [...ids, ...clipIds].slice(0, 40))));
+  const mine = await db.select({ id: A.id, mime: A.mime, finished: sql<boolean>`coalesce((${A.meta}->>'finished')::boolean, false)`, ad: sql<string | null>`${A.meta}->>'ad'` }).from(A).where(and(eq(A.brandId, brand.id), inArray(A.id, [...ids, ...clipIds].slice(0, 40))));
   const photos = ids.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("image/")));
   const clips = clipIds.filter((id) => mine.some((m) => m.id === id && m.mime.startsWith("video/")));
   if (!batchId) return { done: photos.length + clips.length };
@@ -163,9 +180,13 @@ export async function sendShots(slug: string, ids: string[], batchId: string | n
     done++;
   }
   // A finished ad (made with its words designed in) is the ad's picture as it is; a photo gets the ad's words set on it.
+  // One made for a particular ad of this campaign (it carries that ad's headline) goes to that ad and no other; the rest fill in order.
   const toDesign: string[] = [];
+  const own = new Map(photos.flatMap((id) => { const ad = mine.find((m) => m.id === id)?.ad; return ad && stills.some((a) => a.id === ad) ? [[ad, id] as const] : []; }));
+  const free = photos.filter((id) => ![...own.values()].includes(id));
   if (photos.length) for (const [i, a] of stills.entries()) {
-    const photo = photos[i % photos.length];
+    const photo = own.get(a.id) ?? (own.size ? free.shift() : photos[i % photos.length]);
+    if (!photo) continue;
     await db.update(schema.ads).set({ imageUrl: `/api/assets/${photo}`, design: null, updatedAt: new Date() }).where(eq(schema.ads.id, a.id));
     if (!mine.find((m) => m.id === photo)?.finished) toDesign.push(a.id);
     done++;
@@ -272,7 +293,7 @@ export async function makeKeyframes(slug: string, input: { story: Story; sceneId
   if (!/^https:\/\//.test(input.product.url)) return { frames: {}, error: "Pick a product with a Shopify photo." };
   const scenes = input.story.scenes.filter((x) => input.sceneIds.includes(x.id)).slice(0, 10);
   const res = await Promise.all(scenes.map((x) => shoot(brand.id, me.id, {
-    product: input.product.title, imageUrl: input.product.url, prompt: keyframePrompt(input.story, x, Boolean(input.characterId)).slice(0, 2400), aspect: "9:16", n: 1,
+    product: input.product.title, imageUrl: input.product.url, prompt: keyframePrompt(input.story, x, Boolean(input.characterId)).slice(0, 2400), aspect: "9:16", n: 1, model: "sunburst",
     characterId: x.person ? input.characterId : null,
   }).catch((e: Error) => ({ ids: [] as string[], error: e.message }))));
   const frames: Record<string, string> = {};

@@ -143,7 +143,7 @@ export const defaultFlow = (template: string | null, product: string | null): Sh
 
 /** Static ads: inputs → Prompt → Photo (4:5, composed with room for the headline) → Otto's check → Send to the batch, which opens in the Editor as laid-out cards. */
 export const staticFlow = (template: string | null, product: string | null, n = 4, look: string | null = null): ShootFlow =>
-  boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product }, prompt: { ...DEFAULTS.prompt, scene: AD_LOOKS.find((l) => l.name === look)?.name ?? AD_LOOKS[0].name, length: "detailed" }, photo: { ...DEFAULTS.photo, aspect: "4:5", n: Math.min(4, Math.max(1, n)) } }, ["reference", "character", "video", "sound"]);
+  boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product }, prompt: { ...DEFAULTS.prompt, scene: AD_LOOKS.find((l) => l.name === look)?.name ?? AD_LOOKS[0].name, length: "detailed" }, photo: { ...DEFAULTS.photo, aspect: "4:5", n: Math.min(8, Math.max(1, n)) } }, ["reference", "character", "video", "sound"]);
 /** A product clip: the same inputs, a start photo, then the Video node. */
 export const videoFlow = (template: string | null, product: string | null, seconds = 10): ShootFlow =>
   boardGraph({ data: { ...DEFAULTS.data, signal: template }, product: { product }, photo: { ...DEFAULTS.photo, aspect: "9:16", n: 1 }, video: { ...DEFAULTS.video, seconds } }, ["reference", "character"]);

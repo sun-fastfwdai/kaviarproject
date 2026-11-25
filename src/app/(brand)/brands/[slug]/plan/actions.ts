@@ -60,7 +60,7 @@ export async function makeAds(slug: string, key: string, stay = false, asked = f
   if (order.length) {
     const ads = await db.select({ id: schema.ads.id, hook: schema.ads.hook, image: schema.ads.imageUrl }).from(schema.ads).where(eq(schema.ads.batchId, r.batchId)).orderBy(asc(schema.ads.position));
     if (brief.shoot && p.image) {
-      const shots = await Promise.all(ads.map((ad, i) => shoot(brand.id, me.id, { product: c.product, imageUrl: p.image!, aspect: "4:5", n: 1, referenceId: order[i % order.length],
+      const shots = await Promise.all(ads.map((ad, i) => shoot(brand.id, me.id, { product: c.product, imageUrl: p.image!, aspect: "4:5", n: 1, model: "sunburst", referenceId: order[i % order.length],
         prompt: `A photograph for a paid social ad of ${c.product}. The ad says: “${ad.hook}”.${brief.note ? ` From the brand: ${brief.note}.` : ""} Match the last reference image for light, mood and composition. No text, no logos added.` }).catch((e) => ({ ids: [] as string[], error: (e as Error).message }))));
       let made = 0;
       for (const [i, sh] of shots.entries()) {

@@ -10,8 +10,9 @@ import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { ShopifyLogo } from "@/components/logos";
 import type { ShootFlow, ShootNode, ShootSource, Story } from "@/lib/db/schema";
+import { PASS_SCORE, flagOf, passes, totalOf, type AdCheck } from "@/lib/creative/rubric";
 
-export type Check = { labelMatches: boolean; shapeExact: boolean; coloursOnBrand: boolean; noTextOrWatermark: boolean; note: string };
+export type Check = AdCheck;
 export type Shot = { id: string; kind: "image" | "video"; product: string | null; prompt: string | null; check: Check | null; edit: string | null; seconds: number | null; at: string; engine: string | null; cost: number | null; sound: boolean; scene?: string | null };
 export type Product = { title: string; url: string; price: number | null; stock: number | null };
 export type Signal = { key: string; data: string; value: string | null; group: string; evidence: [string, string][] };
@@ -19,8 +20,7 @@ export type Lesson = { dimension: string; lesson: string; evidence: string; stre
 export type Batch = { id: string; title: string; n: number; signal: string | null };
 export type RunState = "queued" | "running" | "done" | "error";
 
-export const passes = (c: Check | null) => Boolean(c && c.labelMatches && c.shapeExact && c.coloursOnBrand && c.noTextOrWatermark);
-export const flagOf = (c: Check | null) => (!c ? null : !c.labelMatches ? "label off" : !c.shapeExact ? "shape off" : !c.coloursOnBrand ? "colours off" : !c.noTextOrWatermark ? "added text" : null);
+export { passes, flagOf };
 export const usd = (n: number) => `$${n.toFixed(2)}`;
 export const clock = (ms: number) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 export const agoFrom = (iso: string, now: number) => { const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -35,6 +35,8 @@ export type StudioApi = {
   perImage: number; perVideoSecond: number; perSoundSecond: number; engines: { photo: string; video: string; via: string; sound: boolean; res?: Partial<Record<string, number>> }; voiceName: (id: string | null) => string | null;
   clip: (model?: string | null) => ClipModel;
   productFor: (id: string) => Product | null; signalFor: (id: string) => Signal | null; sceneFor: (id: string) => string;
+  /** A Prompt or Photo node whose pictures are finished ads made from a creative plan. */
+  adsFor: (id: string) => boolean; planFor: (id: string) => import("@/lib/db/schema").AdPlan | null; modelName: (id: string) => string;
   stale: (id: string) => boolean; changed: (id: string) => boolean; checkedFor: (id: string) => Shot[]; frameFor: (id: string) => string | null;
   sendItems: (id: string) => { photos: string[]; clips: string[] }; pickedFor: (id: string) => string[]; nextStep: (id: string) => string | null;
   patch: (id: string, cfg: Partial<ShootNode["cfg"]>) => void; select: (id: string) => void; writePrompt: (id: string) => void; design: (assetId: string) => void;
@@ -111,7 +113,7 @@ export function ShootCanvasNode({ id, selected }: NodeProps<CanvasNode>) {
   const signal = k === "data" ? s.signalFor(id) : null;
   const person = k === "character" ? s.characterOf(c.characterId) : null;
   const title = k === "character" ? person?.name ?? "Pick a person" : k === "product" ? (product ? short(product.title) : "Pick a product") : k === "data" ? signal?.data ?? "No signal" : k === "brand" ? `${s.brand} kit`
-    : k === "wins" ? "From Insights" : k === "reference" ? (c.reference ? "Brand photo" : "Pick a photo") : k === "prompt" ? "by Remy" : k === "photo" ? s.engines.photo
+    : k === "wins" ? "From Insights" : k === "reference" ? (c.reference ? "Brand photo" : "Pick a photo") : k === "prompt" ? (s.adsFor(id) ? "Iris and Remy" : "by Remy") : k === "photo" ? s.modelName(id)
     : k === "video" ? s.clip(c.model).name : k === "sound" ? "Voice + music" : k === "check" ? "Otto" : k === "story" ? (c.storyboard ? short(c.storyboard.title) : "by Remy") : k === "cut" ? `${c.out?.length ? "Ready" : "Kaviar"}` : "Where results go";
   return (
     <div className="col" style={{ width: s.expanded(id) ? 372 : NODE_W[k], minHeight: NODE_H[k], background: "#fff", borderRadius: 12, cursor: "grab", transition: "width .15s",
@@ -201,6 +203,24 @@ function Body({ n }: { n: ShootNode }) {
       : <span className="xs i3" style={{ lineHeight: "16px" }}>Pick a brand photo in the panel — Remy borrows its style, light and pose.</span>;
   }
 
+  if (n.type === "prompt" && s.adsFor(id)) {
+    const plan = s.planFor(id);
+    return <>
+      <div className="col g6 nowheel" style={{ overflowY: "auto", flex: 1, minHeight: 0, maxHeight: 260 }}>
+        {plan ? plan.concepts.map((x, i) => (
+          <div key={i} className="col g2" style={{ paddingBottom: 6, borderBottom: "1px solid var(--line)" }}>
+            <span className="xs w5 i1" style={{ lineHeight: "16px" }}>{i + 1} · {x.headline || "Headline to write"}</span>
+            <span className="xs i3" style={{ lineHeight: "15px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{x.angle}</span>
+          </div>))
+          : <span className="xs i3" style={{ lineHeight: "16px" }}>Run flow — Iris reads the pack and picks each ad’s idea, Remy art-directs it and writes its words.</span>}
+      </div>
+      {plan ? <span className="xs i3">{plan.concepts.length} ad{plan.concepts.length === 1 ? "" : "s"} planned · {plan.facts.length} fact{plan.facts.length === 1 ? "" : "s"} they may use</span> : null}
+      {s.stale(id) && <span className="xs c-amber">Inputs changed — planned again on the next run.</span>}
+      <button type="button" className="row g4 xs i2 nodrag" disabled={s.busy} onClick={(e) => { e.stopPropagation(); s.select(id); s.writePrompt(id); }} style={{ paddingTop: 6, borderTop: "1px solid var(--line)", textAlign: "left" }}>
+        {st === "running" ? <Icon name="spinner" size={11} className="spin" /> : <Icon name="refresh" size={11} color="#55534F" />}{plan ? "Plan again" : "Plan the ads"} · edit in the panel</button>
+    </>;
+  }
+
   if (n.type === "prompt") {
     return <>
       <span className="xs i2 nowheel" style={{ lineHeight: "19px", overflowY: "auto", flex: 1, minHeight: 0, maxHeight: 260, whiteSpace: "pre-line" }}>
@@ -233,13 +253,13 @@ function Body({ n }: { n: ShootNode }) {
     const firstPass = out.find((x, i) => passes(checks[i]));
     const big = s.expanded(id), tw = big ? 168 : 82, th = big ? 168 : 74;
     return <>
-      <span className="xs i3">{s.sceneFor(id)} · {c.aspect} · × {c.n}{big && out.length ? ` · ${out.length} made` : ""}</span>
+      <span className="xs i3">{s.adsFor(id) ? "Finished ads" : s.sceneFor(id)} · {c.aspect} · × {c.n}{big && out.length ? ` · ${out.length} made` : ""}</span>
       <div className="row top" style={{ flexWrap: "wrap", gap: 6 }}>
         {st === "running" ? Array.from({ length: Math.min(4, c.n) }, (_, i) => <Pending key={i} w={tw} h={th} label="making" />)
           : out.length ? out.slice(0, big ? 12 : 4).map((x) => s.byId.has(x)
             ? <Thumb key={x} id={x} w={tw} h={th} star={x === firstPass} flag={flagOf(s.byId.get(x)!.check)} onClick={() => s.view(id, x)} title="Open" />
             : <Pending key={x} w={tw} h={th} label="saving" />)
-          : <Empty icon="image" text="Photos land here. Each keeps the real product." w={170} h={150} />}
+          : <Empty icon="image" text={s.adsFor(id) ? "Finished ads land here, one per idea in the plan." : "Photos land here. Each keeps the real product."} w={170} h={150} />}
       </div>
       <span className="row between xs i3" style={{ marginTop: "auto" }}><span>{usd(c.n * s.perImage)}</span>
         {st === "running" ? <span style={{ color: "#1A8FAB" }}>making {c.n}…</span> : st === "error" ? <span className="c-amber">didn’t run</span> : c.at && out.length ? <span className="c-green">done · {agoFrom(c.at, s.now)}</span> : <span>not run yet</span>}</span>
@@ -325,12 +345,20 @@ function Body({ n }: { n: ShootNode }) {
 
   if (n.type === "check") {
     const checked = s.checkedFor(id), withCheck = checked.filter((x) => x.check);
-    const p = s.productFor(id);
+    const p = s.productFor(id), inAds = s.flow.edges.some((e) => e.to === id && s.adsFor(e.from));
     const rows: [string, (c: Check) => boolean][] = [[`Label matches ${p ? short(p.title) : "the product"}`, (x) => x.labelMatches], ["Shape exact", (x) => x.shapeExact], ["Colours on-brand", (x) => x.coloursOnBrand], ["No text or watermark", (x) => x.noTextOrWatermark]];
+    // Finished ads are scored out of 100: the card shows each one's score and what was sent back.
+    const scored = withCheck.filter((x) => x.check!.scores);
+    if (scored.length) return <>
+      {checked.slice(0, 6).map((x, i) => { const k = x.check, t = k?.scores ? totalOf(k.scores) : null, ok = passes(k); return (
+        <div key={x.id} className="row g6"><Icon name={ok ? "check-circle" : "info"} size={12} weight={ok ? "fill" : "regular"} color={ok ? "#1F8A5B" : "#B7791F"} />
+          <span className={`xs ell fill ${ok ? "i2" : "c-amber"}`}>Ad {i + 1}{k ? (ok ? "" : ` · ${flagOf(k)}`) : " · not scored"}</span>{t != null && <span className="xs w5 i1">{t}</span>}</div>); })}
+      <span className="xs i3" style={{ marginTop: "auto" }}>{checked.filter((x) => passes(x.check)).length} of {checked.length} at {PASS_SCORE} or more</span>
+    </>;
     return withCheck.length ? <>
       {rows.map(([t, ok]) => { const good = withCheck.every((x) => ok(x.check!)); return <div key={t} className="row g6"><Icon name={good ? "check-circle" : "info"} size={12} weight={good ? "fill" : "regular"} color={good ? "#1F8A5B" : "#B7791F"} /><span className={`xs ell ${good ? "i2" : "c-amber"}`}>{t}</span></div>; })}
       {checked.map((x, i) => !passes(x.check) && x.check ? <button key={x.id} type="button" onClick={(e) => { e.stopPropagation(); s.rerunOne(id, x.id); }} disabled={s.busy} className="row g6 xs c-amber nodrag" style={{ textAlign: "left" }}><Icon name="info" size={12} color="#B7791F" />Photo {i + 1}: {flagOf(x.check)} → re-run</button> : null).filter(Boolean).slice(0, 2)}
-    </> : <span className="xs i3" style={{ lineHeight: "16px" }}>Label · shape · colours · no added text. Otto checks every photo wired in against the real product.</span>;
+    </> : <span className="xs i3" style={{ lineHeight: "16px" }}>{inAds ? `Otto scores each ad out of 100 and sends back anything under ${PASS_SCORE}, once. The product must be the real one.` : "Label · shape · colours · no added text. Otto checks every photo wired in against the real product."}</span>;
   }
 
   // send

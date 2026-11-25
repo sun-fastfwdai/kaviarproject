@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
 import { AgentFace } from "@/components/agent";
 import { agoFrom, asset, flagOf, passes, usd, type Check, type Shot } from "./canvas-nodes";
+import { ScoreBars } from "./plan-ui";
 
 type Edit = "remove-bg" | "extend" | "relight";
 
@@ -30,7 +31,7 @@ export function ResultViewer({ items, start, title, now, busy, checkOf, onClose,
   }, [items.length, onClose]);
   if (!shot) return null;
   const check = checkOf(shot.id), video = shot.kind === "video";
-  const rows: [string, boolean | undefined][] = check ? [["Label matches", check.labelMatches], ["Shape exact", check.shapeExact], ["Colours on-brand", check.coloursOnBrand], ["No text or watermark", check.noTextOrWatermark]] : [];
+  const rows: [string, boolean | undefined][] = check ? [["Label matches", check.labelMatches], ["Shape exact", check.shapeExact], ["Colours on-brand", check.coloursOnBrand], [check.scores ? "No watermark or drawn button" : "No text or watermark", check.noTextOrWatermark], ...(check.compliant != null ? [["Only supported claims", check.compliant] as [string, boolean]] : [])] : [];
   const nav = (d: number, label: string, icon: "chev-l" | "chev-r", off: boolean) => (
     <button type="button" aria-label={label} disabled={off} onClick={() => setI((x) => x + d)}
       style={{ width: 40, height: 40, borderRadius: 99, background: "rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", opacity: off ? 0.25 : 1, flexShrink: 0 }}>
@@ -78,6 +79,8 @@ export function ResultViewer({ items, start, title, now, busy, checkOf, onClose,
             <span className="row g8 sm w5"><AgentFace kind="qa" size={18} />{check ? (passes(check) ? "Otto: passed" : `Otto: ${flagOf(check)}`) : "Otto hasn’t checked this one"}</span>
             {rows.map(([t, ok]) => <span key={t} className="row g6 xs"><Icon name={ok ? "check-circle" : "warning-circle"} size={12} weight={ok ? "fill" : "regular"} color={ok ? "#1F8A5B" : "#B7791F"} /><span className={ok ? "i2" : "c-amber"}>{t}</span></span>)}
             {check?.note && <span className="xs i2" style={{ lineHeight: "16px" }}>“{check.note}”</span>}
+            {check?.scores && <ScoreBars check={check} />}
+            {check?.fixes?.length ? <div className="col g2">{check.fixes.map((f) => <span key={f} className="row top g6 xs i2" style={{ lineHeight: "16px" }}><Icon name="arrow-r" size={11} color="#8A8782" />{f}</span>)}</div> : null}
             <div className="row g6">{actions.rerun && check && !passes(check) && <button type="button" className="btn sm" disabled={busy} onClick={() => actions.rerun!(shot.id)}><Icon name="refresh" size={12} />Re-run this one</button>}
               {actions.recheck && <button type="button" className="btn quiet sm" disabled={busy} onClick={() => actions.recheck!(shot.id)}>Check {check ? "again" : "now"}</button>}</div>
           </div>

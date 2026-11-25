@@ -58,7 +58,7 @@ export async function makeStorePhotos(brandId: string, b: { name: string; catego
   // Shoot, check, and shoot once more if Otto finds the product changed.
   const one = async (j: (typeof jobs)[number]): Promise<[string, string] | null> => {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const r = await shoot(brandId, null, { product: j.product.title, imageUrl: j.product.image!, prompt: `${j.scene}\nThe whole shoot: ${art.look}`, aspect: "4:5", n: 1 });
+      const r = await shoot(brandId, null, { product: j.product.title, imageUrl: j.product.image!, prompt: `${j.scene}\nThe whole shoot: ${art.look}`, aspect: "4:5", n: 1, model: "sunburst" });
       const id = r.ids[0];
       if (!id) { firstError ??= r.error; return null; }
       made++;
