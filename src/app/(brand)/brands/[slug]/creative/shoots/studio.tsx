@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Background, BackgroundVariant, Panel, ReactFlow, ReactFlowProvider, useReactFlow, useViewport, type Connection, type Edge, type EdgeChange, type NodeChange, type OnConnectEnd } from "@xyflow/react";
-import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, importTemplates, keepTemplate, planCreative, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
+import { createCharacter, cutFinal, deleteShot, designFromShot, makeKeyframes, importTemplates, keepTemplate, planCreative, planShots, pollVideo, writeStory, suggestCasting, readReference, runCheck, runEdit, runPreset, runShoot, runVideo, saveFlow, sendShots, storeReference, suggestPrompt, uploadReference } from "./actions";
 import { Combo } from "./combo";
 import { ResultViewer } from "./viewer";
+import { PresetField, PresetPicker, type PresetPick } from "./preset-ui";
 import { ALLOWED, CAT, DEFAULTS, clipCost, clipModel, type ClipModel, FIELDS, LIBRARY, MUSIC, NODES, NODE_W, SCENE_GROUPS, TEMPLATES, TOK, applyPreset, cfgOf, defaultFlow, edgeOf, flowSignal, fullAdFlow, isUgc, newId, renderTime, runCost, soundDirection, templateName, ugcFlow, wireColor, type NodeKey } from "./flow";
 import { CharacterPicker, type Character } from "./character-ui";
 import { VoicePicker, type Voice } from "./voice-ui";
@@ -142,6 +143,8 @@ function Studio(props: Props) {
   const errorsRef = useRef<Record<string, string>>({});
   const [jobState, setJobState] = useState<Record<string, string>>({});
   const [viewer, setViewer] = useState<{ node: string; id: string } | null>(null);
+  // The Higgsfield preset picker: for a Photo node to render with, or to regenerate a picture now (`back` = the viewer to return to on cancel).
+  const [presetFor, setPresetFor] = useState<{ node: string; regen: boolean; back?: string } | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [planning, setPlanning] = useState<string[]>([]); // Video nodes Remy is planning shots for
   const [working, setWorking] = useState<Record<string, "write" | "frames" | null>>({}); // Storyboard nodes: writing or making keyframes
@@ -418,9 +421,42 @@ function Studio(props: Props) {
     return { ids: made.map((x) => x.id), flagged, rendered };
   };
 
+  /** Otto checks new photos against the real product, on the Check nodes wired after the Photo node. Returns how many he flagged. */
+  const checkPhotos = async (xid: string, ids: string[], prod: { url: string; title: string }, checks: Map<string, Check>) => {
+    const ck = outs(flowRef.current, xid).filter((n) => n.type === "check");
+    if (!ck.length) return 0;
+    ck.forEach((k) => mark(k.id, "running"));
+    const res = await Promise.all(ids.map((id) => runCheck(slug, id, prod.url, prod.title)));
+    res.forEach((x, i) => { if (x.check) checks.set(ids[i], x.check); });
+    setFresh((f) => ({ ...f, ...Object.fromEntries([...checks]) }));
+    ck.forEach((k) => mark(k.id, res.some((x) => !x.check) ? "error" : "done"));
+    router.refresh();
+    return res.filter((x) => x.check && !passes(x.check)).length;
+  };
+
+  /** Pictures in a Higgsfield preset, from the Product (and Character) wired in. `add` keeps the node's other pictures — a regenerate. */
+  const presetRun = async (xid: string, preset: PresetPick, n: number, checks: Map<string, Check>, add = false): Promise<{ ids: string[]; flagged: number } | null> => {
+    const g = flowRef.current, X = find(g, xid);
+    if (!X) return null;
+    const prod = productOf(g, xid);
+    if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
+    const chNode = up(g, xid, "character");
+    mark(xid, "running");
+    const r = await runPreset(slug, { product: prod.title, imageUrl: prod.url, presetId: preset.id, aspect: cfgOf(X).aspect, n, characterId: chNode ? cfgOf(chNode).characterId : null, model: modelOf(g, X) });
+    if (!r.ids?.length) { fail(xid, r.error ?? "No picture came back."); return null; }
+    if (r.error) setMsg(r.error);
+    const ids = r.ids, cur = cfgOf(find(flowRef.current, xid) ?? X).out;
+    patchNode(xid, { out: add ? [...ids, ...cur.filter((x) => !ids.includes(x))].slice(0, 12) : ids, at: new Date().toISOString() }, false);
+    mark(xid, "done");
+    router.refresh();
+    return { ids, flagged: await checkPhotos(xid, ids, prod, checks) };
+  };
+
   const photoRun = async (xid: string, checks: Map<string, Check>): Promise<{ ids: string[]; flagged: number; rendered?: number } | null> => {
     const g = flowRef.current, X = find(g, xid);
     if (!X) return null;
+    const hp = cfgOf(X).hfPreset;
+    if (hp) return presetRun(xid, hp, Math.min(4, cfgOf(X).n), checks);
     if (modelOf(g, X) === "ads") return adsRun(xid, checks);
     const prod = productOf(g, xid);
     if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
@@ -440,18 +476,7 @@ function Studio(props: Props) {
     patchNode(xid, { out: ids, at: new Date().toISOString() }, false);
     mark(xid, "done");
     router.refresh();
-    let flagged = 0;
-    const ck = outs(flowRef.current, xid).filter((n) => n.type === "check");
-    if (ck.length) {
-      ck.forEach((k) => mark(k.id, "running"));
-      const res = await Promise.all(ids.map((id) => runCheck(slug, id, prod.url, prod.title)));
-      res.forEach((x, i) => { if (x.check) checks.set(ids[i], x.check); });
-      setFresh((f) => ({ ...f, ...Object.fromEntries([...checks]) }));
-      flagged = res.filter((x) => x.check && !passes(x.check)).length;
-      ck.forEach((k) => mark(k.id, res.some((x) => !x.check) ? "error" : "done"));
-      router.refresh();
-    }
-    return { ids, flagged };
+    return { ids, flagged: await checkPhotos(xid, ids, prod, checks) };
   };
 
   // ---- video direction: the shooting style (auto = from the scene and who's in it) and Remy's shot list
@@ -705,6 +730,20 @@ function Studio(props: Props) {
     if (r.error) setMsg(r.error);
     router.refresh();
   });
+  /** Regenerate: a new picture in a preset, put first on the node (the others stay). The viewer moves to it. */
+  const regen = (nodeId: string, preset: PresetPick, inViewer: boolean) => go(async () => {
+    setMsg(null);
+    const r = await presetRun(nodeId, preset, 1, new Map(), true);
+    if (!r?.ids[0]) return;
+    setFocus(r.ids[0]);
+    if (inViewer) setViewer({ node: nodeId, id: r.ids[0] });
+  });
+  /** The preset a picture was made in, else the one its Photo node renders with. */
+  const presetOf = (shotId: string | null, nodeId: string): PresetPick | null => {
+    const p = shotId ? byId.get(shotId)?.preset : null, X = find(flow, nodeId);
+    return p ? { ...p, cover: null } : X ? cfgOf(X).hfPreset ?? null : null;
+  };
+  const presetPrice = props.engines.photoModels.find((x) => x.key === "sunburst")?.price ?? perImage;
   const edit = (photoId: string, shotId: string, kind: Edit) => go(async () => {
     setMsg(null); mark(photoId, "running");
     const r = await runEdit(slug, shotId, kind);
@@ -899,7 +938,7 @@ function Studio(props: Props) {
     perImage, perVideoSecond, perSoundSecond: props.engines.perSoundSecond, engines: props.engines, clip: (m) => clipModel(props.engines, perVideoSecond, m), voiceName: (id) => (id ? props.voices.find((v) => v.id === id)?.name ?? "Brand voice" : null),
     productFor: (id) => productOf(flow, id), signalFor: (id) => signalOf(flow, id), sceneFor: (id) => { const P = promptOf(flow, id); return P ? cfgOf(P).scene : "No prompt wired"; },
     adsFor: (id) => Boolean(adsNode(flow, id)), planFor: (id) => { const X = adsNode(flow, id); return X ? planOf(flow, X) : null; },
-    modelName: (id) => { const X = find(flow, id); const m = X ? props.engines.photoModels.find((x) => x.key === modelOf(flow, X)) : null; return m?.name ?? props.engines.photo; },
+    modelName: (id) => { const X = find(flow, id), hp = X ? cfgOf(X).hfPreset : null; if (hp) return `Preset · ${hp.name}`; const m = X ? props.engines.photoModels.find((x) => x.key === modelOf(flow, X)) : null; return m?.name ?? props.engines.photo; },
     stale: (id) => { const P = find(flow, id); return P ? staleOf(flow, P) : false; }, changed: changedOf, checkedFor, frameFor: (id) => frameOf(flow, id), sendItems, pickedFor,
     nextStep: nextStepOf,
     characterOf: (id) => charById(id), errorFor: (id) => errors[id] ?? null,
@@ -1049,6 +1088,7 @@ function Studio(props: Props) {
   const edge = selEdge ? flow.edges.find((e) => e.id === selEdge) ?? null : null;
   const c = n ? cfgOf(n) : null;
   const focusShot = focus ? byId.get(focus) ?? null : null;
+  const focusPreset = focusShot && n?.type === "photo" ? presetOf(focusShot.id, n.id) : null;
   const ea = edge ? find(flow, edge.from) : null, eb = edge ? find(flow, edge.to) : null;
   const nP = n?.type === "product" ? productOf(flow, n.id) : null;
   const nSig = n?.type === "data" ? signalOf(flow, n.id) : null, nCh = n?.type === "data" ? changedOf(n.id) : false;
@@ -1254,12 +1294,14 @@ function Studio(props: Props) {
                     options={props.engines.photoModels.map((x) => ({ value: x.key, label: x.name, sub: `${usd(x.price)} a picture · ${x.key === "ads" ? "the words designed in" : "a photo, the words set on it after"}` }))} />
                 </Field>
               : <Field label="Model" sub="Keeps the real product from the Shopify photo"><div className="row g8" style={{ height: 34, padding: "0 10px", border: "1px solid var(--line-2)", borderRadius: 8 }}><Icon name="pencil" size={13} color={CAT.make} /><span className="sm i1">{props.engines.photo}</span><span className="xs i3">via {props.engines.via}</span></div></Field>}
+            {props.engines.photoModels.length > 0 && <Field label="Preset" sub={c.hfPreset ? "Higgsfield builds the shot round your product photo" : undefined}>
+              <PresetField preset={c.hfPreset ?? null} onChoose={() => setPresetFor({ node: n.id, regen: false })} onClear={() => patchNode(n.id, { hfPreset: null })} /></Field>}
             {nAds
               ? (nPrompt
                 ? <Field label="Creative plan" sub={planOf(flow, nAds) ? `${planOf(flow, nAds)!.concepts.length} ads planned by Iris and Remy` : "Written when you run — or plan first to read and edit it"}><button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => select(nPrompt.id)}>{planOf(flow, nAds) ? "Open the plan" : "Plan the ads"}<Icon name="arrow-r" size={12} /></button></Field>
                 : <PlanPanel plan={planOf(flow, nAds)} stale={planStale(flow, nAds)} busy={busy} running={status[n.id] === "running"} n={c.n} onPlan={() => go(async () => { await planRun(n.id); mark(n.id, "done"); })} onEdit={(p) => patchNode(n.id, { creative: p }, false)}
                     templates={templates} picked={(c.templates ?? []).filter((x) => templates.some((t) => t.id === x))} onPick={(ids) => patchNode(n.id, { templates: ids })} onImport={(fs) => addTemplates(n.id, fs)} importing={importing} />)
-              : <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>}
+              : c.hfPreset ? null : <Field label="Scene" sub={nPrompt ? "Set on the Prompt wired in" : "Wire a Prompt in to set the scene"}>{nPrompt ? <ScenePick value={cfgOf(nPrompt).scene} examples={props.examples} onChange={(v) => patchNode(nPrompt.id, { scene: v })} /> : <span className="xs i3">—</span>}</Field>}
             <div className="row g6" style={{ flexShrink: 0, flexWrap: "wrap" }}><Pills label="Size" value={c.aspect} options={[["4:5", "4:5"], ["9:16", "9:16"], ["1:1", "1:1"]]} onChange={(v) => patchNode(n.id, { aspect: v })} /><span className="fill" />
               <Pills label="Count" value={c.n} options={[...new Set([...(nAds ? [1, 2, 4, 6, 8] : [1, 2, 4]), c.n])].sort((a, b) => a - b).map((v) => [v, `× ${v}`] as [number, string])} onChange={(v) => patchNode(n.id, { n: v })} /></div>
             {(nMine.length > 0 || nEarlier.length > 0) && <Field label={focusShot ? "Selected photo" : "Pick a photo to edit or design"}>
@@ -1274,14 +1316,20 @@ function Studio(props: Props) {
                 <div className="row g4" style={{ flexWrap: "wrap" }}>
                   {([["remove-bg", "Remove bg"], ["extend", "Extend to 9:16"], ["relight", "Relight"]] as const).map(([k, l]) => <button key={k} type="button" className="btn sm" disabled={busy} onClick={() => edit(n.id, focusShot.id, k)}><Icon name="brush" size={12} />{l}</button>)}
                 </div>
+                {props.engines.photoModels.length > 0 && <>
+                  <span className="xs w5 i3">Regenerate · {usd(presetPrice)} a picture</span>
+                  <div className="row g4" style={{ flexWrap: "wrap" }}>
+                    {focusPreset && <button type="button" className="btn sm" disabled={busy} onClick={() => regen(n.id, focusPreset, false)} title={`A new picture in “${focusPreset.name}”`}><Icon name="refresh" size={12} /><span className="ell" style={{ maxWidth: 150 }}>{focusPreset.name}</span></button>}
+                    <button type="button" className="btn sm" disabled={busy} onClick={() => setPresetFor({ node: n.id, regen: true })}><Icon name="squares" size={12} />{focusPreset ? "Another preset" : "With a preset"}</button>
+                  </div></>}
                 <span className="row g10 xs"><a className="lnk i2" href={asset(focusShot.id)} download>Download</a><button type="button" className="lnk i3" onClick={() => go(async () => { await deleteShot(slug, focusShot.id); setFocus(null); patchNode(n.id, { out: cfgOf(find(flowRef.current, n.id)!).out.filter((x) => x !== focusShot.id) }, false); router.refresh(); })}>Delete</button></span>
               </div>}
               <div className="row g4" style={{ flexWrap: "wrap" }}>{[...nMine, ...nEarlier.map((s) => s.id)].slice(0, 24).map((x) => <Thumb key={x} id={x} w={56} h={56} ring={focus === x} flag={flagOf(checkOf(x))} onClick={() => setFocus(x)} />)}</div>
               {nEarlier.length > 0 && <span className="xs i3">{nEarlier.length} nEarlier · all are in the Editor’s Media panel too</span>}
             </Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
-              <button type="button" className="btn dark" disabled={busy} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.n * perImage)}</button>
-              <span className="xs i3" style={{ textAlign: "center" }}>{nAds ? `about 2 minutes · Otto scores each one, under ${PASS_SCORE} is rendered once more` : "about 20 seconds · product stays locked"}</span>
+              <button type="button" className="btn dark" disabled={busy} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.hfPreset ? Math.min(4, c.n) * presetPrice : c.n * perImage)}</button>
+              <span className="xs i3" style={{ textAlign: "center" }}>{nAds ? `about 2 minutes · Otto scores each one, under ${PASS_SCORE} is rendered once more` : c.hfPreset ? "about a minute · product stays locked" : "about 20 seconds · product stays locked"}</span>
             </div>
           </>}
 
@@ -1432,11 +1480,26 @@ function Studio(props: Props) {
               keepTemplate(slug, id, on).then((r) => { if (r.ok) setTemplates((l) => (on ? [{ id, name: r.name ?? "Template" }, ...l] : l.filter((t) => t.id !== id))); setMsg(r.error ?? (on ? "Kept as a template — pick it in the creative plan" : null)); }).catch((e: Error) => setMsg(e.message.slice(0, 160))); } },
             ...(viewerNode?.type === "photo" ? {
               edit: (id, k) => edit(viewerNode.id, id, k), recheck: (id) => recheck(id, viewerNode.id),
+              ...(props.engines.photoModels.length ? { preset: { price: usd(presetPrice), of: (id: string) => presetOf(id, viewerNode.id),
+                again: (id: string) => { const p = presetOf(id, viewerNode.id); if (p) regen(viewerNode.id, p, true); },
+                choose: (id: string) => { setPresetFor({ node: viewerNode.id, regen: true, back: id }); setViewer(null); } } } : {}),
               ...(viewerChecks[0] ? { rerun: (id: string) => rerunOne(viewerChecks[0].id, id) } : {}),
               ...(viewerVideos.length ? { startClip: (id: string) => { viewerVideos.forEach((v) => patchNode(v.id, { from: id })); setMsg(`The clip${viewerVideos.length > 1 ? "s" : ""} will start from this photo.`); } } : {}),
             } : {}),
             ...(viewerSend ? { pick: { on: (id: string) => pickedFor(viewerSend.id).includes(id), toggle: (id: string) => { const cur = pickedFor(viewerSend.id); patchNode(viewerSend.id, { picked: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }); } } } : {}),
             remove: (id) => go(async () => { await deleteShot(slug, id); if (viewerNode) patchNode(viewerNode.id, { out: cfgOf(find(flowRef.current, viewerNode.id)!).out.filter((x) => x !== id) }, false); router.refresh(); }),
+          }} />
+      )}
+      {presetFor && (
+        <PresetPicker slug={slug} current={presetFor.regen ? presetOf(presetFor.back ?? null, presetFor.node)?.id ?? null : (() => { const X = find(flow, presetFor.node); return X ? cfgOf(X).hfPreset?.id ?? null : null; })()}
+          price={usd(presetPrice)} action={presetFor.regen ? "Regenerate with it" : "Use this preset"}
+          onClose={() => { const f = presetFor; setPresetFor(null); if (f.back) setViewer({ node: f.node, id: f.back }); }}
+          onPick={(p) => {
+            const f = presetFor; setPresetFor(null);
+            if (f.regen) { regen(f.node, p, Boolean(f.back)); return; }
+            // Presets render on Marketing Studio (Sunburst keeps the pack closest), four pictures at most a run.
+            const X = find(flowRef.current, f.node);
+            patchNode(f.node, { hfPreset: p, ...(X && modelOf(flowRef.current, X) === "ads" ? { model: "sunburst" } : {}), ...(X && cfgOf(X).n > 4 ? { n: 4 } : {}) });
           }} />
       )}
     </>

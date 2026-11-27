@@ -13,6 +13,7 @@ export function ResultViewer({ items, start, title, now, busy, checkOf, onClose,
   items: Shot[]; start: number; title: string; now: number; busy: boolean; checkOf: (id: string) => Check | null; onClose: () => void;
   actions: {
     design: (id: string) => void; template?: { on: (id: string) => boolean; toggle: (id: string) => void }; edit?: (id: string, k: Edit) => void; startClip?: (id: string) => void; rerun?: (id: string) => void; recheck?: (id: string) => void;
+    preset?: { price: string; of: (id: string) => { id: string; name: string } | null; again: (id: string) => void; choose: (id: string) => void };
     pick?: { on: (id: string) => boolean; toggle: (id: string) => void }; remove: (id: string) => void;
   };
 }) {
@@ -91,6 +92,14 @@ export function ResultViewer({ items, start, title, now, busy, checkOf, onClose,
           {!video && actions.template && <button type="button" className="btn" disabled={busy} onClick={() => actions.template!.toggle(shot.id)} style={{ justifyContent: "center" }}><Icon name={actions.template.on(shot.id) ? "check-circle" : "squares"} size={13} weight={actions.template.on(shot.id) ? "fill" : "regular"} color={actions.template.on(shot.id) ? "#1F8A5B" : undefined} />{actions.template.on(shot.id) ? "Kept as a template" : "Keep as a template"}</button>}
           {actions.pick && <button type="button" className="btn" onClick={() => actions.pick!.toggle(shot.id)} style={{ justifyContent: "center" }}><Icon name={actions.pick.on(shot.id) ? "check-circle" : "circle"} size={13} weight={actions.pick.on(shot.id) ? "fill" : "regular"} color={actions.pick.on(shot.id) ? "#1F8A5B" : undefined} />{actions.pick.on(shot.id) ? "Picked to send" : "Pick to send"}</button>}
         </div>
+        {!video && actions.preset && (() => { const p = actions.preset.of(shot.id); return (
+          <div className="col g6">
+            <span className="xs w5 i3">Regenerate · {actions.preset.price} a picture, the original stays</span>
+            <div className="row g4" style={{ flexWrap: "wrap" }}>
+              {p && <button type="button" className="btn sm" disabled={busy} title={`A new picture in “${p.name}”`} onClick={() => actions.preset!.again(shot.id)}><Icon name="refresh" size={12} /><span className="ell" style={{ maxWidth: 170 }}>{p.name}</span></button>}
+              <button type="button" className="btn sm" disabled={busy} onClick={() => actions.preset!.choose(shot.id)}><Icon name="squares" size={12} />{p ? "Another preset" : "Pick a preset"}</button>
+            </div>
+          </div>); })()}
         {!video && actions.edit && (
           <div className="col g6">
             <span className="xs w5 i3">Edit · a new photo, the original stays</span>

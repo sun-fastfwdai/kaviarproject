@@ -186,6 +186,40 @@ export async function hfPrices(): Promise<{ photo: number; photos: Partial<Recor
   return { photo: flare, photos: { flare, sunburst: precise?.usd ?? flare, ads: ad?.usd ?? ADS_APPROX }, video, videoSecond: main.second, soundSecond: main.sound, res: main.res };
 }
 
+/**
+ * Higgsfield's Marketing Studio presets (GET /marketing-studio/image/presets): ready-made shoot and ad set-ups. Sent as `preset_id`
+ * with `enhance_prompt: true`, Higgsfield writes the full prompt from the preset round the product photo (and a person, second).
+ * The catalogue changes on their side, so it is read again every few hours.
+ */
+export type HfPreset = { id: string; name: string; group: string; type: string; ratio: string | null; cover: string | null };
+type RawPreset = { id?: unknown; name?: unknown; type?: unknown; cover_image?: unknown; metadata?: { aspect_ratio?: unknown; group_name?: unknown } | null };
+const coverOf = (v: unknown): string | null => {
+  const u = typeof v === "string" ? v : v && typeof v === "object" ? ((v as { url?: unknown }).url ?? (v as { preview_url?: unknown }).preview_url) : null;
+  return typeof u === "string" && /^https:\/\//.test(u) ? u : null;
+};
+export async function hfPresets(): Promise<HfPreset[]> {
+  "use cache";
+  cacheLife("hours");
+  if (!hfReady()) return [];
+  const out: HfPreset[] = [];
+  let cursor: number | null = 0;
+  for (let page = 0; cursor != null && page < 8; page++) {
+    const r = await hfFetch(`/marketing-studio/image/presets?size=100&cursor=${cursor}`, { headers: headers(false) });
+    // Thrown, not returned, so a failed read isn't cached for hours.
+    if (!r.ok) throw new Error(await reason(r));
+    const body = (await r.json()) as { cursor?: unknown; items?: RawPreset[] };
+    for (const x of body.items ?? []) {
+      if (typeof x.id !== "string" || typeof x.name !== "string") continue;
+      const g = x.metadata?.group_name, ar = x.metadata?.aspect_ratio;
+      out.push({ id: x.id, name: x.name.trim().slice(0, 80), group: typeof g === "string" && g.trim() ? g.trim().slice(0, 40) : "Other", type: typeof x.type === "string" ? x.type : "",
+        ratio: typeof ar === "string" ? ar : null, cover: coverOf(x.cover_image) });
+    }
+    const next: number | null = typeof body.cursor === "number" && body.cursor > cursor ? body.cursor : null;
+    cursor = next;
+  }
+  return out;
+}
+
 /** Width/height of a PNG or JPEG, to keep an edit's framing. */
 export function imageSize(b: Buffer): { w: number; h: number } | null {
   if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };

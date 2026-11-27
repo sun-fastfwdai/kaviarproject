@@ -6,14 +6,14 @@ import { db, schema } from "@/lib/db";
 import { requireMember } from "@/lib/auth";
 import { aiReady } from "@/lib/ai/client";
 import { getBrand } from "@/lib/queries/brands";
-import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotList, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
+import { checkShot, describeReference, editShot, EDITS, finishVideoJob, makeCharacter, presetShoot, shoot, shootVideo, startVideoJob, suggestCharacter, wavSeconds, writeShotList, writeShotPrompt, type VideoJob, type EditKind, type PromptIn, type PromptOut, type ShotCheck } from "@/lib/creative/shoots";
 import type { AdPlan, ShootFlow, ShotPlan, Story } from "@/lib/db/schema";
 import { cleanPlan, planAds } from "@/lib/creative/adplan";
 import { STYLE } from "@/lib/creative/director";
 import { writeStoryboard } from "@/lib/creative/storyboard";
 import { cutAd } from "@/lib/creative/cut";
 import { keyframePrompt, LENGTHS } from "@/lib/creative/story";
-import { hfReady, imageSize } from "@/lib/creative/higgsfield";
+import { hfPresets, hfReady, imageSize, type HfPreset } from "@/lib/creative/higgsfield";
 import { storeImages } from "@/lib/shopify/media";
 import { deleteAssets, saveAsset } from "@/lib/assets/storage";
 import { layoutBatch } from "@/lib/creative/design";
@@ -41,6 +41,7 @@ export async function saveFlow(slug: string, flow: ShootFlow): Promise<{ at: str
     cfg: { ...n.cfg, ...(n.cfg?.prompt ? { prompt: n.cfg.prompt.slice(0, 2000) } : {}), ...(n.cfg?.rules ? { rules: n.cfg.rules.slice(0, 8) } : {}), ...(n.cfg?.brandRules ? { brandRules: n.cfg.brandRules.slice(0, 8) } : {}),
       ...(n.cfg?.n != null ? { n: Math.min(n.type === "video" ? 3 : 8, Math.max(1, Number(n.cfg.n) || 1)) } : {}), ...(n.cfg?.out ? { out: n.cfg.out.slice(0, 12) } : {}),
       ...(n.cfg?.creative ? { creative: cleanPlan(n.cfg.creative) } : {}), ...(n.cfg?.templates ? { templates: n.cfg.templates.filter((v) => /^[0-9a-f-]{36}$/i.test(String(v))).slice(0, 4) } : {}),
+      ...(n.cfg?.hfPreset !== undefined ? { hfPreset: n.cfg.hfPreset && /^[0-9a-f-]{36}$/i.test(String(n.cfg.hfPreset.id)) ? { id: String(n.cfg.hfPreset.id), name: String(n.cfg.hfPreset.name ?? "Preset").slice(0, 80), cover: typeof n.cfg.hfPreset.cover === "string" && /^https:\/\//.test(n.cfg.hfPreset.cover) ? n.cfg.hfPreset.cover.slice(0, 500) : null } : null } : {}),
       ...(n.cfg?.storyboard ? { storyboard: { ...n.cfg.storyboard, scenes: (n.cfg.storyboard.scenes ?? []).slice(0, 10).map((x) => ({ ...x, keyframe: String(x.keyframe ?? "").slice(0, 900), motion: String(x.motion ?? "").slice(0, 400), line: String(x.line ?? "").slice(0, 200), caption: String(x.caption ?? "").slice(0, 60) })) } } : {}),
       ...(n.cfg?.plan ? { plan: { ...n.cfg.plan, why: String(n.cfg.plan.why ?? "").slice(0, 240), shots: (n.cfg.plan.shots ?? []).slice(0, 8).map((x) => ({ ...x, action: String(x.action ?? "").slice(0, 300), line: String(x.line ?? "").slice(0, 140) })) } } : {}) },
   }));
@@ -138,6 +139,28 @@ export async function runShoot(slug: string, input: { product: string; imageUrl:
   if (plan && !items.length) return { error: "Nothing to render — plan the ads first." };
   const r = await shoot(brand.id, me.id, { ...input, prompt: input.prompt.slice(0, 4400), ads: plan ? { plan, items } : null });
   return r.ids.length ? { ids: r.ids, made: r.made, ...(r.error ? { error: `Some images failed: ${r.error}` } : {}) } : { error: r.error ?? "No image came back." };
+}
+
+/** Higgsfield's Marketing Studio presets, for the preset picker (cover, name, group). */
+export async function listPresets(slug: string): Promise<{ presets?: HfPreset[]; error?: string }> {
+  await requireMember();
+  await getBrand(slug);
+  if (!hfReady()) return { error: "Presets come from Higgsfield — it’s set up on the deployed app." };
+  try {
+    const presets = await hfPresets();
+    return presets.length ? { presets } : { error: "Higgsfield returned no presets for this account." };
+  } catch (e) { return { error: (e as Error).message.slice(0, 160) }; }
+}
+
+/** Pictures in one of Higgsfield's presets, from the product photo (and the person, when a Character is wired in). */
+export async function runPreset(slug: string, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+  const me = await requireMember();
+  const brand = await getBrand(slug);
+  if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
+  if (!/^[0-9a-f-]{36}$/i.test(String(input.presetId))) return { error: "Pick a preset." };
+  const aspect = (["4:5", "9:16", "1:1"] as const).find((x) => x === input.aspect) ?? "4:5";
+  const r = await presetShoot(brand.id, me.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, presetId: input.presetId, aspect, n: Math.min(4, Math.max(1, Math.round(Number(input.n) || 1))), characterId: input.characterId ?? null, model: input.model ?? null });
+  return r.ids.length ? { ids: r.ids, ...(r.error ? { error: `Some pictures failed: ${r.error}` } : {}) } : { error: r.error ?? "No picture came back." };
 }
 
 export async function runCheck(slug: string, assetId: string, referenceUrl: string, product: string): Promise<{ check?: ShotCheck; error?: string }> {

@@ -13,7 +13,7 @@ import type { ShootFlow, ShootNode, ShootSource, Story } from "@/lib/db/schema";
 import { PASS_SCORE, flagOf, passes, totalOf, type AdCheck } from "@/lib/creative/rubric";
 
 export type Check = AdCheck;
-export type Shot = { id: string; kind: "image" | "video"; product: string | null; prompt: string | null; check: Check | null; edit: string | null; seconds: number | null; at: string; engine: string | null; cost: number | null; sound: boolean; scene?: string | null };
+export type Shot = { id: string; kind: "image" | "video"; product: string | null; prompt: string | null; check: Check | null; edit: string | null; seconds: number | null; at: string; engine: string | null; cost: number | null; sound: boolean; scene?: string | null; preset?: { id: string; name: string } | null };
 export type Product = { title: string; url: string; price: number | null; stock: number | null };
 export type Signal = { key: string; data: string; value: string | null; group: string; evidence: [string, string][] };
 export type Lesson = { dimension: string; lesson: string; evidence: string; strength: "Strong" | "Early" | "Weak" };

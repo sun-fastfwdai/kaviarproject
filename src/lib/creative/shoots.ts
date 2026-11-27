@@ -6,7 +6,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { ask } from "../ai/client";
 import { fetchPublic } from "../ai/site";
-import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_ADS, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfImage, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
+import { DEFAULT_PHOTO, DEFAULT_VIDEO, HF_ADS, HF_PHOTO, PHOTO_MODELS, VIDEO_MODELS, isPhotoModel, type PhotoModel, hfDownload, hfEstimate, hfImage, hfPresets, type HfPreset, hfPrices, hfReady, hfRun, hfStatus, hfSubmit, hfUpload, imageSize, isVideoModel, nearestRatio, type Rate, type VideoModel } from "./higgsfield";
 import { ANGLES, CAMERA, PRO_RULES, SIZES, STYLE, autoShots, fitTimes } from "./director";
 import type { AdPlan, ShotPlan } from "../db/schema";
 import { adBrief, planAds } from "./adplan";
@@ -263,6 +263,50 @@ export async function editShot(brandId: string, memberId: string, assetId: strin
     const m = (err as Error).message ?? "";
     return { error: /credit|billing|payment|insufficient/i.test(m) ? "AI Gateway has no credits on this Vercel team." : /auth|token|unauthor/i.test(m) ? "AI Gateway works on the deployed app (Vercel signs the requests)." : `The image model failed: ${m.slice(0, 120)}` };
   }
+}
+
+/**
+ * Pictures from one of Higgsfield's presets: the real product photo goes in first (and the person second), the preset's set-up is built
+ * round it. Higgsfield writes the full prompt from the preset; ours only names the product and holds it to the real one.
+ * Sunburst keeps the pack closest; Flare is used when the node asks for it, or when Sunburst returns nothing.
+ */
+export async function presetShoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null }): Promise<ShootOut> {
+  if (!hfReady()) return { ids: [], error: "Presets need Higgsfield — it’s set up on the deployed app." };
+  const p = (await hfPresets().catch(() => [] as HfPreset[])).find((x) => x.id === input.presetId);
+  if (!p) return { ids: [], error: "That preset isn’t on Higgsfield any more — pick another." };
+  const urls = [input.imageUrl];
+  let person = false;
+  if (input.characterId) {
+    const [c] = await readAssets(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "character")));
+    if (c) { const u = await hfUpload(c.data, c.mime).catch(() => ""); if (u) { urls.push(u); person = true; } }
+  }
+  const prompt = `${input.product}. Reference image 1 is the real product: keep it exactly — same shape, cap, label, colours and printed text.${person ? " Reference image 2 is the person: the same face, hair, skin tone and build, shown once." : ""}`;
+  const body = { prompt: prompt.slice(0, 5000), image_urls: urls, preset_id: p.id, enhance_prompt: true, aspect_ratio: input.aspect === "4:5" ? "3:4" : input.aspect, resolution: "2k", quality: "high" };
+  let model: "sunburst" | "flare" = input.model === "flare" ? "flare" : "sunburst";
+  const count = Math.min(4, Math.max(1, input.n));
+  const quote = hfEstimate(PHOTO_MODELS[model].path, body).catch(() => null);
+  let runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS[model].path, body, 200_000)));
+  if (model === "sunburst" && runs.every((r) => !r.out?.images?.[0]?.url) && !runs.some((r) => /credit|safety|busy/i.test(r.error ?? ""))) {
+    console.error("higgsfield preset", p.id, "sunburst returned nothing — using flare:", runs[0]?.error);
+    model = "flare";
+    runs = await Promise.all(Array.from({ length: count }, () => hfRun(PHOTO_MODELS.flare.path, body, 170_000)));
+  }
+  const price = (model === "sunburst" ? await quote : null) ?? (await hfPrices().catch(() => null))?.photos[model] ?? null;
+  const ids: string[] = [];
+  let error: string | undefined;
+  for (const r of runs) {
+    const url = r.out?.images?.[0]?.url;
+    if (!url) { error = r.error ?? "No image came back."; continue; }
+    try {
+      const img = await hfImage(url);
+      const [row] = await saveAsset({
+        brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · ${p.name.slice(0, 40)}`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
+        meta: { ai: true, prompt: `Higgsfield preset · ${p.group} · ${p.name}`, product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name} · ${p.name}`, preset: { id: p.id, name: p.name }, ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
+      });
+      ids.push(row.id);
+    } catch (e) { error = (e as Error).message; }
+  }
+  return { ids, error };
 }
 
 const CheckOut = z.object({

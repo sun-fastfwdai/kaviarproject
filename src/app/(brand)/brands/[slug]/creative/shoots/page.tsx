@@ -87,6 +87,6 @@ export default async function ShootsPage({ params, searchParams }: PageProps<"/b
       lessons={(notes.insights?.lessons ?? []).map((l) => ({ dimension: l.dimension, lesson: l.lesson, evidence: l.evidence, strength: l.strength }))}
       products={list} refs={refs} templates={templates} store={storePics.slice(0, 48).map((m) => ({ url: m.url, name: m.alt?.trim() || m.product }))}
       shots={shots.map((s) => ({ id: s.id, kind: s.mime.startsWith("video/") ? "video" as const : "image" as const, product: s.meta.product ?? null, prompt: s.meta.prompt ?? null,
-        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound), scene: s.meta.scene ?? null }))} />
+        check: s.meta.check ?? null, edit: s.meta.edit ?? null, seconds: s.meta.seconds ?? null, at: s.createdAt.toISOString(), engine: s.meta.engine ?? null, cost: s.meta.cost ?? null, sound: Boolean(s.meta.sound), scene: s.meta.scene ?? null, preset: s.meta.preset ?? null }))} />
   );
 }
