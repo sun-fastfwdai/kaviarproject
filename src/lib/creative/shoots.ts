@@ -266,12 +266,15 @@ export async function editShot(brandId: string, memberId: string, assetId: strin
 }
 
 /**
- * Pictures from one of Higgsfield's presets: the real product photo goes in first (and the person second), the preset's set-up is built
- * round it. Higgsfield writes the full prompt from the preset; ours only names the product and holds it to the real one.
+ * Ads from one of Higgsfield's presets: the real product photo goes in first (and the person second), the preset's layout, scene and
+ * type are built round it. The presets are finished ads — Higgsfield writes their words — so ours names the brand and the product,
+ * holds the pack to the real one and limits the words to what the pack and the plan's facts support. Otto scores them as finished ads.
  * Sunburst keeps the pack closest; Flare is used when the node asks for it, or when Sunburst returns nothing.
  */
-export async function presetShoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null }): Promise<ShootOut> {
+export async function presetShoot(brandId: string, memberId: string | null, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null; facts?: string[] }): Promise<ShootOut> {
   if (!hfReady()) return { ids: [], error: "Presets need Higgsfield — it’s set up on the deployed app." };
+  const [b] = await db.select({ name: schema.brands.name }).from(schema.brands).where(eq(schema.brands.id, brandId));
+  const facts = (input.facts ?? []).map((f) => f.trim()).filter(Boolean).slice(0, 8);
   const p = (await hfPresets().catch(() => [] as HfPreset[])).find((x) => x.id === input.presetId);
   if (!p) return { ids: [], error: "That preset isn’t on Higgsfield any more — pick another." };
   const urls = [input.imageUrl];
@@ -280,7 +283,12 @@ export async function presetShoot(brandId: string, memberId: string | null, inpu
     const [c] = await readAssets(and(eq(schema.brandAssets.id, input.characterId), eq(schema.brandAssets.brandId, brandId), eq(schema.brandAssets.kind, "character")));
     if (c) { const u = await hfUpload(c.data, c.mime).catch(() => ""); if (u) { urls.push(u); person = true; } }
   }
-  const prompt = `${input.product}. Reference image 1 is the real product: keep it exactly — same shape, cap, label, colours and printed text.${person ? " Reference image 2 is the person: the same face, hair, skin tone and build, shown once." : ""}`;
+  const prompt = [
+    `An ad for ${b?.name ?? "the brand"}: ${input.product}.`,
+    "Reference image 1 is the real product: keep it exactly — same shape, cap, label, colours and printed text.",
+    person ? "Reference image 2 is the person: the same face, hair, skin tone and build, shown once." : "",
+    `Words on the ad: only what the pack says${facts.length ? ` and these facts: ${facts.join("; ")}` : ""}. No price, discount, percentage, rating, review, quote, award or medical claim that is not given here. No drawn button.`,
+  ].filter(Boolean).join(" ");
   const body = { prompt: prompt.slice(0, 5000), image_urls: urls, preset_id: p.id, enhance_prompt: true, aspect_ratio: input.aspect === "4:5" ? "3:4" : input.aspect, resolution: "2k", quality: "high" };
   let model: "sunburst" | "flare" = input.model === "flare" ? "flare" : "sunburst";
   const count = Math.min(4, Math.max(1, input.n));
@@ -301,7 +309,9 @@ export async function presetShoot(brandId: string, memberId: string | null, inpu
       const img = await hfImage(url);
       const [row] = await saveAsset({
         brandId, kind: "imagery", name: `${input.product.slice(0, 40)} · ${p.name.slice(0, 40)}`, mime: img.mime.startsWith("image/") ? img.mime : "image/png", size: img.data.byteLength, data: img.data,
-        meta: { ai: true, prompt: `Higgsfield preset · ${p.group} · ${p.name}`, product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name} · ${p.name}`, preset: { id: p.id, name: p.name }, ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
+        meta: { ai: true, finished: true, prompt: `Higgsfield preset · ${p.group} · ${p.name}`, product: input.product, engine: `Higgsfield · ${PHOTO_MODELS[model].name} · ${p.name}`, preset: { id: p.id, name: p.name },
+          // The preset writes the words, so Otto holds them to the facts the ad was allowed (and the pack), not to a headline.
+          ...(facts.length ? { concept: { angle: `Higgsfield preset · ${p.name}`, headline: "", sub: "", callouts: [], facts } } : {}), ...(price != null ? { cost: price } : {}) }, createdBy: memberId,
       });
       ids.push(row.id);
     } catch (e) { error = (e as Error).message; }
@@ -360,7 +370,7 @@ fixes: when the total is under 85 or a check fails, the up to three changes that
       content: [
         { type: "text", text: `Reference: the real product “${product}”.` },
         { type: "image", source: { type: "url", url: referenceUrl } },
-        { type: "text", text: `The brief: ${JSON.stringify(c ? { angle: c.angle, headline: c.headline, supportingLine: c.sub, callouts: c.callouts, factsItMayUse: c.facts } : { note: "No brief was kept for this ad: judge the claims against what is printed on the pack." })}\nThe rendered ad:` },
+        { type: "text", text: `The brief: ${JSON.stringify(c ? { angle: c.angle, ...(c.headline ? { headline: c.headline, supportingLine: c.sub, callouts: c.callouts } : { words: "written by the ad template — judge every claim against these facts and the pack" }), factsItMayUse: c.facts } : { note: "No brief was kept for this ad: judge the claims against what is printed on the pack." })}\nThe rendered ad:` },
         picture,
       ],
       schema: CritiqueOut,

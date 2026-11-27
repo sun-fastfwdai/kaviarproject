@@ -442,7 +442,10 @@ function Studio(props: Props) {
     if (!prod) { fail(xid, "Wire a Product node into this Photo node — directly or through the Prompt."); return null; }
     const chNode = up(g, xid, "character");
     mark(xid, "running");
-    const r = await runPreset(slug, { product: prod.title, imageUrl: prod.url, presetId: preset.id, aspect: cfgOf(X).aspect, n, characterId: chNode ? cfgOf(chNode).characterId : null, model: modelOf(g, X) });
+    // The facts Iris found for this product's plan (when there is one) are all a preset's words may claim.
+    const home = cfgOf(planHome(g, X)), forUrl = (() => { try { return (JSON.parse(home.creativeFor ?? "[]") as unknown[])[0]; } catch { return null; } })();
+    const facts = forUrl === prod.url ? (planOf(g, X)?.facts ?? []).map((f) => f.fact) : [];
+    const r = await runPreset(slug, { product: prod.title, imageUrl: prod.url, presetId: preset.id, aspect: cfgOf(X).aspect, n, characterId: chNode ? cfgOf(chNode).characterId : null, model: modelOf(g, X), facts });
     if (!r.ids?.length) { fail(xid, r.error ?? "No picture came back."); return null; }
     if (r.error) setMsg(r.error);
     const ids = r.ids, cur = cfgOf(find(flowRef.current, xid) ?? X).out;
@@ -1325,7 +1328,7 @@ function Studio(props: Props) {
                 <span className="row g10 xs"><a className="lnk i2" href={asset(focusShot.id)} download>Download</a><button type="button" className="lnk i3" onClick={() => go(async () => { await deleteShot(slug, focusShot.id); setFocus(null); patchNode(n.id, { out: cfgOf(find(flowRef.current, n.id)!).out.filter((x) => x !== focusShot.id) }, false); router.refresh(); })}>Delete</button></span>
               </div>}
               <div className="row g4" style={{ flexWrap: "wrap" }}>{[...nMine, ...nEarlier.map((s) => s.id)].slice(0, 24).map((x) => <Thumb key={x} id={x} w={56} h={56} ring={focus === x} flag={flagOf(checkOf(x))} onClick={() => setFocus(x)} />)}</div>
-              {nEarlier.length > 0 && <span className="xs i3">{nEarlier.length} nEarlier · all are in the Editor’s Media panel too</span>}
+              {nEarlier.length > 0 && <span className="xs i3">{nEarlier.length} earlier · all are in the Editor’s Media panel too</span>}
             </Field>}
             <div className="col g6" style={{ flexShrink: 0, marginTop: "auto" }}>
               <button type="button" className="btn dark" disabled={busy} onClick={() => runNode(n.id)} style={{ justifyContent: "center" }}><Icon name="play" size={12} weight="fill" color="#fff" />Run this node · {usd(c.hfPreset ? Math.min(4, c.n) * presetPrice : c.n * perImage)}</button>

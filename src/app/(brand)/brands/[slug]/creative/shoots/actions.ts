@@ -153,13 +153,14 @@ export async function listPresets(slug: string): Promise<{ presets?: HfPreset[];
 }
 
 /** Pictures in one of Higgsfield's presets, from the product photo (and the person, when a Character is wired in). */
-export async function runPreset(slug: string, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null }): Promise<{ ids?: string[]; error?: string }> {
+export async function runPreset(slug: string, input: { product: string; imageUrl: string; presetId: string; aspect: "4:5" | "9:16" | "1:1"; n: number; characterId?: string | null; model?: string | null; facts?: string[] }): Promise<{ ids?: string[]; error?: string }> {
   const me = await requireMember();
   const brand = await getBrand(slug);
   if (!/^https:\/\//.test(input.imageUrl)) return { error: "Pick a product photo." };
   if (!/^[0-9a-f-]{36}$/i.test(String(input.presetId))) return { error: "Pick a preset." };
   const aspect = (["4:5", "9:16", "1:1"] as const).find((x) => x === input.aspect) ?? "4:5";
-  const r = await presetShoot(brand.id, me.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, presetId: input.presetId, aspect, n: Math.min(4, Math.max(1, Math.round(Number(input.n) || 1))), characterId: input.characterId ?? null, model: input.model ?? null });
+  const r = await presetShoot(brand.id, me.id, { product: String(input.product).slice(0, 200), imageUrl: input.imageUrl, presetId: input.presetId, aspect, n: Math.min(4, Math.max(1, Math.round(Number(input.n) || 1))), characterId: input.characterId ?? null, model: input.model ?? null,
+    facts: (Array.isArray(input.facts) ? input.facts : []).filter((v): v is string => typeof v === "string").slice(0, 8).map((v) => v.slice(0, 200)) });
   return r.ids.length ? { ids: r.ids, ...(r.error ? { error: `Some pictures failed: ${r.error}` } : {}) } : { error: r.error ?? "No picture came back." };
 }
 
